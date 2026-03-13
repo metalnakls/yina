@@ -83,7 +83,7 @@ class Titlebar: NSView {
     background.material = .titlebar
     background.wantsLayer = true
     background.layerContentsRedrawPolicy = .onSetNeedsDisplay
-    background.state = .active
+    background.state = .followsWindowActiveState
     addSubview(background)
     background.padding(.top, .bottom(1))
     backgroundLeadingConstraint = background.leadingAnchor.constraint(equalTo: leadingAnchor)

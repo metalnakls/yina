@@ -36,7 +36,7 @@ class TranslucentView: NSView {
 
   override func viewDidMoveToWindow() {
     if let vev = container as? NSVisualEffectView {
-      vev.state = .active
+      vev.state = .followsWindowActiveState
     }
   }
 
