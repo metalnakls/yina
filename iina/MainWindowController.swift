@@ -680,7 +680,7 @@ class MainWindowController: PlayerWindowController {
     // other initialization
     cachedScreens = NSScreen.screens
     [pipOverlayView].forEach {
-      $0?.state = .active
+      $0?.state = .followsWindowActiveState
     }
     let pipBackgroundView = NSView()
     pipBackgroundView.translatesAutoresizingMaskIntoConstraints = false

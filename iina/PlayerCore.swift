@@ -2615,13 +2615,14 @@ class PlayerCore: NSObject {
   }
 
   private func autoSearchOnlineSub() {
-    Thread.sleep(forTimeInterval: 0.5)
-    if Preference.bool(for: .autoSearchOnlineSub) && !info.isNetworkResource &&
-      (info.videoDuration?.second ?? 0.0) >= Preference.double(for: .autoSearchThreshold) * 60 {
-      info.$subTracks.withLock {
-        if $0.isEmpty {
-          DispatchQueue.main.async {
-            self.mainWindow.menuActionHandler.menuFindOnlineSub(.dummy)
+    DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 0.5) { [self] in
+      if Preference.bool(for: .autoSearchOnlineSub) && !info.isNetworkResource &&
+        (info.videoDuration?.second ?? 0.0) >= Preference.double(for: .autoSearchThreshold) * 60 {
+        info.$subTracks.withLock {
+          if $0.isEmpty {
+            DispatchQueue.main.async {
+              self.mainWindow.menuActionHandler.menuFindOnlineSub(.dummy)
+            }
           }
         }
       }
@@ -2744,6 +2745,7 @@ class PlayerCore: NSObject {
       target: self,
       selector: #selector(self.syncUITime),
     )
+    syncUITimer?.tolerance = timeInterval * 0.1
   }
 
   func notifyWindowVideoSizeChanged() {
