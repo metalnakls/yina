@@ -10,7 +10,6 @@ fileprivate let ui = UIHelper.shared
 
 
 class SidebarSubtitlesPane: SidebarScrollView {
-  let prefObserver = Preference.Observer()
   weak var player: PlayerCore!
 
   init(player: PlayerCore) {
@@ -378,6 +377,7 @@ fileprivate class SubPositionDelayView: NSView {
 
 fileprivate class SubStyleView: NSView {
   private unowned let player: PlayerCore
+  private let prefObserver = Preference.Observer()
 
   private var scaleSlider: NSSlider!
   private var fontChooser: NSButton!
@@ -483,6 +483,16 @@ fileprivate class SubStyleView: NSView {
 
     updateScale()
     updateTextStyle()
+    prefObserver.addAll([
+      .subTextFont,
+      .subTextSize,
+      .subTextColorString,
+      .subBgColorString,
+      .subBorderSize,
+      .subBorderColorString,
+    ]) { [unowned self] _ in
+      updateTextStyle()
+    }
     player.observe(.iinaSubScaleChanged) { [unowned self] _ in
       updateScale()
     }
@@ -509,33 +519,32 @@ fileprivate class SubStyleView: NSView {
   }
 
   private func updateScale() {
-    let subFont = player.mpv.getString(MPVOption.Subtitles.subFont) ??
-      NSLocalizedString("sidebar.font", comment: "");
-    fontChooser.title = subFont
-
     let currSubScale = player.mpv.getDouble(MPVOption.Subtitles.subScale).clamped(to: 0.1...10)
     let displaySubScale = Utility.toDisplaySubScale(fromRealSubScale: currSubScale)
     scaleSlider.doubleValue = displaySubScale + (displaySubScale > 0 ? -1 : 1)
   }
 
   private func updateTextStyle() {
-    let fontSize = player.mpv.getInt(MPVOption.Subtitles.subFontSize)
-    fontSizePicker.selectItem(withTitle: fontSize.description)
+    fontChooser.title = Preference.string(for: .subTextFont) ?? "sans-serif"
 
-    let borderWidth = player.mpv.getDouble(MPVOption.Subtitles.subOutlineSize)
+    let fontSize = Preference.float(for: .subTextSize)
+    fontSizePicker.selectItem(withTitle: String(format: "%g", fontSize))
+
+    let borderWidth = Preference.float(for: .subBorderSize)
     borderSizePicker.selectItem(at: -1)
     borderSizePicker.itemArray.forEach { item in
-      if borderWidth == Double(item.title) {
+      if Double(borderWidth) == Double(item.title) {
         borderSizePicker.select(item)
       }
     }
 
-    for (op, colorWell) in [
-      (MPVOption.Subtitles.subColor, textColorWell),
-      (MPVOption.Subtitles.subOutlineColor, borderColorWell),
-      (MPVOption.Subtitles.subBackColor, backgroundColorWell),
+    for (key, colorWell) in [
+      (Preference.Key.subTextColorString, textColorWell),
+      (Preference.Key.subBorderColorString, borderColorWell),
+      (Preference.Key.subBgColorString, backgroundColorWell),
     ] {
-      if let colorString = player.mpv.getString(op), let color = NSColor(mpvColorString: colorString) {
+      if let colorString = Preference.string(for: key),
+         let color = NSColor(mpvColorString: colorString) {
         colorWell?.color = color
       }
     }

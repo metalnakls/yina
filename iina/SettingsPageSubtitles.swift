@@ -320,7 +320,6 @@ fileprivate class SubtitlesFontView: SettingsAccessory.Base {
     let subFont = Preference.string(for: .subTextFont)
     Utility.quickFontPickerWindow(selecting: subFont, sheetWindow: view.window!) { font in
       Preference.set(font ?? "sans-serif", for: .subTextFont)
-      UserDefaults.standard.synchronize()
     }
   }
 }
