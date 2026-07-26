@@ -28,6 +28,7 @@ class SettingsPageSubtitles: SettingsPage {
 
   private lazy var subtitlesASSView: SubtitlesASSView = SubtitlesASSView()
   private lazy var subtitlesFontView: SubtitlesFontView = SubtitlesFontView()
+  private lazy var subtitlesScaleView: SubtitlesScaleView = SubtitlesScaleView()
   private lazy var subtitlesColorView: SubtitlesColorView = SubtitlesColorView()
   private lazy var subtitlesBorderView: SubtitlesBorderView = SubtitlesBorderView()
   private lazy var subtitlesShadowView: SubtitlesShadowView = SubtitlesShadowView()
@@ -86,6 +87,9 @@ class SettingsPageSubtitles: SettingsPage {
         SettingsItem.General(title: .text_Font)
           .image(name: "textformat")
           .withValueView(subtitlesFontView.view)
+        SettingsItem.General(title: .text_Size)
+          .image(name: "plus.magnifyingglass")
+          .withDetailView(subtitlesScaleView)
         SettingsItem.General(title: .text_Color)
           .image(name: "paintpalette")
           .withValueView(subtitlesColorView.view)
@@ -296,8 +300,6 @@ fileprivate class SubtitlesFontView: SettingsAccessory.Base {
     fontButton.bind(.title, to: UserDefaults.standard, withKeyPath: Preference.Key.subTextFont.rawValue)
     fontButton.size(height: 25)
 
-    let sizeInput = ui.input(bindTo: .subTextSize, range: 1...9000, allowsFloats: true)
-
     let boldButton = SButton(image: .sf("bold"))
     boldButton.translatesAutoresizingMaskIntoConstraints = false
     boldButton.setButtonType(.toggle)
@@ -310,7 +312,7 @@ fileprivate class SubtitlesFontView: SettingsAccessory.Base {
     italicButton.cell!.bind(.state, to: UserDefaults.standard, withKeyPath: Preference.Key.subItalic.rawValue)
     italicButton.size(width: 32, height: 25)
 
-    let stackView = ui.hStack(fontButton, sizeInput, boldButton, italicButton)
+    let stackView = ui.hStack(fontButton, boldButton, italicButton)
 
     view.addSubview(stackView)
     stackView.padding(.top(8), .bottom(8), .leading, .trailing)
@@ -321,6 +323,60 @@ fileprivate class SubtitlesFontView: SettingsAccessory.Base {
     Utility.quickFontPickerWindow(selecting: subFont, sheetWindow: view.window!) { font in
       Preference.set(font ?? "sans-serif", for: .subTextFont)
     }
+  }
+}
+
+
+fileprivate class SubtitlesScaleView: SettingsAccessory.Base {
+  private let prefObserver = Preference.Observer()
+  private let slider = NSSlider()
+  private let valueLabel = NSTextField(labelWithString: "100%")
+
+  override init() {
+    super.init()
+
+    slider.translatesAutoresizingMaskIntoConstraints = false
+    slider.minValue = -2
+    slider.maxValue = 2
+    slider.numberOfTickMarks = 5
+    slider.tickMarkPosition = .below
+    slider.allowsTickMarkValuesOnly = false
+    slider.isContinuous = true
+    slider.target = self
+    slider.action = #selector(sliderAction)
+    slider.widthAnchor.constraint(greaterThanOrEqualToConstant: 240).isActive = true
+
+    valueLabel.alignment = .right
+    valueLabel.font = .monospacedDigitSystemFont(ofSize: NSFont.smallSystemFontSize, weight: .regular)
+    valueLabel.textColor = .secondaryLabelColor
+    valueLabel.size(width: 44)
+
+    let stack = ui.hStack(slider, valueLabel)
+    view.addSubview(stack)
+    stack.padding(.vertical(8), .leading, .trailing)
+
+    update()
+    prefObserver.add(.subScale) { [unowned self] _ in
+      update()
+    }
+  }
+
+  private func update() {
+    let scale = Double(Preference.float(for: .subScale))
+    slider.doubleValue = SubtitleScale.sliderValue(for: scale)
+    valueLabel.stringValue = SubtitleScale.percentText(for: scale)
+  }
+
+  @objc private func sliderAction(_ sender: NSSlider) {
+    let scale = SubtitleScale.scale(for: sender.doubleValue)
+    valueLabel.stringValue = SubtitleScale.percentText(for: scale)
+    guard isInteractionEnding else { return }
+    Preference.set(Float(scale), for: .subScale)
+  }
+
+  private var isInteractionEnding: Bool {
+    guard let eventType = NSApp.currentEvent?.type else { return true }
+    return eventType != .leftMouseDown && eventType != .leftMouseDragged
   }
 }
 

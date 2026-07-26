@@ -294,7 +294,9 @@ fileprivate class SubDelayView: SidebarSliderView {
 
 fileprivate class SubPositionDelayView: NSView {
   private unowned let player: PlayerCore
-  var isPrimary: Bool = true
+  private let prefObserver = Preference.Observer()
+  private var isPrimary = true
+  private var isDefaultSnapLatched = false
 
   private var primarySwitch: NSSegmentedControl!
   private var positionSlider: NSSlider!
@@ -312,12 +314,17 @@ fileprivate class SubPositionDelayView: NSView {
     primarySwitch.setLabel(NSLocalizedString("sidebar.primary", comment: ""), forSegment: 0)
     primarySwitch.setLabel(NSLocalizedString("sidebar.secondary", comment: ""), forSegment: 1)
     primarySwitch.selectedSegment = 0
+    primarySwitch.target = self
+    primarySwitch.action = #selector(switchAction)
     primarySwitch.setContentHuggingPriority(.init(100), for: .horizontal)
     primarySwitch.segmentDistribution = .fillEqually
 
     self.positionSlider = NSSlider()
     positionSlider.minValue = 0
-    positionSlider.maxValue = 100
+    positionSlider.maxValue = 150
+    positionSlider.numberOfTickMarks = 4
+    positionSlider.tickMarkPosition = .below
+    positionSlider.allowsTickMarkValuesOnly = false
     positionSlider.controlSize = .small
     positionSlider.target = self
     positionSlider.action = #selector(positionAction)
@@ -346,7 +353,7 @@ fileprivate class SubPositionDelayView: NSView {
     stack.padding(.all)
 
     update()
-    player.observe(.iinaSubPositionChanged) { [unowned self] _ in
+    prefObserver.addAll([.subPos, .secondarySubPos]) { [unowned self] _ in
       updatePosition()
     }
   }
@@ -357,17 +364,41 @@ fileprivate class SubPositionDelayView: NSView {
   }
 
   private func updatePosition() {
-    let posOption = isPrimary ? MPVOption.Subtitles.subPos : MPVOption.Subtitles.secondarySubPos
-    positionSlider.intValue = Int32(player.mpv.getInt(posOption))
+    let key: Preference.Key = isPrimary ? .subPos : .secondarySubPos
+    positionSlider.floatValue = Preference.float(for: key)
   }
 
   @objc private func switchAction(_ sender: AnyObject) {
     isPrimary = primarySwitch.selectedSegment == 0
+    isDefaultSnapLatched = false
     update()
   }
 
   @objc private func positionAction(_ sender: AnyObject) {
-    player.setSubPos(Int(positionSlider.intValue), forPrimary: isPrimary)
+    let canonicalPosition = isPrimary ? 100 : 0
+    var position = Int(positionSlider.intValue)
+    let distance = abs(position - canonicalPosition)
+    if distance <= 2 {
+      position = canonicalPosition
+      positionSlider.intValue = Int32(position)
+      if !isDefaultSnapLatched {
+        NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
+        isDefaultSnapLatched = true
+      }
+    } else if distance >= 4 {
+      isDefaultSnapLatched = false
+    }
+
+    player.previewSubPos(position, forPrimary: isPrimary)
+    if isInteractionEnding {
+      player.setSubPos(position, forPrimary: isPrimary)
+      isDefaultSnapLatched = false
+    }
+  }
+
+  private var isInteractionEnding: Bool {
+    guard let eventType = NSApp.currentEvent?.type else { return true }
+    return eventType != .leftMouseDown && eventType != .leftMouseDragged
   }
   required init?(coder: NSCoder) {
     fatalError("init(coder:) has not been implemented")
@@ -381,7 +412,6 @@ fileprivate class SubStyleView: NSView {
 
   private var scaleSlider: NSSlider!
   private var fontChooser: NSButton!
-  private var fontSizePicker: NSPopUpButton!
   private var borderSizePicker: NSPopUpButton!
   private var textColorWell: NSColorWell!
   private var backgroundColorWell: NSColorWell!
@@ -394,8 +424,11 @@ fileprivate class SubStyleView: NSView {
     translatesAutoresizingMaskIntoConstraints = false
 
     self.scaleSlider = NSSlider()
-    scaleSlider.minValue = -5
-    scaleSlider.maxValue = 5
+    scaleSlider.minValue = -2
+    scaleSlider.maxValue = 2
+    scaleSlider.numberOfTickMarks = 5
+    scaleSlider.tickMarkPosition = .below
+    scaleSlider.allowsTickMarkValuesOnly = false
     scaleSlider.controlSize = .small
     scaleSlider.target = self
     scaleSlider.action = #selector(scaleAction)
@@ -416,14 +449,6 @@ fileprivate class SubStyleView: NSView {
     fontChooser.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
     fontChooser.target = self
     fontChooser.action = #selector(chooseSubFontAction)
-
-    self.fontSizePicker = NSPopUpButton()
-    for i in stride(from: 25, through: 75, by: 5) {
-      fontSizePicker.addItem(withTitle: "\(i)")
-    }
-    fontSizePicker.size(width: 60)
-    fontSizePicker.target = self
-    fontSizePicker.action = #selector(chooseSubFontSizeAction)
 
     self.borderSizePicker = NSPopUpButton()
     borderSizePicker.addItems(withTitles: [
@@ -451,7 +476,6 @@ fileprivate class SubStyleView: NSView {
         ui.label("sidebar.font", font: .boldSystemFont(ofSize: 12)),
         ui.flexibleSpace(),
         fontChooser,
-        fontSizePicker,
       ),
       ui.hStack(
         spacing: 8,
@@ -485,13 +509,15 @@ fileprivate class SubStyleView: NSView {
     updateTextStyle()
     prefObserver.addAll([
       .subTextFont,
-      .subTextSize,
       .subTextColorString,
       .subBgColorString,
       .subBorderSize,
       .subBorderColorString,
     ]) { [unowned self] _ in
       updateTextStyle()
+    }
+    prefObserver.add(.subScale) { [unowned self] _ in
+      updateScale()
     }
     player.observe(.iinaSubScaleChanged) { [unowned self] _ in
       updateScale()
@@ -520,15 +546,11 @@ fileprivate class SubStyleView: NSView {
 
   private func updateScale() {
     let currSubScale = player.mpv.getDouble(MPVOption.Subtitles.subScale).clamped(to: 0.1...10)
-    let displaySubScale = Utility.toDisplaySubScale(fromRealSubScale: currSubScale)
-    scaleSlider.doubleValue = displaySubScale + (displaySubScale > 0 ? -1 : 1)
+    scaleSlider.doubleValue = SubtitleScale.sliderValue(for: currSubScale)
   }
 
   private func updateTextStyle() {
     fontChooser.title = Preference.string(for: .subTextFont) ?? "sans-serif"
-
-    let fontSize = Preference.float(for: .subTextSize)
-    fontSizePicker.selectItem(withTitle: String(format: "%g", fontSize))
 
     let borderWidth = Preference.float(for: .subBorderSize)
     borderSizePicker.selectItem(at: -1)
@@ -556,26 +578,20 @@ fileprivate class SubStyleView: NSView {
   }
 
   @objc private func scaleAction(_ sender: AnyObject) {
-    let value = scaleSlider.doubleValue
-    let mappedValue: Double, realValue: Double
-    // map [-10, -1], [1, 10] to [-9, 9], bounds may change in future
-    if value > 0 {
-      mappedValue = round((value + 1) * 20) / 20
-      realValue = mappedValue
-    } else {
-      mappedValue = round((value - 1) * 20) / 20
-      realValue = 1 / mappedValue
+    let scale = SubtitleScale.scale(for: scaleSlider.doubleValue)
+    player.previewSubScale(scale)
+    if isInteractionEnding {
+      player.setSubScale(scale)
     }
-    player.setSubScale(realValue)
+  }
+
+  private var isInteractionEnding: Bool {
+    guard let eventType = NSApp.currentEvent?.type else { return true }
+    return eventType != .leftMouseDown && eventType != .leftMouseDragged
   }
 
   @objc func chooseSubFontAction(_ sender: AnyObject) {
     player.chooseSubFont()
-  }
-
-  @objc func chooseSubFontSizeAction(_ sender: AnyObject) {
-    guard let title = fontSizePicker.selectedItem?.title, let value = Double(title) else { return }
-    player.setSubTextSize(value)
   }
 
   @objc func chooseSubBorderSizeAction(_ sender: AnyObject) {
