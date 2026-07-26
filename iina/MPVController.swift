@@ -524,17 +524,33 @@ class MPVController: NSObject {
     setUserOption(PK.subMarginY, type: .int, forName: MPVOption.Subtitles.subMarginY,
                   verboseIfDefault: true)
 
-    setUserOption(PK.subPos, type: .float, forName: MPVOption.Subtitles.subPos, verboseIfDefault: true)
+    if !userOptionsContains(MPVOption.Subtitles.subScale) {
+      setUserOption(PK.subScale, type: .float, forName: MPVOption.Subtitles.subScale,
+                    verboseIfDefault: true)
+    }
+    if !userOptionsContains(MPVOption.Subtitles.subPos) {
+      setUserOption(PK.subPos, type: .float, forName: MPVOption.Subtitles.subPos, verboseIfDefault: true)
+    }
+    if !userOptionsContains(MPVOption.Subtitles.secondarySubPos) {
+      setUserOption(PK.secondarySubPos, type: .float, forName: MPVOption.Subtitles.secondarySubPos,
+                    verboseIfDefault: true)
+    }
 
     setUserOption(PK.subLang, type: .string, forName: MPVOption.TrackSelection.slang, level: .verbose)
 
-    setUserOption(PK.displayInLetterBox, type: .bool, forName: MPVOption.Subtitles.subUseMargins,
-                  verboseIfDefault: true)
-    setUserOption(PK.displayInLetterBox, type: .bool, forName: MPVOption.Subtitles.subAssForceMargins,
-                  verboseIfDefault: true)
+    if !userOptionsContains(MPVOption.Subtitles.subUseMargins) {
+      setUserOption(PK.displayInLetterBox, type: .bool, forName: MPVOption.Subtitles.subUseMargins,
+                    verboseIfDefault: true)
+    }
+    if !userOptionsContains(MPVOption.Subtitles.subAssForceMargins) {
+      setUserOption(PK.displayInLetterBox, type: .bool, forName: MPVOption.Subtitles.subAssForceMargins,
+                    verboseIfDefault: true)
+    }
 
-    setUserOption(PK.subScaleWithWindow, type: .bool, forName: MPVOption.Subtitles.subScaleByWindow,
-                  verboseIfDefault: true)
+    if !userOptionsContains(MPVOption.Subtitles.subScaleByWindow) {
+      setUserOption(PK.subScaleWithWindow, type: .bool, forName: MPVOption.Subtitles.subScaleByWindow,
+                    verboseIfDefault: true)
+    }
 
     // - Network / cache settings
 
@@ -670,6 +686,21 @@ class MPVController: NSObject {
         watchLaterOptions += "," + MPVOption.Subtitles.secondarySubDelay
         needsUpdate = true
       }
+
+      let globalSubtitleOptions: Set = [
+        MPVOption.Subtitles.subScale,
+        MPVOption.Subtitles.subPos,
+        MPVOption.Subtitles.secondarySubPos,
+        MPVOption.Subtitles.subUseMargins,
+        MPVOption.Subtitles.subAssForceMargins,
+      ]
+      let savedOptions = watchLaterOptions.components(separatedBy: ",")
+      let filteredOptions = savedOptions.filter { !globalSubtitleOptions.contains($0) }
+      if filteredOptions.count != savedOptions.count {
+        log("Removing global subtitle layout options from \(MPVOption.WatchLater.watchLaterOptions)")
+        watchLaterOptions = filteredOptions.joined(separator: ",")
+        needsUpdate = true
+      }
       if needsUpdate {
         chkErr(setOptionString(MPVOption.WatchLater.watchLaterOptions, watchLaterOptions, level: .verbose))
       }
@@ -688,6 +719,28 @@ class MPVController: NSObject {
     chkErr(setOptionString(MPVOption.Video.vo, "libmpv", level: .verbose))
     chkErr(setOptionString(MPVOption.Window.keepaspect, "yes", level: .verbose))
     chkErr(setOptionString(MPVOption.Video.gpuHwdecInterop, "auto", level: .verbose))
+  }
+
+  /// Reapplies global subtitle layout preferences after mpv restores a legacy watch-later file.
+  /// Explicit advanced mpv options, including a custom watch-later option list, retain precedence.
+  func restoreGlobalSubtitleLayout() {
+    guard !userOptionsContains(MPVOption.WatchLater.watchLaterOptions) else { return }
+
+    if !userOptionsContains(MPVOption.Subtitles.subScale) {
+      setDouble(MPVOption.Subtitles.subScale, Double(Preference.float(for: .subScale)))
+    }
+    if !userOptionsContains(MPVOption.Subtitles.subPos) {
+      setDouble(MPVOption.Subtitles.subPos, Double(Preference.float(for: .subPos)))
+    }
+    if !userOptionsContains(MPVOption.Subtitles.secondarySubPos) {
+      setDouble(MPVOption.Subtitles.secondarySubPos, Double(Preference.float(for: .secondarySubPos)))
+    }
+    if !userOptionsContains(MPVOption.Subtitles.subUseMargins) {
+      setFlag(MPVOption.Subtitles.subUseMargins, Preference.bool(for: .displayInLetterBox))
+    }
+    if !userOptionsContains(MPVOption.Subtitles.subAssForceMargins) {
+      setFlag(MPVOption.Subtitles.subAssForceMargins, Preference.bool(for: .displayInLetterBox))
+    }
   }
 
   /// Initialize the `mpv` renderer.

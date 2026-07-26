@@ -8,6 +8,22 @@
 
 import Cocoa
 
+enum SubtitleScale {
+  static let range = 0.25...4.0
+
+  static func sliderValue(for scale: Double) -> Double {
+    log2(scale.clamped(to: range))
+  }
+
+  static func scale(for sliderValue: Double) -> Double {
+    pow(2, sliderValue).clamped(to: range)
+  }
+
+  static func percentText(for scale: Double) -> String {
+    "\(Int((scale * 100).rounded()))%"
+  }
+}
+
 protocol InitializingFromKey: CustomStringConvertible {
 
   static var defaultValue: Self { get }
@@ -240,7 +256,9 @@ struct Preference {
     static let subAlignY = Key("subAlignY")
     static let subMarginX = Key("subMarginX")
     static let subMarginY = Key("subMarginY")
+    static let subScale = Key("subScale")
     static let subPos = Key("subPos")
+    static let secondarySubPos = Key("secondarySubPos")
     static let subLang = Key("subLang")
     static let legacyOnlineSubSource = Key("onlineSubSource")
     static let onlineSubProvider = Key("onlineSubProvider")
@@ -1170,11 +1188,13 @@ struct Preference {
     .subAlignY: SubAlignY.bottom.rawValue,
     .subMarginX: Float(25),
     .subMarginY: Float(22),
+    .subScale: Float(1),
     .subPos: Float(100),
+    .secondarySubPos: Float(0),
     .subLang: "",
     .legacyOnlineSubSource: 1, /* openSub */
     .onlineSubProvider: OnlineSubtitle.Providers.openSub.id,
-    .displayInLetterBox: true,
+    .displayInLetterBox: false,
     .subScaleWithWindow: true,
     .openSubUsername: "",
     .assrtToken: "",
@@ -1520,7 +1540,9 @@ struct Preference {
            .subBorderSize,
            .subMarginX,
            .subMarginY,
+           .subScale,
            .subPos,
+           .secondarySubPos,
            .subShadowSize,
            .subSpacing,
            .subTextSize:

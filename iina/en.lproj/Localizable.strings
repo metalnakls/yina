@@ -586,7 +586,8 @@
 "sidebar.load_subtitle" = "Load Subtitle…";
 "sidebar.search_online" = "Search Online…";
 "sidebar.position" = "Position";
-"sidebar.scale" = "Scale";
+"sidebar.scale" = "Size";
+"sidebar.default" = "Default";
 "sidebar.font" = "Font";
 "sidebar.color" = "Color";
 "sidebar.text" = "Text";

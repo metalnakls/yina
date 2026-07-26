@@ -1943,18 +1943,24 @@ class PlayerCore: NSObject {
     mpv.setString(MPVProperty.audioDevice, name)
   }
 
-  /** Scale is a double value in [-100, -1] + [1, 100] */
+  /// Applies a transient subtitle scale preview to this player only.
+  func previewSubScale(_ scale: Double) {
+    mpv.setDouble(MPVOption.Subtitles.subScale, scale.clamped(to: SubtitleScale.range), level: .verbose)
+  }
+
   func setSubScale(_ scale: Double) {
-    if scale > 0 {
-      mpv.setDouble(MPVOption.Subtitles.subScale, scale, level: .verbose)
-    } else {
-      mpv.setDouble(MPVOption.Subtitles.subScale, -scale, level: .verbose)
-    }
+    Preference.set(Float(scale.clamped(to: SubtitleScale.range)), for: .subScale)
+  }
+
+  /// Applies a transient subtitle position preview to this player only.
+  func previewSubPos(_ pos: Int, forPrimary: Bool = true) {
+    let option = forPrimary ? MPVOption.Subtitles.subPos : MPVOption.Subtitles.secondarySubPos
+    mpv.setInt(option, pos.clamped(to: 0...150), level: .verbose)
   }
 
   func setSubPos(_ pos: Int, forPrimary: Bool = true) {
-    let option = forPrimary ? MPVOption.Subtitles.subPos : MPVOption.Subtitles.secondarySubPos
-    mpv.setInt(option, pos, level: .verbose)
+    let key: Preference.Key = forPrimary ? .subPos : .secondarySubPos
+    Preference.set(Float(pos.clamped(to: 0...150)), for: key)
   }
 
   func setSubTextColor(_ colorString: String) {
@@ -2164,6 +2170,7 @@ class PlayerCore: NSObject {
     log("File loaded")
 
     info.state = .loaded
+    mpv.restoreGlobalSubtitleLayout()
 
     // Must force drawing to cover the case where this player was previously used to play a video
     // and is now playing an audio file without an album cover and without using music mode.
