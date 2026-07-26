@@ -472,8 +472,15 @@ class MPVController: NSObject {
                   forName: MPVOption.Subtitles.secondarySubAssOverride, verboseIfDefault: true,
                   transformer: subOverrideHandler)
 
-    setUserOption(PK.subTextFont, type: .string, forName: MPVOption.Subtitles.subFont,
-                  verboseIfDefault: true)
+    // NSFontManager can return a PostScript face name even for TrueType fonts. libass matches
+    // TrueType faces by their full name, so resolve the saved identifier before passing it to mpv.
+    let subFontNameHandler: OptionObserverInfo.Transformer = { key in
+      guard let name = Preference.string(for: key),
+            name != Constants.String.mpvDefaultFont else { return Preference.string(for: key) }
+      return NSFont(name: name, size: NSFont.systemFontSize)?.displayName ?? name
+    }
+    setUserOption(PK.subTextFont, type: .other, forName: MPVOption.Subtitles.subFont,
+                  verboseIfDefault: true, transformer: subFontNameHandler)
     setUserOption(PK.subTextSize, type: .float, forName: MPVOption.Subtitles.subFontSize,
                   verboseIfDefault: true)
 

@@ -27,17 +27,23 @@ class FontPickerWindowController: NSWindowController, NSTableViewDelegate, NSTab
   var filteredFontNames: [FontInfo] = []
   var isSearching = false
 
+  private var displayedFontNames: [FontInfo] {
+    isSearching ? filteredFontNames : fontNames
+  }
+
   private var chosenFontMembers: [[Any]] {
-    guard familyTableView.selectedRow >= 0 else { return [] }
-    let chosenFamily = isSearching ? filteredFontNames[familyTableView.selectedRow] : fontNames[familyTableView.selectedRow]
+    let familyIndex = familyTableView.selectedRow
+    guard displayedFontNames.indices.contains(familyIndex) else { return [] }
+    let chosenFamily = displayedFontNames[familyIndex]
     return FixedFontManager.typefaces(forFontFamily: chosenFamily.name) as? [[Any]] ?? []
   }
   private var chosenFace: String {
     let typefaceIndex = faceTableView.selectedRow
-    if typefaceIndex >= 0, let face = chosenFontMembers[faceTableView.selectedRow][0] as? String {
-      return face
-    }
-    return ""
+    let members = chosenFontMembers
+    guard members.indices.contains(typefaceIndex),
+          members[typefaceIndex].indices.contains(0),
+          let face = members[typefaceIndex][0] as? String else { return "" }
+    return face
   }
 
   var finishedPicking: ((String) -> Void)?
@@ -102,7 +108,9 @@ class FontPickerWindowController: NSWindowController, NSTableViewDelegate, NSTab
     for (familyIndex, family) in fontNamesDisplayed.enumerated() {
       guard let typefaces = FixedFontManager.typefaces(forFontFamily: family.name) as? [[Any]] else { continue }
       for (typefaceIndex, typeface) in typefaces.enumerated() {
-        guard let faceName = typeface[0] as? String, faceName == selectedFace else { continue }
+        guard typeface.indices.contains(0),
+              let faceName = typeface[0] as? String,
+              faceName == selectedFace else { continue }
         enableSelectionChangeListener = false
 
         familyTableView.selectRowIndexes(IndexSet(integer: familyIndex), byExtendingSelection: false)
@@ -133,9 +141,12 @@ class FontPickerWindowController: NSWindowController, NSTableViewDelegate, NSTab
 
   func tableView(_ tableView: NSTableView, objectValueFor tableColumn: NSTableColumn?, row: Int) -> Any? {
     if tableView == familyTableView {
-      return isSearching ? filteredFontNames[row].localizedName : fontNames[row].localizedName
+      guard displayedFontNames.indices.contains(row) else { return nil }
+      return displayedFontNames[row].localizedName
     } else if tableView == faceTableView {
-      let face = chosenFontMembers[row]
+      let members = chosenFontMembers
+      guard members.indices.contains(row), members[row].indices.contains(1) else { return nil }
+      let face = members[row]
       return face[1]
     } else {
       return 0
@@ -176,18 +187,26 @@ class FontPickerWindowController: NSWindowController, NSTableViewDelegate, NSTab
   }
 
   @IBAction func okBtnPressed(_ sender: AnyObject) {
-    if let finishedPicking {
-      let otherString = otherField.stringValue
-      let selectedFont = otherString.isEmpty ? Constants.String.mpvDefaultFont : otherString
-      finishedPicking(selectedFont)
-      // remove the listener
-      self.finishedPicking = nil
-    }
-    self.close()
+    let otherString = otherField.stringValue
+    let selectedFont = otherString.isEmpty ? Constants.String.mpvDefaultFont : otherString
+    let callback = finishedPicking
+    finishedPicking = nil
+    dismissPicker()
+    callback?(selectedFont)
   }
 
   @IBAction func cancelBtnPressed(_ sender: AnyObject) {
-    self.close()
+    finishedPicking = nil
+    dismissPicker()
+  }
+
+  private func dismissPicker() {
+    guard let window else { return }
+    if let sheetParent = window.sheetParent {
+      sheetParent.endSheet(window)
+    } else {
+      close()
+    }
   }
 
 

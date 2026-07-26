@@ -1425,7 +1425,7 @@ class PlayerCore: NSObject {
   /// Shows the Font Chooser window to select a new font for the player
   func chooseSubFont() {
     guard info.state.active else { return }
-    let subFont = mpv.getString(MPVOption.Subtitles.subFont)
+    let subFont = Preference.string(for: .subTextFont)
     Utility.quickFontPickerWindow(selecting: subFont) { [self] result in
       if let result {
         setSubFont(result)
@@ -1958,27 +1958,27 @@ class PlayerCore: NSObject {
   }
 
   func setSubTextColor(_ colorString: String) {
-    mpv.setString("options/" + MPVOption.Subtitles.subColor, colorString)
+    Preference.set(colorString, for: .subTextColorString)
   }
 
   func setSubTextSize(_ size: Double) {
-    mpv.setDouble("options/" + MPVOption.Subtitles.subFontSize, size)
+    Preference.set(size, for: .subTextSize)
   }
 
   func setSubTextBold(_ bold: Bool) {
-    mpv.setFlag("options/" + MPVOption.Subtitles.subBold, bold)
+    Preference.set(bold, for: .subBold)
   }
 
   func setSubTextBorderColor(_ colorString: String) {
-    mpv.setString("options/" + MPVOption.Subtitles.subOutlineColor, colorString)
+    Preference.set(colorString, for: .subBorderColorString)
   }
 
   func setSubTextBorderSize(_ size: Double) {
-    mpv.setDouble("options/" + MPVOption.Subtitles.subOutlineSize, size)
+    Preference.set(size, for: .subBorderSize)
   }
 
   func setSubTextBgColor(_ colorString: String) {
-    mpv.setString("options/" + MPVOption.Subtitles.subBackColor, colorString)
+    Preference.set(colorString, for: .subBgColorString)
   }
 
   func setSubEncoding(_ encoding: String) {
@@ -1987,7 +1987,7 @@ class PlayerCore: NSObject {
   }
 
   func setSubFont(_ font: String) {
-    mpv.setString(MPVOption.Subtitles.subFont, font)
+    Preference.set(font, for: .subTextFont)
   }
 
   func savePlaybackPosition() {
