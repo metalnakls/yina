@@ -72,6 +72,8 @@ class TrackSelector: NSScrollView, NSTableViewDelegate, NSTableViewDataSource {
       return cell
     }()
     let isChosen = track == selectedTrack
+    let conflictsWithOtherSubtitle = track.map(conflictsWithOtherSubtitleSelection) ?? false
+    cell.alphaValue = conflictsWithOtherSubtitle ? 0.5 : 1
     switch columnID {
     case .trackName:
       cell.textField?.textColor = row == 0 ? .secondaryLabelColor : .labelColor
@@ -84,6 +86,12 @@ class TrackSelector: NSScrollView, NSTableViewDelegate, NSTableViewDataSource {
     return cell
   }
 
+  func tableView(_ tableView: NSTableView, shouldSelectRow row: Int) -> Bool {
+    guard row > 0,
+          let track = player.info.trackList(trackType)[at: row - 1] else { return true }
+    return !conflictsWithOtherSubtitleSelection(track)
+  }
+
   func tableViewSelectionDidChange(_ notification: Notification) {
     guard tableView.numberOfSelectedRows > 0 else { return }
     let trackId = if tableView.selectedRow > 0 {
@@ -93,6 +101,19 @@ class TrackSelector: NSScrollView, NSTableViewDelegate, NSTableViewDataSource {
     }
     player.setTrack(trackId, forType: trackType)
     tableView.deselectAll(nil)
+  }
+
+  private func conflictsWithOtherSubtitleSelection(_ track: MPVTrack) -> Bool {
+    let otherType: MPVTrack.TrackType
+    switch trackType {
+    case .sub:
+      otherType = .secondSub
+    case .secondSub:
+      otherType = .sub
+    case .audio, .video:
+      return false
+    }
+    return player.info.currentTrack(otherType)?.id == track.id
   }
 
   private func makeCell(identifier: NSUserInterfaceItemIdentifier, columnID: NSUserInterfaceItemIdentifier) -> CellView {

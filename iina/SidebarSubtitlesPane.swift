@@ -136,12 +136,18 @@ fileprivate class VisibilitySwitch: NSSwitch {
     player.observe(.iinaSubVisibilityChanged) { [unowned self] _ in
       update()
     }
+    player.observe(.iinaSIDChanged) { [unowned self] _ in
+      update()
+    }
   }
 
   private func update() {
+    let trackType: MPVTrack.TrackType = isPrimary ? .sub : .secondSub
+    let hasSelectedTrack = player.info.currentTrack(trackType) != nil
     let isVisible = isPrimary ?
       player.info.isSubVisible : player.info.isSecondSubVisible
-    state = isVisible ? .on : .off
+    isEnabled = hasSelectedTrack
+    state = hasSelectedTrack && isVisible ? .on : .off
   }
 
   @objc private func switchAction(_ sender: AnyObject) {
