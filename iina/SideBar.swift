@@ -149,6 +149,9 @@ class SidebarViewController: NSViewController {
     }
 
     self.tabButtonsSegmentControl = NSSegmentedControl()
+    if #available(macOS 27.0, *) {
+      tabButtonsSegmentControl.role = .tabs
+    }
     tabButtonsSegmentControl.target = self
     tabButtonsSegmentControl.action = #selector(tabBtnSegmentControlAction_(_:))
 
