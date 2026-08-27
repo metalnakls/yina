@@ -28,10 +28,20 @@ class PlaySliderCell: NSSliderCell {
   let knobRadius: CGFloat = 1
   let barRadius: CGFloat = 1.5
 
-  private var knobColor = NSColor.mainSliderKnob
-  private var knobActiveColor = NSColor.mainSliderKnobActive
-  private var barColorLeft = NSColor.mainSliderBarLeft
-  private var barColorRight = NSColor.mainSliderBarRight
+  var usesExtendedDynamicRange = false
+
+  private var knobColor: NSColor {
+    usesExtendedDynamicRange ? .hdrWhite(alpha: 0.96) : .mainSliderKnob
+  }
+  private var knobActiveColor: NSColor {
+    usesExtendedDynamicRange ? .hdrWhite() : .mainSliderKnobActive
+  }
+  private var barColorLeft: NSColor {
+    usesExtendedDynamicRange ? .hdrWhite(alpha: 0.45) : .mainSliderBarLeft
+  }
+  private var barColorRight: NSColor {
+    usesExtendedDynamicRange ? .hdrWhite(alpha: 0.18) : .mainSliderBarRight
+  }
 
   var drawChapters = Preference.bool(for: .showChapterPos)
 

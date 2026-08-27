@@ -33,6 +33,16 @@ final class PlaySlider: NSSlider {
   /// Span of the range of values the slider is configured to return.
   var span: Double { maxValue - minValue }
 
+  var usesExtendedDynamicRange: Bool {
+    get { customCell.usesExtendedDynamicRange }
+    set {
+      customCell.usesExtendedDynamicRange = newValue
+      needsDisplay = true
+      abLoopA.needsDisplay = true
+      abLoopB.needsDisplay = true
+    }
+  }
+
   // MARK:- Private Properties
 
   private var abLoopAKnob: PlaySliderLoopKnob!

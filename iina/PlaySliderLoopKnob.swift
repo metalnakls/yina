@@ -113,7 +113,7 @@ final class PlaySliderLoopKnob: NSView {
   // MARK:- Drawing
 
   private func knobColor() -> NSColor {
-    return NSColor.mainSliderLoopKnob
+    return cell.usesExtendedDynamicRange ? .hdrWhite(alpha: 0.7) : .mainSliderLoopKnob
   }
 
   /// Draw the knob.

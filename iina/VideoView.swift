@@ -432,6 +432,7 @@ extension VideoView {
       player.postNotification(.iinaHDRChanged)
     }
     if edrEnabled != true { setICCProfile() }
+    player.mainWindow.updateOSCExtendedDynamicRange()
   }
 
   /// Returns `true` if the video being played is a HDR video.

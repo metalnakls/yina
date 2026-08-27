@@ -914,6 +914,7 @@ class MainWindowController: PlayerWindowController {
       button.action = #selector(self.toolBarButtonAction(_:))
       oscToolbarView.addView(button, in: .trailing)
     }
+    updateOSCExtendedDynamicRange()
 
 //    let menuButton = NSButton()
 //    menuButton.bezelStyle = .regularSquare
@@ -922,6 +923,30 @@ class MainWindowController: PlayerWindowController {
 //    menuButton.refusesFirstResponder = true
 //    menuButton.size(width: Preference.ToolBarButton.frameSize, height: Preference.ToolBarButton.frameSize)
 //    oscToolbarView.addView(menuButton, in: .trailing)
+  }
+
+  func updateOSCExtendedDynamicRange() {
+    let enabled = player.info.hdrAvailable && player.info.hdrEnabled
+
+    [oscFloatingView, oscBottomView, titleBarView, oscPlayControlView,
+     oscToolbarView, oscVolumeView, oscSliderView].forEach {
+      $0?.setExtendedDynamicRange(enabled)
+    }
+
+    let primaryColor: NSColor? = enabled ? .hdrWhite() : nil
+    let secondaryColor: NSColor = enabled ? .hdrWhite(alpha: 0.75) : .secondaryLabelColor
+    [playButton, leftArrowButton, rightArrowButton].forEach {
+      $0?.contentTintColor = primaryColor
+    }
+    oscToolbarView.arrangedSubviews.compactMap { $0 as? NSButton }.forEach {
+      $0.contentTintColor = primaryColor
+    }
+    muteButton.imageView.contentTintColor = primaryColor
+    [leftLabel, rightLabel, oscSpeedLabelLeft, oscSpeedLabelRight].forEach {
+      $0?.textColor = secondaryColor
+    }
+    playSlider.usesExtendedDynamicRange = enabled
+    (volumeSlider as? VolumeSlider)?.usesExtendedDynamicRange = enabled
   }
 
   @objc
