@@ -460,6 +460,8 @@ class MainWindowController: PlayerWindowController {
 
     videoViewContainer = NSView()
     videoViewContainer.translatesAutoresizingMaskIntoConstraints = false
+    videoViewContainer.wantsLayer = true
+    videoViewContainer.layer?.backgroundColor = NSColor.black.cgColor
 
     DispatchQueue.main.async { [weak self] in
       if #available(macOS 14, *) {
