@@ -32,9 +32,9 @@ class PrefOSCToolbarSettingsSheetController: NSWindowController, PrefOSCToolbarC
     super.windowDidLoad()
     currentItemsView.registerForDraggedTypes([.iinaOSCAvailableToolbarButtonType, .iinaOSCCurrentToolbarButtonType])
     currentItemsView.currentItemsViewDelegate = self
-    currentItemsView.initItems(fromItems: PrefUIViewController.oscToolbarButtons)
+    currentItemsView.initItems(fromItems: PrefUIViewController.oscToolbarItems)
 
-    var allButtonTypes: [Preference.ToolBarButton] = [.settings, .playlist, .pip, .fullScreen, .musicMode, .subTrack, .screenshot, .plugins]
+    var allButtonTypes: [Preference.ToolBarButton] = [.volume, .settings, .playlist, .pip, .fullScreen, .musicMode, .subTrack, .screenshot, .plugins]
     if #available(macOS 13, *) {
       allButtonTypes.append(.liveText)
     }
@@ -60,7 +60,7 @@ class PrefOSCToolbarSettingsSheetController: NSWindowController, PrefOSCToolbarC
   }
 
   @IBAction func restoreDefaultButtonAction(_ sender: Any) {
-    currentButtonTypes = (Preference.defaultPreference[.controlBarToolbarButtons] as! [Int]).compactMap(Preference.ToolBarButton.init(rawValue:))
+    currentButtonTypes = [.volume] + (Preference.defaultPreference[.controlBarToolbarButtons] as! [Int]).compactMap(Preference.ToolBarButton.init(rawValue:))
     currentItemsView.initItems(fromItems: currentButtonTypes)
   }
 }

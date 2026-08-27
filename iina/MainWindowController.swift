@@ -276,6 +276,7 @@ class MainWindowController: PlayerWindowController {
     .useLegacyFullScreen,
     .displayTimeAndBatteryInFullScreen,
     .controlBarToolbarButtons,
+    .showOSCVolumeControls,
     .alwaysShowOnTopIcon,
     .unlockWindowAspectRatio,
     .edgeToEdgeVideo,
@@ -337,6 +338,10 @@ class MainWindowController: PlayerWindowController {
     case PK.controlBarToolbarButtons.rawValue:
       if let newValue = change[.newKey] as? [Int] {
         setupOSCToolbarButtons(newValue.compactMap(Preference.ToolBarButton.init(rawValue:)))
+      }
+    case PK.showOSCVolumeControls.rawValue:
+      if let newValue = change[.newKey] as? Bool {
+        oscVolumeView.isHidden = !newValue
       }
     case PK.alwaysShowOnTopIcon.rawValue:
       titleBarView.updateOnTopIcon()
@@ -627,6 +632,7 @@ class MainWindowController: PlayerWindowController {
     // Video controllers and timeline indicators should not flip in a right-to-left language.
     oscPlayControlView.userInterfaceLayoutDirection = .leftToRight
     setupOnScreenController(withPosition: oscPosition, forced: true)
+    oscVolumeView.isHidden = !Preference.bool(for: .showOSCVolumeControls)
     let buttons = (Preference.array(for: .controlBarToolbarButtons) as? [Int] ?? []).compactMap(Preference.ToolBarButton.init(rawValue:))
     updateArrowButtons()
     setupOSCToolbarButtons(buttons)
@@ -2971,6 +2977,8 @@ class MainWindowController: PlayerWindowController {
       sidebars.show(sidebar: .plugins)
     case .liveText:
       Preference.set(!Preference.bool(for: .enableLiveText), for: .enableLiveText)
+    case .volume:
+      break
     }
   }
 

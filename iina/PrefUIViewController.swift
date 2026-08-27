@@ -38,6 +38,19 @@ class PrefUIViewController: PreferenceViewController, PreferenceWindowEmbeddable
     }
   }
 
+  static var oscToolbarItems: [Preference.ToolBarButton] {
+    var items = oscToolbarButtons
+    if Preference.bool(for: .showOSCVolumeControls) {
+      items.insert(.volume, at: 0)
+    }
+    return items
+  }
+
+  static func saveOSCToolbarItems(_ items: [Preference.ToolBarButton]) {
+    Preference.set(items.contains(.volume), for: .showOSCVolumeControls)
+    Preference.set(items.filter { $0 != .volume }.map(\.rawValue), for: .controlBarToolbarButtons)
+  }
+
   override var sectionViews: [NSView] {
     return [sectionAppearanceView, sectionWindowView, sectionOSCView, sectionOSDView, sectionThumbnailView, sectionPictureInPictureView, sectionAccessibilityView]
   }
@@ -139,20 +152,19 @@ class PrefUIViewController: PreferenceViewController, PreferenceWindowEmbeddable
   }
 
   @IBAction func customizeOSCToolbarAction(_ sender: Any) {
-    toolbarSettingsSheetController.currentItemsView?.initItems(fromItems: PrefUIViewController.oscToolbarButtons)
-    toolbarSettingsSheetController.currentButtonTypes = PrefUIViewController.oscToolbarButtons
+    toolbarSettingsSheetController.currentItemsView?.initItems(fromItems: PrefUIViewController.oscToolbarItems)
+    toolbarSettingsSheetController.currentButtonTypes = PrefUIViewController.oscToolbarItems
     view.window?.beginSheet(toolbarSettingsSheetController.window!) { response in
       guard response == .OK else { return }
       let newItems = self.toolbarSettingsSheetController.currentButtonTypes
-      let array = newItems.map { $0.rawValue }
-      Preference.set(array, for: .controlBarToolbarButtons)
+      PrefUIViewController.saveOSCToolbarItems(newItems)
       self.updateOSCToolbarButtons()
     }
   }
 
   private func updateOSCToolbarButtons() {
     oscToolbarStackView.views.forEach { oscToolbarStackView.removeView($0) }
-    for buttonType in PrefUIViewController.oscToolbarButtons {
+    for buttonType in PrefUIViewController.oscToolbarItems {
       let button = NSButton()
       OSCToolbarButton.setStyle(of: button, buttonType: buttonType)
       oscToolbarStackView.addView(button, in: .trailing)
@@ -245,4 +257,3 @@ class PrefUIViewController: PreferenceViewController, PreferenceWindowEmbeddable
     return timing != 2
   }
 }
-
