@@ -436,7 +436,7 @@ class MainWindowController: PlayerWindowController {
     // w.isMovableByWindowBackground  = true
 
     // set background color to black
-    window.backgroundColor = window.effectiveAppearance.isDark ? .black : .white
+    window.backgroundColor = .black
 
     // size
     window.minSize = AppData.mainWindowMinSize
