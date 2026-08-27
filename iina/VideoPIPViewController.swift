@@ -36,6 +36,9 @@ class VideoPIPViewController: PIPViewController, NSWindowDelegate {
       Logger.log("VideoPIPViewController.viewDidLayout window is nil", level: .error)
       return
     }
+    window.backgroundColor = .black
+    window.contentView?.wantsLayer = true
+    window.contentView?.layer?.backgroundColor = NSColor.black.cgColor
     window.delegate = self
   }
 
