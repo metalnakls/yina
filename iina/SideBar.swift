@@ -289,10 +289,14 @@ class SidebarViewController: NSViewController {
   func updateTabActiveStatus() {
     let currentTag = currentTab.tag
     for tab in allTabs {
-      // don't show label if isLeading
       let isSelected = tab.tag == currentTag && !isLeading
       let label = NSLocalizedString("sidebar.\(tab.name)", comment: tab.name)
-      tabButtonsSegmentControl.setLabel(isSelected ? label : "", forSegment: tab.tag)
+      let showsLabel = if #available(macOS 27.0, *) {
+        !isLeading
+      } else {
+        isSelected
+      }
+      tabButtonsSegmentControl.setLabel(showsLabel ? label : "", forSegment: tab.tag)
     }
     tabButtonsSegmentControl.selectedSegment = currentTag
   }
