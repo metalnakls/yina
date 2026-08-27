@@ -7,6 +7,7 @@
 //
 
 import Cocoa
+import UniformTypeIdentifiers
 
 fileprivate extension NSUserInterfaceItemIdentifier {
   static let openFile = NSUserInterfaceItemIdentifier("openFile")
@@ -38,6 +39,11 @@ fileprivate class GrayHighlightRowView: NSTableRowView {
 
 class InitialWindowController: NSWindowController {
 
+  private struct RecentDocument {
+    let url: URL
+    var isAvailable: Bool
+  }
+
   override var windowNibName: NSNib.Name {
     return NSNib.Name("InitialWindowController")
   }
@@ -62,6 +68,10 @@ class InitialWindowController: NSWindowController {
 
   private let observedPrefKeys: [Preference.Key] = [.themeMaterial]
   private var currentlyHoveredRow: GrayHighlightRowView?
+  private let availabilityQueue = DispatchQueue(label: "IINAInitialWindowAvailability", qos: .utility)
+  private var availabilityRefreshTimer: Timer?
+  private var availabilityCheckGeneration = 0
+  private var isCheckingAvailability = false
 
   override func observeValue(forKeyPath keyPath: String?, of object: Any?, change: [NSKeyValueChangeKey : Any]?, context: UnsafeMutableRawPointer?) {
     guard let keyPath, let change else { return }
@@ -78,9 +88,7 @@ class InitialWindowController: NSWindowController {
     }
   }
 
-  lazy var recentDocuments: [URL] = {
-    makeRecentDocumentsList()
-  }()
+  private var recentDocuments: [RecentDocument] = []
   private var lastPlaybackURL: URL?
 
   init(playerCore: PlayerCore) {
@@ -92,11 +100,50 @@ class InitialWindowController: NSWindowController {
     fatalError("init(coder:) has not been implemented")
   }
 
-  private func makeRecentDocumentsList() -> [URL] {
-    // Need to call resolvingSymlinksInPath() on both sides, because it changes "/private/var" to "/var" as a special case,
-    // even though "/var" points to "/private/var" (i.e. it changes it the opposite direction from what is expected).
-    // This is probably a kludge on Apple's part to avoid breaking legacy FreeBSD code.
-    NSDocumentController.shared.recentDocumentURLs.filter { $0.resolvingSymlinksInPath() != lastPlaybackURL?.resolvingSymlinksInPath() }
+  private func documentIdentity(_ url: URL) -> String {
+    url.isFileURL ? url.standardizedFileURL.path : url.absoluteString
+  }
+
+  private var lastPlaybackCandidateURL: URL? {
+    guard Preference.bool(for: .recordRecentFiles),
+          Preference.bool(for: .resumeLastPosition) else { return nil }
+    return Preference.url(for: .iinaLastPlayedFilePath)
+  }
+
+  private static func isDocumentAvailable(_ url: URL) -> Bool {
+    !url.isFileURL || FileManager.default.fileExists(atPath: url.path)
+  }
+
+  private func makeRecentDocumentsList() -> [RecentDocument] {
+    let documentController = NSDocumentController.shared
+    let appKitRecents = documentController.recentDocumentURLs
+    let maximumCount = max(appKitRecents.count, Int(documentController.maximumRecentDocumentCount))
+    let lastPlaybackIdentity = lastPlaybackURL.map(documentIdentity)
+    let previousAvailability = Dictionary(uniqueKeysWithValues: recentDocuments.map {
+      (documentIdentity($0.url), $0.isAvailable)
+    })
+    var seen = Set<String>()
+    var urls: [URL] = []
+
+    func append(_ url: URL) {
+      guard urls.count < maximumCount else { return }
+      let identity = documentIdentity(url)
+      guard identity != lastPlaybackIdentity, seen.insert(identity).inserted else { return }
+      urls.append(url)
+    }
+
+    if Preference.bool(for: .recordRecentFiles) {
+      HistoryController.shared.$history.withLock { history in
+        history.map(\.url).forEach(append)
+      }
+    }
+    appKitRecents.forEach(append)
+
+    return urls.map { url in
+      let identity = documentIdentity(url)
+      return RecentDocument(url: url,
+                            isAvailable: !url.isFileURL || previousAvailability[identity] == true)
+    }
   }
 
   override func windowDidLoad() {
@@ -147,7 +194,96 @@ class InitialWindowController: NSWindowController {
     observedPrefKeys.forEach { key in
       UserDefaults.standard.addObserver(self, forKeyPath: key.rawValue, options: .new, context: nil)
     }
+    NotificationCenter.default.addObserver(self, selector: #selector(historyDidUpdate),
+                                           name: .iinaHistoryUpdated, object: nil)
+    NotificationCenter.default.addObserver(self, selector: #selector(initialWindowWillClose),
+                                           name: NSWindow.willCloseNotification, object: window)
     reloadData()
+  }
+
+  override func showWindow(_ sender: Any?) {
+    super.showWindow(sender)
+    startAvailabilityRefresh()
+  }
+
+  @objc private func historyDidUpdate() {
+    guard window?.isVisible == true else { return }
+    reloadData()
+  }
+
+  @objc private func initialWindowWillClose() {
+    stopAvailabilityRefresh()
+  }
+
+  private func startAvailabilityRefresh() {
+    refreshRecentDocumentAvailability()
+    guard availabilityRefreshTimer == nil else { return }
+    availabilityRefreshTimer = Timer.scheduledTimerInCommonMode(withTimeInterval: 5) { [weak self] _ in
+      guard let self else { return }
+      guard self.window?.isVisible == true else {
+        self.stopAvailabilityRefresh()
+        return
+      }
+      self.refreshRecentDocumentAvailability()
+    }
+  }
+
+  private func stopAvailabilityRefresh() {
+    availabilityRefreshTimer?.invalidate()
+    availabilityRefreshTimer = nil
+  }
+
+  private func refreshRecentDocumentAvailability() {
+    let lastPlaybackCandidate = lastPlaybackCandidateURL
+    guard !isCheckingAvailability,
+          lastPlaybackCandidate != nil || !recentDocuments.isEmpty else { return }
+    isCheckingAvailability = true
+    let generation = availabilityCheckGeneration
+    let urls = recentDocuments.map(\.url)
+    let wasShowingLastPlayback = lastPlaybackURL != nil
+
+    availabilityQueue.async { [weak self] in
+      let lastPlaybackIsAvailable = lastPlaybackCandidate.map(Self.isDocumentAvailable) ?? false
+      let availability = urls.map(Self.isDocumentAvailable)
+      DispatchQueue.main.async {
+        guard let self else { return }
+        self.isCheckingAvailability = false
+        guard generation == self.availabilityCheckGeneration else {
+          if self.window?.isVisible == true {
+            self.refreshRecentDocumentAvailability()
+          }
+          return
+        }
+        if wasShowingLastPlayback != lastPlaybackIsAvailable {
+          self.reloadData()
+          return
+        }
+
+        var changedRows = IndexSet()
+        for index in self.recentDocuments.indices where self.recentDocuments[index].isAvailable != availability[index] {
+          self.recentDocuments[index].isAvailable = availability[index]
+          changedRows.insert(index)
+        }
+        guard !changedRows.isEmpty else { return }
+        for row in changedRows {
+          self.recentFilesTableView.rowView(atRow: row, makeIfNecessary: false)?.alphaValue =
+            self.recentDocuments[row].isAvailable ? 1 : 0.45
+        }
+        self.recentFilesTableView.reloadData(forRowIndexes: changedRows,
+                                             columnIndexes: IndexSet(integersIn: 0..<self.recentFilesTableView.numberOfColumns))
+        if self.recentFilesTableView.selectedRow >= 0,
+           !self.recentDocuments[self.recentFilesTableView.selectedRow].isAvailable {
+          self.recentFilesTableView.deselectAll(nil)
+        }
+        self.selectFirstRecentDocumentIfNeeded()
+      }
+    }
+  }
+
+  private func selectFirstRecentDocumentIfNeeded() {
+    guard lastFileContainerView.isHidden, recentFilesTableView.selectedRow == -1,
+          let firstAvailable = recentDocuments.firstIndex(where: \.isAvailable) else { return }
+    recentFilesTableView.selectRowIndexes(IndexSet(integer: firstAvailable), byExtendingSelection: false)
   }
 
   private func setMaterial(_ theme: Preference.Theme?) {
@@ -166,16 +302,14 @@ class InitialWindowController: NSWindowController {
   }
 
   private func openRecentItemFromTable(_ rowIndex: Int) {
-    if let url = recentDocuments[at: rowIndex] {
-      player.openURL(url)
+    if let document = recentDocuments[at: rowIndex], document.isAvailable {
+      player.openURL(document.url)
     }
   }
 
   func loadLastPlaybackInfo() {
-    if Preference.bool(for: .recordRecentFiles),
-      Preference.bool(for: .resumeLastPosition),
-      let lastFile = Preference.url(for: .iinaLastPlayedFilePath),
-      FileManager.default.fileExists(atPath: lastFile.path) {
+    if let lastFile = lastPlaybackCandidateURL,
+      Self.isDocumentAvailable(lastFile) {
       // if last file exists
       lastPlaybackURL = lastFile
       lastFileContainerView.isHidden = false
@@ -197,7 +331,11 @@ class InitialWindowController: NSWindowController {
   func reloadData() {
     loadLastPlaybackInfo()
     recentDocuments = makeRecentDocumentsList()
+    availabilityCheckGeneration += 1
     recentFilesTableView.reloadData()
+    if window?.isVisible == true {
+      refreshRecentDocumentAvailability()
+    }
 
     if Logger.isEmitting(.verbose) {
       let last = lastPlaybackURL.flatMap { $0.resolvingSymlinksInPath().path } ?? "<none>"
@@ -207,14 +345,12 @@ class InitialWindowController: NSWindowController {
         Logger.log("InitialWindow.reloadData(): RecentDocuments_Unfiltered[\(index)]: \(url.resolvingSymlinksInPath().path)", level: .verbose)
       }
 
-      for (index, url) in recentDocuments.enumerated() {
-        Logger.log("InitialWindow.reloadData(): Loaded RecentDocuments[\(index)]: \(url.resolvingSymlinksInPath().path)", level: .verbose)
+      for (index, document) in recentDocuments.enumerated() {
+        Logger.log("InitialWindow.reloadData(): Loaded RecentDocuments[\(index)]: \(document.url.path), available: \(document.isAvailable)", level: .verbose)
       }
     }
     
-    if lastFileContainerView.isHidden && recentFilesTableView.numberOfRows > 0 {
-      recentFilesTableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
-    }
+    selectFirstRecentDocumentIfNeeded()
   }
 }
 
@@ -222,7 +358,13 @@ extension InitialWindowController: NSTableViewDelegate, NSTableViewDataSource {
 
   func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView? {
     // uses custom highlight for table row
-    return GrayHighlightRowView()
+    let rowView = GrayHighlightRowView()
+    rowView.alphaValue = recentDocuments[row].isAvailable ? 1 : 0.45
+    return rowView
+  }
+
+  func tableView(_ tableView: NSTableView, selectionIndexesForProposedSelection proposedSelectionIndexes: IndexSet) -> IndexSet {
+    IndexSet(proposedSelectionIndexes.filter { recentDocuments[$0].isAvailable })
   }
 
   func tableViewSelectionDidChange(_ notification: Notification) {
@@ -234,10 +376,18 @@ extension InitialWindowController: NSTableViewDelegate, NSTableViewDataSource {
   }
 
   func tableView(_ tableView: NSTableView, objectValueFor tableColumn: NSTableColumn?, row: Int) -> Any? {
-    let url = recentDocuments[row]
+    let document = recentDocuments[row]
+    let url = document.url
+    let icon: NSImage
+    if document.isAvailable {
+      icon = NSWorkspace.shared.icon(forFile: url.path)
+    } else {
+      let contentType = UTType(filenameExtension: url.pathExtension) ?? .data
+      icon = NSWorkspace.shared.icon(for: contentType)
+    }
     return [
       "filename": url.lastPathComponent,
-      "docIcon": NSWorkspace.shared.icon(forFile: url.path)
+      "docIcon": icon
     ] as [String: Any]
   }
 
