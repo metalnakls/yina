@@ -684,6 +684,7 @@ fileprivate class EqualizerView: NSView {
     player.observe(.iinaVideoEqualizerChanged) { [unowned self] _ in
       update()
     }
+    update()
   }
 
   private func update() {
