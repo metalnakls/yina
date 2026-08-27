@@ -256,6 +256,8 @@ struct Preference {
     static let subAlignY = Key("subAlignY")
     static let subMarginX = Key("subMarginX")
     static let subMarginY = Key("subMarginY")
+    static let subVisibility = Key("subVisibility")
+    static let secondarySubVisibility = Key("secondarySubVisibility")
     static let subScale = Key("subScale")
     static let subPos = Key("subPos")
     static let secondarySubPos = Key("secondarySubPos")
@@ -1188,6 +1190,8 @@ struct Preference {
     .subAlignY: SubAlignY.bottom.rawValue,
     .subMarginX: Float(25),
     .subMarginY: Float(22),
+    .subVisibility: true,
+    .secondarySubVisibility: true,
     .subScale: Float(1),
     .subPos: Float(100),
     .secondarySubPos: Float(0),
@@ -1503,6 +1507,8 @@ struct Preference {
            .spdifTRUEHD,
            .subBold,
            .subItalic,
+           .subVisibility,
+           .secondarySubVisibility,
            .subScaleWithWindow,
            .togglePipByMinimizingWindow,
            .togglePipByMinimizingWindowForVideoOnly,

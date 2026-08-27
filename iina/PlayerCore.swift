@@ -1435,12 +1435,18 @@ class PlayerCore: NSObject {
 
   func toggleSubVisibility(_ set: Bool? = nil) {
     let newState = set ?? !info.isSubVisible
-    mpv.setFlag(MPVOption.Subtitles.subVisibility, newState)
+    Preference.set(newState, for: .subVisibility)
+    if mpv.getFlag(MPVOption.Subtitles.subVisibility) != newState {
+      mpv.setFlag(MPVOption.Subtitles.subVisibility, newState)
+    }
   }
 
   func toggleSecondSubVisibility(_ set: Bool? = nil) {
     let newState = set ?? !info.isSecondSubVisible
-    mpv.setFlag(MPVOption.Subtitles.secondarySubVisibility, newState)
+    Preference.set(newState, for: .secondarySubVisibility)
+    if mpv.getFlag(MPVOption.Subtitles.secondarySubVisibility) != newState {
+      mpv.setFlag(MPVOption.Subtitles.secondarySubVisibility, newState)
+    }
   }
 
   func loadExternalSubFile(_ url: URL, delay: Bool = false, suppressError: Bool = false) {
@@ -2170,7 +2176,7 @@ class PlayerCore: NSObject {
     log("File loaded")
 
     info.state = .loaded
-    mpv.restoreGlobalSubtitleLayout()
+    mpv.restoreGlobalSubtitlePreferences()
 
     // Must force drawing to cover the case where this player was previously used to play a video
     // and is now playing an audio file without an album cover and without using music mode.

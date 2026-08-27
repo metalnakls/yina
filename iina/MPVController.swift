@@ -524,6 +524,15 @@ class MPVController: NSObject {
     setUserOption(PK.subMarginY, type: .int, forName: MPVOption.Subtitles.subMarginY,
                   verboseIfDefault: true)
 
+    if !userOptionsContains(MPVOption.Subtitles.subVisibility) {
+      setUserOption(PK.subVisibility, type: .bool, forName: MPVOption.Subtitles.subVisibility,
+                    verboseIfDefault: true)
+    }
+    if !userOptionsContains(MPVOption.Subtitles.secondarySubVisibility) {
+      setUserOption(PK.secondarySubVisibility, type: .bool,
+                    forName: MPVOption.Subtitles.secondarySubVisibility, verboseIfDefault: true)
+    }
+
     if !userOptionsContains(MPVOption.Subtitles.subScale) {
       setUserOption(PK.subScale, type: .float, forName: MPVOption.Subtitles.subScale,
                     verboseIfDefault: true)
@@ -691,13 +700,15 @@ class MPVController: NSObject {
         MPVOption.Subtitles.subScale,
         MPVOption.Subtitles.subPos,
         MPVOption.Subtitles.secondarySubPos,
+        MPVOption.Subtitles.subVisibility,
+        MPVOption.Subtitles.secondarySubVisibility,
         MPVOption.Subtitles.subUseMargins,
         MPVOption.Subtitles.subAssForceMargins,
       ]
       let savedOptions = watchLaterOptions.components(separatedBy: ",")
       let filteredOptions = savedOptions.filter { !globalSubtitleOptions.contains($0) }
       if filteredOptions.count != savedOptions.count {
-        log("Removing global subtitle layout options from \(MPVOption.WatchLater.watchLaterOptions)")
+        log("Removing global subtitle options from \(MPVOption.WatchLater.watchLaterOptions)")
         watchLaterOptions = filteredOptions.joined(separator: ",")
         needsUpdate = true
       }
@@ -721,11 +732,18 @@ class MPVController: NSObject {
     chkErr(setOptionString(MPVOption.Video.gpuHwdecInterop, "auto", level: .verbose))
   }
 
-  /// Reapplies global subtitle layout preferences after mpv restores a legacy watch-later file.
+  /// Reapplies global subtitle preferences after mpv restores a legacy watch-later file.
   /// Explicit advanced mpv options, including a custom watch-later option list, retain precedence.
-  func restoreGlobalSubtitleLayout() {
+  func restoreGlobalSubtitlePreferences() {
     guard !userOptionsContains(MPVOption.WatchLater.watchLaterOptions) else { return }
 
+    if !userOptionsContains(MPVOption.Subtitles.subVisibility) {
+      setFlag(MPVOption.Subtitles.subVisibility, Preference.bool(for: .subVisibility))
+    }
+    if !userOptionsContains(MPVOption.Subtitles.secondarySubVisibility) {
+      setFlag(MPVOption.Subtitles.secondarySubVisibility,
+              Preference.bool(for: .secondarySubVisibility))
+    }
     if !userOptionsContains(MPVOption.Subtitles.subScale) {
       setDouble(MPVOption.Subtitles.subScale, Double(Preference.float(for: .subScale)))
     }
