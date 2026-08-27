@@ -11,6 +11,14 @@ import Cocoa
 /// A custom [slider](https://developer.apple.com/design/human-interface-guidelines/macos/selectors/sliders/)
 /// for the volume slider in the on screen controller.
 class VolumeSlider: NSSlider {
+  var usesExtendedDynamicRange: Bool {
+    get { (cell as? VolumeSliderCell)?.usesExtendedDynamicRange ?? false }
+    set {
+      (cell as? VolumeSliderCell)?.usesExtendedDynamicRange = newValue
+      needsDisplay = true
+    }
+  }
+
   override init(frame frameRect: NSRect) {
     super.init(frame: frameRect)
     self.cell = VolumeSliderCell()
@@ -37,6 +45,17 @@ class VolumeSlider: NSSlider {
 
 
 fileprivate class VolumeSliderCell: NSSliderCell {
+  var usesExtendedDynamicRange = false
+
+  override func drawKnob(_ knobRect: NSRect) {
+    guard usesExtendedDynamicRange else {
+      super.drawKnob(knobRect)
+      return
+    }
+    NSColor.hdrWhite().setFill()
+    NSBezierPath(ovalIn: knobRect).fill()
+  }
+
   /// Draws the slider’s bar—but not its bezel or knob—inside the specified rectangle.
   ///
   /// IINA overrides the
@@ -88,7 +107,7 @@ fileprivate class VolumeSliderCell: NSSliderCell {
       clipLeft.append(gapClip)
     }
     clipLeft.addClip()
-    NSColor.volumeSliderBarLeft.setFill()
+    (usesExtendedDynamicRange ? NSColor.hdrWhite(alpha: 0.45) : .volumeSliderBarLeft).setFill()
     path.fill()
     NSGraphicsContext.restoreGraphicsState()
 
@@ -101,7 +120,7 @@ fileprivate class VolumeSliderCell: NSSliderCell {
       clipRight.append(gapClip)
     }
     clipRight.addClip()
-    NSColor.volumeSliderBarRight.setFill()
+    (usesExtendedDynamicRange ? NSColor.hdrWhite(alpha: 0.18) : .volumeSliderBarRight).setFill()
     path.fill()
     NSGraphicsContext.restoreGraphicsState()
   }

@@ -419,6 +419,13 @@ extension FloatingPoint {
 }
 
 extension NSColor {
+  static func hdrWhite(alpha: CGFloat = 1) -> NSColor {
+    if #available(macOS 26.0, *) {
+      return NSColor(red: 1, green: 1, blue: 1, alpha: alpha, exposure: 1)
+    }
+    return NSColor.white.withAlphaComponent(alpha)
+  }
+
   var mpvColorString: String {
     // Normalize to sRGB before extracting cmponents
     let rgb = self.usingColorSpace(.sRGB) ?? self
@@ -465,6 +472,18 @@ extension NSColor {
         return nil
       }
     }
+  }
+}
+
+extension NSView {
+  func setExtendedDynamicRange(_ enabled: Bool) {
+    guard #available(macOS 26.0, *) else { return }
+
+    wantsLayer = true
+    layer?.contentsFormat = enabled ? .RGBA16Float : .RGBA8Uint
+    layer?.preferredDynamicRange = enabled ? .high : .standard
+    layer?.contentsHeadroom = enabled ? 2 : 1
+    subviews.forEach { $0.setExtendedDynamicRange(enabled) }
   }
 }
 
