@@ -584,9 +584,6 @@ private class OSCToolbarView: SettingsContainer {
   }
 
   func makeView() -> NSView {
-    let container = NSView()
-    container.translatesAutoresizingMaskIntoConstraints = false
-
     oscToolbarStackView.translatesAutoresizingMaskIntoConstraints = false
     oscToolbarStackView.orientation = .horizontal
     oscToolbarStackView.distribution = .gravityAreas
@@ -599,20 +596,20 @@ private class OSCToolbarView: SettingsContainer {
     box.contentViewMargins = .zero
     box.addSubview(oscToolbarStackView)
     oscToolbarStackView.padding(.vertical, .leading(greaterThan: 0), .trailing(0))
-    container.addSubview(box)
-    box.padding(.top, .bottom(8))
     box.widthAnchor
       .constraint(equalTo: box.heightAnchor, multiplier: 5).isActive = true
 
     customizeButton.target = self
     customizeButton.action = #selector(customizeOSCToolbarAction(_:))
-    customizeButton.translatesAutoresizingMaskIntoConstraints = false
-    container.addSubview(customizeButton)
-    customizeButton.center(.y, with: box)
-    SettingsUIHelper.hEquallySpaced([box, customizeButton], 8, leading: SettingsSubList.indent, trailing: 8)
+    let controls = NSStackView(views: [box, customizeButton])
+    controls.translatesAutoresizingMaskIntoConstraints = false
+    controls.orientation = .horizontal
+    controls.alignment = .centerY
+    controls.spacing = 8
+    controls.setHuggingPriority(.required, for: .horizontal)
 
-    view.addSubview(container)
-    container.padding(.vertical).center(.x)
+    view.addSubview(controls)
+    controls.padding(.top, .bottom(8), .leading(SettingsSubList.indent), .trailing(8))
     updateOSCToolbarButtons()
     return view
   }
