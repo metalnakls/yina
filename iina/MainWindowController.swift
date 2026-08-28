@@ -947,20 +947,18 @@ class MainWindowController: PlayerWindowController {
       $0?.setExtendedDynamicRange(enabled)
     }
 
-    let primaryColor: NSColor? = enabled ? .hdrWhite() : nil
-    let secondaryColor: NSColor = enabled ? .hdrWhite(alpha: 0.75) : .secondaryLabelColor
     [playButton, leftArrowButton, rightArrowButton].forEach {
-      $0?.contentTintColor = primaryColor
+      $0?.contentTintColor = nil
     }
     oscToolbarView.arrangedSubviews.compactMap { $0 as? NSButton }.forEach {
-      $0.contentTintColor = primaryColor
+      $0.contentTintColor = nil
     }
-    muteButton.imageView.contentTintColor = primaryColor
+    muteButton.imageView.contentTintColor = nil
     [leftLabel, rightLabel, oscSpeedLabelLeft, oscSpeedLabelRight].forEach {
-      $0?.textColor = secondaryColor
+      $0?.textColor = .secondaryLabelColor
     }
-    playSlider.usesExtendedDynamicRange = enabled
-    (volumeSlider as? VolumeSlider)?.usesExtendedDynamicRange = enabled
+    playSlider.usesExtendedDynamicRange = false
+    (volumeSlider as? VolumeSlider)?.usesExtendedDynamicRange = false
   }
 
   @objc
