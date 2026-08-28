@@ -52,6 +52,14 @@ class SidebarTabViewController: NSTabViewController {
       return
     }
 
+    // The tab-role segmented control supplies the native Liquid Glass selection motion.
+    // Animating the content layer at the same time makes the indicator visibly settle late.
+    if #available(macOS 27.0, *) {
+      previousIndex = selectedTabViewItemIndex
+      super.transition(from: fromVC, to: toVC, options: [], completionHandler: completion)
+      return
+    }
+
     let currentIndex = selectedTabViewItemIndex
     let goingRight = currentIndex > previousIndex
     previousIndex = currentIndex
