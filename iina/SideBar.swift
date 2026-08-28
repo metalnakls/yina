@@ -89,7 +89,7 @@ class SidebarViewController: NSViewController {
   var isLeading: Bool { Preference.bool(for: leadingPrefKey) }
   var isCompact: Bool { Preference.bool(for: .compactUI) }
 
-  var tabPanes: [NSView] = []
+  var tabPanes: [Int: NSView] = [:]
 
   var pendingSwitchRequest: TabType?
   lazy var currentTab: TabType = defaultTab
@@ -101,7 +101,7 @@ class SidebarViewController: NSViewController {
   var tabButtonsHeightConstraint: NSLayoutConstraint!
   var topConstraint: NSLayoutConstraint!
 
-  var tabViewController: SidebarTabViewController!
+  var tabPaneContainer: NSView!
   var closeSidebarBtn: NSButton!
   var closeSidebarBtnSizeConstraint: NSLayoutConstraint!
 
@@ -138,21 +138,19 @@ class SidebarViewController: NSViewController {
     tabButtonsHeightConstraint.isActive = true
 
     if useTabView {
-      self.tabViewController = SidebarTabViewController()
-      view.addSubview(tabViewController.view)
+      self.tabPaneContainer = NSView()
+      tabPaneContainer.translatesAutoresizingMaskIntoConstraints = false
+      view.addSubview(tabPaneContainer)
 
-      tabViewController.view.padding(.bottom, .horizontal)
+      tabPaneContainer.padding(.bottom, .horizontal)
         .spacing(.top(1), to: tabButtonsStackView)
-
-      tabViewController.tabView.padding(.all)
-      tabViewController.tabView.wantsLayer = true
     }
 
     self.tabButtonsSegmentControl = NSSegmentedControl()
     if #available(macOS 27.0, *) {
       tabButtonsSegmentControl.role = .tabs
-      tabButtonsSegmentControl.segmentDistribution = .fillEqually
     }
+    tabButtonsSegmentControl.segmentDistribution = .fillEqually
     tabButtonsSegmentControl.setContentHuggingPriority(.defaultLow, for: .horizontal)
     tabButtonsSegmentControl.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
     tabButtonsSegmentControl.target = self
@@ -190,18 +188,12 @@ class SidebarViewController: NSViewController {
       }
     }
 
-    if useTabView && defaultTab.tag == 0 {
-      // if the default tab is 0, it is already loaded and transition() was not called initially.
-      // set previousIndex manually, so animation will be triggered on next tab switch.
-      tabViewController.previousIndex = 0
-    }
     // handle pending switch tab request
     if pendingSwitchRequest != nil {
       switchToTab(pendingSwitchRequest!)
       pendingSwitchRequest = nil
     } else {
-      // tabViewController can be nil
-      tabViewController?.selectedTabViewItemIndex = defaultTab.tag
+      updateTabActiveStatus()
     }
   }
 
@@ -233,13 +225,15 @@ class SidebarViewController: NSViewController {
       tabButtonsSegmentControl.setTag(tab.tag, forSegment: tab.tag)
       let label = NSLocalizedString("sidebar.\(tab.name)", comment: tab.name)
       tabButtonsSegmentControl.setToolTip(label, forSegment: tab.tag)
-      // tab view
-      let view = getTabView(for: tab)
-      view.horizontalScroll = self.switchTabByScrolling(_:)
-      let vc = NSViewController()
-      vc.view = view
-      let viewItem = NSTabViewItem(viewController: vc)
-      tabViewController.addTabViewItem(viewItem)
+      // Keep every pane mounted so switching tabs does not rebuild the window's key-view
+      // loop and relayout the entire sidebar before the native tab indicator can animate.
+      let pane = getTabView(for: tab)
+      pane.horizontalScroll = self.switchTabByScrolling(_:)
+      pane.translatesAutoresizingMaskIntoConstraints = false
+      tabPaneContainer.addSubview(pane)
+      pane.padding(.all)
+      pane.isHidden = tab != defaultTab
+      tabPanes[tab.tag] = pane
     }
   }
 
@@ -259,7 +253,9 @@ class SidebarViewController: NSViewController {
     }
     guard isViewLoaded else { return }
     currentTab = tab
-    tabViewController.selectedTabViewItemIndex = tab.tag
+    for (tag, pane) in tabPanes {
+      pane.isHidden = tag != tab.tag
+    }
     updateTabActiveStatus()
   }
 
