@@ -152,6 +152,8 @@ class SidebarViewController: NSViewController {
     if #available(macOS 27.0, *) {
       tabButtonsSegmentControl.role = .tabs
     }
+    tabButtonsSegmentControl.setContentHuggingPriority(.defaultLow, for: .horizontal)
+    tabButtonsSegmentControl.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
     tabButtonsSegmentControl.target = self
     tabButtonsSegmentControl.action = #selector(tabBtnSegmentControlAction_(_:))
 
@@ -291,12 +293,7 @@ class SidebarViewController: NSViewController {
     for tab in allTabs {
       let isSelected = tab.tag == currentTag && !isLeading
       let label = NSLocalizedString("sidebar.\(tab.name)", comment: tab.name)
-      let showsLabel = if #available(macOS 27.0, *) {
-        !isLeading
-      } else {
-        isSelected
-      }
-      tabButtonsSegmentControl.setLabel(showsLabel ? label : "", forSegment: tab.tag)
+      tabButtonsSegmentControl.setLabel(isSelected ? label : "", forSegment: tab.tag)
     }
     tabButtonsSegmentControl.selectedSegment = currentTag
   }
@@ -332,14 +329,16 @@ class SidebarViewController: NSViewController {
       closeSidebarBtn.image = .sf("chevron.backward")
       tabButtonsLeadingConstraint.constant = 96
       tabButtonsTrailingConstraint.constant = 10
-      tabButtonsStackView.distribution = .equalSpacing
+      tabButtonsStackView.distribution = .fill
+      tabButtonsStackView.spacing = 8
       tabButtonsStackView.addArrangedSubview(tabButtonsSegmentControl)
       tabButtonsStackView.addArrangedSubview(closeSidebarBtn)
     } else {
       closeSidebarBtn.image = .sf("chevron.forward")
       tabButtonsLeadingConstraint.constant = 10
       tabButtonsTrailingConstraint.constant = 10
-      tabButtonsStackView.distribution = .equalSpacing
+      tabButtonsStackView.distribution = .fill
+      tabButtonsStackView.spacing = 8
       tabButtonsStackView.addArrangedSubview(closeSidebarBtn)
       tabButtonsStackView.addArrangedSubview(tabButtonsSegmentControl)
     }
