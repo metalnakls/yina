@@ -300,7 +300,9 @@ class SidebarViewController: NSViewController {
         tabButtonsSegmentControl.setLabel(isSelected ? label : "", forSegment: tab.tag)
       }
     }
-    tabButtonsSegmentControl.selectedSegment = currentTag
+    if tabButtonsSegmentControl.selectedSegment != currentTag {
+      tabButtonsSegmentControl.selectedSegment = currentTag
+    }
   }
 
   func updateTabButtonSize() {
