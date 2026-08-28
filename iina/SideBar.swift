@@ -151,6 +151,7 @@ class SidebarViewController: NSViewController {
     self.tabButtonsSegmentControl = NSSegmentedControl()
     if #available(macOS 27.0, *) {
       tabButtonsSegmentControl.role = .tabs
+      tabButtonsSegmentControl.segmentDistribution = .fillEqually
     }
     tabButtonsSegmentControl.setContentHuggingPriority(.defaultLow, for: .horizontal)
     tabButtonsSegmentControl.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
@@ -230,6 +231,8 @@ class SidebarViewController: NSViewController {
     for tab in allTabs {
       // segment control
       tabButtonsSegmentControl.setTag(tab.tag, forSegment: tab.tag)
+      let label = NSLocalizedString("sidebar.\(tab.name)", comment: tab.name)
+      tabButtonsSegmentControl.setToolTip(label, forSegment: tab.tag)
       // tab view
       let view = getTabView(for: tab)
       view.horizontalScroll = self.switchTabByScrolling(_:)
@@ -290,10 +293,12 @@ class SidebarViewController: NSViewController {
 
   func updateTabActiveStatus() {
     let currentTag = currentTab.tag
-    for tab in allTabs {
-      let isSelected = tab.tag == currentTag && !isLeading
-      let label = NSLocalizedString("sidebar.\(tab.name)", comment: tab.name)
-      tabButtonsSegmentControl.setLabel(isSelected ? label : "", forSegment: tab.tag)
+    if #unavailable(macOS 27.0) {
+      for tab in allTabs {
+        let isSelected = tab.tag == currentTag && !isLeading
+        let label = NSLocalizedString("sidebar.\(tab.name)", comment: tab.name)
+        tabButtonsSegmentControl.setLabel(isSelected ? label : "", forSegment: tab.tag)
+      }
     }
     tabButtonsSegmentControl.selectedSegment = currentTag
   }
@@ -314,6 +319,7 @@ class SidebarViewController: NSViewController {
     let config = isCompact ? compactIconConfig : iconConfig
     for tab in allTabs {
       let image = tab.image.withSymbolConfiguration(config) ?? tab.image
+      image.accessibilityDescription = NSLocalizedString("sidebar.\(tab.name)", comment: tab.name)
       tabButtonsSegmentControl.setImage(image, forSegment: tab.tag)
     }
 
