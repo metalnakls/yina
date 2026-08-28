@@ -26,6 +26,7 @@ class OSCFloatingView: TranslucentView {
   var mousePosRelatedToView: CGPoint?
 
   var isDragging: Bool = false
+  private var didDrag = false
 
   private var isAlignFeedbackSent = false
 
@@ -132,11 +133,13 @@ class OSCFloatingView: TranslucentView {
     mousePosRelatedToView!.x -= frame.origin.x
     mousePosRelatedToView!.y -= frame.origin.y
     isAlignFeedbackSent = abs(frame.origin.x - (window!.frame.width - frame.width) / 2) <= 5
+    didDrag = false
     isDragging = true
   }
 
   override func mouseDragged(with event: NSEvent) {
     guard let mousePos = mousePosRelatedToView else { return }
+    didDrag = true
     let windowFrame = mainWindow.videoViewContainer.frame
     let currentLocation = NSEvent.mouseLocation
     var newOrigin = CGPoint(
@@ -169,6 +172,7 @@ class OSCFloatingView: TranslucentView {
 
   override func mouseUp(with event: NSEvent) {
     isDragging = false
+    guard didDrag else { return }
     let windowFrame = mainWindow.videoViewContainer.frame
     // save final position
     Preference.set(xConstraint.constant / windowFrame.width, for: .controlBarPositionHorizontal)
