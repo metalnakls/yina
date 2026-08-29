@@ -44,8 +44,7 @@ class SidebarLayoutPane: SidebarScrollView {
       )
     )
 
-    if #available(macOS 26.0, *) {
-      themeSettingStack.addArrangedSubview(ui.vStack(
+    themeSettingStack.addArrangedSubview(ui.vStack(
         spacing: .sidebarItemSpacing,
         ui.hStack(
           ui.image("liquid.glass", size: 20, config: .sidebarIconConfig),
@@ -76,8 +75,7 @@ class SidebarLayoutPane: SidebarScrollView {
             ui.toggleButton(bindTo: .useLiquidGlassSidebar, size: .mini)
           ),
         )
-      ))
-    }
+    ))
 
     stack.addArrangedSubview(Container(themeSettingStack) {
       $0.padding(.all(.sidebarContainerPadding))

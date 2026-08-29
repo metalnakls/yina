@@ -24,11 +24,7 @@ class TranslucentView: NSView {
     self.liquidGlassCornerRadius = liquidGlassCornerRadius
     self.vevCornerRadius = vevCornerRadius
     self.padding = padding
-    self.style = if #available(macOS 26, *) {
-      .liquidGlass
-    } else {
-      .visualEffect
-    }
+    self.style = .liquidGlass
     super.init(frame: .zero)
 
     self.translatesAutoresizingMaskIntoConstraints = false
@@ -69,15 +65,11 @@ class TranslucentView: NSView {
 
     switch newStyle {
     case .liquidGlass:
-      if #available(macOS 26.0, *) {
-        let view = NSGlassEffectView()
-        view.cornerRadius = liquidGlassCornerRadius
-        view.translatesAutoresizingMaskIntoConstraints = false
-        view.contentView = wrapper
-        container = view
-      } else {
-        fatalError()
-      }
+      let view = NSGlassEffectView()
+      view.cornerRadius = liquidGlassCornerRadius
+      view.translatesAutoresizingMaskIntoConstraints = false
+      view.contentView = wrapper
+      container = view
     case .visualEffect:
       let view = NSVisualEffectView()
       view.clipsToBounds = true
@@ -107,12 +99,8 @@ class TranslucentView: NSView {
     vevCornerRadius = vev
     switch appliedStyle {
     case .liquidGlass:
-      if #available(macOS 26.0, *) {
-        let view = container as! NSGlassEffectView
-        view.cornerRadius = liquidGlassCornerRadius
-      } else {
-        fatalError()
-      }
+      let view = container as! NSGlassEffectView
+      view.cornerRadius = liquidGlassCornerRadius
     case .visualEffect:
       let view = container as! NSVisualEffectView
       view.layer?.cornerRadius = vevCornerRadius

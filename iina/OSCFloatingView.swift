@@ -36,7 +36,7 @@ class OSCFloatingView: TranslucentView {
     let container = NSView()
     container.translatesAutoresizingMaskIntoConstraints = false
 
-    let cornerRadius: CGFloat = if #available(macOS 26.0, *) { 22 } else { 6 }
+    let cornerRadius: CGFloat = 22
     super.init(liquidGlassCornerRadius: cornerRadius, vevCornerRadius: cornerRadius, padding: (0, 0))
 
     self.oscTopView = NSStackView()

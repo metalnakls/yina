@@ -6,12 +6,7 @@
 //  Copyright © 2026 lhc. All rights reserved.
 //
 
-fileprivate let TitleBarHeightNormal: CGFloat = {
-  if #available(macOS 26, *) {
-    return 32
-  }
-  return 28
-}()
+fileprivate let TitleBarHeightNormal: CGFloat = 32
 
 fileprivate extension LayoutValue {
   static let titlebarHeight = LayoutValue(TitleBarHeightNormal + 8, TitleBarHeightNormal)
@@ -169,17 +164,8 @@ class Titlebar: NSView {
       titlebarContainer.addSubview(titleTextField)
       titleTextField.spacing(.leading(2), to: docIcon).center(.y)
 
-      if #available(macOS 26.0, *) {
-        self.titleLeadingConstraint = docIcon.leadingAnchor
-          .constraint(equalTo: titlebarContainer.leadingAnchor, constant: Titlebar.docIconLeadingPadding)
-      } else {
-        // on macOS 15 or below, titlebar is centered
-        self.titleLeadingConstraint = docIcon.leadingAnchor
-          .constraint(greaterThanOrEqualTo: titlebarContainer.leadingAnchor, constant: Titlebar.docIconLeadingPadding)
-        let centerConstraint = titleTextField.centerXAnchor.constraint(equalTo: titlebarContainer.centerXAnchor)
-        centerConstraint.priority = .defaultLow
-        centerConstraint.isActive = true
-      }
+      self.titleLeadingConstraint = docIcon.leadingAnchor
+        .constraint(equalTo: titlebarContainer.leadingAnchor, constant: Titlebar.docIconLeadingPadding)
       titleLeadingConstraint.priority = .defaultHigh
       titleLeadingConstraint.isActive = true
 

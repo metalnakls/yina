@@ -45,7 +45,7 @@ class VolumeButton: NSView {
     let res = volumeIcon()
     guard let icon = res.image, res.name != previousIcon else { return }
     let useReplace = (previousIcon?.contains("slash") ?? false) || (res.name.contains("slash"))
-    if #available(macOS 15.0, *), useReplace {
+    if useReplace {
       imageView.setSymbolImage(icon, contentTransition: .replace.offUp)
     } else {
       imageView.image = icon

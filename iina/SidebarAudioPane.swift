@@ -88,9 +88,7 @@ fileprivate class AudioDelayView: SidebarSliderView {
     slider.minValue = -5
     slider.maxValue = 5
     slider.numberOfTickMarks = 21
-    if #available(macOS 26, *) {
-      slider.neutralValue = 0
-    }
+    slider.neutralValue = 0
 
     let fmt = NumberFormatter()
     fmt.numberStyle = .decimal
@@ -172,9 +170,7 @@ fileprivate class EqualizerView: NSView, NSMenuDelegate {
       slider.minValue = -12
       slider.maxValue = 12
       slider.numberOfTickMarks = 5
-      if #available(macOS 26.0, *) {
-        slider.neutralValue = 0
-      }
+      slider.neutralValue = 0
       slider.tag = $0
       slider.target = self
       slider.action = #selector(audioEqSliderAction)

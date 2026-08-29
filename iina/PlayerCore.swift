@@ -462,26 +462,8 @@ class PlayerCore: NSObject {
     if str.first == "/" {
       openURL(URL(fileURLWithPath: str))
     } else {
-      // For apps built with Xcode 15 or later the behavior of the URL initializer has changed when
-      // running under macOS Sonoma or later. The behavior now matches URLComponents and will
-      // automatically percent encode characters. Must not apply percent encoding to the string
-      // passed to the URL initializer if the new new behavior is active.
-      var performPercentEncoding = true
-#if compiler(>=5.9)
-      if #available(macOS 14, *) {
-        performPercentEncoding = false
-      }
-#endif
-      var pstr = str
-      if performPercentEncoding {
-        guard let encoded = str.addingPercentEncoding(withAllowedCharacters: .urlAllowed) else {
-          log("Cannot add percent encoding for \(str)", level: .error)
-          return
-        }
-        pstr = encoded
-      }
-      guard let url = URL(string: pstr) else {
-        log("Cannot parse url for \(pstr)", level: .error)
+      guard let url = URL(string: str) else {
+        log("Cannot parse url for \(str)", level: .error)
         return
       }
       openURL(url)

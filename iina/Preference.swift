@@ -383,8 +383,6 @@ struct Preference {
     /// in case a problem is found where the display link is shut down when it is needed.
     static let enableDisplayIdle = Key("enableDisplayIdle")
 
-    /// Workaround for AppKit defect where showWindow moves the window to a different screen (fixed as of macOS Tahoe).
-    static let enableWrongScreenWorkaround = Key("enableWrongScreenWorkaround")
   }
 
   // MARK: - Enums
@@ -1013,7 +1011,6 @@ struct Preference {
   }
 
   static func liquidGlass(_ component: LiquidGlassOption) -> Bool {
-    guard #available(macOS 26.0, *) else { return false }
     return switch component {
     case .osc:
       Preference.bool(for: .useLiquidGlassOSC)
@@ -1025,7 +1022,6 @@ struct Preference {
   }
 
   static var isLiveTextAvailable: Bool = {
-    guard #available(macOS 13, *) else { return false }
     let defaults = UserDefaults.standard
     if defaults.object(forKey: "AppleLiveTextEnabled") == nil {
       return true
@@ -1259,8 +1255,7 @@ struct Preference {
     .enableFFmpegImageDecoder: true,
     .enableHdrWorkaround: false,
     .enableNowPlayingArtwork: true,
-    .enableDisplayIdle: true,
-    .enableWrongScreenWorkaround: true
+    .enableDisplayIdle: true
   ]
 
 
@@ -1451,7 +1446,6 @@ struct Preference {
            .enableThumbnailForRemoteFiles,
            .enableThumbnailPreview,
            .enableToneMapping,
-           .enableWrongScreenWorkaround,
            .followGlobalSeekTypeWhenAdjustSlider,
            .forceDedicatedGPU,
            .fullScreenWhenOpen,

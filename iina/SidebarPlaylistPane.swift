@@ -300,9 +300,7 @@ class SidebarPlaylistPane: NSView, SidebarPane {
 
   @objc func sortBtnAction(_ sender: NSButton) {
     let menu = NSMenu()
-    if #available(macOS 14.0, *) {
-      menu.addItem(.sectionHeader(title: NSLocalizedString("playlist.sorting.header", comment: "Sorting")))
-    }
+    menu.addItem(.sectionHeader(title: NSLocalizedString("playlist.sorting.header", comment: "Sorting")))
     menu.addItem(withTitle: NSLocalizedString("playlist.sorting.filename_ascending", comment: "Filename Ascending"), action: #selector(sortPathAscending), keyEquivalent: "")
     menu.addItem(withTitle: NSLocalizedString("playlist.sorting.filename_descending", comment: "Filename Descending"), action: #selector(sortPathDesecnding), keyEquivalent: "")
     menu.addItem(withTitle: NSLocalizedString("playlist.sorting.path_ascending", comment: "File Path Ascending"), action: #selector(sortPathAscending), keyEquivalent: "")
@@ -644,20 +642,14 @@ extension SidebarPlaylistPane: NSMenuDelegate, NSMenuItemValidation {
 
       result.addItem(withTitle: title)
       result.addItem(NSMenuItem.separator())
-      if #available(macOS 14.0, *) {
-        result.addItem(.sectionHeader(title: NSLocalizedString("pl_menu.playback", comment: "Playback")))
-      }
+      result.addItem(.sectionHeader(title: NSLocalizedString("pl_menu.playback", comment: "Playback")))
       result.addItem(withTitle: NSLocalizedString("pl_menu.play_next", comment: "Play Next"), action: #selector(self.contextMenuPlayNext(_:)))
       result.addItem(withTitle: NSLocalizedString("pl_menu.play_in_new_window", comment: "Play in New Window"), action: #selector(self.contextMenuPlayInNewWindow(_:)))
       result.addItem(withTitle: NSLocalizedString(isSingleItem ? "pl_menu.remove" : "pl_menu.remove_multi", comment: "Remove"), action: #selector(self.contextMenuRemove(_:)))
 
       if !player.isInMiniPlayer && (isSingleItem || matchedSubCount != 0) {
         result.addItem(NSMenuItem.separator())
-        if #available(macOS 14.0, *) {
-          result.addItem(.sectionHeader(title: String(format: NSLocalizedString("pl_menu.subtitles", comment: "Subtitles (%@ loaded)"), matchedSubCount)))
-        } else {
-          result.addItem(withTitle: String(format: NSLocalizedString("pl_menu.matched_sub", comment: "Matched %d Subtitle(s)"), matchedSubCount))
-        }
+        result.addItem(.sectionHeader(title: String(format: NSLocalizedString("pl_menu.subtitles", comment: "Subtitles (%@ loaded)"), matchedSubCount)))
         if isSingleItem {
           result.addItem(withTitle: NSLocalizedString("pl_menu.add_sub", comment: "Add Subtitle…"), action: #selector(self.contextMenuAddSubtitle(_:)))
         }
@@ -672,9 +664,7 @@ extension SidebarPlaylistPane: NSMenuDelegate, NSMenuItemValidation {
         rows.filter { playlist[$0].isNetworkResource }
       }.count
       if networkCount != 0 {
-        if #available(macOS 14.0, *) {
-          result.addItem(.sectionHeader(title: NSLocalizedString("pl_menu.network_resources", comment: "Network Resources")))
-        }
+        result.addItem(.sectionHeader(title: NSLocalizedString("pl_menu.network_resources", comment: "Network Resources")))
         result.addItem(withTitle: NSLocalizedString("pl_menu.browser", comment: "Open in Browser"), action: #selector(self.contextOpenInBrowser(_:)))
         result.addItem(withTitle: NSLocalizedString(networkCount == 1 ? "pl_menu.copy_url" : "pl_menu.copy_url_multi", comment: "Copy URL(s)"), action: #selector(self.contextCopyURL(_:)))
         result.addItem(NSMenuItem.separator())
@@ -682,9 +672,7 @@ extension SidebarPlaylistPane: NSMenuDelegate, NSMenuItemValidation {
       // file related operations
       let localCount = rows.count - networkCount
       if localCount != 0 {
-        if #available(macOS 14.0, *) {
-          result.addItem(.sectionHeader(title: NSLocalizedString("pl_menu.file_operations", comment: "File Operations")))
-        }
+        result.addItem(.sectionHeader(title: NSLocalizedString("pl_menu.file_operations", comment: "File Operations")))
         result.addItem(withTitle: NSLocalizedString(localCount == 1 ? "pl_menu.delete" : "pl_menu.delete_multi", comment: "Delete"), action: #selector(self.contextMenuDeleteFile(_:)))
         // result.addItem(withTitle: NSLocalizedString(isSingleItem ? "pl_menu.delete_after_play" : "pl_menu.delete_after_play_multi", comment: "Delete After Playback"), action: #selector(self.contextMenuDeleteFileAfterPlayback(_:)))
 
@@ -717,9 +705,7 @@ extension SidebarPlaylistPane: NSMenuDelegate, NSMenuItemValidation {
       result.addItem(NSMenuItem.separator())
     }
 
-    if #available(macOS 14.0, *) {
-      result.addItem(.sectionHeader(title: NSLocalizedString("pl_menu.playlist", comment: "Playlist")))
-    }
+    result.addItem(.sectionHeader(title: NSLocalizedString("pl_menu.playlist", comment: "Playlist")))
     result.addItem(withTitle: NSLocalizedString("pl_menu.add_file", comment: "Add File"), action: #selector(self.addFileAction(_:)))
     result.addItem(withTitle: NSLocalizedString("pl_menu.add_url", comment: "Add URL"), action: #selector(self.addURLAction(_:)))
     result.addItem(withTitle: NSLocalizedString("pl_menu.clear_playlist", comment: "Clear Playlist"), action: #selector(self.clearPlaylistBtnAction(_:)))

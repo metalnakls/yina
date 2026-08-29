@@ -147,9 +147,7 @@ class SidebarViewController: NSViewController {
     }
 
     self.tabButtonsSegmentControl = NSSegmentedControl()
-    if #available(macOS 27.0, *) {
-      tabButtonsSegmentControl.role = .tabs
-    }
+    tabButtonsSegmentControl.role = .tabs
     tabButtonsSegmentControl.segmentDistribution = .fillEqually
     tabButtonsSegmentControl.setContentHuggingPriority(.defaultLow, for: .horizontal)
     tabButtonsSegmentControl.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
@@ -164,17 +162,8 @@ class SidebarViewController: NSViewController {
     closeSidebarBtn.widthAnchor.constraint(equalTo: closeSidebarBtn.heightAnchor).isActive = true
     closeSidebarBtnSizeConstraint = closeSidebarBtn.widthAnchor.constraint(equalToConstant: 28)
     closeSidebarBtnSizeConstraint.isActive = true
-    if #available(macOS 26.0, *) {
-      if #available(macOS 27.0, *) {
-        closeSidebarBtn.bezelStyle = .glass
-        closeSidebarBtn.borderShape = .circle
-      } else {
-        closeSidebarBtn.bezelStyle = .circular
-      }
-    } else {
-      closeSidebarBtn.bezelStyle = .accessoryBar
-      closeSidebarBtn.controlSize = .large
-    }
+    closeSidebarBtn.bezelStyle = .glass
+    closeSidebarBtn.borderShape = .circle
 
     setupTabs()
 
@@ -289,13 +278,6 @@ class SidebarViewController: NSViewController {
 
   func updateTabActiveStatus() {
     let currentTag = currentTab.tag
-    if #unavailable(macOS 27.0) {
-      for tab in allTabs {
-        let isSelected = tab.tag == currentTag && !isLeading
-        let label = NSLocalizedString("sidebar.\(tab.name)", comment: tab.name)
-        tabButtonsSegmentControl.setLabel(isSelected ? label : "", forSegment: tab.tag)
-      }
-    }
     if tabButtonsSegmentControl.selectedSegment != currentTag {
       tabButtonsSegmentControl.selectedSegment = currentTag
     }
@@ -304,11 +286,10 @@ class SidebarViewController: NSViewController {
   func updateTabButtonSize() {
     // on macOS 26, window corner radius will be larger with a regular toolbar.
     // should use the normal (non-compact) height if the sidebar is on the leading side.
-    let largeLeadingHeight = if #available(macOS 26.0, *) { isLeading } else { false }
-    let height: CGFloat = (isCompact && !largeLeadingHeight) ? 48 : 52
+    let height: CGFloat = (isCompact && !isLeading) ? 48 : 52
     tabButtonsHeightConstraint.constant = height
 
-    if #available(macOS 26.0, *), !isCompact {
+    if !isCompact {
       tabButtonsSegmentControl.controlSize = .extraLarge
     } else {
       tabButtonsSegmentControl.controlSize = .large

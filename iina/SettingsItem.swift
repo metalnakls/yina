@@ -538,16 +538,8 @@ struct SettingsItem {
     override func getValueViews() -> [NSView] {
       popupButton = NSPopUpButton()
       popupButton.translatesAutoresizingMaskIntoConstraints = false
-      if #available(macOS 12, *) {
-        popupButton.bezelStyle = .flexiblePush
-      }
-      if #available(macOS 26, *) {
-        popupButton.showsBorderOnlyWhileMouseInside = false
-      } else if #unavailable(macOS 12) {
-        popupButton.showsBorderOnlyWhileMouseInside = false
-      } else {
-        popupButton.showsBorderOnlyWhileMouseInside = true
-      }
+      popupButton.bezelStyle = .flexiblePush
+      popupButton.showsBorderOnlyWhileMouseInside = false
       popupButton.target = self
       popupButton.action = #selector(popupChanged)
       return [popupButton]
@@ -732,16 +724,8 @@ struct SettingsItem {
       nsSwitch.target = self
       popupButton = NSPopUpButton()
       popupButton.translatesAutoresizingMaskIntoConstraints = false
-      if #available(macOS 12, *) {
-        popupButton.bezelStyle = .flexiblePush
-      }
-      if #available(macOS 26, *) {
-        popupButton.showsBorderOnlyWhileMouseInside = false
-      } else if #unavailable(macOS 12) {
-        popupButton.showsBorderOnlyWhileMouseInside = false
-      } else {
-        popupButton.showsBorderOnlyWhileMouseInside = true
-      }
+      popupButton.bezelStyle = .flexiblePush
+      popupButton.showsBorderOnlyWhileMouseInside = false
       return [popupButton, nsSwitch]
     }
 
@@ -1100,14 +1084,10 @@ fileprivate class ClickableView: NSView {
   }
 
   override func viewDidChangeEffectiveAppearance() {
-    backgroundColor = if #available(macOS 26, *) {
-      if effectiveAppearance.isDark {
-        NSColor.highlightColor.withAlphaComponent(0.1).cgColor
-      } else {
-        NSColor.black.withAlphaComponent(0.08).cgColor
-      }
+    backgroundColor = if effectiveAppearance.isDark {
+      NSColor.highlightColor.withAlphaComponent(0.1).cgColor
     } else {
-      NSColor.highlightColor.withAlphaComponent(0.2).cgColor
+      NSColor.black.withAlphaComponent(0.08).cgColor
     }
   }
 }
