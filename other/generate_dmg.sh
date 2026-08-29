@@ -11,14 +11,12 @@
 # Running this script generates an IINA DMG file in Xcode's build directory.
 # Before running this script you must in Xcode edit the iina scheme and set the
 # build configuration to the desired type of IINA release (Beta, Debug, Nightly or
-# Release) and then build an IINA.app that can be run on any Mac. This script will
-# refuse to generate a DMG if the app is not universal. This script also tests
+# Release) and then build an arm64 IINA.app for macOS 27. This script will
+# refuse to generate a DMG if any bundled Mach-O violates that contract. It also tests
 # that the Safari extension can be installed and uninstalled.
 
 # IMPORTANT! This script requires that create-dmg has been installed.
 # See: https://github.com/create-dmg/create-dmg
-
-PROJECT_NAME='iina'
 
 # Colors for output
 RED='\033[0;31m'
@@ -73,17 +71,7 @@ fi
 
 # Find the root directory of this repository clone.
 SCRIPT_PATH=$(realpath "$0")
-ROOT_PATH=$(dirname "$SCRIPT_PATH")
-
-if [[ $(basename "$ROOT_PATH") != "$PROJECT_NAME" ]]; then
-  while [[ "$ROOT_PATH" != "/" && $(basename "$ROOT_PATH") != "$PROJECT_NAME" ]]; do
-    ROOT_PATH=$(dirname "$ROOT_PATH")
-  done
-  if [[ "$ROOT_PATH" == "/" ]]; then
-    echo -e "${RED}Unable to find the root directory '$PROJECT_NAME' containing the script file.${NC}" >&2
-    exit 1
-  fi
-fi
+ROOT_PATH=$(dirname "$(dirname "$SCRIPT_PATH")")
 
 # Confirm the background image for the DMG exists.
 DMG_BACKGROUND_PATH="$ROOT_PATH/other/dmg_background.png"
@@ -140,14 +128,9 @@ if [ ! -e "$APP_PATH" ]; then
 fi
 echo -e "${GREEN}Found IINA.app: ${APP_PATH}${NC}"
 
-# Confirm app was built for all Macs.
-IINA_BINARY_PATH="${APP_PATH}/Contents/MacOS/iina"
-if ! lipo "$IINA_BINARY_PATH" -verify_arch arm64; then
-  echo -e "${RED}IINA.app is missing support for arm64.${NC}" >&2
-  exit 1
-fi
-if ! lipo "$IINA_BINARY_PATH" -verify_arch x86_64; then
-  echo -e "${RED}IINA.app is missing support for x86_64.${NC}" >&2
+# Confirm every bundled Mach-O is arm64 and requires macOS 27.
+if ! "$ROOT_PATH/other/verify_arm64_bundle.sh" "$APP_PATH"; then
+  echo -e "${RED}IINA.app contains an unsupported architecture or deployment target.${NC}" >&2
   exit 1
 fi
 
