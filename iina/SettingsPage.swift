@@ -150,13 +150,7 @@ class SettingsPage {
 
   let symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 18, weight: .bold)
 
-  static var corderRadius: CGFloat = {
-    if #available(macOS 26, *) {
-      12
-    } else {
-      4
-    }
-  }()
+  static let corderRadius: CGFloat = 12
 
   lazy var builtSections: [SettingsSection] = {
     content()
@@ -382,10 +376,8 @@ class SettingsList: SettingsContainer {
       self.titlePosition = .noTitle
       self.contentViewMargins = NSSize(width: 0, height: 0)
 
-      if #available(macOS 26, *) {
-        self.boxType = .custom
-        self.cornerRadius = SettingsPage.corderRadius
-      }
+      self.boxType = .custom
+      self.cornerRadius = SettingsPage.corderRadius
     }
 
     required init?(coder: NSCoder) {
@@ -398,14 +390,12 @@ class SettingsList: SettingsContainer {
     }
 
     override func viewDidChangeEffectiveAppearance() {
-      if #available(macOS 26, *) {
-        if effectiveAppearance.isDark {
-          self.borderColor = .separatorColor
-          self.fillColor = .underPageBackgroundColor
-        } else {
-          self.borderColor = .black.withAlphaComponent(0.05)
-          self.fillColor = .black.withAlphaComponent(0.02)
-        }
+      if effectiveAppearance.isDark {
+        self.borderColor = .separatorColor
+        self.fillColor = .underPageBackgroundColor
+      } else {
+        self.borderColor = .black.withAlphaComponent(0.05)
+        self.fillColor = .black.withAlphaComponent(0.02)
       }
     }
   }

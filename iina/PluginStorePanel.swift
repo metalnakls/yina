@@ -44,7 +44,6 @@ fileprivate class RefreshIndicator: ObservableObject {
 }
 
 
-@available(macOS 12.0, *)
 class PluginStorePanel: NSWindow {
   lazy var pluginManager = PluginManager(window: self)
 
@@ -112,7 +111,6 @@ struct Plugin: Identifiable, Hashable, Decodable {
 let officialPlugins = defaultPlugins.map { Plugin($0) }
 
 
-@available(macOS 12.0, *)
 struct PluginStoreView: View {
   let panel: PluginStorePanel
 
@@ -204,11 +202,7 @@ struct PluginStoreView: View {
 
       HStack(spacing: 4) {
         VStack(alignment: .leading) {
-          if #available(macOS 13.0, *) {
-            list.scrollContentBackground(.hidden)
-          } else {
-            list
-          }
+          list.scrollContentBackground(.hidden)
         }.frame(width: 240)
         GroupBox {
           ScrollView {
@@ -236,7 +230,6 @@ struct PluginStoreView: View {
 }
 
 
-@available(macOS 12.0, *)
 struct PluginDetailView: View {
   let plugin: Plugin?
   let panel: PluginStorePanel
@@ -414,7 +407,6 @@ class GitHubService {
 }
 
 
-@available(macOS 12.0, *)
 struct RepoDetailView: View {
   let owner: String
   let repo: String
@@ -432,21 +424,9 @@ struct RepoDetailView: View {
           ProgressView("Loading…")
         }
       } else if let errorMessage {
-        if #available(macOS 14.0, *) {
-          ContentUnavailableView("Failed to load",
-                                 systemImage: "exclamationmark.triangle",
-                                 description: Text(errorMessage))
-        } else {
-          VStack(spacing: 6) {
-            Image(systemName: "exclamationmark.triangle")
-              .font(.title2)
-            Text("Failed to load").bold()
-            Text(errorMessage)
-              .font(.caption)
-              .foregroundColor(.secondary)
-              .multilineTextAlignment(.center)
-          }
-        }
+        ContentUnavailableView("Failed to load",
+                               systemImage: "exclamationmark.triangle",
+                               description: Text(errorMessage))
       } else if let repoData {
         repoContent(repoData)
       } else {

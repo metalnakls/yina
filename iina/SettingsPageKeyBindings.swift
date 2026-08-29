@@ -271,12 +271,7 @@ fileprivate class ConfigEditor: SettingsAccessory.Base {
 
   @objc private func addConfBtnAction() {
     let menu = NSMenu()
-    if #available(macOS 14.0, *) {
-      menu.addItem(.sectionHeader(title: ui.localized(.text_NewKeyBindingSet)))
-    } else {
-      menu.addItem(withTitle: ui.localized(.text_NewKeyBindingSet))
-      menu.addItem(.separator())
-    }
+    menu.addItem(.sectionHeader(title: ui.localized(.text_NewKeyBindingSet)))
     menu.addItem(withTitle: ui.localized(.text_CreateAnEmptySet),
                  action: #selector(newConfFileAction), target: self)
     menu.addItem(withTitle: ui.localized(.text_DuplicateCurrentSet),

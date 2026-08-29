@@ -112,11 +112,7 @@ class UIHelper {
   func colorWell(bindTo key: Preference.Key) -> NSColorWell {
     let colorWell = NSColorWell()
     colorWell.translatesAutoresizingMaskIntoConstraints = false
-    if #available(macOS 13.0, *) {
-      colorWell.colorWellStyle = .expanded
-    } else {
-      colorWell.size(width: 30)
-    }
+    colorWell.colorWellStyle = .expanded
     colorWell.size(height: 24)
     colorWell.bind(.value, to: UserDefaults.standard,
                    withKeyPath: key.rawValue,

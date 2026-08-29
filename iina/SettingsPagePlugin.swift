@@ -109,19 +109,10 @@ fileprivate class PluginInstallView: SettingsAccessory.Base {
   }
 
   @IBAction func installPluginFromGitHub(_ sender: Any) {
-    if #available(macOS 12.0, *) {
-      let panel = PluginStorePanel()
-      panel.contentMaxSize = NSSize(width: 800, height: 600)
-      view.window!.beginSheet(panel) { _ in
-        self.page.listView.reload()
-      }
-    } else {
-      Utility.quickPromptPanel("install_plugin_macos_11", sheetWindow: view.window!) { url in
-        if url.isEmpty { return }
-        Task { @MainActor in
-          await self.page.pluginManager.install(gitHubString: url)
-        }
-      }
+    let panel = PluginStorePanel()
+    panel.contentMaxSize = NSSize(width: 800, height: 600)
+    view.window!.beginSheet(panel) { _ in
+      self.page.listView.reload()
     }
   }
 }
@@ -590,11 +581,7 @@ fileprivate class PluginDetailsWindow: NSWindow {
 
     segControl.segmentCount = 3
     segControl.segmentStyle = .texturedSquare
-    if #available(macOS 26.0, *) {
-      segControl.controlSize = .extraLarge
-    } else {
-      segControl.size(width: 360)
-    }
+    segControl.controlSize = .extraLarge
     segControl.target = self
     segControl.action = #selector(changeTab)
 
@@ -672,9 +659,7 @@ fileprivate class PluginDetailsWindow: NSWindow {
     config.userContentController.add(self, name: "iina")
 
     self.webView = WKWebView(frame: .zero, configuration: config)
-    if #available(macOS 13.3, *) {
-      webView.isInspectable = true
-    }
+    webView.isInspectable = true
     webView.navigationDelegate = self
     webView.translatesAutoresizingMaskIntoConstraints = false
     webView.setValue(false, forKey: "drawsBackground")

@@ -10,13 +10,6 @@ import Cocoa
 import Mustache
 import WebKit
 
-fileprivate let isMacOS11: Bool = {
-  if #unavailable(macOS 12.0) {
-      return true
-  }
-  return false
-}()
-
 fileprivate let InteractiveModeBottomViewHeight: CGFloat = 60
 
 fileprivate let UIAnimationDuration = 0.25
@@ -362,7 +355,7 @@ class MainWindowController: PlayerWindowController {
         $0?.setStyle(Preference.liquidGlass(.osd) ? .liquidGlass : .visualEffect)
       }
     case PK.enableLiveText.rawValue:
-      if #available(macOS 13, *), let newValue = change[.newKey] as? Bool {
+      if let newValue = change[.newKey] as? Bool {
         let buttons = oscToolbarView.subviews as! [NSButton]
         if let btn = buttons.first(where: { $0.tag == Preference.ToolBarButton.liveText.rawValue }) {
           btn.image = newValue ? Preference.ToolBarButton.liveText.alternateImage() : Preference.ToolBarButton.liveText.image()
@@ -455,7 +448,7 @@ class MainWindowController: PlayerWindowController {
     // workaround another bug in Ventura where an external monitor goes black could not be
     // reproduced (issue #4015). The workaround adds a tiny subview with such a low alpha level it
     // is invisible to the human eye. This workaround may not be effective in all cases.
-    if #available(macOS 13, *), Preference.bool(for: .enableHdrWorkaround) {
+    if Preference.bool(for: .enableHdrWorkaround) {
       let view = NSView(frame: NSRect(origin: .zero, size: NSSize(width: 0.1, height: 0.1)))
       view.wantsLayer = true
       view.layer?.backgroundColor = NSColor.black.cgColor
@@ -469,15 +462,9 @@ class MainWindowController: PlayerWindowController {
     videoViewContainer.layer?.backgroundColor = NSColor.black.cgColor
 
     DispatchQueue.main.async { [weak self] in
-      if #available(macOS 14, *) {
-        self?.sidebars.quickSettingView.loadViewIfNeeded()
-        self?.sidebars.playlistView.loadViewIfNeeded()
-        self?.sidebars.pluginView.loadViewIfNeeded()
-      } else {
-        _ = self?.sidebars.quickSettingView.view
-        _ = self?.sidebars.playlistView.view
-        _ = self?.sidebars.pluginView.view
-      }
+      self?.sidebars.quickSettingView.loadViewIfNeeded()
+      self?.sidebars.playlistView.loadViewIfNeeded()
+      self?.sidebars.pluginView.loadViewIfNeeded()
     }
 
     // create translucent views
@@ -1026,13 +1013,9 @@ class MainWindowController: PlayerWindowController {
       oscFloatingView.oscTopView.addView(oscPlayControlView, in: .center)
       oscFloatingPlayControlsCenterConstraint.isActive = true
 
-      // Setting the visibility priority to detach only will cause freeze when resizing the window
-      // (and triggering the detach) in macOS 11.
-      if !isMacOS11 {
-        oscFloatingView.oscTopView.setVisibilityPriority(.detachOnlyIfNecessary, for: oscVolumeView)
-        oscFloatingView.oscTopView.setVisibilityPriority(.detachOnlyIfNecessary, for: oscToolbarView)
-        oscFloatingView.oscTopView.setClippingResistancePriority(.defaultLow, for: .horizontal)
-      }
+      oscFloatingView.oscTopView.setVisibilityPriority(.detachOnlyIfNecessary, for: oscVolumeView)
+      oscFloatingView.oscTopView.setVisibilityPriority(.detachOnlyIfNecessary, for: oscToolbarView)
+      oscFloatingView.oscTopView.setClippingResistancePriority(.defaultLow, for: .horizontal)
       oscFloatingView.oscBottomView.addSubview(oscSliderView)
       Utility.quickConstraints(["H:|[v]|", "V:|[v]|"], ["v": oscSliderView])
       Utility.quickConstraints(["H:|-(>=0)-[v]-(>=0)-|"], ["v": oscPlayControlView])
@@ -1384,29 +1367,7 @@ class MainWindowController: PlayerWindowController {
   override func showWindow(_ sender: Any?) {
     guard let window else { return }
     log("Showing window at \(window.frame)")
-    let origin = window.frame.origin
     super.showWindow(sender)
-    if #unavailable(macOS 26), Preference.bool(for: .enableWrongScreenWorkaround),
-       NSScreen.screens.count > 1, window.frame.origin != origin {
-      log("NSWindowController.showWindow changed origin from \(origin) to \(window.frame.origin)")
-      if player.info.state == .loaded, Preference.bool(for: .fullScreenWhenOpen),
-         !fsState.isFullscreen, !player.isInMiniPlayer {
-        // PlayerCore.notifyWindowVideoSizeChanged will be toggling the window into full screen
-        // mode. Merely resetting the origin works when NSWindow.toggleFullScreen is called.
-        log("Resetting window origin to \(origin)")
-        window.setFrameOrigin(origin)
-      } else {
-        // When not immediately toggling into full screen mode resetting the origin will not work
-        // unless it is done in another task.
-        log("Applying workaround for AppKit using the wrong screen")
-        window.alphaValue = 0
-        DispatchQueue.main.async {
-          self.log("Resetting window origin to \(origin)")
-          window.setFrameOrigin(origin)
-          window.alphaValue = 1
-        }
-      }
-    }
     resetCollectionBehavior()
     // update buffer indicator view
     bufferIndicatorView.update()
@@ -1815,36 +1776,6 @@ class MainWindowController: PlayerWindowController {
     // update control bar position
     if oscPosition == .floating && !isMiniaturizingOrMiniaturized {
       oscFloatingView.updatePosition()
-    }
-
-    // Detach the views in oscFloatingTopView manually on macOS 11 only; as it will cause freeze
-    if isMacOS11 && oscPosition == .floating {
-      guard let maxWidth = [oscVolumeView, oscToolbarView].compactMap({ $0?.frame.width }).max() else {
-        return
-      }
-
-      // window - 10 - controlBarFloating
-      // controlBarFloating - 12 - oscFloatingTopView
-      let margin: CGFloat = (10 + 12) * 2
-      let hide = (window.frame.width
-                    - oscPlayControlView.frame.width
-                    - maxWidth*2
-                    - margin) < 0
-
-      let views = oscFloatingView.oscTopView.views
-      if hide {
-        if views.contains(oscVolumeView)
-            && views.contains(oscToolbarView) {
-          oscFloatingView.oscTopView.removeView(oscVolumeView)
-          oscFloatingView.oscTopView.removeView(oscToolbarView)
-        }
-      } else {
-        if !views.contains(oscVolumeView)
-            && !views.contains(oscToolbarView) {
-          oscFloatingView.oscTopView.addView(oscVolumeView, in: .leading)
-          oscFloatingView.oscTopView.addView(oscToolbarView, in: .trailing)
-        }
-      }
     }
 
     player.events.emit(.windowResized, data: window.frame)

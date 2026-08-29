@@ -35,9 +35,7 @@ class OSCToolbarSettingsSheetController: NSWindowController, OSCToolbarCurrentIt
     currentItemsView.initItems(fromItems: OSCToolbarConfiguration.items)
 
     var allButtonTypes: [Preference.ToolBarButton] = [.volume, .settings, .playlist, .pip, .fullScreen, .musicMode, .subTrack, .screenshot, .plugins]
-    if #available(macOS 13, *) {
-      allButtonTypes.append(.liveText)
-    }
+    allButtonTypes.append(.liveText)
     for type in allButtonTypes {
       let itemViewController = OSCToolbarDraggingItemViewController(buttonType: type)
       itemViewController.availableItemsView = availableItemsView

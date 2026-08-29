@@ -97,9 +97,6 @@ final class PlaySlider: NSSlider {
     super.draw(dirtyRect)
     abLoopA.needsDisplay = true
     abLoopB.needsDisplay = true
-    guard #unavailable(macOS 14) else { return }
-    abLoopA.draw(dirtyRect)
-    abLoopB.draw(dirtyRect)
   }
 
   override func viewDidUnhide() {

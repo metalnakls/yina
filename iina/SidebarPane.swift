@@ -8,11 +8,7 @@
 
 extension NSImage.SymbolConfiguration {
   static let sidebarIconConfig = {
-    if #available(macOS 26.0, *) {
-      NSImage.SymbolConfiguration(pointSize: 12, weight: .bold)
-    } else {
-      NSImage.SymbolConfiguration(pointSize: 12, weight: .regular)
-    }
+    NSImage.SymbolConfiguration(pointSize: 12, weight: .bold)
   }()
 }
 

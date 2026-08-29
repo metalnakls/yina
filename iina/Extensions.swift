@@ -420,10 +420,7 @@ extension FloatingPoint {
 
 extension NSColor {
   static func hdrWhite(alpha: CGFloat = 1) -> NSColor {
-    if #available(macOS 26.0, *) {
-      return NSColor(red: 1, green: 1, blue: 1, alpha: alpha, exposure: 1)
-    }
-    return NSColor.white.withAlphaComponent(alpha)
+    NSColor(red: 1, green: 1, blue: 1, alpha: alpha, exposure: 1)
   }
 
   var mpvColorString: String {
@@ -477,8 +474,6 @@ extension NSColor {
 
 extension NSView {
   func setExtendedDynamicRange(_ enabled: Bool) {
-    guard #available(macOS 26.0, *) else { return }
-
     wantsLayer = true
     layer?.contentsFormat = enabled ? .RGBA16Float : .RGBA8Uint
     layer?.preferredDynamicRange = enabled ? .high : .standard
@@ -601,9 +596,6 @@ extension URL {
   var mpvStr: String {
     guard isFileURL else {
       return absoluteString
-    }
-    guard #available(macOS 13.0, *) else {
-      return path
     }
     return path(percentEncoded: false)
   }
@@ -816,11 +808,7 @@ extension NSScreen {
 
   /// Height of the camera housing on this screen if this screen has an embedded camera.
   var cameraHousingHeight: CGFloat? {
-    if #available(macOS 12.0, *) {
-      return safeAreaInsets.top == 0.0 ? nil : safeAreaInsets.top
-    } else {
-      return nil
-    }
+    safeAreaInsets.top == 0.0 ? nil : safeAreaInsets.top
   }
 
   /// [CGDirectDisplayID](https://developer.apple.com/documentation/CoreGraphics/CGDirectDisplayID) of the

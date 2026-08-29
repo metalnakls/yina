@@ -8,16 +8,6 @@
 
 import Cocoa
 
-fileprivate let isMacOS26: Bool = {
-  if #available(macOS 27.0, *) {
-    return false
-  }
-  if #unavailable(macOS 26.0) {
-    return false
-  }
-  return true
-}()
-
 fileprivate extension NSView {
   var allSubviews: [NSView] {
     var subviews = [NSView]()
@@ -137,13 +127,8 @@ class SettingsWindow: CommonWindow {
     sidebarBackground.addSubview(sidebarScrollView)
     sidebarScrollView.padding(.bottom, .horizontal)
 
-    if isMacOS26 {
-      searchBox.padding(.top(40), .horizontal(8))
-      sidebarScrollView.spacing(.top(16), to: searchBox)
-    } else {
-      searchBox.padding(.top(52), .horizontal(8))
-      sidebarScrollView.spacing(.top(8), to: searchBox)
-    }
+    searchBox.padding(.top(52), .horizontal(8))
+    sidebarScrollView.spacing(.top(8), to: searchBox)
 
     let contentViewController = NSViewController()
     contentViewController.view = NSView()
@@ -786,14 +771,7 @@ extension SettingsWindow: NSTableViewDataSource, NSTableViewDelegate {
     let imageView = NSImageView(image: page.image)
     imageView.translatesAutoresizingMaskIntoConstraints = false
     imageView.size(width: 24, height: 24)
-    if #unavailable(macOS 14) {
-      imageView.imageScaling = .scaleProportionallyUpOrDown
-    }
-    if #available(macOS 26, *) {
-      imageView.contentTintColor = .textColor
-    } else {
-      imageView.contentTintColor = .controlAccentColor
-    }
+    imageView.contentTintColor = .textColor
 
     let labelStackView = NSStackView(views: [imageView, textField])
     labelStackView.orientation = .horizontal
@@ -899,8 +877,6 @@ extension SettingsWindow: NSToolbarDelegate {
     let vc = NSViewController()
     vc.view = view
     popover.contentViewController = vc
-    // if #available(macOS 14.0, *)
-    // switch to popover.show(relativeTo:NSToolbarItem) when min macOS version becomes 10.14
     popover.show(relativeTo: sender.bounds, of: sender, preferredEdge: .maxY)
   }
 }
