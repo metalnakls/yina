@@ -454,21 +454,6 @@
 
 // Touch bar
 
-"touchbar.ahead_15" = "15 सेकेंड आगे";
-"touchbar.ahead_30" = "30 सेकेंड आगे";
-"touchbar.back_15" = "15 सेकेंड पीछे";
-"touchbar.back_30" = "30 सेकेंड पीछे";
-"touchbar.next_video" = "अगला वीडियो";
-"touchbar.prev_video" = "पिछला वीडियो";
-"touchbar.increase_volume" = "ध्वनि +";
-"touchbar.decrease_volume" = "ध्वनि -";
-"touchbar.rewind" = "रिवाइंड";
-"touchbar.fast_forward" = "तेजी से आगे बढ़ना";
-"touchbar.play_pause" = "चलाएं / ठहरें";
-"touchbar.seek" = "खोजना";
-"touchbar.time" = "समय की स्थिति";
-"touchbar.remainingTimeOrTotalDuration" = "Remaining Time / Total Duration";
-"touchbar.toggle_pip" = "टॉगल पिक्चर-इन-पिक्चर";
 
 // Plugin permissions
 

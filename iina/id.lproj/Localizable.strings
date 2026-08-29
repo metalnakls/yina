@@ -454,21 +454,6 @@
 
 // Touch bar
 
-"touchbar.ahead_15" = "Maju 15dtk";
-"touchbar.ahead_30" = "Maju 30dtk";
-"touchbar.back_15" = "Mundur 15dtk";
-"touchbar.back_30" = "Mundur 30dtk";
-"touchbar.next_video" = "Video Selanjutnya";
-"touchbar.prev_video" = "Video Sebelumnya";
-"touchbar.increase_volume" = "Volume +";
-"touchbar.decrease_volume" = "Volume -";
-"touchbar.rewind" = "Putar balik";
-"touchbar.fast_forward" = "Percepat-maju";
-"touchbar.play_pause" = "Putar / Jeda";
-"touchbar.seek" = "Geser";
-"touchbar.time" = "Posisi Waktu";
-"touchbar.remainingTimeOrTotalDuration" = "Sisa Waktu / Total Durasi";
-"touchbar.toggle_pip" = "Aktif/nonaktifkan Picture-in-Picture";
 
 // Plugin permissions
 

@@ -454,21 +454,6 @@
 
 // Touch bar
 
-"touchbar.ahead_15" = "15 sek framåt";
-"touchbar.ahead_30" = "30 sek framåt";
-"touchbar.back_15" = "15 sek bakåt";
-"touchbar.back_30" = "30 sek bakåt";
-"touchbar.next_video" = "Nästa video";
-"touchbar.prev_video" = "Föregående video";
-"touchbar.increase_volume" = "Volym +";
-"touchbar.decrease_volume" = "Volym -";
-"touchbar.rewind" = "Backa";
-"touchbar.fast_forward" = "Snabbspola";
-"touchbar.play_pause" = "Spela upp / pausa";
-"touchbar.seek" = "Spola";
-"touchbar.time" = "Tidsposition";
-"touchbar.remainingTimeOrTotalDuration" = "Återstående tid / Total varaktighet";
-"touchbar.toggle_pip" = "Växla bild-i-bild";
 
 // Plugin permissions
 

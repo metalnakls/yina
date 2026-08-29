@@ -455,21 +455,6 @@
 
 // Touch bar
 
-"touchbar.ahead_15" = "快轉 15 秒";
-"touchbar.ahead_30" = "快轉 30 秒";
-"touchbar.back_15" = "倒轉 15 秒";
-"touchbar.back_30" = "倒轉 30 秒";
-"touchbar.next_video" = "下一部影片";
-"touchbar.prev_video" = "上一部影片";
-"touchbar.increase_volume" = "音量 +";
-"touchbar.decrease_volume" = "音量 -";
-"touchbar.rewind" = "倒轉";
-"touchbar.fast_forward" = "快轉";
-"touchbar.play_pause" = "播放 / 暫停";
-"touchbar.seek" = "進度列";
-"touchbar.time" = "播放進度";
-"touchbar.remainingTimeOrTotalDuration" = "剩餘時間 / 總時間";
-"touchbar.toggle_pip" = "切換「子母畫面」模式";
 
 // Plugin permissions
 

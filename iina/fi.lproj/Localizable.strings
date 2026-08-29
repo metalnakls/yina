@@ -454,21 +454,6 @@
 
 // Touch bar
 
-"touchbar.ahead_15" = "15sek eteen";
-"touchbar.ahead_30" = "30sek eteen";
-"touchbar.back_15" = "15sek taakse";
-"touchbar.back_30" = "30sek taakse";
-"touchbar.next_video" = "Seuraava video";
-"touchbar.prev_video" = "Edellinen video";
-"touchbar.increase_volume" = "Äänenvoimakkuus +";
-"touchbar.decrease_volume" = "Äänenvoimakkuus -";
-"touchbar.rewind" = "Kelaa taaksepäin";
-"touchbar.fast_forward" = "Kelaa eteenpäin";
-"touchbar.play_pause" = "Toista / Tauko";
-"touchbar.seek" = "Siirry";
-"touchbar.time" = "Ajan sijainti";
-"touchbar.remainingTimeOrTotalDuration" = "Jäljellä oleva aika / kokonaiskesto";
-"touchbar.toggle_pip" = "Vaihda kuva kuvassa -tilaan";
 
 // Plugin permissions
 

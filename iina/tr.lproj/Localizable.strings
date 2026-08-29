@@ -454,21 +454,6 @@
 
 // Touch bar
 
-"touchbar.ahead_15" = "15 sn İleri";
-"touchbar.ahead_30" = "30 sn İleri";
-"touchbar.back_15" = "15 sn Geri";
-"touchbar.back_30" = "30 sn Geri";
-"touchbar.next_video" = "Sonraki Video";
-"touchbar.prev_video" = "Önceki Video";
-"touchbar.increase_volume" = "Sesi Artır";
-"touchbar.decrease_volume" = "Sesi Azalt";
-"touchbar.rewind" = "Geri Sar";
-"touchbar.fast_forward" = "İleri Sar";
-"touchbar.play_pause" = "Oynat/Duraklat";
-"touchbar.seek" = "Sar";
-"touchbar.time" = "Zaman Konumu";
-"touchbar.remainingTimeOrTotalDuration" = "Kalan Zaman/Toplam Süre";
-"touchbar.toggle_pip" = "Resim İçinde Resim’i Aç/Kapat";
 
 // Plugin permissions
 

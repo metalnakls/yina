@@ -454,21 +454,6 @@
 
 // Touch bar
 
-"touchbar.ahead_15" = "15 másodperc előre";
-"touchbar.ahead_30" = "30 másodperc előre";
-"touchbar.back_15" = "15 másodperc hátra";
-"touchbar.back_30" = "30 másodperc hátra";
-"touchbar.next_video" = "Következő videó";
-"touchbar.prev_video" = "Előző videó";
-"touchbar.increase_volume" = "Hangerő +";
-"touchbar.decrease_volume" = "Hangerő -";
-"touchbar.rewind" = "Visszapörgetés";
-"touchbar.fast_forward" = "Gyors előretekerés";
-"touchbar.play_pause" = "Lejátszás / Megállítás";
-"touchbar.seek" = "Ugrás";
-"touchbar.time" = "Idő pozició";
-"touchbar.remainingTimeOrTotalDuration" = "Hátralévõ idõ / Teljes idõ";
-"touchbar.toggle_pip" = "Kép a képben";
 
 // Plugin permissions
 

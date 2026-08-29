@@ -88,15 +88,6 @@ class DurationDisplayTextField: NSTextField {
     NSMenu.popUpContextMenu(menu, with: event, for: self)
   }
 
-  override func touchesBegan(with event: NSEvent) {
-    // handles the remaining time text field in the touch bar
-    super.touchesBegan(with: event)
-
-    guard mode != .current else { return }
-    self.switchMode()
-    Preference.set(mode == .remaining, for: .touchbarShowRemainingTime)
-  }
-
   @objc func setPrecision(_ sender: NSMenuItem) {
     let precision = UInt(sender.tag)
     DurationDisplayTextField.precision = precision

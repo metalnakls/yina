@@ -454,21 +454,6 @@
 
 // Touch bar
 
-"touchbar.ahead_15" = "تخطي 15 ثانيه";
-"touchbar.ahead_30" = "تخطي 30 ثانيه";
-"touchbar.back_15" = "رجوع 15 ثانيه";
-"touchbar.back_30" = "رجوع 30 ثانيه";
-"touchbar.next_video" = "الفيديو التالي";
-"touchbar.prev_video" = "الفيديو السابق";
-"touchbar.increase_volume" = "مستوى الصوت +";
-"touchbar.decrease_volume" = "مستوى الصوت -";
-"touchbar.rewind" = "إرجاع";
-"touchbar.fast_forward" = "تقديم سريع";
-"touchbar.play_pause" = "تشغيل / إيقاف مؤقت";
-"touchbar.seek" = "البحث";
-"touchbar.time" = "المكان الزمني";
-"touchbar.remainingTimeOrTotalDuration" = "الوقت المتبقي / المدة الإجمالية";
-"touchbar.toggle_pip" = "تبديل إلى الصورة في الصورة";
 
 // Plugin permissions
 

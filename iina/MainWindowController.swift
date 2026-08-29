@@ -1585,8 +1585,6 @@ class MainWindowController: PlayerWindowController {
       }
     }
 
-    player.touchBarSupport.toggleTouchBarEsc(enteringFullScr: true)
-
     updateWindowParametersForMPV()
 
     // Exit PIP if necessary
@@ -1721,8 +1719,6 @@ class MainWindowController: PlayerWindowController {
       // the transition has completed it can be stopped.
       videoView.displayIdle()
     }
-
-    player.touchBarSupport.toggleTouchBarEsc(enteringFullScr: false)
 
     // Must not access mpv while it is asynchronously processing stop and quit commands.
     // See comments in windowWillExitFullScreen for details.

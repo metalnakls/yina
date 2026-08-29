@@ -456,21 +456,6 @@
 
 // Touch bar
 
-"touchbar.ahead_15" = "۱۵ ثانیه جلو";
-"touchbar.ahead_30" = "۳۰ ثانیه جلو";
-"touchbar.back_15" = "۱۵ ثانیه عقب";
-"touchbar.back_30" = "۳۰ ثانیه عقب";
-"touchbar.next_video" = "ویدیو بعدی";
-"touchbar.prev_video" = "ویدیو قبلی";
-"touchbar.increase_volume" = "صدا +";
-"touchbar.decrease_volume" = "صدا -";
-"touchbar.rewind" = "عقب بردن";
-"touchbar.fast_forward" = "سریع به جلو";
-"touchbar.play_pause" = "پخش / مکث";
-"touchbar.seek" = "جستجو";
-"touchbar.time" = "موقعیت زمان";
-"touchbar.remainingTimeOrTotalDuration" = "زمان باقی مانده/کل زمان";
-"touchbar.toggle_pip" = "تغییر به تصویر در تصویر";
 
 // Plugin permissions
 

@@ -24,7 +24,7 @@
                 <customView translatesAutoresizingMaskIntoConstraints="NO" id="LZ8-DJ-i0e" customClass="KeyRecordView" customModule="IINA" customModuleProvider="target">
                     <rect key="frame" x="0.0" y="109" width="480" height="46"/>
                     <subviews>
-                        <textField horizontalHuggingPriority="251" verticalHuggingPriority="750" allowsCharacterPickerTouchBarItem="YES" translatesAutoresizingMaskIntoConstraints="NO" id="Jqj-WM-ez4">
+                        <textField horizontalHuggingPriority="251" verticalHuggingPriority="750" translatesAutoresizingMaskIntoConstraints="NO" id="Jqj-WM-ez4">
                             <rect key="frame" x="-2" y="7" width="484" height="31"/>
                             <textFieldCell key="cell" scrollable="YES" lineBreakMode="clipping" sendsActionOnEndEditing="YES" alignment="center" id="xhl-U2-M3Q">
                                 <font key="font" size="22" name="Menlo-Regular"/>
@@ -44,7 +44,7 @@
                         <constraint firstAttribute="bottom" secondItem="Jqj-WM-ez4" secondAttribute="bottom" constant="7" id="vYA-uX-gzK"/>
                     </constraints>
                 </customView>
-                <textField focusRingType="none" verticalHuggingPriority="750" allowsCharacterPickerTouchBarItem="YES" translatesAutoresizingMaskIntoConstraints="NO" id="24G-a7-cRM">
+                <textField focusRingType="none" verticalHuggingPriority="750" translatesAutoresizingMaskIntoConstraints="NO" id="24G-a7-cRM">
                     <rect key="frame" x="0.0" y="7" width="480" height="22"/>
                     <constraints>
                         <constraint firstAttribute="height" constant="22" id="gEe-Ws-Den"/>
@@ -58,7 +58,7 @@
                         <outlet property="delegate" destination="-2" id="KCO-hs-Ur3"/>
                     </connections>
                 </textField>
-                <textField horizontalHuggingPriority="251" verticalHuggingPriority="750" allowsCharacterPickerTouchBarItem="YES" translatesAutoresizingMaskIntoConstraints="NO" id="Q4h-ui-SRm">
+                <textField horizontalHuggingPriority="251" verticalHuggingPriority="750" translatesAutoresizingMaskIntoConstraints="NO" id="Q4h-ui-SRm">
                     <rect key="frame" x="-2" y="83" width="76" height="14"/>
                     <constraints>
                         <constraint firstAttribute="height" constant="14" id="bEJ-bs-24N"/>
@@ -93,7 +93,7 @@
                         <autoresizingMask key="autoresizingMask"/>
                     </scroller>
                 </scrollView>
-                <textField horizontalHuggingPriority="251" verticalHuggingPriority="750" allowsCharacterPickerTouchBarItem="YES" translatesAutoresizingMaskIntoConstraints="NO" id="OMX-mW-VXl">
+                <textField horizontalHuggingPriority="251" verticalHuggingPriority="750" translatesAutoresizingMaskIntoConstraints="NO" id="OMX-mW-VXl">
                     <rect key="frame" x="-2" y="33" width="141" height="14"/>
                     <constraints>
                         <constraint firstAttribute="height" constant="14" id="HlN-0J-WTS"/>

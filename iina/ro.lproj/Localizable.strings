@@ -454,21 +454,6 @@
 
 // Touch bar
 
-"touchbar.ahead_15" = "15sec înainte";
-"touchbar.ahead_30" = "30sec înainte";
-"touchbar.back_15" = "15sec înapoi";
-"touchbar.back_30" = "30sec înapoi";
-"touchbar.next_video" = "Video următor";
-"touchbar.prev_video" = "Video precedent";
-"touchbar.increase_volume" = "Volum +";
-"touchbar.decrease_volume" = "Volum -";
-"touchbar.rewind" = "Înapoi";
-"touchbar.fast_forward" = "Repede înainte";
-"touchbar.play_pause" = "Redă/Pauză";
-"touchbar.seek" = "Căutare";
-"touchbar.time" = "Timp curent";
-"touchbar.remainingTimeOrTotalDuration" = "Timp Rămas / Total Durată";
-"touchbar.toggle_pip" = "Activează Picture-in-Picture";
 
 // Plugin permissions
 

@@ -454,21 +454,6 @@
 
 // Touch bar
 
-"touchbar.ahead_15" = "15 s vpřed";
-"touchbar.ahead_30" = "30 s vpřed";
-"touchbar.back_15" = "15 s vzad";
-"touchbar.back_30" = "30 s vzad";
-"touchbar.next_video" = "Další video";
-"touchbar.prev_video" = "Předchozí video";
-"touchbar.increase_volume" = "Hlasitost +";
-"touchbar.decrease_volume" = "Hlasitost −";
-"touchbar.rewind" = "Přetočit";
-"touchbar.fast_forward" = "Rychle vpřed";
-"touchbar.play_pause" = "Přehrát/pozastavit";
-"touchbar.seek" = "Vyhledat";
-"touchbar.time" = "Pozice";
-"touchbar.remainingTimeOrTotalDuration" = "Zbývající čas / Celková délka";
-"touchbar.toggle_pip" = "Přepnout obraz v obrazu";
 
 // Plugin permissions
 

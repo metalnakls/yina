@@ -454,21 +454,6 @@
 
 // Touch bar
 
-"touchbar.ahead_15" = "15초 후";
-"touchbar.ahead_30" = "30초 후";
-"touchbar.back_15" = "15초 전";
-"touchbar.back_30" = "30초 전";
-"touchbar.next_video" = "다음 영상";
-"touchbar.prev_video" = "이전 영상";
-"touchbar.increase_volume" = "음량 +";
-"touchbar.decrease_volume" = "음량 -";
-"touchbar.rewind" = "되감기";
-"touchbar.fast_forward" = "빨리 감기";
-"touchbar.play_pause" = "재생 / 일시 정지";
-"touchbar.seek" = "탐색";
-"touchbar.time" = "재생 위치";
-"touchbar.remainingTimeOrTotalDuration" = "남은 시간 / 총 지속시간";
-"touchbar.toggle_pip" = "화면 속 화면 전환/복귀";
 
 // Plugin permissions
 

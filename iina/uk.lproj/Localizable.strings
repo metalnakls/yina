@@ -454,21 +454,6 @@
 
 // Touch bar
 
-"touchbar.ahead_15" = "15 с уперед";
-"touchbar.ahead_30" = "30 с уперед";
-"touchbar.back_15" = "15 с назад";
-"touchbar.back_30" = "30 с назад";
-"touchbar.next_video" = "Наступне відео";
-"touchbar.prev_video" = "Попереднє відео";
-"touchbar.increase_volume" = "Гучність +";
-"touchbar.decrease_volume" = "Гучність –";
-"touchbar.rewind" = "Перемотати назад";
-"touchbar.fast_forward" = "Перемотати вперед";
-"touchbar.play_pause" = "Відтворити / Зупинити";
-"touchbar.seek" = "Перемотати";
-"touchbar.time" = "Часова позиція";
-"touchbar.remainingTimeOrTotalDuration" = "Залишок часу / Загальна тривалість";
-"touchbar.toggle_pip" = "Перемкнути «Кадр у кадрі»";
 
 // Plugin permissions
 

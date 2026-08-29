@@ -454,21 +454,6 @@
 
 // Touch bar
 
-"touchbar.ahead_15" = "15 s unapred";
-"touchbar.ahead_30" = "30 s unapred";
-"touchbar.back_15" = "15 s unazad";
-"touchbar.back_30" = "30 s unazad";
-"touchbar.next_video" = "Naredni video-zapis";
-"touchbar.prev_video" = "Prethodni video-zapis";
-"touchbar.increase_volume" = "Jačina zvuka +";
-"touchbar.decrease_volume" = "Jačina zvuka -";
-"touchbar.rewind" = "Premotaj unazad";
-"touchbar.fast_forward" = "Premotaj unapred";
-"touchbar.play_pause" = "Reprodukuj/Pauziraj";
-"touchbar.seek" = "Pomeri";
-"touchbar.time" = "Vremenski položaj";
-"touchbar.remainingTimeOrTotalDuration" = "Preostalo vreme/Ukupno trajanje";
-"touchbar.toggle_pip" = "Uključi/isključi sliku u slici";
 
 // Plugin permissions
 

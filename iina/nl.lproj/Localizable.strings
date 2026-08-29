@@ -454,21 +454,6 @@
 
 // Touch bar
 
-"touchbar.ahead_15" = "15 seconden vooruit";
-"touchbar.ahead_30" = "30 seconden vooruit";
-"touchbar.back_15" = "15 seconden terug";
-"touchbar.back_30" = "30 seconden terug";
-"touchbar.next_video" = "Open volgende video";
-"touchbar.prev_video" = "Open vorige video";
-"touchbar.increase_volume" = "Verhoog volume";
-"touchbar.decrease_volume" = "Verlaag volume";
-"touchbar.rewind" = "Spoel terug";
-"touchbar.fast_forward" = "Spoel vooruit";
-"touchbar.play_pause" = "Afspelen / Pauzeren";
-"touchbar.seek" = "Spoel terug/vooruit";
-"touchbar.time" = "Verstreken tijd";
-"touchbar.remainingTimeOrTotalDuration" = "Resterende Tijd / Totale duur";
-"touchbar.toggle_pip" = "Schakel Beeld-in-beeld in/uit";
 
 // Plugin permissions
 

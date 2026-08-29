@@ -454,21 +454,6 @@
 
 // Touch bar
 
-"touchbar.ahead_15" = "15sec Ahead";
-"touchbar.ahead_30" = "30sec Ahead";
-"touchbar.back_15" = "15sec Back";
-"touchbar.back_30" = "30sec Back";
-"touchbar.next_video" = "Επόμενο Βίντεο";
-"touchbar.prev_video" = "Προηγούμενο Βίντεο";
-"touchbar.increase_volume" = "Ένταση +";
-"touchbar.decrease_volume" = "Ένταση -";
-"touchbar.rewind" = "Rewind";
-"touchbar.fast_forward" = "Fast Forward";
-"touchbar.play_pause" = "Play / Pause";
-"touchbar.seek" = "Αναζήτηση";
-"touchbar.time" = "Time Position";
-"touchbar.remainingTimeOrTotalDuration" = "Remaining Time / Total Duration";
-"touchbar.toggle_pip" = "Εναλλαγή σε Εικόνα-σε-Εικόνα";
 
 // Plugin permissions
 
