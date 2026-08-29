@@ -114,7 +114,7 @@
                             <autoresizingMask key="autoresizingMask"/>
                         </tableHeaderView>
                     </scrollView>
-                    <textField focusRingType="none" verticalHuggingPriority="750" allowsCharacterPickerTouchBarItem="YES" translatesAutoresizingMaskIntoConstraints="NO" id="ikb-4c-nqb">
+                    <textField focusRingType="none" verticalHuggingPriority="750" translatesAutoresizingMaskIntoConstraints="NO" id="ikb-4c-nqb">
                         <rect key="frame" x="12" y="112" width="434" height="40"/>
                         <constraints>
                             <constraint firstAttribute="height" constant="40" id="Ome-pP-G3g"/>
@@ -141,7 +141,7 @@ DQ
                             <action selector="okBtnPressed:" target="-2" id="87E-0I-sF9"/>
                         </connections>
                     </button>
-                    <textField focusRingType="none" verticalHuggingPriority="750" allowsCharacterPickerTouchBarItem="YES" translatesAutoresizingMaskIntoConstraints="NO" id="BPS-z6-4UH">
+                    <textField focusRingType="none" verticalHuggingPriority="750" translatesAutoresizingMaskIntoConstraints="NO" id="BPS-z6-4UH">
                         <rect key="frame" x="12" y="436" width="434" height="24"/>
                         <textFieldCell key="cell" controlSize="large" scrollable="YES" lineBreakMode="clipping" selectable="YES" editable="YES" sendsActionOnEndEditing="YES" state="on" borderStyle="bezel" placeholderString="Type to filter..." bezelStyle="round" id="DwS-ve-MLJ">
                             <font key="font" metaFont="system"/>
@@ -149,7 +149,7 @@ DQ
                             <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
                         </textFieldCell>
                     </textField>
-                    <textField focusRingType="none" horizontalHuggingPriority="251" verticalHuggingPriority="750" allowsCharacterPickerTouchBarItem="YES" translatesAutoresizingMaskIntoConstraints="NO" id="qRK-T8-QYd">
+                    <textField focusRingType="none" horizontalHuggingPriority="251" verticalHuggingPriority="750" translatesAutoresizingMaskIntoConstraints="NO" id="qRK-T8-QYd">
                         <rect key="frame" x="18" y="134" width="46" height="14"/>
                         <textFieldCell key="cell" controlSize="small" scrollable="YES" lineBreakMode="clipping" sendsActionOnEndEditing="YES" title="Preview" id="XsF-e7-fXF">
                             <font key="font" metaFont="smallSystem"/>

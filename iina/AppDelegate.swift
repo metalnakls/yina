@@ -371,7 +371,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     NSColorPanel.shared.showsAlpha = true
 
     // other initializations at App level
-    NSApp.isAutomaticCustomizeTouchBarMenuItemEnabled = false
     NSWindow.allowsAutomaticWindowTabbing = false
 
     JavascriptPlugin.loadGlobalInstances()

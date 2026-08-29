@@ -454,21 +454,6 @@
 
 // Touch bar
 
-"touchbar.ahead_15" = "15sec en avant";
-"touchbar.ahead_30" = "30sec en avant";
-"touchbar.back_15" = "15sec en arrière";
-"touchbar.back_30" = "30sec en arrière";
-"touchbar.next_video" = "Vidéo suivante";
-"touchbar.prev_video" = "Vidéo précédente";
-"touchbar.increase_volume" = "Augmenter le volume";
-"touchbar.decrease_volume" = "Volume -";
-"touchbar.rewind" = "Rembobiner";
-"touchbar.fast_forward" = "Avance rapide";
-"touchbar.play_pause" = "Lecture/Pause";
-"touchbar.seek" = "Chercher";
-"touchbar.time" = "Position horaire";
-"touchbar.remainingTimeOrTotalDuration" = "Durée restante / Durée totale";
-"touchbar.toggle_pip" = "Activer/désactiver le mode Incrustation";
 
 // Plugin permissions
 

@@ -315,7 +315,6 @@ struct Preference {
     static let showRemainingTime = Key("showRemainingTime")
     static let scaleRemainingTime = Key("scaleRemainingTime")
     static let timeDisplayPrecision = Key("timeDisplayPrecision")
-    static let touchbarShowRemainingTime = Key("touchbarShowRemainingTime")
 
     static let followGlobalSeekTypeWhenAdjustSlider = Key("followGlobalSeekTypeWhenAdjustSlider")
 
@@ -1123,7 +1122,6 @@ struct Preference {
     .showRemainingTime: false,
     .scaleRemainingTime: false,
     .timeDisplayPrecision: 0,
-    .touchbarShowRemainingTime: true,
     .enableThumbnailPreview: true,
     .maxThumbnailPreviewCacheSize: 500,
     .enableThumbnailForRemoteFiles: false,
@@ -1518,7 +1516,6 @@ struct Preference {
            .subScaleWithWindow,
            .togglePipByMinimizingWindow,
            .togglePipByMinimizingWindowForVideoOnly,
-           .touchbarShowRemainingTime,
            .trackAllFilesInRecentOpenMenu,
            .useAppleRemote,
            .useLegacyFullScreen,

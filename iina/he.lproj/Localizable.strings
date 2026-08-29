@@ -454,21 +454,6 @@
 
 // Touch bar
 
-"touchbar.ahead_15" = "15 שניות קדימה";
-"touchbar.ahead_30" = "30 שניות קדימה";
-"touchbar.back_15" = "15 שניות אחורה";
-"touchbar.back_30" = "30 שניות אחורה";
-"touchbar.next_video" = "הוידאו הבא";
-"touchbar.prev_video" = "הוידאו הקודם";
-"touchbar.increase_volume" = "הגברת עוצמה";
-"touchbar.decrease_volume" = "הנמכת עוצמה";
-"touchbar.rewind" = "הרצה אחורה";
-"touchbar.fast_forward" = "הרצה קדימה";
-"touchbar.play_pause" = "הפעל/השהה";
-"touchbar.seek" = "חיפוש";
-"touchbar.time" = "זמן מיקום";
-"touchbar.remainingTimeOrTotalDuration" = "זמן שנותר / משך כולל";
-"touchbar.toggle_pip" = "היכנס/צא ממצב תמונה בתוך תמונה";
 
 // Plugin permissions
 

@@ -455,21 +455,6 @@
 
 // Touch bar
 
-"touchbar.ahead_15" = "15秒進める";
-"touchbar.ahead_30" = "30秒進める";
-"touchbar.back_15" = "15秒戻す";
-"touchbar.back_30" = "30秒戻す";
-"touchbar.next_video" = "次のビデオ";
-"touchbar.prev_video" = "前のビデオ";
-"touchbar.increase_volume" = "音量 +";
-"touchbar.decrease_volume" = "音量 -";
-"touchbar.rewind" = "早戻し";
-"touchbar.fast_forward" = "早送り";
-"touchbar.play_pause" = "再生/一時停止";
-"touchbar.seek" = "シーク";
-"touchbar.time" = "再生位置";
-"touchbar.remainingTimeOrTotalDuration" = "残り時間/合計継続時間";
-"touchbar.toggle_pip" = "ピクチャインピクチャを切り替える";
 
 // Plugin permissions
 

@@ -40,7 +40,7 @@
         <customView translatesAutoresizingMaskIntoConstraints="NO" id="n8c-of-fDQ" userLabel="Prefs &gt; Subtitle &gt; Auto Load">
             <rect key="frame" x="0.0" y="0.0" width="480" height="193"/>
             <subviews>
-                <textField identifier="SectionTitleAutoLoad" focusRingType="none" horizontalHuggingPriority="251" verticalHuggingPriority="750" allowsCharacterPickerTouchBarItem="YES" translatesAutoresizingMaskIntoConstraints="NO" id="Tej-f2-5d5">
+                <textField identifier="SectionTitleAutoLoad" focusRingType="none" horizontalHuggingPriority="251" verticalHuggingPriority="750" translatesAutoresizingMaskIntoConstraints="NO" id="Tej-f2-5d5">
                     <rect key="frame" x="-2" y="169" width="74" height="16"/>
                     <textFieldCell key="cell" sendsActionOnEndEditing="YES" alignment="left" title="Auto Load:" id="raf-Yu-ck0">
                         <font key="font" metaFont="systemBold"/>
@@ -455,7 +455,7 @@
         <customView translatesAutoresizingMaskIntoConstraints="NO" id="ffZ-rE-7Zz" userLabel="Prefs &gt; Subtitle &gt; Text Subtitles">
             <rect key="frame" x="0.0" y="0.0" width="480" height="319"/>
             <subviews>
-                <textField identifier="SectionTitleText" focusRingType="none" horizontalHuggingPriority="251" verticalHuggingPriority="750" allowsCharacterPickerTouchBarItem="YES" translatesAutoresizingMaskIntoConstraints="NO" id="Yw3-tf-Rka">
+                <textField identifier="SectionTitleText" focusRingType="none" horizontalHuggingPriority="251" verticalHuggingPriority="750" translatesAutoresizingMaskIntoConstraints="NO" id="Yw3-tf-Rka">
                     <rect key="frame" x="-2" y="295" width="98" height="16"/>
                     <textFieldCell key="cell" sendsActionOnEndEditing="YES" alignment="left" title="Text Subtitles:" id="Qda-dp-nhg">
                         <font key="font" metaFont="systemBold"/>
@@ -485,7 +485,7 @@
                                     <color key="backgroundColor" name="controlColor" catalog="System" colorSpace="catalog"/>
                                 </textFieldCell>
                             </textField>
-                            <textField focusRingType="none" verticalHuggingPriority="750" allowsCharacterPickerTouchBarItem="YES" translatesAutoresizingMaskIntoConstraints="NO" id="LYh-2j-Fsx">
+                            <textField focusRingType="none" verticalHuggingPriority="750" translatesAutoresizingMaskIntoConstraints="NO" id="LYh-2j-Fsx">
                                 <rect key="frame" x="56" y="34" width="38" height="19"/>
                                 <constraints>
                                     <constraint firstAttribute="width" constant="38" id="tS9-vz-vnj"/>
@@ -639,7 +639,7 @@
                                     <color key="backgroundColor" name="controlColor" catalog="System" colorSpace="catalog"/>
                                 </textFieldCell>
                             </textField>
-                            <textField focusRingType="none" verticalHuggingPriority="750" allowsCharacterPickerTouchBarItem="YES" translatesAutoresizingMaskIntoConstraints="NO" id="TbV-3r-Wuz">
+                            <textField focusRingType="none" verticalHuggingPriority="750" translatesAutoresizingMaskIntoConstraints="NO" id="TbV-3r-Wuz">
                                 <rect key="frame" x="46" y="10" width="38" height="18"/>
                                 <constraints>
                                     <constraint firstAttribute="width" constant="38" id="hBa-tc-QBi"/>
@@ -763,7 +763,7 @@
                                                     <color key="backgroundColor" name="controlColor" catalog="System" colorSpace="catalog"/>
                                                 </textFieldCell>
                                             </textField>
-                                            <textField focusRingType="none" verticalHuggingPriority="750" allowsCharacterPickerTouchBarItem="YES" translatesAutoresizingMaskIntoConstraints="NO" id="4fR-L1-2nd">
+                                            <textField focusRingType="none" verticalHuggingPriority="750" translatesAutoresizingMaskIntoConstraints="NO" id="4fR-L1-2nd">
                                                 <rect key="frame" x="56" y="10" width="38" height="19"/>
                                                 <constraints>
                                                     <constraint firstAttribute="width" constant="38" id="POm-8d-RuI"/>
@@ -929,7 +929,7 @@
             <rect key="frame" x="0.0" y="0.0" width="516" height="99"/>
             <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
             <subviews>
-                <textField identifier="SectionTitleASS" focusRingType="none" horizontalHuggingPriority="251" verticalHuggingPriority="750" allowsCharacterPickerTouchBarItem="YES" translatesAutoresizingMaskIntoConstraints="NO" id="utN-qX-5BH">
+                <textField identifier="SectionTitleASS" focusRingType="none" horizontalHuggingPriority="251" verticalHuggingPriority="750" translatesAutoresizingMaskIntoConstraints="NO" id="utN-qX-5BH">
                     <rect key="frame" x="-2" y="75" width="97" height="16"/>
                     <textFieldCell key="cell" sendsActionOnEndEditing="YES" alignment="left" title="ASS Subtitles:" id="mFm-Q6-aja">
                         <font key="font" metaFont="systemBold"/>
@@ -1057,7 +1057,7 @@
         <customView translatesAutoresizingMaskIntoConstraints="NO" id="ZpT-fB-Daq" userLabel="Prefs &gt; Subtitle &gt; Position">
             <rect key="frame" x="0.0" y="0.0" width="480" height="208"/>
             <subviews>
-                <textField identifier="SectionTitlePosition" focusRingType="none" horizontalHuggingPriority="251" verticalHuggingPriority="750" allowsCharacterPickerTouchBarItem="YES" translatesAutoresizingMaskIntoConstraints="NO" id="WeJ-3X-tJy">
+                <textField identifier="SectionTitlePosition" focusRingType="none" horizontalHuggingPriority="251" verticalHuggingPriority="750" translatesAutoresizingMaskIntoConstraints="NO" id="WeJ-3X-tJy">
                     <rect key="frame" x="-2" y="184" width="61" height="16"/>
                     <textFieldCell key="cell" sendsActionOnEndEditing="YES" alignment="left" title="Position:" id="4Tb-Yh-PdP">
                         <font key="font" metaFont="systemBold"/>
@@ -1150,7 +1150,7 @@
                         <color key="backgroundColor" name="controlColor" catalog="System" colorSpace="catalog"/>
                     </textFieldCell>
                 </textField>
-                <textField focusRingType="none" verticalHuggingPriority="750" allowsCharacterPickerTouchBarItem="YES" translatesAutoresizingMaskIntoConstraints="NO" id="HKD-K0-lsV">
+                <textField focusRingType="none" verticalHuggingPriority="750" translatesAutoresizingMaskIntoConstraints="NO" id="HKD-K0-lsV">
                     <rect key="frame" x="230" y="61" width="80" height="21"/>
                     <constraints>
                         <constraint firstAttribute="width" constant="80" id="4Sv-7x-c6d"/>
@@ -1214,7 +1214,7 @@
                                     <color key="backgroundColor" name="controlColor" catalog="System" colorSpace="catalog"/>
                                 </textFieldCell>
                             </textField>
-                            <textField focusRingType="none" verticalHuggingPriority="750" allowsCharacterPickerTouchBarItem="YES" translatesAutoresizingMaskIntoConstraints="NO" id="zNH-bp-deO">
+                            <textField focusRingType="none" verticalHuggingPriority="750" translatesAutoresizingMaskIntoConstraints="NO" id="zNH-bp-deO">
                                 <rect key="frame" x="31" y="10" width="80" height="19"/>
                                 <constraints>
                                     <constraint firstAttribute="width" constant="80" id="kOy-xc-RoW"/>
@@ -1233,7 +1233,7 @@
                                     </binding>
                                 </connections>
                             </textField>
-                            <textField focusRingType="none" verticalHuggingPriority="750" allowsCharacterPickerTouchBarItem="YES" translatesAutoresizingMaskIntoConstraints="NO" id="B8V-e4-91a">
+                            <textField focusRingType="none" verticalHuggingPriority="750" translatesAutoresizingMaskIntoConstraints="NO" id="B8V-e4-91a">
                                 <rect key="frame" x="149" y="10" width="80" height="19"/>
                                 <constraints>
                                     <constraint firstAttribute="width" constant="80" id="Gnp-hS-a93"/>
@@ -1305,7 +1305,7 @@
         <customView translatesAutoresizingMaskIntoConstraints="NO" id="Iur-Ka-beI" userLabel="Prefs &gt; Subtitle &gt; Other">
             <rect key="frame" x="0.0" y="0.0" width="480" height="90"/>
             <subviews>
-                <textField identifier="SectionTitleOther" focusRingType="none" horizontalHuggingPriority="251" verticalHuggingPriority="750" allowsCharacterPickerTouchBarItem="YES" translatesAutoresizingMaskIntoConstraints="NO" id="MEh-II-li7">
+                <textField identifier="SectionTitleOther" focusRingType="none" horizontalHuggingPriority="251" verticalHuggingPriority="750" translatesAutoresizingMaskIntoConstraints="NO" id="MEh-II-li7">
                     <rect key="frame" x="-2" y="66" width="46" height="16"/>
                     <textFieldCell key="cell" sendsActionOnEndEditing="YES" alignment="left" title="Other:" id="LiG-iV-AQK">
                         <font key="font" metaFont="systemBold"/>

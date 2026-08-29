@@ -298,9 +298,6 @@
 /* Class = "NSMenuItem"; title = "Volume - 1%"; ObjectID = "Zhv-Bz-I5V"; */
 "Zhv-Bz-I5V.title" = "음량 -1%";
 
-/* Class = "NSMenuItem"; title = "Custom Touch Bar…"; ObjectID = "ZnF-yX-7jP"; */
-"ZnF-yX-7jP.title" = "터치바 사용자 설정…";
-
 /* Class = "NSMenuItem"; title = "Playlist Loop"; ObjectID = "aSc-P6-fiZ"; */
 "aSc-P6-fiZ.title" = "재생목록 반복 재생";
 

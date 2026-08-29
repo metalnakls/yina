@@ -454,21 +454,6 @@
 
 // Touch bar
 
-"touchbar.ahead_15" = "На 15 с вперед";
-"touchbar.ahead_30" = "На 30 с вперед";
-"touchbar.back_15" = "На 15 с назад";
-"touchbar.back_30" = "На 30 с назад";
-"touchbar.next_video" = "Следующее видео";
-"touchbar.prev_video" = "Предыдущее видео";
-"touchbar.increase_volume" = "Прибавить громкость";
-"touchbar.decrease_volume" = "Убавить громкость";
-"touchbar.rewind" = "Перемотка назад";
-"touchbar.fast_forward" = "Перемотка вперед";
-"touchbar.play_pause" = "Воспроизведение / пауза";
-"touchbar.seek" = "Перемотка";
-"touchbar.time" = "Позиция (время)";
-"touchbar.remainingTimeOrTotalDuration" = "Осталось / общая продолжительность";
-"touchbar.toggle_pip" = "Режим «Картинка в картинке»";
 
 // Plugin permissions
 

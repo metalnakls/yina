@@ -454,21 +454,6 @@
 
 // Touch bar
 
-"touchbar.ahead_15" = "15sek vorentoe";
-"touchbar.ahead_30" = "30sek vorentoe";
-"touchbar.back_15" = "15sek terug";
-"touchbar.back_30" = "30sek terug";
-"touchbar.next_video" = "Volgende video";
-"touchbar.prev_video" = "Vorige video";
-"touchbar.increase_volume" = "Volume +";
-"touchbar.decrease_volume" = "Volume -";
-"touchbar.rewind" = "Spoel terug";
-"touchbar.fast_forward" = "Spoel vorentoe";
-"touchbar.play_pause" = "Speel af/wag";
-"touchbar.seek" = "Vorentoe/terugspoel";
-"touchbar.time" = "Tydposisie";
-"touchbar.remainingTimeOrTotalDuration" = "Oorblywende tyd / Totale duur";
-"touchbar.toggle_pip" = "Tokkel Beeld-in-beeld";
 
 // Plugin permissions
 

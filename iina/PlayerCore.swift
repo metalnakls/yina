@@ -148,32 +148,6 @@ class PlayerCore: NSObject {
   var disableUI = false
   var disableWindowAnimation = false
 
-  var touchBarSupport: TouchBarSupport {
-    get {
-      return self._touchBarSupport as! TouchBarSupport
-    }
-  }
-  private var _touchBarSupport: Any?
-
-  /// `true` if this Mac is _known to_ have a  [Touch Bar](https://support.apple.com/guide/mac-help/use-the-touch-bar-mchlbfd5b039/mac).
-  ///
-  /// In order to adhere to energy efficiency best practices IINA should stop the timer that synchronizes the UI when it is not needed.
-  /// As one job of the timer is to update the Touch Bar on Macs that have one, IINA needs information such as:
-  /// - Does this host have a Touch Bar?
-  /// - Is the Touch Bar configured to show app controls?
-  /// - Is the Touch Bar awake?
-  /// - Is the host being operated in closed clamshell mode?
-  ///
-  /// This is the kind of information needed to avoid running the timer and updating controls that are not visible. Unfortunately in the
-  /// documentation for [NSTouchBar](https://developer.apple.com/documentation/appkit/nstouchbar) Apple
-  /// indicates "There’s no need, and no API, for your app to know whether or not there’s a Touch Bar available". So this property is
-  /// set based off whether `AppKit` has requested that a `NSTouchBar` object be created by calling
-  /// [MakeTouchBar](https://developer.apple.com/documentation/appkit/nsresponder/2544690-maketouchbar).
-  /// This property is used to avoid running the timer on Macs that do not have a Touch Bar. It also may avoid running the timer when a
-  /// MacBook with a Touch Bar is being operated in closed clamshell mode as `AppKit` will not call `MakeTouchBar` when the
-  /// Touch Bar is asleep.
-  var needsTouchBar = false
-
   /// A dispatch queue for auto load feature.
   let backgroundQueue: DispatchQueue
   let playlistQueue: DispatchQueue
@@ -330,10 +304,6 @@ class PlayerCore: NSObject {
     self.mainWindow = MainWindowController(playerCore: self)
     self.miniPlayer = MiniPlayerWindowController(playerCore: self)
     self.initialWindow = InitialWindowController(playerCore: self)
-    self._touchBarSupport = TouchBarSupport(playerCore: self)
-    TouchBarSettings.shared.addObserver(self, forKey: .PresentationModeFnModes)
-    TouchBarSettings.shared.addObserver(self, forKey: .PresentationModeGlobal)
-    TouchBarSettings.shared.addObserver(self, forKey: .PresentationModePerApp)
   }
 
   func observe(_ name: Notification.Name, block: @escaping (Notification) -> Void) {
@@ -2213,8 +2183,6 @@ class PlayerCore: NSObject {
     getChapters()
     syncAbLoop()
     refreshSyncUITimer()
-    touchBarSupport.setupTouchBarUI()
-
     if info.aid == 0 {
       mainWindow.muteButton.isHidden = true
       mainWindow.volumeSlider.isHidden = true
@@ -2684,9 +2652,8 @@ class PlayerCore: NSObject {
     } else if info.state == .paused {
       // Ensure IINA is absolutely idle when the video is paused.
       useTimer = false
-    } else if needsTouchBar && TouchBarSettings.shared.showAppControls || isInMiniPlayer {
+    } else if isInMiniPlayer {
       // The timer can't be stopped if the mini player is being used as it always displays the OSC
-      // or if the timer is updating the information being displayed in the Touch Bar.
       useTimer = true
     } else if info.isNetworkResource {
       // May need to show, hide, or update buffering indicator at any time.
@@ -2723,7 +2690,7 @@ class PlayerCore: NSObject {
         if useTimer {
           summary += ", timeInterval \(timeInterval)"
         }
-        Logger.log("SyncUITimer \(summary). Player={state:\(info.state) network:\(info.isNetworkResource) mini:\(isInMiniPlayer) touchBar:\(needsTouchBar)}",
+        Logger.log("SyncUITimer \(summary). Player={state:\(info.state) network:\(info.isNetworkResource) mini:\(isInMiniPlayer)}",
                    level: .verbose, subsystem: subsystem)
       }
     }
@@ -2856,7 +2823,6 @@ class PlayerCore: NSObject {
     case .playButton:
       DispatchQueue.main.async { [self] in
         currentController.updatePlayButtonState(paused: info.state == .paused)
-        touchBarSupport.updateTouchBarPlayBtn()
       }
 
     case .volume:
@@ -2895,9 +2861,6 @@ class PlayerCore: NSObject {
     info.thumbnailsReady = false
     info.$thumbnails.withLock { $0.removeAll(keepingCapacity: true) }
     info.thumbnailsProgress = 0
-    DispatchQueue.main.async {
-      self.touchBarSupport.touchBarPlaySlider?.resetCachedThumbnails()
-    }
     guard !info.isNetworkResource, let url = info.currentURL else {
       log("...stopped because cannot get file path", level: .warning)
       return
@@ -2916,7 +2879,6 @@ class PlayerCore: NSObject {
             self.info.thumbnails = thumbnails
             self.info.thumbnailsReady = true
             self.info.thumbnailsProgress = 1
-            self.refreshTouchBarSlider()
             // OSC thumbnails may be used in Now Playing. Notify the manager thumbnails are now
             // available.
             DispatchQueue.main.async { NowPlayingInfoManager.shared.updateInfo() }
@@ -2931,22 +2893,6 @@ class PlayerCore: NSObject {
           thumbWidth:Int32(Preference.integer(for: .thumbnailWidth)) * 2
         )
       }
-    }
-  }
-
-  func makeTouchBar() -> NSTouchBar {
-    log("Activating Touch Bar")
-    needsTouchBar = true
-    // The timer that synchronizes the UI is shutdown to conserve energy when the OSC is hidden.
-    // However the timer can't be stopped if it is needed to update the information being displayed
-    // in the touch bar. If currently playing make sure the timer is running.
-    refreshSyncUITimer()
-    return touchBarSupport.touchBar
-  }
-
-  func refreshTouchBarSlider() {
-    DispatchQueue.main.async {
-      self.touchBarSupport.touchBarPlaySlider?.needsDisplay = true
     }
   }
 
@@ -3027,36 +2973,6 @@ class PlayerCore: NSObject {
 
   func postNotification(_ name: Notification.Name) {
     NotificationCenter.default.post(Notification(name: name, object: self))
-  }
-
-  /// Observer for changes to the macOS Touch Bar settings.
-  /// - Parameters:
-  ///   - keyPath: The key path, relative to `object`, to the value that has changed.
-  ///   - object: The source object of the key path `keyPath`.
-  ///   - change: A dictionary that describes the changes that have been made to the value of the property at the key path
-  ///             `keyPath` relative to object. Entries are described in `Change Dictionary Keys`.
-  ///   - context: The value that was provided when the observer was registered to receive key-value observation notifications.
-  override func observeValue(forKeyPath keyPath: String?, of object: Any?,
-                             change: [NSKeyValueChangeKey: Any]?,
-                             context: UnsafeMutableRawPointer?) {
-    // The following guards are sanity checks and should never report an error.
-    guard let keyPath else {
-      log("Observed key path is missing", level: .error)
-      return
-    }
-    guard let key = TouchBarSettings.Key(rawValue: keyPath) else {
-      log("Observed key path is not a touch bar setting: \(keyPath)", level: .error)
-      return
-    }
-    guard key == .PresentationModeFnModes || key == .PresentationModeGlobal ||
-          key == .PresentationModePerApp else {
-      log("Observed key path is unrecognized: \(keyPath)", level: .error)
-      return
-    }
-    log("Touch Bar \(key) setting has changed")
-    // The macOS settings that control what the Touch Bar displays has changed. May need to start or
-    // stop the timer that refreshes the UI.
-    refreshSyncUITimer()
   }
 
   // MARK: - Utils
@@ -3210,7 +3126,6 @@ extension PlayerCore: FFmpegControllerDelegate {
       info.$thumbnails.withLock { $0.append(contentsOf: thumbnails) }
     }
     info.thumbnailsProgress = Double(progress) / Double(ffmpegController.thumbnailCount)
-    refreshTouchBarSlider()
   }
 
   func didGenerate(_ thumbnails: [FFThumbnail], forFile filename: String, succeeded: Bool) {
@@ -3220,7 +3135,6 @@ extension PlayerCore: FFmpegControllerDelegate {
       info.thumbnails = thumbnails
       info.thumbnailsReady = true
       info.thumbnailsProgress = 1
-      refreshTouchBarSlider()
       // OSC thumbnails may be used in Now Playing. Notify the manager thumbnails are now available.
       DispatchQueue.main.async { NowPlayingInfoManager.shared.updateInfo() }
       if let cacheName = info.mpvMd5 {

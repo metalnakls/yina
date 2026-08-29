@@ -454,21 +454,6 @@
 
 // Touch bar
 
-"touchbar.ahead_15" = "15sek frem";
-"touchbar.ahead_30" = "30sek frem";
-"touchbar.back_15" = "15sek tilbage";
-"touchbar.back_30" = "30sek tilbage";
-"touchbar.next_video" = "Næste video";
-"touchbar.prev_video" = "Forrige video";
-"touchbar.increase_volume" = "Lydstyrke +";
-"touchbar.decrease_volume" = "Lydstyrke -";
-"touchbar.rewind" = "Spol tilbage";
-"touchbar.fast_forward" = "Spol frem";
-"touchbar.play_pause" = "Afspil / Pause";
-"touchbar.seek" = "Spol";
-"touchbar.time" = "Tids Position";
-"touchbar.remainingTimeOrTotalDuration" = "Resterende Tid / Total Varighed";
-"touchbar.toggle_pip" = "Slå billede-i-billede Til/Fra";
 
 // Plugin permissions
 

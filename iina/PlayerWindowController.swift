@@ -635,12 +635,9 @@ class PlayerWindowController: NSWindowController, NSWindowDelegate {
       return
     }
     [leftLabel, rightLabel].forEach { $0.updateText(with: duration, given: pos, and: remaining) }
-    player.touchBarSupport.touchBarPosLabels.forEach { $0.updateText(with: duration, given: pos,
-                                                                     and: remaining) }
     if andProgressBar {
       let percentage = (pos.second / duration.second) * 100
       playSlider.doubleValue = percentage
-      player.touchBarSupport.touchBarPlaySlider?.setDoubleValueSafely(percentage)
     }
   }
   

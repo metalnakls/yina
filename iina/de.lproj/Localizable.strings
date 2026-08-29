@@ -454,21 +454,6 @@
 
 // Touch bar
 
-"touchbar.ahead_15" = "15 Sekunden vor";
-"touchbar.ahead_30" = "30 Sekunden vor";
-"touchbar.back_15" = "15 Sekunden zurück";
-"touchbar.back_30" = "30 Sekunden zurück";
-"touchbar.next_video" = "Nächstes Video";
-"touchbar.prev_video" = "Vorheriges Video";
-"touchbar.increase_volume" = "Lautstärke erhöhen";
-"touchbar.decrease_volume" = "Lautstärke verringern";
-"touchbar.rewind" = "Zurückspulen";
-"touchbar.fast_forward" = "Vorspulen";
-"touchbar.play_pause" = "Wiedergabe / Pause";
-"touchbar.seek" = "Verlauf";
-"touchbar.time" = "Position";
-"touchbar.remainingTimeOrTotalDuration" = "Verbleibende Zeit / Gesamtdauer";
-"touchbar.toggle_pip" = "Bild-in-Bild ein-/ausschalten";
 
 // Plugin permissions
 

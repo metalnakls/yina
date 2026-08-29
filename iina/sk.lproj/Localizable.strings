@@ -455,21 +455,6 @@ Nočné zostavy sa neodporúčajú používať ako denný ovládač. V súčasno
 
 // Touch bar
 
-"touchbar.ahead_15" = "15sec Dopredu";
-"touchbar.ahead_30" = "30sec Dopredu";
-"touchbar.back_15" = "15sec Dozadu";
-"touchbar.back_30" = "30sec Dozadu";
-"touchbar.next_video" = "Ďalšie Video";
-"touchbar.prev_video" = "Predchádzajúce Video";
-"touchbar.increase_volume" = "Hlasitosť +";
-"touchbar.decrease_volume" = "Hlasitosť -";
-"touchbar.rewind" = "Pretočiť";
-"touchbar.fast_forward" = "Zrýchliť";
-"touchbar.play_pause" = "Spustiť / Zastaviť";
-"touchbar.seek" = "Vyhľadať";
-"touchbar.time" = "Pozícia";
-"touchbar.remainingTimeOrTotalDuration" = "Ostávajúci Čas / Celková Dĺžka";
-"touchbar.toggle_pip" = "Zapnúť/Vypnúť Picture-in-Picture";
 
 // Plugin permissions
 
