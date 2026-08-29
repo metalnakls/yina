@@ -179,13 +179,13 @@ class MainWindowController: PlayerWindowController {
 
   enum FullScreenState: Equatable {
     case windowed
-    case animating(toFullscreen: Bool, legacy: Bool, priorWindowedFrame: NSRect)
-    case fullscreen(legacy: Bool, priorWindowedFrame: NSRect)
+    case animating(toFullscreen: Bool, priorWindowedFrame: NSRect)
+    case fullscreen(priorWindowedFrame: NSRect)
 
     var isFullscreen: Bool {
       switch self {
       case .fullscreen: return true
-      case let .animating(toFullscreen: toFullScreen, legacy: _, priorWindowedFrame: _): return toFullScreen
+      case let .animating(toFullscreen: toFullScreen, priorWindowedFrame: _): return toFullScreen
       default: return false
       }
     }
@@ -194,37 +194,37 @@ class MainWindowController: PlayerWindowController {
       get {
         switch self {
         case .windowed: return nil
-        case .animating(_, _, let p): return p
-        case .fullscreen(_, let p): return p
+        case .animating(_, let p): return p
+        case .fullscreen(let p): return p
         }
       }
       set {
         guard let newRect = newValue else { return }
         switch self {
         case .windowed: return
-        case let .animating(toFullscreen, legacy, _):
-          self = .animating(toFullscreen: toFullscreen, legacy: legacy, priorWindowedFrame: newRect)
-        case let .fullscreen(legacy, _):
-          self = .fullscreen(legacy: legacy, priorWindowedFrame: newRect)
+        case let .animating(toFullscreen, _):
+          self = .animating(toFullscreen: toFullscreen, priorWindowedFrame: newRect)
+        case .fullscreen:
+          self = .fullscreen(priorWindowedFrame: newRect)
         }
       }
     }
 
-    mutating func startAnimatingToFullScreen(legacy: Bool, priorWindowedFrame: NSRect) {
-      self = .animating(toFullscreen: true, legacy: legacy, priorWindowedFrame: priorWindowedFrame)
+    mutating func startAnimatingToFullScreen(priorWindowedFrame: NSRect) {
+      self = .animating(toFullscreen: true, priorWindowedFrame: priorWindowedFrame)
     }
 
     mutating func startAnimatingToWindow() {
-      guard case .fullscreen(let legacy, let priorWindowedFrame) = self else { return }
-      self = .animating(toFullscreen: false, legacy: legacy, priorWindowedFrame: priorWindowedFrame)
+      guard case .fullscreen(let priorWindowedFrame) = self else { return }
+      self = .animating(toFullscreen: false, priorWindowedFrame: priorWindowedFrame)
     }
 
     mutating func finishAnimating() {
       switch self {
       case .windowed, .fullscreen: assertionFailure("something went wrong with the state of the world. One must be .animating to finishAnimating. Not \(self)")
-      case .animating(let toFullScreen, let legacy, let frame):
+      case .animating(let toFullScreen, let frame):
         if toFullScreen {
-          self = .fullscreen(legacy: legacy, priorWindowedFrame: frame)
+          self = .fullscreen(priorWindowedFrame: frame)
         } else {
           self = .windowed
         }
@@ -276,7 +276,6 @@ class MainWindowController: PlayerWindowController {
     .arrowButtonAction,
     .pinchAction,
     .blackOutMonitor,
-    .useLegacyFullScreen,
     .displayTimeAndBatteryInFullScreen,
     .controlBarToolbarButtons,
     .showOSCVolumeControls,
@@ -328,8 +327,6 @@ class MainWindowController: PlayerWindowController {
           newValue ? blackOutOtherMonitors() : removeBlackWindow()
         }
       }
-    case PK.useLegacyFullScreen.rawValue:
-      resetCollectionBehavior()
     case PK.displayTimeAndBatteryInFullScreen.rawValue:
       if let newValue = change[.newKey] as? Bool {
         displayTimeAndBatteryInFullScreen = newValue
@@ -716,7 +713,7 @@ class MainWindowController: PlayerWindowController {
     // add notification observers
 
     addObserver(to: .default, forName: NSView.frameDidChangeNotification, object: videoView) { [unowned self] _ in
-      if case .animating(_, _, _) = fsState {
+      if case .animating = fsState {
         forceDraw("window resized during animated enter or exit full screen")
       } else if !videoView.videoLayer.inLiveResize {
         forceDraw("window resized")
@@ -756,12 +753,6 @@ class MainWindowController: PlayerWindowController {
         blackOutOtherMonitors()
       }
       videoView.updateDisplayLink()
-      // In normal full screen mode AppKit will automatically adjust the window frame if the window
-      // is moved to a new screen such as when the window is on an external display and that display
-      // is disconnected. In legacy full screen mode IINA is responsible for adjusting the window's
-      // frame.
-      guard fsState.isFullscreen, Preference.bool(for: .useLegacyFullScreen) else { return }
-      setWindowFrameForLegacyFullScreen()
     }
 
     // Observe the loop knobs on the progress bar and update mpv when the knobs move.
@@ -1457,9 +1448,6 @@ class MainWindowController: PlayerWindowController {
       exitPIP()
     }
     // stop playing
-    if case .fullscreen(legacy: true, priorWindowedFrame: _) = fsState {
-      restoreDockSettings()
-    }
     player.stop()
     // stop tracking mouse event
     guard let w = self.window, let cv = w.contentView else { return }
@@ -1539,8 +1527,7 @@ class MainWindowController: PlayerWindowController {
     thumbnailPeekView.isHidden = true
     timePreviewView.isHidden = true
 
-    let isLegacyFullScreen = notification.name == .iinaLegacyFullScreen
-    fsState.startAnimatingToFullScreen(legacy: isLegacyFullScreen, priorWindowedFrame: window!.frame)
+    fsState.startAnimatingToFullScreen(priorWindowedFrame: window!.frame)
     setWindowToolbar()
     fadeableViews.update()
   }
@@ -1606,8 +1593,8 @@ class MainWindowController: PlayerWindowController {
   /// - Parameter window: The window that failed to enter to full screen mode.
   func windowDidFailToEnterFullScreen(_ window: NSWindow) {
     log("AppKit failed to enter full screen mode! Restoring previous windowed state", level: .warning)
-    guard case .animating(let toFullscreen, let legacy, let priorWindowedFrame) = fsState,
-            toFullscreen, !legacy else {
+    guard case .animating(let toFullscreen, let priorWindowedFrame) = fsState,
+            toFullscreen else {
       // Must not occur! Represents an error in IINA or AppKit.
       log("Unable to restore windowed state: \(fsState)", level: .error)
       return
@@ -1617,7 +1604,7 @@ class MainWindowController: PlayerWindowController {
 
     // Reset the full screen state to indicate exiting full screen mode so that finishAnimating
     // will correctly set the state to windowed.
-    fsState = .animating(toFullscreen: false, legacy: legacy, priorWindowedFrame: priorWindowedFrame)
+    fsState = .animating(toFullscreen: false, priorWindowedFrame: priorWindowedFrame)
     fsState.finishAnimating()
 
     titleBarView.update(hasOSC: oscPosition == .top, inFullScreen: false)
@@ -1755,8 +1742,8 @@ class MainWindowController: PlayerWindowController {
   /// - Parameter window: The window that failed to exit to full screen mode.
   func windowDidFailToExitFullScreen(_ window: NSWindow) {
     log("AppKit failed to exit full screen mode! Restoring full screen state", level: .error)
-    guard case .animating(let toFullscreen, let legacy, let priorWindowedFrame) = fsState,
-            !toFullscreen, !legacy else {
+    guard case .animating(let toFullscreen, let priorWindowedFrame) = fsState,
+            !toFullscreen else {
       // Must not occur! Represents an error in IINA or AppKit.
       log("Unable to restore full screen state: \(fsState)", level: .error)
       return
@@ -1766,7 +1753,7 @@ class MainWindowController: PlayerWindowController {
 
     // Reset the full screen state to indicate entering full screen mode so that finishAnimating
     // will correctly set the state to  full screen mode.
-    fsState = .animating(toFullscreen: true, legacy: legacy, priorWindowedFrame: priorWindowedFrame)
+    fsState = .animating(toFullscreen: true, priorWindowedFrame: priorWindowedFrame)
     fsState.finishAnimating()
 
     titleBarView.update(hasOSC: oscPosition == .top, inFullScreen: true)
@@ -1788,121 +1775,18 @@ class MainWindowController: PlayerWindowController {
     switch fsState {
     case .windowed:
       guard !player.isInMiniPlayer else { return }
-      if Preference.bool(for: .useLegacyFullScreen) {
-        log("Will enter legacy full screen mode")
-        self.legacyAnimateToFullscreen()
-      } else {
-        log("Requesting AppKit enter full screen mode")
-        window.toggleFullScreen(self)
-      }
-    case let .fullscreen(legacy, oldFrame):
-      if legacy {
-        log("Will exit legacy full screen mode")
-        self.legacyAnimateToWindowed(framePriorToBeingInFullscreen: oldFrame)
-      } else {
-        log("Requesting AppKit exit full screen mode")
-        window.toggleFullScreen(self)
-      }
-    case let .animating(toFullscreen, legacy, _):
-      let legacyAppKit = legacy ? "IINA" : "AppKit"
+      log("Requesting AppKit enter full screen mode")
+      window.toggleFullScreen(self)
+    case .fullscreen:
+      log("Requesting AppKit exit full screen mode")
+      window.toggleFullScreen(self)
+    case let .animating(toFullscreen, _):
       let enteringExiting = toFullscreen ? "entering" : "exiting"
       log("""
-        \(legacyAppKit) is currently \(enteringExiting) full screen mode, \
+        AppKit is currently \(enteringExiting) full screen mode, \
         ignoring request to toggle full screen mode
         """)
     }
-  }
-
-  private func restoreDockSettings() {
-    log("Restoring dock settings")
-    NSApp.presentationOptions.remove(.autoHideMenuBar)
-    NSApp.presentationOptions.remove(.autoHideDock)
-  }
-
-  private func legacyAnimateToWindowed(framePriorToBeingInFullscreen: NSRect) {
-    guard let window = self.window else { fatalError("make sure the window exists before animating") }
-
-    // call delegate
-    windowWillExitFullScreen(Notification(name: .iinaLegacyFullScreen))
-    // stylemask
-    window.styleMask.remove(.borderless)
-    window.styleMask.insert(.resizable)
-    window.styleMask.insert(.titled)
-    window.hasShadow = true
-    (window as! MainWindow).forceKeyAndMain = false
-    window.level = .normal
-
-    restoreDockSettings()
-    // restore window frame and aspect ratio
-    let videoSize = player.videoSizeForDisplay
-    let aspectRatio = NSSize(width: videoSize.0, height: videoSize.1)
-    let useAnimation = {
-      // Animation causes lagging under the macOS Tahoe beta, so don't allow it for now.
-      guard #unavailable(macOS 26) else { return false }
-      return !Preference.bool(for: .disableAnimations)
-    }()
-    if useAnimation {
-      // firstly resize to a big frame with same aspect ratio for better visual experience
-      let aspectFrame = aspectRatio.shrink(toSize: window.frame.size).centeredRect(in: window.frame)
-      window.setFrame(aspectFrame, display: true, animate: false)
-    }
-    // then animate to the original frame
-    window.setFrame(framePriorToBeingInFullscreen, display: true, animate: useAnimation)
-    setWindowAspectRatio(aspectRatio)
-    // call delegate
-    windowDidExitFullScreen(Notification(name: .iinaLegacyFullScreen))
-  }
-
-  /// Set the window frame and if needed the content view frame to appropriately use the full screen.
-  ///
-  /// For screens that contain a camera housing the content view will be adjusted to not use that area of the screen.
-  private func setWindowFrameForLegacyFullScreen() {
-    guard let window = self.window else { return }
-    let useAnimation = {
-      // Animation causes lagging under the macOS Tahoe beta, so don't allow it for now.
-      guard #unavailable(macOS 26) else { return false }
-      return !Preference.bool(for: .disableAnimations)
-    }()
-    let screen = window.screen ?? NSScreen.main!
-    window.setFrame(screen.frame, display: true, animate: useAnimation)
-    guard let unusable = screen.cameraHousingHeight else { return }
-    // This screen contains an embedded camera. Shorten the height of the window's content view's
-    // frame to avoid having part of the window obscured by the camera housing.
-    let view = window.contentView!
-    view.setFrameSize(NSMakeSize(view.frame.width, screen.frame.height - unusable))
-  }
-
-  private func legacyAnimateToFullscreen() {
-    guard let window = self.window else { fatalError("make sure the window exists before animating") }
-    // call delegate
-    windowWillEnterFullScreen(Notification(name: .iinaLegacyFullScreen))
-    // stylemask
-    window.styleMask.insert(.borderless)
-    window.styleMask.remove(.resizable)
-    window.styleMask.remove(.titled)
-    window.hasShadow = false
-    (window as! MainWindow).forceKeyAndMain = true
-    window.level = .floating
-
-    // cancel aspect ratio
-    window.resizeIncrements = NSSize(width: 1, height: 1)
-    // auto hide menubar and dock
-    NSApp.presentationOptions.insert(.autoHideMenuBar)
-    NSApp.presentationOptions.insert(.autoHideDock)
-    // set window frame and in some cases content view frame
-    setWindowFrameForLegacyFullScreen()
-
-    // The volume slider and the toolbar views in the floating OSC will be detached and not shown in
-    // the floating OSC if the window is too narrow. Once in full screen mode there is enough space
-    // for the full OSC to be shown. Sometimes, but not always, the subview holding the pause/resume
-    // and left/right buttons will not be centered after the OSC expands to full size. Forcing
-    // layout corrects this. See issue #5244.
-    if oscPosition == .floating {
-      oscPlayControlView.needsLayout = true
-    }
-
-    // call delegate
-    windowDidEnterFullScreen(Notification(name: .iinaLegacyFullScreen))
   }
 
   // MARK: - Window delegate: Size
@@ -2167,29 +2051,7 @@ class MainWindowController: PlayerWindowController {
       window?.title = player.getMediaTitle()
     } else {
       window?.representedURL = player.info.currentURL
-      // Workaround for issue #3543, IINA crashes reporting:
-      // NSInvalidArgumentException [NSNextStepFrame _displayName]: unrecognized selector
-      // When running on an M1 under Big Sur and using legacy full screen.
-      //
-      // Changes in Big Sur broke the legacy full screen feature. The MainWindowController method
-      // legacyAnimateToFullscreen had to be changed to get this feature working again. Under
-      // Big Sur that method now calls "window.styleMask.remove(.titled)". Removing titled from the
-      // style mask causes the AppKit method NSWindow.setTitleWithRepresentedFilename to trigger the
-      // exception listed above. This appears to be a defect in the Cocoa framework. The window's
-      // title can still be set directly without triggering the exception. The problem seems to be
-      // isolated to the setTitleWithRepresentedFilename method, possibly only when running on an
-      // Apple Silicon based Mac. Based on the Apple documentation setTitleWithRepresentedFilename
-      // appears to be a convenience method. As a workaround for the issue directly set the window
-      // title.
-      //
-      // This problem has been reported to Apple as:
-      // "setTitleWithRepresentedFilename throws NSInvalidArgumentException: NSNextStepFrame _displayName"
-      // Feedback number FB9789129
-      if Preference.bool(for: .useLegacyFullScreen) {
-        window?.title = player.info.currentURL?.lastPathComponent ?? ""
-      } else {
-        window?.setTitleWithRepresentedFilename(player.info.currentURL?.path ?? "")
-      }
+      window?.setTitleWithRepresentedFilename(player.info.currentURL?.path ?? "")
     }
     titleBarView?.updateTitle()
 
@@ -2321,11 +2183,7 @@ class MainWindowController: PlayerWindowController {
     // The layout preference for the on screen controller is set to the default floating layout.
     // Must insure the top of the thumbnail would be below the top of the window.
     let topOfThumbnail = timePreviewYPos + timePreviewView.frame.height + thumbnailHeight
-    // Normally the height of the usable area of the window can be obtained from the content
-    // layout. But when the legacy full screen preference is enabled the layout height may be
-    // larger than the content view if the display contains a camera housing. Use the lower of
-    // the two heights.
-    let windowContentHeight = min(window!.contentLayoutRect.height, window!.contentView!.frame.height)
+    let windowContentHeight = window!.contentLayoutRect.height
     return topOfThumbnail <= windowContentHeight
   }
 
@@ -3074,11 +2932,7 @@ class MainWindowController: PlayerWindowController {
 
   private func resetCollectionBehavior() {
     guard !fsState.isFullscreen else { return }
-    if Preference.bool(for: .useLegacyFullScreen) {
-      window?.collectionBehavior = [.managed, .fullScreenAuxiliary]
-    } else {
-      window?.collectionBehavior = [.managed, .fullScreenPrimary]
-    }
+    window?.collectionBehavior = [.managed, .fullScreenPrimary]
   }
 
 }

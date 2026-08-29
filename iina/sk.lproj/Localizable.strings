@@ -621,7 +621,6 @@ Nočné zostavy sa neodporúčajú používať ako denný ovládač. V súčasno
 "settings.screenshotShowPreview.label" = "Zobraz náhľady po vytvorení snímok obrazovky";
 "settings.trackAllFilesInRecentOpenMenu.desc" = "Inak sa v tomto menu ukážu iba súbory otvorené manuálne.";
 "settings.trackAllFilesInRecentOpenMenu.label" = "Zaznamenať všetky prehrané súbory v \"Otvoriť Nedávne\"";
-"settings.useLegacyFullScreen.label" = "Použiť staršiu verziu zobrazenia na celej obrazovke";
 
 // Settings - Video
 "settings.enableHdrSupport.desc" = "Pri prehrávaní HDR videí povoliť ako predvolený režim HDR.";

@@ -616,7 +616,6 @@
 "settings.screenshotShowPreview.label" = "Visa förhandsvisningar efter att ha tagit skärmdumpar";
 "settings.trackAllFilesInRecentOpenMenu.desc" = "Annars kommer endast manuellt öppnade filer visas i denna meny.";
 "settings.trackAllFilesInRecentOpenMenu.label" = "Spåra alla uppspelade filer i \"Öppna senaste\"-menyn";
-"settings.useLegacyFullScreen.label" = "Använd det gamla fullskärmsläget";
 
 // Settings - Video
 "settings.enableHdrSupport.desc" = "Aktivera HDR-läge när HDR-videor spelas upp.";

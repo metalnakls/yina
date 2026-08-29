@@ -623,7 +623,6 @@
 "settings.screenshotShowPreview.label" = "螢幕截圖後顯示預覽";
 "settings.trackAllFilesInRecentOpenMenu.desc" = "否則只有手動打開的檔案會顯示在此選單中";
 "settings.trackAllFilesInRecentOpenMenu.label" = "將所有播放過的檔案加入「打開最近使用過的檔案」選單";
-"settings.useLegacyFullScreen.label" = "使用 OS X 10.6 前舊版的全螢幕模式";
 
 // Settings - Video
 "settings.enableHdrSupport.desc" = "自動啟用 HDR";

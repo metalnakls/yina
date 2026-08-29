@@ -86,9 +86,6 @@ class SettingsPageGeneral: SettingsPage {
 
       SettingsList {
         SettingsItem.Switch()
-          .image(name: ["arrow.up.left.and.arrow.down.right.rectangle", "rectangle.expand.diagonal"])
-          .bindTo(.useLegacyFullScreen)
-        SettingsItem.Switch()
           .image(name: "lock.display")
           .bindTo(.blackOutMonitor)
         SettingsItem.Switch()

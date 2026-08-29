@@ -622,7 +622,6 @@
 "settings.screenshotShowPreview.label" = "Mostra anteprime dopo aver scattato gli screenshot";
 "settings.trackAllFilesInRecentOpenMenu.desc" = "In caso contrario solo i file aperti manualmente verranno visualizzati in questo menu";
 "settings.trackAllFilesInRecentOpenMenu.label" = "Elenca nel menu \"Apri recenti\" tutti file riprodotti";
-"settings.useLegacyFullScreen.label" = "Usa a tutto schermo completo (pre 10.6)";
 
 // Settings - Video
 "settings.enableHdrSupport.desc" = "Abilita la modalità HDR in automatico quando riproduci video in HDR.";

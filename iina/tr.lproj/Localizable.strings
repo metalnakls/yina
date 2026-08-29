@@ -622,7 +622,6 @@
 "settings.screenshotShowPreview.label" = "Ekran görüntüsü alındıktan sonra önizleme göster";
 "settings.trackAllFilesInRecentOpenMenu.desc" = "Aksi takdirde yalnızca elle açılan dosyalar bu menüde görünür.";
 "settings.trackAllFilesInRecentOpenMenu.label" = "Oynatılan her dosyayı “Son Kullanılanları Aç” menüsüne ekle";
-"settings.useLegacyFullScreen.label" = "Tam ekran için eski yöntemi kullan";
 
 // Settings - Video
 "settings.enableHdrSupport.desc" = "HDR videoları oynatırken HDR desteğini saptanmış olarak etkinleştirin.";

@@ -622,7 +622,6 @@
 "settings.screenshotShowPreview.label" = "Vorschau nach der Aufnahme von Bildschirmfotos anzeigen";
 "settings.trackAllFilesInRecentOpenMenu.desc" = "Andernfalls werden dort nur manuell geöffnete Dateien aufgeführt.";
 "settings.trackAllFilesInRecentOpenMenu.label" = "Alle Dateien in „Benutzte Dokumente“ aufführen";
-"settings.useLegacyFullScreen.label" = "Alternativen Vollbildmodus verwenden";
 
 // Settings - Video
 "settings.enableHdrSupport.desc" = "HDR-Modus standardmäßig bei der Wiedergabe von HDR-Videos aktivieren.";

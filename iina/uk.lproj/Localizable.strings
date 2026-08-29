@@ -622,7 +622,6 @@
 "settings.screenshotShowPreview.label" = "Показувати попередній перегляд після створення знімків екрана";
 "settings.trackAllFilesInRecentOpenMenu.desc" = "В іншому випадку в цьому меню будуть показані лише ті файли, які було відкрито вручну.";
 "settings.trackAllFilesInRecentOpenMenu.label" = "Заносити всі переглянуті файли до меню «Відкрити останні»";
-"settings.useLegacyFullScreen.label" = "Використати старий повноекранний режим";
 
 // Settings - Video
 "settings.enableHdrSupport.desc" = "Увімкнути режим HDR за замовчуванням при відтворенні HDR відео.";

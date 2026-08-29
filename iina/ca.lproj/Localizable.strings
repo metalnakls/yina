@@ -614,7 +614,6 @@
 "settings.screenshotShowPreview.label" = "Mostra previsualitzacions després de fer captures de pantalla";
 "settings.trackAllFilesInRecentOpenMenu.desc" = "D'altra manera només els fitxers oberts manualment es mostraràn en aquest menú.";
 "settings.trackAllFilesInRecentOpenMenu.label" = "Registra tots els fitxers reproduits en el menú \"Obre un fitxer recent\"";
-"settings.useLegacyFullScreen.label" = "Utilitza pantalla completa antic";
 
 // Settings - Video
 "settings.enableHdrSupport.desc" = "Activar mode HDR per defecte al mostrar vídeos HDR.";

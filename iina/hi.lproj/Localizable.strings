@@ -612,7 +612,6 @@
 "settings.screenshotSaveToFile.label" = "पर सहेजें";
 "settings.trackAllFilesInRecentOpenMenu.desc" = "अन्यथा केवल फ़ाइलें जो मैन्युअल रूप से खोली गई हैं, इस मेनू में दिखाई देंगी।";
 "settings.trackAllFilesInRecentOpenMenu.label" = "सभी खेले गए फ़ाइलों को ट्रैक करें \"हाल ही में खुला\" मेनू";
-"settings.useLegacyFullScreen.label" = "विरासत पूर्ण स्क्रीन का उपयोग करें";
 
 // Settings - Video
 "settings.hardwareDecoder.items.0" = "कुंजी";

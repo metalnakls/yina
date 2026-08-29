@@ -619,7 +619,6 @@
 "settings.screenshotShowPreview.label" = "إظهار المعاينات بعد التقاط لقطات الشاشة";
 "settings.trackAllFilesInRecentOpenMenu.desc" = "وإلا ستظهر في هذه القائمة الملفات التي تم فتحها يدويا.";
 "settings.trackAllFilesInRecentOpenMenu.label" = "تتبع جميع الملفات التي تم تشغيلها في قائمة \"فتح مؤخراً\"";
-"settings.useLegacyFullScreen.label" = "استخدام الشاشة الكاملة القديمة";
 
 // Settings - Video
 "settings.enableHdrSupport.desc" = "تمكين وضع HDR بشكل افتراضي عند تشغيل مقاطع الفيديو HDR.";

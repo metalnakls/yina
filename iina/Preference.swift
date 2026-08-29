@@ -79,8 +79,6 @@ struct Preference {
     /** Enter fill screen when open (bool) */
     static let fullScreenWhenOpen = Key("fullScreenWhenOpen")
 
-    static let useLegacyFullScreen = Key("useLegacyFullScreen")
-
     /** Black out other monitors while fullscreen (bool) */
     static let blackOutMonitor = Key("blackOutMonitor")
 
@@ -1091,7 +1089,6 @@ struct Preference {
     .arrowButtonAction: ArrowButtonAction.speed.rawValue,
     .pauseWhenOpen: false,
     .fullScreenWhenOpen: false,
-    .useLegacyFullScreen: false,
     .showChapterPos: false,
     .resumeLastPosition: true,
     .preventScreenSaver: true,
@@ -1518,7 +1515,6 @@ struct Preference {
            .togglePipByMinimizingWindowForVideoOnly,
            .trackAllFilesInRecentOpenMenu,
            .useAppleRemote,
-           .useLegacyFullScreen,
            .useLiquidGlassOSC,
            .useLiquidGlassOSD,
            .useLiquidGlassSidebar,

@@ -615,7 +615,6 @@
 "settings.screenshotShowPreview.label" = "Näytä esikatselut kuvakaappausten ottamisen jälkeen";
 "settings.trackAllFilesInRecentOpenMenu.desc" = "Muutoin vain manuaalisesti avatut tiedostot näkyvät tässä valikossa.";
 "settings.trackAllFilesInRecentOpenMenu.label" = "Seuraa kaikkia toistettuja tiedostoja \"Avaa äskettäinen\" -valikosta";
-"settings.useLegacyFullScreen.label" = "Käytä vanhaa koko näytön tilaa";
 
 // Settings - Video
 "settings.forceDedicatedGPU.desc" = "Käytä aina erillistä GPU:ta renderointiin (jos sellainen on olemassa). Tämä voi parantaa suorituskykyä, mutta saattaa lyhentää akun kestoa.";

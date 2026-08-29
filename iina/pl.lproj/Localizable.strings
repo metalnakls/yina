@@ -620,7 +620,6 @@
 "settings.screenshotShowPreview.label" = "Pokaż podgląd po wykonaniu zrzutów ekranu";
 "settings.trackAllFilesInRecentOpenMenu.desc" = "W przeciwnym razie w tym menu pojawią się tylko pliki otwierane ręcznie";
 "settings.trackAllFilesInRecentOpenMenu.label" = "Śledź wszystkie odtwarzane pliki w menu \"Otwórz ostatnie\"";
-"settings.useLegacyFullScreen.label" = "Użyj nienatywnego trybu pełnoekranowego";
 
 // Settings - Video
 "settings.enableHdrSupport.desc" = "Włącz tryb HDR domyślnie podczas odtwarzania filmów HDR.";

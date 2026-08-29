@@ -622,7 +622,6 @@
 "settings.screenshotShowPreview.label" = "Mostrar vistas previas después de tomar capturas de pantalla";
 "settings.trackAllFilesInRecentOpenMenu.desc" = "De lo contrario, sólo los archivos que se abran manualmente aparecerán en este menú";
 "settings.trackAllFilesInRecentOpenMenu.label" = "Registrar todos los archivos reproducidos en el menú \"Abrir reciente\"";
-"settings.useLegacyFullScreen.label" = "Usar pantalla completa heredada";
 
 // Settings - Video
 "settings.enableHdrSupport.desc" = "Habilitar soporte HDR por defecto cuando se reproduzcan vídeos HDR.";

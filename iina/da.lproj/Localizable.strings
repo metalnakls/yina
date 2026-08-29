@@ -619,7 +619,6 @@
 "settings.screenshotShowPreview.label" = "Vis forhåndsvisninger efter at have taget skærmbilleder";
 "settings.trackAllFilesInRecentOpenMenu.desc" = "Kun filer som åbnes manuelt vil vises i denne menu.";
 "settings.trackAllFilesInRecentOpenMenu.label" = "Gem alle afsplillede filer i \"Åben senest\" menu";
-"settings.useLegacyFullScreen.label" = "Brug legacy fuldskærmsvisning";
 
 // Settings - Video
 "settings.enableHdrSupport.desc" = "Slå HDR-tilstand til som standard når HDR-videoer afspilles.";

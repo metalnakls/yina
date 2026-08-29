@@ -624,7 +624,6 @@
 "settings.screenshotShowPreview.label" = "スクリーンショット撮影後にプレビューを表示";
 "settings.trackAllFilesInRecentOpenMenu.desc" = "その他の場合、手動で開いたファイルだけがメニューに表示されます。";
 "settings.trackAllFilesInRecentOpenMenu.label" = "再生したすべてのファイルを \"最近使った項目を開く\" で追跡";
-"settings.useLegacyFullScreen.label" = "古いフルスクリーン表示を使用";
 
 // Settings - Video
 "settings.enableHdrSupport.desc" = "HDRビデオを再生中は、デフォルトでHDRモードを有効にします。";

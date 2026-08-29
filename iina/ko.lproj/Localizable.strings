@@ -621,7 +621,6 @@
 "settings.screenshotShowPreview.label" = "스크린샷 저장 후 미리보기 보여주기";
 "settings.trackAllFilesInRecentOpenMenu.desc" = "선택되지 않은 경우 수동으로 열었던 파일만 '최근 파일 열기' 메뉴에 보입니다.";
 "settings.trackAllFilesInRecentOpenMenu.label" = "재생된 파일을 모두 \"최근 파일 열기\" 메뉴에 저장하기";
-"settings.useLegacyFullScreen.label" = "이전 방식의 전체 화면 전환 사용 (10.6 이전)";
 
 // Settings - Video
 "settings.enableHdrSupport.desc" = "HDR 영상을 재생할 때 HDR 모드를 기본으로 활성화합니다.";
