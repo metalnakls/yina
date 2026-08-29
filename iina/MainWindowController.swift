@@ -28,6 +28,10 @@ fileprivate let minimumInitialDragDistance: CGFloat = 3.0
 fileprivate let layoutSides: [NSLayoutConstraint.Attribute] = [.top, .bottom, .leading, .trailing]
 
 class MainWindowController: PlayerWindowController {
+  private enum DockedOSCLayout {
+    static let playSliderInset: CGFloat = 6
+    static let transportSpacing: CGFloat = 16
+  }
 
   override var windowNibName: NSNib.Name {
     return NSNib.Name("MainWindowController")
@@ -86,6 +90,8 @@ class MainWindowController: PlayerWindowController {
   var oscVolumeView: NSView!
   var oscToolbarView: NSStackView!
   var oscSliderView: NSView!
+  private var oscPlaySliderTopConstraint: NSLayoutConstraint!
+  private var oscPlaySliderBottomConstraint: NSLayoutConstraint!
 
   var osdView: OSDView!
   var additionalInfoView: AdditionalInfoView!
@@ -121,6 +127,7 @@ class MainWindowController: PlayerWindowController {
   private var isMiniaturizingOrMiniaturized = false
 
   var isMouseInWindow: Bool = false
+  var isMouseInSlider: Bool = false
   /** flag to ignore abrupt momentum scrolls */
   private var isMomentumScrollingAllowed = false
 
@@ -295,7 +302,7 @@ class MainWindowController: PlayerWindowController {
       }
     case PK.showChapterPos.rawValue:
       if let newValue = change[.newKey] as? Bool {
-        (playSlider.cell as! PlaySliderCell).drawChapters = newValue
+        playSlider.drawChapters = newValue
       }
     case PK.verticalScrollAction.rawValue:
       if let newValue = change[.newKey] as? Int {
@@ -513,10 +520,10 @@ class MainWindowController: PlayerWindowController {
     oscPlayControlView.alignment = .centerY
     oscPlayControlView.spacing = 0
 
-    self.leftArrowButton = NSButton(image: .speedl, target: self, action: #selector(leftButtonAction))
+    self.leftArrowButton = OSCButton(image: .speedl, target: self, action: #selector(leftButtonAction))
     leftArrowButton.maxAcceleratorLevel = 5
 
-    self.rightArrowButton = NSButton(image: .speed, target: self, action: #selector(rightButtonAction))
+    self.rightArrowButton = OSCButton(image: .speed, target: self, action: #selector(rightButtonAction))
     rightArrowButton.maxAcceleratorLevel = 5
 
     [playButton, leftArrowButton, rightArrowButton].forEach { button in
@@ -569,11 +576,16 @@ class MainWindowController: PlayerWindowController {
     oscSliderView.addSubview(leftLabel)
     oscSliderView.addSubview(rightLabel)
     oscSliderView.addSubview(playSlider)
+    leftLabel.widthAnchor.constraint(equalTo: rightLabel.widthAnchor).isActive = true
     leftLabel.padding(.leading(2)).spacing(.trailing(2), to: playSlider)
       .center(.y, with: playSlider)
     rightLabel.padding(.trailing(2)).spacing(.leading(2), to: playSlider)
       .center(.y, with: playSlider)
-    playSlider.padding(.vertical(6))
+    oscPlaySliderTopConstraint = playSlider.topAnchor.constraint(equalTo: oscSliderView.topAnchor,
+                                                                 constant: DockedOSCLayout.playSliderInset)
+    oscPlaySliderBottomConstraint = oscSliderView.bottomAnchor.constraint(equalTo: playSlider.bottomAnchor,
+                                                                          constant: DockedOSCLayout.playSliderInset)
+    NSLayoutConstraint.activate([oscPlaySliderTopConstraint, oscPlaySliderBottomConstraint])
 
     // osd
 
@@ -1006,8 +1018,8 @@ class MainWindowController: PlayerWindowController {
     switch oscPosition {
     case .floating:
       currentControlBar = oscFloatingView
-      oscPlayControlView.setVisibilityPriority(.detachOnlyIfNecessary, for: oscSpeedLabelLeftContainer)
-      oscPlayControlView.setVisibilityPriority(.detachOnlyIfNecessary, for: oscSpeedLabelRightContainer)
+      oscPlayControlView.setVisibilityPriority(.notVisible, for: oscSpeedLabelLeftContainer)
+      oscPlayControlView.setVisibilityPriority(.notVisible, for: oscSpeedLabelRightContainer)
       oscFloatingView.oscTopView.addView(oscVolumeView, in: .leading)
       oscFloatingView.oscTopView.addView(oscToolbarView, in: .trailing)
       oscFloatingView.oscTopView.addView(oscPlayControlView, in: .center)
@@ -1049,10 +1061,36 @@ class MainWindowController: PlayerWindowController {
       oscBottomMainView.setVisibilityPriority(.detachEarlier, for: oscToolbarView)
     }
 
-    oscPlayControlMiddleView.spacing = isFloating ? 24: 16
+    oscPlayControlMiddleView.spacing = isFloating ? 4 : DockedOSCLayout.transportSpacing
+    configureQuickTimeOSC(isFloating)
 
     fadeableViews.update()
     showUI()
+  }
+
+  private func configureQuickTimeOSC(_ enabled: Bool) {
+    (leftArrowButton as? OSCButton)?.setQuickTimeStyle(enabled, role: .transport)
+    (playButton as? OSCButton)?.setQuickTimeStyle(enabled, role: .primary)
+    (rightArrowButton as? OSCButton)?.setQuickTimeStyle(enabled, role: .transport)
+    playSlider.setQuickTimeStyle(enabled)
+    oscPlaySliderTopConstraint.constant = enabled ? 4 : DockedOSCLayout.playSliderInset
+    oscPlaySliderBottomConstraint.constant = enabled ? 4 : DockedOSCLayout.playSliderInset
+
+    let labelColor = enabled ? NSColor.white.withAlphaComponent(0.68) : NSColor.secondaryLabelColor
+    leftLabel.textColor = labelColor
+    rightLabel.textColor = labelColor
+
+    if enabled {
+      playButton.image = quickTimePlayButtonImage(paused: player.info.state != .playing)
+    } else {
+      playButton.image = NSImage(named: player.info.state == .playing ? "pause" : "play")
+    }
+    updateArrowButtons()
+  }
+
+  private func quickTimePlayButtonImage(paused: Bool) -> NSImage? {
+    .sf(paused ? "play.fill" : "pause.fill",
+        withConfiguration: .init(pointSize: 32, weight: .medium))
   }
 
   // MARK: - Mouse / Trackpad events
@@ -1108,6 +1146,13 @@ class MainWindowController: PlayerWindowController {
       log("MainWindow mouseDown @ \(event.locationInWindow)", level: .verbose)
     }
     workaroundCursorDefect()
+    if oscPosition == .floating,
+       !oscFloatingView.isHiddenOrHasHiddenAncestor,
+       event.inAnyOf([oscFloatingView]),
+       oscFloatingView.routeMouseDown(event) {
+      mousePosRelatedToWindow = nil
+      return
+    }
     // do nothing if it's related to floating OSC
     guard !oscFloatingView.isDragging else { return }
     mousePosRelatedToWindow = event.locationInWindow
@@ -1268,6 +1313,7 @@ class MainWindowController: PlayerWindowController {
     } else if obj == 1 {
       // slider
       if oscFloatingView.isDragging { return }
+      isMouseInSlider = true
       refreshSeekTimeAndThumbnail(from: event)
     }
   }
@@ -1289,6 +1335,7 @@ class MainWindowController: PlayerWindowController {
       isMomentumScrollingAllowed = false
     } else if obj == 1 {
       // slider
+      isMouseInSlider = false
       refreshSeekTimeAndThumbnail(from: event)
     }
   }
@@ -1418,6 +1465,7 @@ class MainWindowController: PlayerWindowController {
     // Reset default visibilities
     thumbnailPeekView.isHidden = true
     timePreviewView.isHidden = true
+    isMouseInSlider = false
 
     player.events.emit(.windowWillClose)
   }
@@ -1487,6 +1535,7 @@ class MainWindowController: PlayerWindowController {
 
     thumbnailPeekView.isHidden = true
     timePreviewView.isHidden = true
+    isMouseInSlider = false
 
     fsState.startAnimatingToFullScreen(priorWindowedFrame: window!.frame)
     setWindowToolbar()
@@ -1608,6 +1657,7 @@ class MainWindowController: PlayerWindowController {
     thumbnailPeekView.isHidden = true
     timePreviewView.isHidden = true
     additionalInfoView.isHidden = true
+    isMouseInSlider = false
 
     fsState.startAnimatingToWindow()
     fadeableViews.update()
@@ -2090,7 +2140,7 @@ class MainWindowController: PlayerWindowController {
   private func refreshSeekTimeAndThumbnail(from event: NSEvent) {
     let isCoveredByOSD = !osdView.isHidden && event.inAnyOf([osdView])
     let isCoveredBySidebar = sidebars.isEventCoveringVisibleSidebar(event)
-    if !playSlider.isHidden && event.inAnyOf([playSlider]), !isCoveredByOSD, !isCoveredBySidebar {
+    if isMouseInSlider, !isCoveredByOSD, !isCoveredBySidebar {
       updateTimePreviewAndThumbnail(event.locationInWindow)
     } else {
       thumbnailPeekView.isHidden = true
@@ -2558,6 +2608,9 @@ class MainWindowController: PlayerWindowController {
 
   override func updatePlayButtonState(paused: Bool) {
     super.updatePlayButtonState(paused: paused)
+    if oscPosition == .floating {
+      playButton.image = quickTimePlayButtonImage(paused: paused)
+    }
     if paused {
       speedValueIndex = AppData.availableSpeedValues.count / 2
     }
@@ -2572,7 +2625,16 @@ class MainWindowController: PlayerWindowController {
   /// [multiLevelAccelerator](https://developer.apple.com/documentation/appkit/nsbutton/buttontype/multilevelaccelerator)
   /// button. This allows the user to control the speed using pressure when using devices that support pressure sensitivity.
   func updateArrowButtons() {
-    if arrowBtnFunction == .playlist {
+    if oscPosition == .floating {
+      let config = NSImage.SymbolConfiguration(pointSize: 27, weight: .semibold)
+      if arrowBtnFunction == .playlist {
+        leftArrowButton.image = .sf("backward.end.fill", withConfiguration: config)
+        rightArrowButton.image = .sf("forward.end.fill", withConfiguration: config)
+      } else {
+        leftArrowButton.image = .sf("backward.fill", withConfiguration: config)
+        rightArrowButton.image = .sf("forward.fill", withConfiguration: config)
+      }
+    } else if arrowBtnFunction == .playlist {
       leftArrowButton.image = #imageLiteral(resourceName: "nextl")
       rightArrowButton.image = #imageLiteral(resourceName: "nextr")
     } else {
