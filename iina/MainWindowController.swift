@@ -82,6 +82,7 @@ class MainWindowController: PlayerWindowController {
 
   var oscPlayControlView: NSStackView!
   var oscPlayControlMiddleView: NSStackView!
+  private var oscFloatingPlayControlsCenterConstraint: NSLayoutConstraint!
   var leftArrowButton: NSButton!
   var rightArrowButton: NSButton!
   var oscSpeedLabelLeftContainer: NSView!
@@ -633,6 +634,8 @@ class MainWindowController: PlayerWindowController {
     oscPlayControlView.addView(oscSpeedLabelRightContainer, in: .center)
     // Video controllers and timeline indicators should not flip in a right-to-left language.
     oscPlayControlView.userInterfaceLayoutDirection = .leftToRight
+    oscFloatingPlayControlsCenterConstraint = oscPlayControlMiddleView.centerXAnchor
+      .constraint(equalTo: oscFloatingView.oscTopView.centerXAnchor)
     setupOnScreenController(withPosition: oscPosition, forced: true)
     oscVolumeView.isHidden = !Preference.bool(for: .showOSCVolumeControls)
     let buttons = (Preference.array(for: .controlBarToolbarButtons) as? [Int] ?? []).compactMap(Preference.ToolBarButton.init(rawValue:))
@@ -998,6 +1001,7 @@ class MainWindowController: PlayerWindowController {
     [oscFloatingView, oscBottomView].forEach { $0.isHidden = true }
 
     oscFloatingView.isDragging = false
+    oscFloatingPlayControlsCenterConstraint.isActive = false
 
     // detach all fragment views
     [oscFloatingView.oscTopView, titleBarView.oscView, oscBottomView.oscView].forEach { stackView in
@@ -1029,6 +1033,7 @@ class MainWindowController: PlayerWindowController {
       oscFloatingView.oscTopView.addView(oscVolumeView, in: .leading)
       oscFloatingView.oscTopView.addView(oscToolbarView, in: .trailing)
       oscFloatingView.oscTopView.addView(oscPlayControlView, in: .center)
+      oscFloatingPlayControlsCenterConstraint.isActive = true
 
       // Setting the visibility priority to detach only will cause freeze when resizing the window
       // (and triggering the detach) in macOS 11.
