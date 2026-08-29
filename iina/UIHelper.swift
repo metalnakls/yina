@@ -7,6 +7,24 @@
 //
 
 
+@objc(MPVColorStringTransformer)
+class MPVColorStringTransformer: ValueTransformer {
+  static override func allowsReverseTransformation() -> Bool { true }
+
+  static override func transformedValueClass() -> AnyClass { NSString.self }
+
+  override func transformedValue(_ value: Any?) -> Any? {
+    guard let mpvColorString = value as? NSString else { return nil }
+    return NSColor(mpvColorString: String(mpvColorString))
+  }
+
+  override func reverseTransformedValue(_ value: Any?) -> Any? {
+    guard let color = value as? NSColor else { return nil }
+    return color.usingColorSpace(.deviceRGB)?.mpvColorString
+  }
+}
+
+
 class UIHelper {
   static let shared = UIHelper()
 

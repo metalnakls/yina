@@ -554,8 +554,8 @@ class PlayerCore: NSObject {
 
   static func loadKeyBindings() {
     Logger.log("Loading key bindings")
-    let userConfigs = PrefKeyBindingViewController.userConfigs
-    let iinaDefaultConfPath = PrefKeyBindingViewController.defaultConfigs["IINA Default"]!
+    let userConfigs = KeyBindingConfiguration.userConfigs
+    let iinaDefaultConfPath = KeyBindingConfiguration.defaultConfigs["IINA Default"]!
     var inputConfPath = iinaDefaultConfPath
     if let confFromUd = Preference.string(for: .currentInputConfigName) {
       if let currentConfigFilePath = Utility.getFilePath(Configs: userConfigs, forConfig: confFromUd, showAlert: false) {
