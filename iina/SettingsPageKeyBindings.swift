@@ -70,7 +70,7 @@ private extension NSUserInterfaceItemIdentifier {
 
 
 fileprivate class ConfigEditor: SettingsAccessory.Base {
-  fileprivate typealias KC = PrefKeyBindingViewController
+  fileprivate typealias KC = KeyBindingConfiguration
 
   private let prefObserver = Preference.Observer()
   let chooserView: NSView
@@ -86,33 +86,7 @@ fileprivate class ConfigEditor: SettingsAccessory.Base {
 
   var mappingController: NSArrayController
 
-  static let defaultConfigMap: KeyValuePairs<String, String> = [
-    "IINA Default": "iina-default-input",
-    "mpv Default": "input",
-    "VLC Default": "vlc-default-input",
-    "Movist Default": "movist-default-input",
-    "Movist v2 Default": "movist-v2-default-input",
-  ]
-
   let fallbackDefault = "IINA Default"
-
-  static var defaultConfigs: [String: String] = {
-    var configs: [String: String] = [:]
-    for (key, value) in defaultConfigMap {
-      configs[key] = Bundle.main.path(forResource: value, ofType: "conf", inDirectory: "config")!
-    }
-    return configs
-  }()
-
-  static var userConfigs: [String: String] {
-    do {
-      let files = try FileManager.default.contentsOfDirectory(at: Utility.userInputConfDirURL, includingPropertiesForKeys: nil)
-      let configFiles = files.filter { $0.pathExtension == "conf" }
-      return Dictionary(uniqueKeysWithValues: configFiles.map { ($0.deletingPathExtension().lastPathComponent, $0.path) })
-    } catch {
-      Logger.fatal("Cannot get user config file!")
-    }
-  }
 
   var configNames: [String] {
     return KC.defaultConfigMap.map { $0.key } + Array(KC.userConfigs.keys).sorted()
