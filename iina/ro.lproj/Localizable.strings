@@ -620,7 +620,6 @@
 "settings.screenshotShowPreview.label" = "Arată previzualizări după captura de ecran";
 "settings.trackAllFilesInRecentOpenMenu.desc" = "Altfel, doar fișierele deschise manual vor apărea în acest meniu.";
 "settings.trackAllFilesInRecentOpenMenu.label" = "Reține toate fișierele în meniul „Deschise recent”";
-"settings.useLegacyFullScreen.label" = "Folosește ecran complet în mod legacy";
 
 // Settings - Video
 "settings.enableHdrSupport.desc" = "Activează modul HDR în mod implicit la redarea videoclipurilor HDR.";

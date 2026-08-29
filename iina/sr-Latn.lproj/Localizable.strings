@@ -614,7 +614,6 @@
 "settings.screenshotShowPreview.label" = "Prikaži pregled nakon što se napravi snimak ekrana";
 "settings.trackAllFilesInRecentOpenMenu.desc" = "U suprotnom će se u ovom meniju prikazati samo datoteke koje su otvorene ručno.";
 "settings.trackAllFilesInRecentOpenMenu.label" = "Prati sve reprodukovane datoteke u meniju „Otvori nedavnu stavku“";
-"settings.useLegacyFullScreen.label" = "Koristi zastareli režim celog ekrana";
 
 // Settings - Video
 "settings.enableHdrSupport.desc" = "Podrazumevano omogući HDR režim tokom reprodukcije HDR video-zapisa.";

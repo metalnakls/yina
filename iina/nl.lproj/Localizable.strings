@@ -620,7 +620,6 @@
 "settings.screenshotShowPreview.label" = "Toon voorvertoning na het nemen van schermafbeeldingen";
 "settings.trackAllFilesInRecentOpenMenu.desc" = "Zet uit om alleen handmatig geopende bestanden te tonen.";
 "settings.trackAllFilesInRecentOpenMenu.label" = "Toon alle afgespeelde bestanden in het \"Open recente bestanden\"-menu";
-"settings.useLegacyFullScreen.label" = "Gebruik oude schermvullende weergave";
 
 // Settings - Video
 "settings.enableHdrSupport.desc" = "HDR-modus standaard inschakelen bij het afspelen van HDR-video's.";

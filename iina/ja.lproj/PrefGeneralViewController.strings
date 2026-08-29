@@ -82,9 +82,6 @@
 /* Class = "NSMenuItem"; title = "Monthly"; ObjectID = "REP-70-XOi"; */
 "REP-70-XOi.title" = "毎月";
 
-/* Class = "NSButtonCell"; title = "Use legacy full screen"; ObjectID = "TvB-UM-FrS"; */
-"TvB-UM-FrS.title" = "古いフルスクリーン表示を使用";
-
 /* Class = "NSTextFieldCell"; title = "Otherwise only files that opened manually will show up in this menu."; ObjectID = "XFC-Lr-LmP"; */
 "XFC-Lr-LmP.title" = "その他の場合、手動で開いたファイルだけがメニューに表示されます。";
 

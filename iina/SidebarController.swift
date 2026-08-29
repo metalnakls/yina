@@ -226,7 +226,9 @@ class SidebarController: NSObject {
       Preference.set(Int(panel.widthConstraint.constant), for: key)
       return true
     }
-    let isSingleClick = event.clickCount <= 1 && mainWindow.videoView.lastEventId == event.eventNumber
+    let contentPoint = mainWindow.window?.contentView?.convert(event.locationInWindow, from: nil)
+    let clickedView = contentPoint.flatMap { mainWindow.window?.contentView?.hitTest($0) }
+    let isSingleClick = event.clickCount <= 1 && clickedView === mainWindow.videoView
     if isSingleClick && isAnyVisible && Preference.bool(for: .edgeToEdgeVideo) && !isEventCoveringVisibleSidebar(event) {
       hideAllSideBars()
       return true

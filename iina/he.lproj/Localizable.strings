@@ -618,7 +618,6 @@
 "settings.screenshotShowPreview.label" = "הצג תצוגה מקדימה לאחר צילום המסך";
 "settings.trackAllFilesInRecentOpenMenu.desc" = "אחרת רק קבצים שנפתחו ידנית יופיעו בתפריט הזה.";
 "settings.trackAllFilesInRecentOpenMenu.label" = "עקוב אחר כל הקבצים שהושמעו והצג אותם בתפריט \"נפתח לאחרונה\"";
-"settings.useLegacyFullScreen.label" = "השתמש במסך מלא מדור קודם";
 
 // Settings - Video
 "settings.enableHdrSupport.desc" = "הפעל מצב HDR כברירת מחדל בעת הפעלת סרטוני HDR.";

@@ -632,7 +632,6 @@
 "settings.screenshotShowPreview.label" = "Show previews after taking screenshots";
 "settings.trackAllFilesInRecentOpenMenu.desc" = "Otherwise only files that opened manually will show up in this menu.";
 "settings.trackAllFilesInRecentOpenMenu.label" = "Track all played files in \"Open Recent\" menu";
-"settings.useLegacyFullScreen.label" = "Use legacy full screen";
 
 // Settings - Video
 "settings.enableHdrSupport.desc" = "Enable HDR mode by default when playing HDR videos.";

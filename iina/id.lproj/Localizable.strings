@@ -619,7 +619,6 @@
 "settings.screenshotShowPreview.label" = "Tampilkan pratinjau setelah mengambil tangkapan layar";
 "settings.trackAllFilesInRecentOpenMenu.desc" = "Jika tidak, hanya file yang dibuka secara manual yang akan muncul di dalam menu.";
 "settings.trackAllFilesInRecentOpenMenu.label" = "Ingat semua file yang sudah diputar di menu \"Buka File Terkini\"";
-"settings.useLegacyFullScreen.label" = "Gunakan mode layar penuh lama (sebelum OS X 10.6)";
 
 // Settings - Video
 "settings.enableHdrSupport.desc" = "Aktifkan mode HDR bawaan saat memutar video HDR.";

@@ -9,8 +9,6 @@
 import Cocoa
 
 class MainWindow: CommonWindow {
-  var forceKeyAndMain = false
-
   override func keyDown(with event: NSEvent) {
     if menu?.performKeyEquivalent(with: event) == true {
       return
@@ -50,13 +48,6 @@ class MainWindow: CommonWindow {
     return responder as? NSTextView != nil
   }
 
-  override var canBecomeKey: Bool {
-    forceKeyAndMain ? true : super.canBecomeKey
-  }
-  
-  override var canBecomeMain: Bool {
-    forceKeyAndMain ? true : super.canBecomeMain
-  }
 }
 
 class MainWindowContentView: NSView {
@@ -69,21 +60,4 @@ class MainWindowContentView: NSView {
 
   /// Invoked automatically when the view’s geometry changes such that its tracking areas need to be recalculated.
   ///
-  /// Previous to macOS Sequoia this method was not needed, AppKit properly handled the re-computation of the tracking area
-  /// when the view geometry changed. But as of macOS 15 something is going wrong in AppKit and it fails to call `mouseMoved`
-  /// after legacy full screen mode is entered or exited. See issues [#5535](https://github.com/iina/iina/issues/5535)
-  /// and [#5288](https://github.com/iina/iina/issues/5288).
-  /// - Note: This method intentionally does not check for the availability of macOS 15 as this method works fine with older versions
-  ///     of macOS as well. This protects against Apple back porting the bad Sequoia behavior into older versions of macOS which
-  ///     has occurred with past macOS problems.
-  override func updateTrackingAreas() {
-    defer { super.updateTrackingAreas() }
-    guard trackingAreas.count == 1,
-          let controller = window?.windowController as? MainWindowController else { return }
-    controller.log("Recreating tracking area", level: .verbose)
-    removeTrackingArea(trackingAreas[0])
-    addTrackingArea(NSTrackingArea(rect: bounds,
-      options: [.activeAlways, .enabledDuringMouseDrag, .inVisibleRect, .mouseEnteredAndExited, .mouseMoved],
-      owner: controller, userInfo: ["obj": 0]))
-  }
 }

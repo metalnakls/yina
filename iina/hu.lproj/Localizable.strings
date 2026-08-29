@@ -621,7 +621,6 @@
 "settings.screenshotShowPreview.label" = "Elõnézet mutatása képernyõkép készités után";
 "settings.trackAllFilesInRecentOpenMenu.desc" = "Ellenkező esetben csak a kézzel megnyitott fájlok jelennek meg ebben a menüben.";
 "settings.trackAllFilesInRecentOpenMenu.label" = "Kövesse nyomon az összes lejátszott fájlt a \"Legutóbbi fájlok\" menüben";
-"settings.useLegacyFullScreen.label" = "Használja a régi teljes képernyőt";
 
 // Settings - Video
 "settings.enableHdrSupport.desc" = "HDR-videók lejátszásakor alapértelmezés szerint engedélyezi a HDR módot.";

@@ -619,7 +619,6 @@
 "settings.screenshotShowPreview.label" = "Toon voorskou nadat skermkiekie geneem is";
 "settings.trackAllFilesInRecentOpenMenu.desc" = "Anders sal slegs handmatig geopende lêers in hierdie kieslys weergegee word.";
 "settings.trackAllFilesInRecentOpenMenu.label" = "Toon alle afgespeelde lêers in “Open onlangse”-kieslys";
-"settings.useLegacyFullScreen.label" = "Gebruik ou volskermweergawe";
 
 // Settings - Video
 "settings.enableToneMapping.label" = "Aktiveer toonkartering";

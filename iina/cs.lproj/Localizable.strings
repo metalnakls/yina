@@ -622,7 +622,6 @@
 "settings.screenshotShowPreview.label" = "Zobrazit náhled při zachycení snímku obrazovky";
 "settings.trackAllFilesInRecentOpenMenu.desc" = "Jinak se v této nabídce zobrazí pouze ručně otevřené soubory.";
 "settings.trackAllFilesInRecentOpenMenu.label" = "Zaznamenat všechny přehrané soubory v nabídce „Otevřít poslední položku“";
-"settings.useLegacyFullScreen.label" = "Použit starší režim celé obrazovky";
 
 // Settings - Video
 "settings.enableHdrSupport.desc" = "Při přehrávání HDR videí povolit jako výchozí režim HDR.";
