@@ -8,15 +8,55 @@
 
 import Cocoa
 
+extension NSSlider {
+  func replaceCellPreservingConfiguration(with replacement: NSSliderCell) {
+    let currentValue = doubleValue
+    let currentMinValue = minValue
+    let currentMaxValue = maxValue
+    let currentAltIncrementValue = altIncrementValue
+    let currentSliderType = sliderType
+    let currentNumberOfTickMarks = numberOfTickMarks
+    let currentTickMarkPosition = tickMarkPosition
+    let currentAllowsTickMarkValuesOnly = allowsTickMarkValuesOnly
+    let currentIsContinuous = isContinuous
+    let currentIsEnabled = isEnabled
+    let currentTarget = target
+    let currentAction = action
+    let currentTag = tag
+    let currentNeutralValue = neutralValue
+
+    cell = replacement
+    minValue = currentMinValue
+    maxValue = currentMaxValue
+    doubleValue = currentValue
+    altIncrementValue = currentAltIncrementValue
+    sliderType = currentSliderType
+    numberOfTickMarks = currentNumberOfTickMarks
+    tickMarkPosition = currentTickMarkPosition
+    allowsTickMarkValuesOnly = currentAllowsTickMarkValuesOnly
+    isContinuous = currentIsContinuous
+    isEnabled = currentIsEnabled
+    target = currentTarget
+    action = currentAction
+    tag = currentTag
+    neutralValue = currentNeutralValue
+  }
+}
+
 /// A custom [slider](https://developer.apple.com/design/human-interface-guidelines/macos/selectors/sliders/)
 /// for the onscreen controller.
 ///
 /// This slider adds two thumbs (referred to as knobs in code) to the progress bar slider to show the A and B loop points of the
 /// [mpv](https://mpv.io/manual/stable/) A-B loop feature and allow the loop points to be adjusted. When the feature is
 /// disabled the additional thumbs are hidden.
-/// - Requires: The custom slider cell provided by `PlaySliderCell` **must** be used with this class.
+/// - Note: Floating OSCs use a standard `NSSliderCell`; other layouts retain `PlaySliderCell`.
 /// - Note: Unlike `NSSlider` the `draw` method of this class will do nothing if the view is hidden.
 final class PlaySlider: NSSlider {
+
+  private(set) var usesSystemAppearance = false
+  private var originalTrackFillColor: NSColor?
+  private var legacyCell: PlaySliderCell!
+  private var systemCell: NSSliderCell!
 
   /// Knob representing the A loop point for the mpv A-B loop feature.
   var abLoopA: PlaySliderLoopKnob { abLoopAKnob }
@@ -24,8 +64,18 @@ final class PlaySlider: NSSlider {
   /// Knob representing the B loop point for the mpv A-B loop feature.
   var abLoopB: PlaySliderLoopKnob { abLoopBKnob }
 
-  /// The slider's cell correctly typed for convenience.
-  var customCell: PlaySliderCell { cell as! PlaySliderCell }
+  var sliderCell: NSSliderCell { cell as! NSSliderCell }
+  var sliderKnobWidth: CGFloat { (cell as? PlaySliderCell)?.knobWidth ?? sliderCell.knobThickness }
+  var sliderKnobHeight: CGFloat { (cell as? PlaySliderCell)?.knobHeight ?? sliderCell.knobThickness }
+  var sliderKnobRadius: CGFloat { (cell as? PlaySliderCell)?.knobRadius ?? sliderCell.knobThickness / 2 }
+
+  var drawChapters: Bool {
+    get { legacyCell.drawChapters }
+    set {
+      legacyCell.drawChapters = newValue
+      needsDisplay = true
+    }
+  }
 
   /// Range of values the slider is configured to return.
   var range: ClosedRange<Double> { minValue...maxValue }
@@ -34,9 +84,9 @@ final class PlaySlider: NSSlider {
   var span: Double { maxValue - minValue }
 
   var usesExtendedDynamicRange: Bool {
-    get { customCell.usesExtendedDynamicRange }
+    get { legacyCell.usesExtendedDynamicRange }
     set {
-      customCell.usesExtendedDynamicRange = newValue
+      legacyCell.usesExtendedDynamicRange = newValue
       needsDisplay = true
       abLoopA.needsDisplay = true
       abLoopB.needsDisplay = true
@@ -53,12 +103,23 @@ final class PlaySlider: NSSlider {
 
   override init(frame frameRect: NSRect) {
     super.init(frame: frameRect)
-    cell = PlaySliderCell()
+    systemCell = cell as? NSSliderCell
+    legacyCell = PlaySliderCell()
+    legacyCell.refusesFirstResponder = true
+    legacyCell.minValue = 0
+    legacyCell.maxValue = 100
+    originalTrackFillColor = trackFillColor
     commonInit()
   }
 
   required init?(coder: NSCoder) {
     super.init(coder: coder)
+    systemCell = cell as? NSSliderCell
+    legacyCell = PlaySliderCell()
+    legacyCell.refusesFirstResponder = true
+    legacyCell.minValue = 0
+    legacyCell.maxValue = 100
+    originalTrackFillColor = trackFillColor
     commonInit()
   }
 
@@ -72,6 +133,21 @@ final class PlaySlider: NSSlider {
 
     abLoopAKnob = PlaySliderLoopKnob(slider: self, toolTip: "A-B loop A")
     abLoopBKnob = PlaySliderLoopKnob(slider: self, toolTip: "A-B loop B")
+  }
+
+  func setQuickTimeStyle(_ enabled: Bool) {
+    let desiredCell = enabled ? systemCell! : legacyCell!
+    guard usesSystemAppearance != enabled || cell !== desiredCell else { return }
+    if cell !== desiredCell {
+      replaceCellPreservingConfiguration(with: desiredCell)
+    }
+    usesSystemAppearance = enabled
+    controlSize = .small
+    trackFillColor = enabled ? .white : originalTrackFillColor
+    tintProminence = enabled ? .primary : .automatic
+    abLoopA.updateGeometry()
+    abLoopB.updateGeometry()
+    needsDisplay = true
   }
 
   // MARK: - Drawing
@@ -119,7 +195,15 @@ final class PlaySlider: NSSlider {
   /// - Important: _DO NOT REMOVE_ this function thinking it is not needed. Read issue #5768.
   /// - Parameter event: An object encapsulating information about the mouse-down event.
   override func mouseDown(with event: NSEvent) {
+    let player = playerCore
+    let shouldResume = player.info.state != .paused
+    player.mainWindow.liveText.clearAnalysis()
+    player.pause()
+    player.mainWindow.thumbnailPeekView.isHidden = true
     super.mouseDown(with: event)
+    if shouldResume {
+      player.resume()
+    }
   }
 
   /// The user is scrolling while the cursor is within the slider.
@@ -132,5 +216,9 @@ final class PlaySlider: NSSlider {
   override func scrollWheel(with event: NSEvent) {
     guard !Preference.bool(for: .disablePlaySliderScrolling) else { return }
     super.scrollWheel(with: event)
+  }
+
+  private var playerCore: PlayerCore {
+    (window!.windowController as! PlayerWindowController).player
   }
 }
