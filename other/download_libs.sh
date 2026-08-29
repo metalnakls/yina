@@ -1,9 +1,6 @@
 #!/bin/bash
 
-PROJECT_NAME='iina'
-
-# universal | arm64 | x86_64
-ARCH="universal"
+ARCH="arm64"
 # github | iina (use iina to get the binary included in the latest release)
 YT_DLP_SOURCE="github"
 PARALLEL_DOWNLOADS=5
@@ -23,7 +20,6 @@ printUsageHelp() {
   echo
   echo -e "${BLUE}Usage:${NC}"
   echo -e "    ${GREEN}$0 [-h|--help]:${NC}           Displays this help message"
-  echo -e "    ${GREEN}$0 [--arch] <ARCH>:${NC}       Architecture to download dylibs for: universal | arm64 | x86_64"
   echo -e "    ${GREEN}$0 [--yt-dlp-src] <SRC>:${NC}  Source to download youtube-dl from: github | iina"
   echo -e "    ${GREEN}$0 [--parallel] <N>:${NC}      Number of parallel downloads (default: 5)"
   echo -e "    ${GREEN}$0 [--skip-plugins]:${NC}      Skip downloading official plugins"
@@ -48,24 +44,6 @@ while [[ $# -gt 0 ]]; do
   -h | --help)
     printUsageHelp
     exit 0
-    ;;
-  --arch)
-    if [[ -z "$2" || "$2" == -* ]]; then
-      echo -e "${RED}You need to specify an architecture when using --arch${NC}" >&2
-      printUsageHelp
-      exit 1
-    fi
-    ARCH=$2
-    shift 2
-    ;;
-  --arch=*)
-    ARCH=${1#*=}
-    if [[ -z "$ARCH" ]]; then
-      echo -e "${RED}You need to specify an architecture when using --arch${NC}" >&2
-      printUsageHelp
-      exit 1
-    fi
-    shift
     ;;
   --yt-dlp-src)
     if [[ -z "$2" || "$2" == -* ]]; then
@@ -143,32 +121,14 @@ iina)
   ;;
 esac
 
-case $ARCH in
-universal | arm64 | x86_64)
-  DYLIBS_DOWNLOAD_PATH="https://iina.io/dylibs/${ARCH}"
-  ;;
-*)
-  echo -e "${RED}Invalid architecture: $ARCH${NC}"
-  printUsageHelp
-  exit 1
-  ;;
-esac
+DYLIBS_DOWNLOAD_PATH="https://iina.io/dylibs/${ARCH}"
 
 SCRIPT_PATH=$(realpath "$0")
-ROOT_PATH=$(dirname "$SCRIPT_PATH")
-
-if [[ $(basename "$ROOT_PATH") != "$PROJECT_NAME" ]]; then
-  while [[ "$ROOT_PATH" != "/" && $(basename "$ROOT_PATH") != "$PROJECT_NAME" ]]; do
-    ROOT_PATH=$(dirname "$ROOT_PATH")
-  done
-  if [[ "$ROOT_PATH" == "/" ]]; then
-    echo -e "${RED}Unable to find the root directory '$PROJECT_NAME' containing the script file.${NC}" >&2
-    exit 1
-  fi
-fi
+ROOT_PATH=$(dirname "$(dirname "$SCRIPT_PATH")")
 
 DEPS_PATH="$ROOT_PATH/deps"
-LIB_PATH="$DEPS_PATH/lib"
+FINAL_LIB_PATH="$DEPS_PATH/lib"
+LIB_PATH=$(mktemp -d "$DEPS_PATH/lib.arm64.XXXXXX") || exit 1
 EXEC_PATH="$DEPS_PATH/executable"
 PLUGIN_PATH="$DEPS_PATH/plugins"
 YT_DLP_PATH="$EXEC_PATH/youtube-dl"
@@ -197,9 +157,54 @@ export NC
 # Process files in smaller batches using xargs
 printf "%s\n" "${files[@]}" | xargs -n 1 -P "$PARALLEL_DOWNLOADS" bash -c 'download_file "$@"' _
 
+modernize_macho() {
+  local path="$1"
+  local architectures
+  local thinned_path
+  local modern_path
+
+  if ! file -b "$path" | grep -q "Mach-O"; then
+    echo -e "${RED}Expected a Mach-O dependency: ${path}${NC}" >&2
+    return 1
+  fi
+
+  architectures=$(lipo -archs "$path") || return 1
+  if [[ "$architectures" != "arm64" ]]; then
+    if [[ " $architectures " != *" arm64 "* ]]; then
+      echo -e "${RED}Dependency has no arm64 slice: ${path}${NC}" >&2
+      return 1
+    fi
+    thinned_path=$(mktemp "${path}.arm64.XXXXXX") || return 1
+    lipo "$path" -thin arm64 -output "$thinned_path" || return 1
+    mv "$thinned_path" "$path"
+  fi
+
+  modern_path=$(mktemp "${path}.macos27.XXXXXX") || return 1
+  xcrun vtool -set-build-version macos 27.0 27.0 -replace -output "$modern_path" "$path" || return 1
+  mv "$modern_path" "$path"
+
+  if [[ $(lipo -archs "$path") != "arm64" ]]; then
+    echo -e "${RED}Dependency is not arm64-only after processing: ${path}${NC}" >&2
+    return 1
+  fi
+}
+
+for file in "${files[@]}"; do
+  modernize_macho "${LIB_PATH}/${file}" || exit 1
+done
+
+if [[ "$FINAL_LIB_PATH" != "$ROOT_PATH/deps/lib" ]]; then
+  echo -e "${RED}Refusing to replace unexpected dependency directory: ${FINAL_LIB_PATH}${NC}" >&2
+  exit 1
+fi
+rm -rf "$FINAL_LIB_PATH"
+mv "$LIB_PATH" "$FINAL_LIB_PATH"
+LIB_PATH="$FINAL_LIB_PATH"
+
 mkdir -p "$EXEC_PATH"
 echo -e "${YELLOW}Downloading yt-dlp...${NC}"
 curl -s -L "$YT_DLP_DOWNLOAD_PATH" -o "$YT_DLP_PATH" && echo -e "${GREEN}yt-dlp downloaded${NC}"
+modernize_macho "$YT_DLP_PATH" || exit 1
 chmod +x "$YT_DLP_PATH"
 
 mkdir -p "$PLUGIN_PATH"
