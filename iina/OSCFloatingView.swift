@@ -8,7 +8,7 @@
 
 fileprivate extension LayoutValue {
   static let oscPaddingTop = LayoutValue(14, 10)
-  static let oscPaddingBottom = LayoutValue(16, 10)
+  static let oscPaddingBottom = LayoutValue(8, 5)
 }
 
 /// Button used by the floating OSC so AppKit keeps the native tracking path active.
@@ -21,8 +21,7 @@ class OSCButton: NSButton {
     var floatingSize: CGFloat {
       switch self {
       case .standard: 24
-      case .transport: 32
-      case .primary: 48
+      case .transport, .primary: 24
       }
     }
   }
