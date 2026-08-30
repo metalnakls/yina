@@ -1073,8 +1073,8 @@ class MainWindowController: PlayerWindowController {
     (playButton as? OSCButton)?.setQuickTimeStyle(enabled, role: .primary)
     (rightArrowButton as? OSCButton)?.setQuickTimeStyle(enabled, role: .transport)
     playSlider.setQuickTimeStyle(enabled)
-    oscPlaySliderTopConstraint.constant = enabled ? 4 : DockedOSCLayout.playSliderInset
-    oscPlaySliderBottomConstraint.constant = enabled ? 4 : DockedOSCLayout.playSliderInset
+    oscPlaySliderTopConstraint.constant = DockedOSCLayout.playSliderInset
+    oscPlaySliderBottomConstraint.constant = DockedOSCLayout.playSliderInset
 
     let labelColor = enabled ? NSColor.white.withAlphaComponent(0.68) : NSColor.secondaryLabelColor
     leftLabel.textColor = labelColor
@@ -1090,7 +1090,7 @@ class MainWindowController: PlayerWindowController {
 
   private func quickTimePlayButtonImage(paused: Bool) -> NSImage? {
     .sf(paused ? "play.fill" : "pause.fill",
-        withConfiguration: .init(pointSize: 32, weight: .medium))
+        withConfiguration: .init(pointSize: 22, weight: .medium))
   }
 
   // MARK: - Mouse / Trackpad events
@@ -2626,7 +2626,7 @@ class MainWindowController: PlayerWindowController {
   /// button. This allows the user to control the speed using pressure when using devices that support pressure sensitivity.
   func updateArrowButtons() {
     if oscPosition == .floating {
-      let config = NSImage.SymbolConfiguration(pointSize: 27, weight: .semibold)
+      let config = NSImage.SymbolConfiguration(pointSize: 19, weight: .semibold)
       if arrowBtnFunction == .playlist {
         leftArrowButton.image = .sf("backward.end.fill", withConfiguration: config)
         rightArrowButton.image = .sf("forward.end.fill", withConfiguration: config)

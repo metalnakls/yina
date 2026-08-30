@@ -8,6 +8,31 @@
 
 import Cocoa
 
+private final class FloatingPlaySliderCell: PlaySliderCell {
+  private let floatingKnobSize: CGFloat = 14
+
+  override var knobThickness: CGFloat { floatingKnobSize }
+
+  override func drawKnob(_ knobRect: NSRect) {
+    // The floating OSC uses a real NSGlassEffectView for its thumb.
+  }
+
+  override func knobRect(flipped: Bool) -> NSRect {
+    let slider = controlView as! NSSlider
+    let bar = barRect(flipped: flipped)
+    let span = slider.maxValue - slider.minValue
+    let percentage = span == 0 ? 0 : (slider.doubleValue - slider.minValue) / span
+    let x = bar.minX + CGFloat(percentage) * (bar.width - floatingKnobSize)
+    let nativeRect = super.knobRect(flipped: flipped)
+    return NSRect(x: x, y: nativeRect.midY - floatingKnobSize / 2,
+                  width: floatingKnobSize, height: floatingKnobSize)
+  }
+}
+
+private final class SliderGlassKnobView: NSGlassEffectView {
+  override func hitTest(_ point: NSPoint) -> NSView? { nil }
+}
+
 extension NSSlider {
   func replaceCellPreservingConfiguration(with replacement: NSSliderCell) {
     let currentValue = doubleValue
@@ -49,14 +74,15 @@ extension NSSlider {
 /// This slider adds two thumbs (referred to as knobs in code) to the progress bar slider to show the A and B loop points of the
 /// [mpv](https://mpv.io/manual/stable/) A-B loop feature and allow the loop points to be adjusted. When the feature is
 /// disabled the additional thumbs are hidden.
-/// - Note: Floating OSCs use a standard `NSSliderCell`; other layouts retain `PlaySliderCell`.
+/// - Note: Floating OSCs use a chapter-aware cell with a glass thumb; other layouts retain `PlaySliderCell`.
 /// - Note: Unlike `NSSlider` the `draw` method of this class will do nothing if the view is hidden.
 final class PlaySlider: NSSlider {
 
   private(set) var usesSystemAppearance = false
   private var originalTrackFillColor: NSColor?
   private var legacyCell: PlaySliderCell!
-  private var systemCell: NSSliderCell!
+  private var floatingCell: FloatingPlaySliderCell!
+  private var floatingKnob: SliderGlassKnobView!
 
   /// Knob representing the A loop point for the mpv A-B loop feature.
   var abLoopA: PlaySliderLoopKnob { abLoopAKnob }
@@ -65,14 +91,15 @@ final class PlaySlider: NSSlider {
   var abLoopB: PlaySliderLoopKnob { abLoopBKnob }
 
   var sliderCell: NSSliderCell { cell as! NSSliderCell }
-  var sliderKnobWidth: CGFloat { (cell as? PlaySliderCell)?.knobWidth ?? sliderCell.knobThickness }
-  var sliderKnobHeight: CGFloat { (cell as? PlaySliderCell)?.knobHeight ?? sliderCell.knobThickness }
-  var sliderKnobRadius: CGFloat { (cell as? PlaySliderCell)?.knobRadius ?? sliderCell.knobThickness / 2 }
+  var sliderKnobWidth: CGFloat { usesSystemAppearance ? sliderCell.knobThickness : legacyCell.knobWidth }
+  var sliderKnobHeight: CGFloat { usesSystemAppearance ? sliderCell.knobThickness : legacyCell.knobHeight }
+  var sliderKnobRadius: CGFloat { usesSystemAppearance ? sliderCell.knobThickness / 2 : legacyCell.knobRadius }
 
   var drawChapters: Bool {
     get { legacyCell.drawChapters }
     set {
       legacyCell.drawChapters = newValue
+      floatingCell.drawChapters = newValue
       needsDisplay = true
     }
   }
@@ -87,6 +114,7 @@ final class PlaySlider: NSSlider {
     get { legacyCell.usesExtendedDynamicRange }
     set {
       legacyCell.usesExtendedDynamicRange = newValue
+      floatingCell.usesExtendedDynamicRange = newValue
       needsDisplay = true
       abLoopA.needsDisplay = true
       abLoopB.needsDisplay = true
@@ -103,24 +131,26 @@ final class PlaySlider: NSSlider {
 
   override init(frame frameRect: NSRect) {
     super.init(frame: frameRect)
-    systemCell = cell as? NSSliderCell
-    legacyCell = PlaySliderCell()
-    legacyCell.refusesFirstResponder = true
-    legacyCell.minValue = 0
-    legacyCell.maxValue = 100
+    initializeCells()
     originalTrackFillColor = trackFillColor
     commonInit()
   }
 
   required init?(coder: NSCoder) {
     super.init(coder: coder)
-    systemCell = cell as? NSSliderCell
-    legacyCell = PlaySliderCell()
-    legacyCell.refusesFirstResponder = true
-    legacyCell.minValue = 0
-    legacyCell.maxValue = 100
+    initializeCells()
     originalTrackFillColor = trackFillColor
     commonInit()
+  }
+
+  private func initializeCells() {
+    legacyCell = PlaySliderCell()
+    floatingCell = FloatingPlaySliderCell()
+    [legacyCell, floatingCell].forEach {
+      $0.refusesFirstResponder = true
+      $0.minValue = 0
+      $0.maxValue = 100
+    }
   }
 
   private func commonInit() {
@@ -133,18 +163,28 @@ final class PlaySlider: NSSlider {
 
     abLoopAKnob = PlaySliderLoopKnob(slider: self, toolTip: "A-B loop A")
     abLoopBKnob = PlaySliderLoopKnob(slider: self, toolTip: "A-B loop B")
+
+    floatingKnob = SliderGlassKnobView()
+    floatingKnob.translatesAutoresizingMaskIntoConstraints = true
+    floatingKnob.style = .regular
+    floatingKnob.tintColor = .white.withAlphaComponent(0.32)
+    floatingKnob.effectIsInteractive = true
+    floatingKnob.contentView = NSView()
+    floatingKnob.isHidden = true
+    addSubview(floatingKnob)
   }
 
   func setQuickTimeStyle(_ enabled: Bool) {
-    let desiredCell = enabled ? systemCell! : legacyCell!
+    let desiredCell: NSSliderCell = enabled ? floatingCell : legacyCell
     guard usesSystemAppearance != enabled || cell !== desiredCell else { return }
     if cell !== desiredCell {
       replaceCellPreservingConfiguration(with: desiredCell)
     }
     usesSystemAppearance = enabled
     controlSize = .small
-    trackFillColor = enabled ? .white : originalTrackFillColor
-    tintProminence = enabled ? .primary : .automatic
+    trackFillColor = originalTrackFillColor
+    tintProminence = .automatic
+    floatingKnob.isHidden = !enabled
     abLoopA.updateGeometry()
     abLoopB.updateGeometry()
     needsDisplay = true
@@ -171,6 +211,11 @@ final class PlaySlider: NSSlider {
   override func draw(_ dirtyRect: NSRect) {
     guard !isHiddenOrHasHiddenAncestor else { return }
     super.draw(dirtyRect)
+    if usesSystemAppearance {
+      let knobRect = floatingCell.knobRect(flipped: isFlipped)
+      floatingKnob.frame = knobRect
+      floatingKnob.cornerRadius = knobRect.height / 2
+    }
     abLoopA.needsDisplay = true
     abLoopB.needsDisplay = true
   }
