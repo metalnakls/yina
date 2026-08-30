@@ -12,7 +12,11 @@ import Cocoa
 class VideoView: NSView {
 
   weak var player: PlayerCore!
+#if IINA_ENABLE_METAL_RENDERER
+  var link: CADisplayLink?
+#else
   var link: CVDisplayLink?
+#endif
 
   lazy var videoLayer: ViewLayer = {
     let layer = ViewLayer(self)
@@ -61,14 +65,18 @@ class VideoView: NSView {
 
     // set up layer
     layer = videoLayer
+#if !IINA_ENABLE_METAL_RENDERER
     videoLayer.colorspace = VideoView.SRGB
+#endif
     videoLayer.contentsScale = NSScreen.main!.backingScaleFactor
     wantsLayer = true
 
     // other settings
     autoresizingMask = [.width, .height]
+#if !IINA_ENABLE_METAL_RENDERER
     wantsBestResolutionOpenGLSurface = true
     wantsExtendedDynamicRangeOpenGLSurface = true
+#endif
 
     // dragging init
     registerForDraggedTypes([.nsFilenames, .nsURL, .string])
@@ -84,6 +92,17 @@ class VideoView: NSView {
   /// - Important: Once mpv has been instructed to quit accessing the mpv core can result in a crash, therefore locks must be
   ///     used to coordinate uninitializing the view so that other threads do not attempt to use the mpv core while it is shutting down.
   func uninit() {
+#if IINA_ENABLE_METAL_RENDERER
+    let shouldUninit = $isUninited.withWriteLock() { isUninited -> Bool in
+      guard !isUninited else { return false }
+      isUninited = true
+      return true
+    }
+    guard shouldUninit else { return }
+    link?.invalidate()
+    link = nil
+    videoLayer.uninitRendering()
+#else
     player.mpv.lockAndSetOpenGLContext()
     defer { player.mpv.unlockOpenGLContext() }
     $isUninited.withWriteLock() { isUninited in
@@ -93,6 +112,7 @@ class VideoView: NSView {
       stopDisplayLink()
       player.mpv.mpvUninitRendering()
     }
+#endif
   }
 
   deinit {
@@ -181,6 +201,40 @@ class VideoView: NSView {
 
   // MARK: Display link
 
+#if IINA_ENABLE_METAL_RENDERER
+  func startDisplayLink() {
+    if link == nil {
+      link = displayLink(target: self, selector: #selector(displayLinkDidFire(_:)))
+      link?.add(to: .main, forMode: .common)
+    }
+    guard link?.isPaused != false else { return }
+    updateDisplayLink()
+    link?.isPaused = false
+    log("Display link started", level: .verbose)
+  }
+
+  @objc func stopDisplayLink() {
+    guard link?.isPaused == false else { return }
+    link?.isPaused = true
+    log("Display link stopped", level: .verbose)
+  }
+
+  func updateDisplayLink() {
+    guard let screen = window?.screen, let displayId = screen.displayId else { return }
+    guard currentDisplay != displayId else { return }
+    currentDisplay = displayId
+    player.mpv.setDouble(MPVOption.Video.displayFpsOverride,
+                         Double(screen.maximumFramesPerSecond))
+    refreshEdrMode()
+  }
+
+  @objc private func displayLinkDidFire(_ displayLink: CADisplayLink) {
+    $isUninited.withReadLock() { isUninited in
+      guard !isUninited else { return }
+      player.mpv.mpvReportSwap()
+    }
+  }
+#else
   /// Returns a [Core Video](https://developer.apple.com/documentation/corevideo) display link.
   ///
   /// If a display link has already been created then that link will be returned, otherwise a display link will be created and returned.
@@ -249,6 +303,7 @@ class VideoView: NSView {
 
     refreshEdrMode()
   }
+#endif
 
   // MARK: - Reducing Energy Use
 
@@ -301,6 +356,13 @@ class VideoView: NSView {
       player.mpv.setFlag(MPVOption.GPURendererOptions.iccProfileAuto, true)
     }
 
+#if IINA_ENABLE_METAL_RENDERER
+    // libplacebo owns the CAMetalLayer format, color space, and EDR state.
+    // IINA continues to own display detection and mpv's output policy.
+    player.mpv.setString(MPVOption.GPURendererOptions.targetTrc, "auto")
+    player.mpv.setString(MPVOption.GPURendererOptions.targetPrim, "auto")
+    player.mpv.setFlag(MPVOption.Screenshot.screenshotTagColorspace, false)
+#else
     let sdrColorSpace = screenColorSpace?.cgColorSpace ?? VideoView.SRGB
     if videoLayer.colorspace != sdrColorSpace {
       let name: String = {
@@ -315,6 +377,7 @@ class VideoView: NSView {
       player.mpv.setString(MPVOption.GPURendererOptions.targetPrim, "auto")
       player.mpv.setFlag(MPVOption.Screenshot.screenshotTagColorspace, false)
     }
+#endif
   }
 
   // MARK: - Error Logging
@@ -469,8 +532,10 @@ extension VideoView {
 
     logHDR("Using HDR color space instead of ICC profile")
 
+#if !IINA_ENABLE_METAL_RENDERER
     videoLayer.wantsExtendedDynamicRangeContent = true
     videoLayer.colorspace = CGColorSpace(name: name)
+#endif
     mpv.setFlag(MPVOption.GPURendererOptions.iccProfileAuto, false)
     mpv.setString(MPVOption.GPURendererOptions.targetPrim, primaries)
     // PQ videos will be display as it was, HLG videos will be converted to PQ
@@ -541,6 +606,7 @@ extension VideoView {
   }
 }
 
+#if !IINA_ENABLE_METAL_RENDERER
 fileprivate func displayLinkCallback(
   _ displayLink: CVDisplayLink, _ inNow: UnsafePointer<CVTimeStamp>,
   _ inOutputTime: UnsafePointer<CVTimeStamp>,
@@ -554,3 +620,4 @@ fileprivate func displayLinkCallback(
   }
   return kCVReturnSuccess
 }
+#endif

@@ -93,7 +93,9 @@ class MPVController: NSObject {
   var mpv: OpaquePointer!
   var mpvRenderContext: OpaquePointer?
 
+#if !IINA_ENABLE_METAL_RENDERER
   private var openGLContext: CGLContextObj! = nil
+#endif
 
   /// [DispatchQueue](https://developer.apple.com/documentation/dispatch/dispatchqueue) for reading `mpv`
   /// events.
@@ -710,6 +712,28 @@ class MPVController: NSObject {
     guard let mpv else {
       fatalError("mpvInitRendering() should be called after mpv handle being initialized!")
     }
+#if IINA_ENABLE_METAL_RENDERER
+    let layer = player.mainWindow.videoView.videoLayer
+    let apiType = UnsafeMutableRawPointer(mutating: (MPV_RENDER_API_TYPE_METAL as NSString).utf8String)
+    var metalInitParams = mpv_metal_init_params(
+      layer: Unmanaged.passUnretained(layer).toOpaque(),
+      metal_device: layer.device.map { Unmanaged.passUnretained($0 as AnyObject).toOpaque() }
+    )
+    withUnsafeMutablePointer(to: &metalInitParams) { metalInitParams in
+      var advanced: CInt = 1
+      withUnsafeMutablePointer(to: &advanced) { advanced in
+        var params = [
+          mpv_render_param(type: MPV_RENDER_PARAM_API_TYPE, data: apiType),
+          mpv_render_param(type: MPV_RENDER_PARAM_METAL_INIT_PARAMS, data: metalInitParams),
+          mpv_render_param(type: MPV_RENDER_PARAM_ADVANCED_CONTROL, data: advanced),
+          mpv_render_param()
+        ]
+        chkErr(mpv_render_context_create(&mpvRenderContext, mpv, &params))
+      }
+    }
+    mpv_render_context_set_update_callback(mpvRenderContext!, mpvUpdateCallback,
+                                           mutableRawPointerOf(obj: layer))
+#else
     let apiType = UnsafeMutableRawPointer(mutating: (MPV_RENDER_API_TYPE_OPENGL as NSString).utf8String)
     var openGLInitParams = mpv_opengl_init_params(get_proc_address: mpvGetOpenGLFunc,
                                                   get_proc_address_ctx: nil)
@@ -727,8 +751,10 @@ class MPVController: NSObject {
       openGLContext = CGLGetCurrentContext()
       mpv_render_context_set_update_callback(mpvRenderContext!, mpvUpdateCallback, mutableRawPointerOf(obj: player.mainWindow.videoView.videoLayer))
     }
+#endif
   }
 
+#if !IINA_ENABLE_METAL_RENDERER
   /// Lock the OpenGL context associated with the mpv renderer and set it to be the current context for this thread.
   ///
   /// This method is needed to meet this requirement from `mpv/render.h`:
@@ -749,6 +775,7 @@ class MPVController: NSObject {
   func unlockOpenGLContext() {
     CGLUnlockContext(openGLContext)
   }
+#endif
 
   func mpvUninitRendering() {
     guard let mpvRenderContext else { return }
@@ -1868,6 +1895,7 @@ class MPVController: NSObject {
   }
 }
 
+#if !IINA_ENABLE_METAL_RENDERER
 fileprivate func mpvGetOpenGLFunc(_ ctx: UnsafeMutableRawPointer?, _ name: UnsafePointer<Int8>?) -> UnsafeMutableRawPointer? {
   let symbolName: CFString = CFStringCreateWithCString(kCFAllocatorDefault, name, kCFStringEncodingASCII);
   guard let addr = CFBundleGetFunctionPointerForName(CFBundleGetBundleWithIdentifier(CFStringCreateCopy(kCFAllocatorDefault, "com.apple.opengl" as CFString)), symbolName) else {
@@ -1875,6 +1903,7 @@ fileprivate func mpvGetOpenGLFunc(_ ctx: UnsafeMutableRawPointer?, _ name: Unsaf
   }
   return addr
 }
+#endif
 
 fileprivate func mpvUpdateCallback(_ ctx: UnsafeMutableRawPointer?) {
   let layer = bridge(ptr: ctx!) as ViewLayer
