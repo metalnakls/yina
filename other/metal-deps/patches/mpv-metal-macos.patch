@@ -1,0 +1,19 @@
+diff --git a/meson.build b/meson.build
+index 534c28a12..7c2e17dbe 100644
+--- a/meson.build
++++ b/meson.build
+@@ -1548,2 +1548,4 @@ videotoolbox_pl = get_option('videotoolbox-pl').require(
+-    features['vulkan'] and corevideo.found(),
+-    error_message: 'vulkan or CV metal support could be found!',
++    (features['vulkan'] or
++     (darwin and libplacebo.get_variable('pl_has_metal', default_value: '0') == '1')) and
++    corevideo.found(),
++    error_message: 'neither Vulkan nor libplacebo Metal support could be found!',
+diff --git a/video/out/mac/view.swift b/video/out/mac/view.swift
+index c341b3154..a83d5c41c 100644
+--- a/video/out/mac/view.swift
++++ b/video/out/mac/view.swift
+@@ -31,0 +32 @@ class View: NSView, CALayerDelegate {
++#if HAVE_MACOS_COCOA_CB
+@@ -35,0 +37 @@ class View: NSView, CALayerDelegate {
++#endif
