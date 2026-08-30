@@ -1,0 +1,47 @@
+{
+  "schema": 1,
+  "target": {
+    "architecture": "arm64",
+    "deploymentTarget": "27.0",
+    "sdk": "27.0"
+  },
+  "sources": {
+    "mpv": {
+      "url": "https://github.com/lhc70000/mpv.git",
+      "commit": "97179bce7ed980c53647d6344916f632fe689e9e"
+    },
+    "libplacebo": {
+      "url": "https://github.com/lhc70000/libplacebo.git",
+      "commit": "a96296875a067887fc75d7b74a0a4292422c204d",
+      "submodules": {
+        "3rdparty/Vulkan-Headers": "74d8a6cb930c68ef617b202c3ff3c59d919e086b",
+        "3rdparty/fast_float": "97b54ca9e75f5303507699d27c6b4f4efe4641a1",
+        "3rdparty/glad": "73db193f853e2ee079bf3ca8a64aa2eaf6459043",
+        "3rdparty/jinja": "15206881c006c79667fe5154fe80c01c65410679",
+        "3rdparty/markupsafe": "297fc8e356e6836a62087949245d09a28e9f1b13",
+        "demos/3rdparty/nuklear": "242f35efa067a46c595645eeda7b1771ea1f83b1"
+      }
+    },
+    "libdovi": {
+      "url": "https://github.com/quietvoid/dovi_tool.git",
+      "tag": "2.3.2",
+      "commit": "9aca1b700ba696c36ad8bc0928e4bd42f7a5f79b",
+      "libraryVersion": "3.3.2"
+    },
+    "ffmpeg": {
+      "url": "https://ffmpeg.org/releases/ffmpeg-9.0.1.tar.xz",
+      "sha256": "cf38e0e28c7e5605942c4a77755349b0145804a397af37eb1fb4c77cb237f635",
+      "version": "9.0.1"
+    },
+    "spirvCross": {
+      "url": "https://github.com/KhronosGroup/SPIRV-Cross/archive/refs/tags/vulkan-sdk-1.4.357.0.tar.gz",
+      "sha256": "97c910326afdd44d794ce8561326fa675fd1958b27142f03295403044d639639",
+      "version": "1.4.357.0"
+    },
+    "shaderc": {
+      "url": "https://github.com/google/shaderc/archive/refs/tags/v2026.3.tar.gz",
+      "sha256": "ee493ccf1b3038b4ef2fe024664c5eb2dc4bcc1f6b05b33e3909de0e19c81024",
+      "version": "2026.3"
+    }
+  }
+}
