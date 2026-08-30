@@ -5,6 +5,7 @@
 #import <mpv/client.h>
 #import <mpv/render.h>
 #import <mpv/render_gl.h>
+#import <mpv/render_mtl.h>
 
 #import <libavcodec/avcodec.h>
 #import <libavformat/avformat.h>

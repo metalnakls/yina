@@ -25,3 +25,14 @@ the Metal APIs are experimental: dependency drift fails closed.
 The pinned cargo-c release emits a shared libdovi that Xcode 27 rejects for a
 malformed `LINKEDIT` string pool. The builder links cargo-c's valid arm64 static
 archive into libplacebo instead. No libdovi dylib is shipped.
+
+After replacing `deps/lib` with the packaged closure, regenerate the Xcode link
+and Copy Dylibs phases from that exact directory:
+
+```sh
+ruby other/metal-deps/update-xcode-libraries.rb
+```
+
+Build the temporary Metal renderer by adding `IINA_ENABLE_METAL_RENDERER` to
+`SWIFT_ACTIVE_COMPILATION_CONDITIONS`. Without that internal condition, IINA
+continues to compile its OpenGL fallback.

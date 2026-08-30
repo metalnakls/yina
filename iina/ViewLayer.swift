@@ -7,6 +7,200 @@
 //
 
 import Cocoa
+#if IINA_ENABLE_METAL_RENDERER
+import CoreImage
+import Metal
+
+/// Metal-backed video layer for libmpv's gpu-next renderer.
+///
+/// libplacebo owns drawable acquisition, presentation, and the layer's HDR
+/// pixel format/color-space configuration. IINA owns view sizing, render
+/// scheduling, display detection, tone-mapping policy, and paused-frame capture.
+class ViewLayer: CAMetalLayer, @unchecked Sendable {
+
+  private struct PendingSnapshot {
+    let id: UUID
+    let handler: (NSImage?) -> Void
+  }
+
+  private weak var videoView: VideoView!
+  private let renderQueue = DispatchQueue(label: "com.colliderli.iina.mpvmetal", qos: .userInteractive)
+  private let snapshotQueue = DispatchQueue(label: "com.colliderli.iina.mpvmetal.snapshot", qos: .userInitiated)
+  private let snapshotLock = Lock()
+  private var pendingSnapshot: PendingSnapshot?
+  private lazy var imageContext = CIContext(mtlDevice: metalDevice)
+
+  private var metalDevice: MTLDevice {
+    guard let device else {
+      Logger.fatal("Metal video layer has no device")
+    }
+    return device
+  }
+
+  @Atomic var inLiveResize = false {
+    didSet { update(force: true) }
+  }
+
+  init(_ videoView: VideoView) {
+    self.videoView = videoView
+    super.init()
+    guard let device = MTLCreateSystemDefaultDevice() else {
+      Logger.fatal("Cannot create the system Metal device")
+    }
+    self.device = device
+    framebufferOnly = false
+    pixelFormat = .bgra8Unorm
+    maximumDrawableCount = 3
+    allowsNextDrawableTimeout = true
+    autoresizingMask = [.layerWidthSizable, .layerHeightSizable]
+    backgroundColor = NSColor.black.cgColor
+    contentsGravity = .resizeAspectFill
+    isOpaque = true
+  }
+
+  override init(layer: Any) {
+    let previousLayer = layer as! ViewLayer
+    videoView = previousLayer.videoView
+    super.init(layer: layer)
+    framebufferOnly = false
+    Logger.log("Created Metal view layer shadow copy")
+  }
+
+  required init?(coder: NSCoder) {
+    fatalError("init(coder:) has not been implemented")
+  }
+
+  override func layoutSublayers() {
+    super.layoutSublayers()
+    let scale = contentsScale
+    drawableSize = CGSize(width: max(bounds.width * scale, 1),
+                          height: max(bounds.height * scale, 1))
+  }
+
+  override func nextDrawable() -> CAMetalDrawable? {
+    let drawable = super.nextDrawable()
+    let pending = snapshotLock.withLock { () -> PendingSnapshot? in
+      guard drawable != nil else { return nil }
+      let pending = pendingSnapshot
+      pendingSnapshot = nil
+      return pending
+    }
+
+    guard let drawable else {
+      failPendingSnapshot()
+      return nil
+    }
+    if let pending {
+      drawable.addPresentedHandler { [weak self] _ in
+        guard let self else {
+          pending.handler(nil)
+          return
+        }
+        snapshotQueue.async {
+          pending.handler(self.snapshot(texture: drawable.texture))
+        }
+      }
+    }
+    return drawable
+  }
+
+  func update(force: Bool = false) {
+    renderQueue.async { [weak self] in
+      guard let self else { return }
+      self.videoView.$isUninited.withReadLock { isUninited in
+        guard !isUninited, let context = self.videoView.player.mpv.mpvRenderContext else {
+          self.failPendingSnapshot()
+          return
+        }
+
+        let needsFrame = self.videoView.player.mpv.shouldRenderUpdateFrame()
+        guard force || needsFrame else { return }
+
+        let canPresent = !self.isHidden && self.bounds.width > 0 && self.bounds.height > 0 && self.videoView.window != nil
+        var value: CInt = canPresent ? 0 : 1
+        let type = canPresent ? MPV_RENDER_PARAM_FLIP_Y : MPV_RENDER_PARAM_SKIP_RENDERING
+        withUnsafeMutablePointer(to: &value) { value in
+          var params = [
+            mpv_render_param(type: type, data: UnsafeMutableRawPointer(value)),
+            mpv_render_param()
+          ]
+          mpv_render_context_render(context, &params)
+        }
+        if !canPresent { self.failPendingSnapshot() }
+      }
+    }
+  }
+
+  func captureSnapshot() async -> NSImage? {
+    await withCheckedContinuation { continuation in
+      let id = UUID()
+      let previous = snapshotLock.withLock { () -> PendingSnapshot? in
+        let previous = pendingSnapshot
+        pendingSnapshot = PendingSnapshot(id: id) { image in
+          continuation.resume(returning: image)
+        }
+        return previous
+      }
+      previous?.handler(nil)
+      update(force: true)
+
+      snapshotQueue.asyncAfter(deadline: .now() + 2) { [weak self] in
+        let timedOut = self?.snapshotLock.withLock { () -> PendingSnapshot? in
+          guard self?.pendingSnapshot?.id == id else { return nil }
+          let pending = self?.pendingSnapshot
+          self?.pendingSnapshot = nil
+          return pending
+        }
+        timedOut?.handler(nil)
+      }
+    }
+  }
+
+  func setRenderICCProfile(_ profile: NSColorSpace) {
+    renderQueue.async { [weak self] in
+      guard let self else { return }
+      self.videoView.$isUninited.withReadLock { isUninited in
+        guard !isUninited,
+              let context = self.videoView.player.mpv.mpvRenderContext,
+              var iccData = profile.iccProfileData else { return }
+        iccData.withUnsafeMutableBytes { bytes in
+          guard let baseAddress = bytes.baseAddress, bytes.count > 0 else { return }
+          var icc = mpv_byte_array(data: baseAddress.assumingMemoryBound(to: UInt8.self), size: bytes.count)
+          withUnsafeMutableBytes(of: &icc) { value in
+            _ = mpv_render_context_set_parameter(context,
+              mpv_render_param(type: MPV_RENDER_PARAM_ICC_PROFILE, data: value.baseAddress))
+          }
+        }
+      }
+    }
+  }
+
+  func uninitRendering() {
+    renderQueue.sync {
+      failPendingSnapshot()
+      videoView.player.mpv.mpvUninitRendering()
+    }
+  }
+
+  private func failPendingSnapshot() {
+    let pending = snapshotLock.withLock { () -> PendingSnapshot? in
+      let pending = pendingSnapshot
+      pendingSnapshot = nil
+      return pending
+    }
+    pending?.handler(nil)
+  }
+
+  private func snapshot(texture: MTLTexture) -> NSImage? {
+    let options: [CIImageOption: Any] = colorspace.map { [.colorSpace: $0] } ?? [:]
+    guard let image = CIImage(mtlTexture: texture, options: options),
+          let cgImage = imageContext.createCGImage(image, from: image.extent) else { return nil }
+    return NSImage(cgImage: cgImage,
+                   size: NSSize(width: texture.width, height: texture.height))
+  }
+}
+
+#else
 import OpenGL.GL
 import OpenGL.GL3
 
@@ -584,3 +778,4 @@ private class MainThreadPriorityLock {
     lock.broadcast()
   }
 }
+#endif
