@@ -295,7 +295,15 @@ class MPVController: NSObject {
       // If the screenshot format is set to JPEG XL then set the screenshot-sw option to yes. This
       // causes the screenshot to be rendered by software instead of the VO. If a HDR video is being
       // displayed in HDR then the resulting screenshot will be HDR.
-      self.chkErr(self.setOptionFlag(MPVOption.Screenshot.screenshotSw, format == .jxl,
+      // The experimental libmpv gpu-next Metal backend also crashes while taking VO screenshots in
+      // libplacebo's pl_upload_plane. Keep screenshot encoding, templates, subtitles, and clipboard
+      // handling in mpv/IINA, but obtain the frame through mpv's software screenshot fallback.
+#if IINA_ENABLE_METAL_RENDERER
+      let useSoftwareScreenshot = true
+#else
+      let useSoftwareScreenshot = format == .jxl
+#endif
+      self.chkErr(self.setOptionFlag(MPVOption.Screenshot.screenshotSw, useSoftwareScreenshot,
                                      verboseIfDefault: true))
       return String(describing: format)
     }
