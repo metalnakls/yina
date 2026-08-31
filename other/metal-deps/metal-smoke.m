@@ -47,6 +47,7 @@ int main(int argc, const char **argv)
         mpv_set_option_string(mpv, "ao", "null");
         mpv_set_option_string(mpv, "hwdec", "videotoolbox");
         mpv_set_option_string(mpv, "video-sync", "display-desync");
+        mpv_set_option_string(mpv, "screenshot-sw", "yes");
         int error = mpv_initialize(mpv);
         if (error < 0)
             fail("mpv_initialize", error);
@@ -113,7 +114,51 @@ int main(int argc, const char **argv)
             return 2;
         }
 
-        printf("metal smoke ok: configured=%d rendered=%d width=%lld device=%s\n",
+        NSString *screenshotPath = [NSTemporaryDirectory()
+            stringByAppendingPathComponent:@"iina-metal-smoke.png"];
+        unlink(screenshotPath.fileSystemRepresentation);
+        const char *screenshotCommand[] = {
+            "screenshot-to-file", screenshotPath.fileSystemRepresentation, "subtitles", NULL
+        };
+        error = mpv_command_async(mpv, 1, screenshotCommand);
+        if (error < 0)
+            fail("screenshot-to-file", error);
+
+        bool screenshotDone = false;
+        for (int tick = 0; tick < 600 && !screenshotDone; tick++) {
+            for (;;) {
+                mpv_event *event = mpv_wait_event(mpv, 0);
+                if (event->event_id == MPV_EVENT_NONE)
+                    break;
+                if (event->event_id == MPV_EVENT_COMMAND_REPLY && event->reply_userdata == 1) {
+                    if (event->error < 0)
+                        fail("screenshot command reply", event->error);
+                    screenshotDone = true;
+                }
+                if (event->event_id == MPV_EVENT_SHUTDOWN)
+                    fail("unexpected shutdown", MPV_ERROR_GENERIC);
+            }
+
+            if (mpv_render_context_update(render) & MPV_RENDER_UPDATE_FRAME) {
+                int flip = 0;
+                mpv_render_param frame_params[] = {
+                    {MPV_RENDER_PARAM_FLIP_Y, &flip},
+                    {MPV_RENDER_PARAM_INVALID, NULL},
+                };
+                error = mpv_render_context_render(render, frame_params);
+                if (error < 0)
+                    fail("mpv_render_context_render(screenshot)", error);
+            }
+            usleep(10000);
+        }
+        if (!screenshotDone || access(screenshotPath.fileSystemRepresentation, R_OK) != 0) {
+            fprintf(stderr, "software screenshot smoke failed: reply=%d path=%s\n",
+                    screenshotDone, screenshotPath.fileSystemRepresentation);
+            return 2;
+        }
+        unlink(screenshotPath.fileSystemRepresentation);
+
+        printf("metal smoke ok: configured=%d rendered=%d screenshot=1 width=%lld device=%s\n",
                configured, rendered, width, layer.device.name.UTF8String);
         mpv_render_context_free(render);
         mpv_terminate_destroy(mpv);
