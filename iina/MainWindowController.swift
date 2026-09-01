@@ -1090,7 +1090,7 @@ class MainWindowController: PlayerWindowController {
 
   private func quickTimePlayButtonImage(paused: Bool) -> NSImage? {
     .sf(paused ? "play.fill" : "pause.fill",
-        withConfiguration: .init(pointSize: 22, weight: .medium))
+        withConfiguration: .init(pointSize: 32, weight: .medium))
   }
 
   // MARK: - Mouse / Trackpad events
@@ -2626,7 +2626,7 @@ class MainWindowController: PlayerWindowController {
   /// button. This allows the user to control the speed using pressure when using devices that support pressure sensitivity.
   func updateArrowButtons() {
     if oscPosition == .floating {
-      let config = NSImage.SymbolConfiguration(pointSize: 19, weight: .semibold)
+      let config = NSImage.SymbolConfiguration(pointSize: 27, weight: .semibold)
       if arrowBtnFunction == .playlist {
         leftArrowButton.image = .sf("backward.end.fill", withConfiguration: config)
         rightArrowButton.image = .sf("forward.end.fill", withConfiguration: config)
@@ -2910,7 +2910,9 @@ class MainWindowController: PlayerWindowController {
 
     let sliderFrame = playSlider.convert(playSlider.bounds, to: nil)
     let timeLabelYPos: CGFloat
-    if oscPosition == .top {
+    if oscPosition == .floating {
+      timeLabelYPos = sliderFrame.minY - timePreviewView.bounds.height - 5
+    } else if oscPosition == .top {
       timeLabelYPos = sliderFrame.origin.y - timePreviewView.bounds.height - 5
     } else {
       timeLabelYPos = sliderFrame.origin.y + playSlider.frame.height + 5

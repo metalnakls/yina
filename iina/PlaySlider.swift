@@ -8,29 +8,35 @@
 
 import Cocoa
 
-private final class FloatingPlaySliderCell: PlaySliderCell {
-  private let floatingKnobSize: CGFloat = 14
+/// Keeps AppKit's native slider appearance and tracking behavior while adding IINA's chapter marks.
+private final class FloatingPlaySliderCell: NSSliderCell {
+  var drawChapters = Preference.bool(for: .showChapterPos)
+  var usesExtendedDynamicRange = false
 
-  override var knobThickness: CGFloat { floatingKnobSize }
-
-  override func drawKnob(_ knobRect: NSRect) {
-    // The floating OSC uses a real NSGlassEffectView for its thumb.
+  private var playerCore: PlayerCore? {
+    guard let windowController = controlView?.window?.windowController as? PlayerWindowController else { return nil }
+    return windowController.player
   }
 
-  override func knobRect(flipped: Bool) -> NSRect {
-    let slider = controlView as! NSSlider
-    let bar = barRect(flipped: flipped)
-    let span = slider.maxValue - slider.minValue
-    let percentage = span == 0 ? 0 : (slider.doubleValue - slider.minValue) / span
-    let x = bar.minX + CGFloat(percentage) * (bar.width - floatingKnobSize)
-    let nativeRect = super.knobRect(flipped: flipped)
-    return NSRect(x: x, y: nativeRect.midY - floatingKnobSize / 2,
-                  width: floatingKnobSize, height: floatingKnobSize)
-  }
-}
+  override func drawBar(inside rect: NSRect, flipped: Bool) {
+    super.drawBar(inside: rect, flipped: flipped)
+    guard drawChapters,
+          let info = playerCore?.info,
+          let totalSec = info.videoDuration?.second,
+          totalSec != 0,
+          info.chapters.count > 1 else { return }
 
-private final class SliderGlassKnobView: NSGlassEffectView {
-  override func hitTest(_ point: NSPoint) -> NSView? { nil }
+    // Draw chapter separators over the native track without replacing its material or thumb.
+    let chapterColor = NSColor.black.withAlphaComponent(usesExtendedDynamicRange ? 0.5 : 0.38)
+    chapterColor.setFill()
+    for chapter in info.chapters.dropFirst() {
+      let position = CGFloat(chapter.time.second) / CGFloat(totalSec)
+      NSRect(x: round(rect.minX + position * rect.width) - 0.5,
+             y: rect.minY,
+             width: 1,
+             height: rect.height).fill()
+    }
+  }
 }
 
 extension NSSlider {
@@ -74,7 +80,7 @@ extension NSSlider {
 /// This slider adds two thumbs (referred to as knobs in code) to the progress bar slider to show the A and B loop points of the
 /// [mpv](https://mpv.io/manual/stable/) A-B loop feature and allow the loop points to be adjusted. When the feature is
 /// disabled the additional thumbs are hidden.
-/// - Note: Floating OSCs use a chapter-aware cell with a glass thumb; other layouts retain `PlaySliderCell`.
+/// - Note: Floating OSCs use AppKit's native slider cell with chapter marks; other layouts retain `PlaySliderCell`.
 /// - Note: Unlike `NSSlider` the `draw` method of this class will do nothing if the view is hidden.
 final class PlaySlider: NSSlider {
 
@@ -82,7 +88,6 @@ final class PlaySlider: NSSlider {
   private var originalTrackFillColor: NSColor?
   private var legacyCell: PlaySliderCell!
   private var floatingCell: FloatingPlaySliderCell!
-  private var floatingKnob: SliderGlassKnobView!
 
   /// Knob representing the A loop point for the mpv A-B loop feature.
   var abLoopA: PlaySliderLoopKnob { abLoopAKnob }
@@ -164,14 +169,6 @@ final class PlaySlider: NSSlider {
     abLoopAKnob = PlaySliderLoopKnob(slider: self, toolTip: "A-B loop A")
     abLoopBKnob = PlaySliderLoopKnob(slider: self, toolTip: "A-B loop B")
 
-    floatingKnob = SliderGlassKnobView()
-    floatingKnob.translatesAutoresizingMaskIntoConstraints = true
-    floatingKnob.style = .regular
-    floatingKnob.tintColor = .white.withAlphaComponent(0.32)
-    floatingKnob.effectIsInteractive = true
-    floatingKnob.contentView = NSView()
-    floatingKnob.isHidden = true
-    addSubview(floatingKnob)
   }
 
   func setQuickTimeStyle(_ enabled: Bool) {
@@ -184,7 +181,6 @@ final class PlaySlider: NSSlider {
     controlSize = .small
     trackFillColor = originalTrackFillColor
     tintProminence = .automatic
-    floatingKnob.isHidden = !enabled
     abLoopA.updateGeometry()
     abLoopB.updateGeometry()
     needsDisplay = true
@@ -211,11 +207,6 @@ final class PlaySlider: NSSlider {
   override func draw(_ dirtyRect: NSRect) {
     guard !isHiddenOrHasHiddenAncestor else { return }
     super.draw(dirtyRect)
-    if usesSystemAppearance {
-      let knobRect = floatingCell.knobRect(flipped: isFlipped)
-      floatingKnob.frame = knobRect
-      floatingKnob.cornerRadius = knobRect.height / 2
-    }
     abLoopA.needsDisplay = true
     abLoopB.needsDisplay = true
   }
