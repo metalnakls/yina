@@ -21,7 +21,8 @@ class OSCButton: NSButton {
     var floatingSize: CGFloat {
       switch self {
       case .standard: 24
-      case .transport, .primary: 24
+      case .transport: 32
+      case .primary: 48
       }
     }
   }
