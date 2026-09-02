@@ -45,8 +45,6 @@ class PlaySliderCell: NSSliderCell {
 
   var drawChapters = Preference.bool(for: .showChapterPos)
 
-  var isPausedBeforeSeeking = false
-
   override func awakeFromNib() {
     minValue = 0
     maxValue = 100
@@ -115,7 +113,7 @@ class PlaySliderCell: NSSliderCell {
     let slider = self.controlView as! NSSlider
 
     /// The position of the knob, rounded for cleaner drawing
-    let knobPos : CGFloat = round(knobRect(flipped: flipped).origin.x);
+    let knobPos = round(knobRect(flipped: flipped).minX)
 
     /// How far progressed the current video is, used for drawing the bar background
     var progress : CGFloat = 0;
@@ -180,22 +178,4 @@ class PlaySliderCell: NSSliderCell {
     NSGraphicsContext.restoreGraphicsState()
   }
 
-  // MARK:- Tracking the Mouse
-
-  override func startTracking(at startPoint: NSPoint, in controlView: NSView) -> Bool {
-    isPausedBeforeSeeking = playerCore.info.state == .paused
-    let result = super.startTracking(at: startPoint, in: controlView)
-    if result {
-      playerCore.pause()
-      playerCore.mainWindow.thumbnailPeekView.isHidden = true
-    }
-    return result
-  }
-
-  override func stopTracking(last lastPoint: NSPoint, current stopPoint: NSPoint, in controlView: NSView, mouseIsUp flag: Bool) {
-    if !isPausedBeforeSeeking {
-      playerCore.resume()
-    }
-    super.stopTracking(last: lastPoint, current: stopPoint, in: controlView, mouseIsUp: flag)
-  }
 }
