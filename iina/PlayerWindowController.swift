@@ -289,6 +289,18 @@ class PlayerWindowController: NSWindowController, NSWindowDelegate {
       }
     } else {
       // - mpv command
+      // Intercept only standalone visibility commands. Compound/custom mpv commands retain
+      // their original semantics; menus and Quick Settings use the same PlayerCore entry point.
+      let action = keyBinding.action
+      if action == ["cycle", MPVOption.Subtitles.subVisibility] {
+        player.toggleSubVisibility()
+        return true
+      }
+      if action.count == 3, action[0] == "set", action[1] == MPVOption.Subtitles.subVisibility,
+         ["yes", "no"].contains(action[2]) {
+        player.toggleSubVisibility(action[2] == "yes")
+        return true
+      }
       let returnValue: Int32
       // execute the command
       switch keyBinding.action.first! {

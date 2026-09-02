@@ -1215,6 +1215,7 @@ class MPVController: NSObject {
 
     case MPV_EVENT_SEEK:
       DispatchQueue.main.async { [self] in
+        player.finishSubtitleDissolve()
         player.info.isSeeking = true
         // When playback is paused the display link may be shutdown in order to not waste energy.
         // It must be running when seeking to avoid slowdowns caused by mpv waiting for IINA to call
@@ -1447,7 +1448,7 @@ class MPVController: NSObject {
     case MPVOption.Subtitles.subVisibility:
       if let visible = UnsafePointer<Bool>(OpaquePointer(property.data))?.pointee {
         DispatchQueue.main.async {
-          self.player.subVisibilityChanged(visible)
+          self.player.subtitleVisibilityReportedByMPV(visible)
         }
       }
 
@@ -1785,6 +1786,22 @@ class MPVController: NSObject {
 
     guard let keyPath else { return }
     guard let infos = optionObservers[keyPath] else { return }
+
+    // Subtitle animation state belongs to the main run loop. KVO may arrive on the thread
+    // which changed the preference; bridge only subtitle changes to that run loop.
+    let affectsSubtitles = infos.contains { $0.optionName.hasPrefix("sub-") ||
+      $0.optionName.hasPrefix("secondary-sub-") }
+    if affectsSubtitles && !Thread.isMainThread {
+      DispatchQueue.main.async { [self] in
+        observeValue(forKeyPath: keyPath, of: nil, change: change, context: nil)
+      }
+      return
+    }
+    if keyPath == Preference.Key.subVisibility.rawValue {
+      player.requestSubtitleVisibility(Preference.bool(for: .subVisibility))
+      return
+    }
+    if affectsSubtitles { player.finishSubtitleDissolve() }
 
     for info in infos {
       switch info.valueType {
