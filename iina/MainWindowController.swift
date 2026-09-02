@@ -556,6 +556,7 @@ class MainWindowController: PlayerWindowController {
     oscPlayControlMiddleView.orientation = .horizontal
     oscPlayControlMiddleView.alignment = .centerY
     oscPlayControlMiddleView.spacing = 24
+    oscPlayControlMiddleView.detachesHiddenViews = false
 
     self.oscToolbarView = NSStackView()
     oscToolbarView.translatesAutoresizingMaskIntoConstraints = false
@@ -629,7 +630,7 @@ class MainWindowController: PlayerWindowController {
     oscPlayControlView.addView(oscSpeedLabelRightContainer, in: .center)
     // Video controllers and timeline indicators should not flip in a right-to-left language.
     oscPlayControlView.userInterfaceLayoutDirection = .leftToRight
-    oscFloatingPlayControlsCenterConstraint = oscPlayControlMiddleView.centerXAnchor
+    oscFloatingPlayControlsCenterConstraint = playButton.centerXAnchor
       .constraint(equalTo: oscFloatingView.oscTopView.centerXAnchor)
     setupOnScreenController(withPosition: oscPosition, forced: true)
     oscVolumeView.isHidden = !Preference.bool(for: .showOSCVolumeControls)
@@ -1022,6 +1023,8 @@ class MainWindowController: PlayerWindowController {
       oscFloatingView.oscTopView.addView(oscVolumeView, in: .leading)
       oscFloatingView.oscTopView.addView(oscToolbarView, in: .trailing)
       oscFloatingView.oscTopView.addView(oscPlayControlView, in: .center)
+      oscFloatingView.oscTopView.setVisibilityPriority(.mustHold, for: oscPlayControlView)
+      oscPlayControlView.setVisibilityPriority(.mustHold, for: oscPlayControlMiddleView)
       oscFloatingPlayControlsCenterConstraint.isActive = true
 
       oscFloatingView.oscTopView.setVisibilityPriority(.detachOnlyIfNecessary, for: oscVolumeView)

@@ -8,72 +8,32 @@
 
 import Cocoa
 
-/// Draws the QuickTime-style floating timeline while preserving IINA's neutral colors and chapter marks.
-private final class FloatingPlaySliderCell: PlaySliderCell {
-  let idleKnobSize = NSSize(width: 20, height: 8)
-  let activeKnobSize = NSSize(width: 30, height: 18)
+/// Chapter markers are independent of the system slider's drawing and tracking machinery.
+private final class SliderChapterMarks: NSView {
+  weak var slider: PlaySlider?
 
-  override var knobThickness: CGFloat { idleKnobSize.width }
-
-  override func drawBar(inside rect: NSRect, flipped: Bool) {
-    let timelineRect = NSRect(x: rect.minX, y: round(rect.midY - 2), width: rect.width, height: 4)
-    super.drawBar(inside: timelineRect, flipped: flipped)
-  }
-
-  override func drawKnob(_ knobRect: NSRect) {
-    guard (controlView as? PlaySlider)?.isTrackingFloatingKnob != true else { return }
-    let rect = NSRect(x: round(knobRect.midX - idleKnobSize.width / 2),
-                      y: round(knobRect.midY - idleKnobSize.height / 2),
-                      width: idleKnobSize.width,
-                      height: idleKnobSize.height)
-    let path = NSBezierPath(roundedRect: rect,
-                            xRadius: idleKnobSize.height / 2,
-                            yRadius: idleKnobSize.height / 2)
-    (usesExtendedDynamicRange ? NSColor.hdrWhite(alpha: 0.96) : .mainSliderKnob).setFill()
-    path.fill()
-  }
-
-  override func knobRect(flipped: Bool) -> NSRect {
-    let slider = controlView as! NSSlider
-    let bar = barRect(flipped: flipped)
-    let span = slider.maxValue - slider.minValue
-    let percentage = span == 0 ? 0 : (slider.doubleValue - slider.minValue) / span
-    let x = bar.minX + CGFloat(percentage) * (bar.width - idleKnobSize.width)
-    let nativeRect = super.knobRect(flipped: flipped)
-    return NSRect(x: x,
-                  y: nativeRect.midY - idleKnobSize.height / 2,
-                  width: idleKnobSize.width,
-                  height: idleKnobSize.height)
-  }
-
-  override func startTracking(at startPoint: NSPoint, in controlView: NSView) -> Bool {
-    let started = super.startTracking(at: startPoint, in: controlView)
-    if started {
-      (controlView as? PlaySlider)?.setFloatingKnobTracking(true)
-    }
-    return started
-  }
-
-  override func stopTracking(last lastPoint: NSPoint, current stopPoint: NSPoint,
-                             in controlView: NSView, mouseIsUp flag: Bool) {
-    super.stopTracking(last: lastPoint, current: stopPoint, in: controlView, mouseIsUp: flag)
-    (controlView as? PlaySlider)?.setFloatingKnobTracking(false)
-  }
-}
-
-private final class SliderKnobIndicatorView: NSView {
+  override var isFlipped: Bool { slider?.isFlipped ?? false }
   override func hitTest(_ point: NSPoint) -> NSView? { nil }
 
   override func draw(_ dirtyRect: NSRect) {
-    let indicator = NSRect(x: round(bounds.midX - 8), y: round(bounds.midY - 2), width: 16, height: 4)
-    NSColor.white.withAlphaComponent(0.96).setFill()
-    NSBezierPath(roundedRect: indicator, xRadius: 2, yRadius: 2).fill()
+    guard let slider, slider.usesSystemAppearance, slider.drawChapters,
+          let controller = slider.window?.windowController as? PlayerWindowController,
+          let duration = controller.player.info.videoDuration?.second, duration > 0 else { return }
+    let bar = slider.sliderCell.barRect(flipped: slider.isFlipped)
+    let knob = slider.sliderCell.knobRect(flipped: slider.isFlipped)
+    let travel = max(0, bar.width - knob.width)
+    NSColor.black.withAlphaComponent(0.3).setFill()
+    for chapter in controller.player.info.chapters.dropFirst() {
+      let fraction = chapter.time.second / duration
+      guard fraction > 0, fraction < 1 else { continue }
+      let x = bar.minX + knob.width / 2 + CGFloat(fraction) * travel
+      let mark = NSRect(x: round(x) - 0.5, y: bar.minY, width: 1, height: bar.height)
+      // Never paint over the native thumb (including its expanded tracking appearance).
+      if !mark.intersects(knob.insetBy(dx: -4, dy: -4)) {
+        NSBezierPath(rect: mark).fill()
+      }
+    }
   }
-}
-
-/// The public AppKit glass surface used while the timeline is being tracked.
-private final class SliderGlassKnobView: NSGlassEffectView {
-  override func hitTest(_ point: NSPoint) -> NSView? { nil }
 }
 
 extension NSSlider {
@@ -117,18 +77,16 @@ extension NSSlider {
 /// This slider adds two thumbs (referred to as knobs in code) to the progress bar slider to show the A and B loop points of the
 /// [mpv](https://mpv.io/manual/stable/) A-B loop feature and allow the loop points to be adjusted. When the feature is
 /// disabled the additional thumbs are hidden.
-/// - Note: Floating OSCs use a chapter-aware neutral cell with an interactive AppKit glass thumb; other layouts retain `PlaySliderCell`.
-/// - Note: Unlike `NSSlider` the `draw` method of this class will do nothing if the view is hidden.
+/// - Note: Floating OSCs use an unmodified system cell; chapter markers are a noninteractive overlay.
 final class PlaySlider: NSSlider {
 
   private(set) var usesSystemAppearance = false
   private var originalTrackFillColor: NSColor?
   private var legacyCell: PlaySliderCell!
-  private var floatingCell: FloatingPlaySliderCell!
-  private var floatingKnob: SliderGlassKnobView!
-  private var floatingKnobAnimationGeneration = 0
-
-  fileprivate private(set) var isTrackingFloatingKnob = false
+  private var floatingCell: NSSliderCell!
+  private var chapterMarks: SliderChapterMarks!
+  private(set) var isDraggingPlaybackThumb = false
+  private var resumeAfterTracking = false
 
   /// Knob representing the A loop point for the mpv A-B loop feature.
   var abLoopA: PlaySliderLoopKnob { abLoopAKnob }
@@ -137,15 +95,14 @@ final class PlaySlider: NSSlider {
   var abLoopB: PlaySliderLoopKnob { abLoopBKnob }
 
   var sliderCell: NSSliderCell { cell as! NSSliderCell }
-  var sliderKnobWidth: CGFloat { usesSystemAppearance ? floatingCell.idleKnobSize.width : legacyCell.knobWidth }
-  var sliderKnobHeight: CGFloat { usesSystemAppearance ? floatingCell.idleKnobSize.height : legacyCell.knobHeight }
-  var sliderKnobRadius: CGFloat { usesSystemAppearance ? floatingCell.idleKnobSize.height / 2 : legacyCell.knobRadius }
+  var sliderKnobWidth: CGFloat { usesSystemAppearance ? floatingCell.knobRect(flipped: isFlipped).width : legacyCell.knobWidth }
+  var sliderKnobHeight: CGFloat { usesSystemAppearance ? floatingCell.knobRect(flipped: isFlipped).height : legacyCell.knobHeight }
+  var sliderKnobRadius: CGFloat { usesSystemAppearance ? sliderKnobHeight / 2 : legacyCell.knobRadius }
 
   var drawChapters: Bool {
     get { legacyCell.drawChapters }
     set {
       legacyCell.drawChapters = newValue
-      floatingCell.drawChapters = newValue
       needsDisplay = true
     }
   }
@@ -160,7 +117,6 @@ final class PlaySlider: NSSlider {
     get { legacyCell.usesExtendedDynamicRange }
     set {
       legacyCell.usesExtendedDynamicRange = newValue
-      floatingCell.usesExtendedDynamicRange = newValue
       needsDisplay = true
       abLoopA.needsDisplay = true
       abLoopB.needsDisplay = true
@@ -191,7 +147,7 @@ final class PlaySlider: NSSlider {
 
   private func initializeCells() {
     legacyCell = PlaySliderCell()
-    floatingCell = FloatingPlaySliderCell()
+    floatingCell = NSSliderCell()
     [legacyCell, floatingCell].forEach {
       $0.refusesFirstResponder = true
       $0.minValue = 0
@@ -209,15 +165,14 @@ final class PlaySlider: NSSlider {
 
     abLoopAKnob = PlaySliderLoopKnob(slider: self, toolTip: "A-B loop A")
     abLoopBKnob = PlaySliderLoopKnob(slider: self, toolTip: "A-B loop B")
+    chapterMarks = SliderChapterMarks(frame: bounds)
+    chapterMarks.slider = self
+    chapterMarks.autoresizingMask = [.width, .height]
+    addSubview(chapterMarks, positioned: .below, relativeTo: abLoopAKnob)
 
-    floatingKnob = SliderGlassKnobView()
-    floatingKnob.translatesAutoresizingMaskIntoConstraints = true
-    floatingKnob.style = .regular
-    floatingKnob.effectIsInteractive = true
-    floatingKnob.cornerRadius = floatingCell.activeKnobSize.height / 2
-    floatingKnob.contentView = SliderKnobIndicatorView()
-    floatingKnob.isHidden = true
-    addSubview(floatingKnob)
+    addTarget(self, action: #selector(trackingBegan), for: .trackingBegan)
+    addTarget(self, action: #selector(trackingEnded),
+              for: [.trackingEndedInside, .trackingEndedOutside, .trackingCancelled])
   }
 
   func setQuickTimeStyle(_ enabled: Bool) {
@@ -227,11 +182,10 @@ final class PlaySlider: NSSlider {
       replaceCellPreservingConfiguration(with: desiredCell)
     }
     usesSystemAppearance = enabled
-    controlSize = .small
-    trackFillColor = originalTrackFillColor
+    controlSize = enabled ? .regular : .small
+    trackFillColor = enabled ? .white : originalTrackFillColor
     tintProminence = .automatic
-    isTrackingFloatingKnob = false
-    floatingKnob.isHidden = true
+    chapterMarks.isHidden = !enabled
     abLoopA.updateGeometry()
     abLoopB.updateGeometry()
     needsDisplay = true
@@ -239,31 +193,16 @@ final class PlaySlider: NSSlider {
 
   // MARK: - Drawing
 
-  /// Draw the slider.
-  ///
-  /// The [NSSlider](https://developer.apple.com/documentation/appkit/nsslider) method is being overridden
-  /// for two reasons.
-  ///
-  /// With the onscreen controller hidden and a movie playing spindumps showed time being spent drawing the slider even though it
-  /// was not visible. Apparently `NSSlider.draw` is not calling
-  /// [hiddenOrHasHiddenAncestor](https://developer.apple.com/documentation/appkit/nsview/1483473-hiddenorhashiddenancestor)
-  /// to see if drawing can be avoided.  This was noticed under macOS Monterey.  Unknown if Apple addressed this in later macOS
-  /// releases.
-  ///
-  /// The loop knobs are added as subviews to the slider. That should have resulted in the `PlaySliderLoopKnob.draw` method
-  /// being called when the slider was being drawn. Prior to macOS Sonoma that did not occur. The assumption is that the
-  /// [NSSlider](https://developer.apple.com/documentation/appkit/nsslider) `draw` method was not calling
-  /// `super.draw` and that has now been corrected. As a workaround on earlier versions of macOS the loop knob `draw` method
-  /// is called directly.
-  override func draw(_ dirtyRect: NSRect) {
-    guard !isHiddenOrHasHiddenAncestor else { return }
-    super.draw(dirtyRect)
-    if usesSystemAppearance, isTrackingFloatingKnob {
-      let target = floatingKnobFrame(size: floatingKnob.frame.size)
-      floatingKnob.setFrameOrigin(target.origin)
+  // Leave NSSlider.draw untouched so AppKit owns the complete interactive appearance.
+  override var needsDisplay: Bool {
+    get { super.needsDisplay }
+    set {
+      super.needsDisplay = newValue
+      guard newValue else { return }
+      chapterMarks?.needsDisplay = true
+      abLoopAKnob?.needsDisplay = true
+      abLoopBKnob?.needsDisplay = true
     }
-    abLoopA.needsDisplay = true
-    abLoopB.needsDisplay = true
   }
 
   override func viewDidUnhide() {
@@ -278,23 +217,24 @@ final class PlaySlider: NSSlider {
 
   // MARK: - Mouse / Trackpad events
 
-  /// Informs the receiver that the user has pressed the left mouse button.
-  ///
-  /// This is a workaround for IINA issue #5768 where starting with macOS Tahoe AppKit is miss-handling mouse events in certain
-  /// circumstances. Merely adding this function solved the problem. Maybe the presence of this function prevents the use of some sort
-  /// of faulty optimization?
-  /// - Important: _DO NOT REMOVE_ this function thinking it is not needed. Read issue #5768.
-  /// - Parameter event: An object encapsulating information about the mouse-down event.
-  override func mouseDown(with event: NSEvent) {
+  /// Track the control lifecycle, not the duration of a mouseDown call. AppKit can track
+  /// asynchronously; returning from mouseDown does not mean the user has released the thumb.
+  @objc private func trackingBegan() {
+    guard !isDraggingPlaybackThumb else { return }
+    isDraggingPlaybackThumb = true
     let player = playerCore
-    let shouldResume = player.info.state != .paused
+    resumeAfterTracking = player.info.state == .playing
     player.mainWindow.liveText.clearAnalysis()
     player.pause()
     player.mainWindow.thumbnailPeekView.isHidden = true
-    super.mouseDown(with: event)
-    if shouldResume {
-      player.resume()
-    }
+  }
+
+  @objc private func trackingEnded() {
+    guard isDraggingPlaybackThumb else { return }
+    isDraggingPlaybackThumb = false
+    if resumeAfterTracking { playerCore.resume() }
+    resumeAfterTracking = false
+    chapterMarks.needsDisplay = true
   }
 
   /// The user is scrolling while the cursor is within the slider.
@@ -307,40 +247,6 @@ final class PlaySlider: NSSlider {
   override func scrollWheel(with event: NSEvent) {
     guard !Preference.bool(for: .disablePlaySliderScrolling) else { return }
     super.scrollWheel(with: event)
-  }
-
-  fileprivate func setFloatingKnobTracking(_ tracking: Bool) {
-    guard usesSystemAppearance, tracking != isTrackingFloatingKnob else { return }
-    isTrackingFloatingKnob = tracking
-    floatingKnobAnimationGeneration += 1
-    let generation = floatingKnobAnimationGeneration
-    let duration = AccessibilityPreferences.motionReductionEnabled ? 0 :
-      AccessibilityPreferences.adjustedDuration(tracking ? 0.10 : 0.12)
-
-    if tracking {
-      floatingKnob.frame = floatingKnobFrame(size: floatingCell.idleKnobSize)
-      floatingKnob.isHidden = false
-    }
-    needsDisplay = true
-
-    NSAnimationContext.runAnimationGroup { context in
-      context.duration = duration
-      context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-      let size = tracking ? floatingCell.activeKnobSize : floatingCell.idleKnobSize
-      floatingKnob.animator().frame = floatingKnobFrame(size: size)
-    } completionHandler: { [weak self] in
-      guard let self, self.floatingKnobAnimationGeneration == generation, !tracking else { return }
-      self.floatingKnob.isHidden = true
-      self.needsDisplay = true
-    }
-  }
-
-  private func floatingKnobFrame(size: NSSize) -> NSRect {
-    let knobRect = floatingCell.knobRect(flipped: isFlipped)
-    return NSRect(x: round(knobRect.midX - size.width / 2),
-                  y: round(knobRect.midY - size.height / 2),
-                  width: size.width,
-                  height: size.height)
   }
 
   private var playerCore: PlayerCore {

@@ -635,7 +635,7 @@ class PlayerWindowController: NSWindowController, NSWindowDelegate {
       return
     }
     [leftLabel, rightLabel].forEach { $0.updateText(with: duration, given: pos, and: remaining) }
-    if andProgressBar {
+    if andProgressBar && !playSlider.isDraggingPlaybackThumb {
       let percentage = (pos.second / duration.second) * 100
       playSlider.doubleValue = percentage
     }
