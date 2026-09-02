@@ -9,6 +9,9 @@
 import Cocoa
 
 class PlayerCore: NSObject {
+  private lazy var subtitleDissolve = SubtitleDissolve(mpv: mpv)
+
+  func finishSubtitleDissolve() { subtitleDissolve.finish() }
 
   /// Minimum value to set a mpv loop point to.
   ///
@@ -656,6 +659,7 @@ class PlayerCore: NSObject {
   ///     task is still running this method only changes the player state. When the background task ends it will notice that shutting
   ///     down was in progress and will call this method again to continue the process of shutting down..
   func shutdown() {
+    finishSubtitleDissolve()
     info.state = .shuttingDown
     guard !backgroundTaskInUse else { return }
     log("Shutting down")
@@ -682,6 +686,7 @@ class PlayerCore: NSObject {
   ///     windows of vulnerability that can not be fully closed. IINA has no choice but to support a mpv initiated shutdown as best it
   ///     can.
   func mpvHasShutdown() {
+    subtitleDissolve.abandon()
     let isMPVInitiated = info.state != .shuttingDown
     let suffix = isMPVInitiated ? " (initiated by mpv)" : ""
     log("Player has shutdown\(suffix)")
@@ -1245,6 +1250,7 @@ class PlayerCore: NSObject {
   }
 
   func setTrack(_ index: Int, forType: MPVTrack.TrackType) {
+    finishSubtitleDissolve()
     let name: String
     switch forType {
     case .audio:
@@ -1381,14 +1387,55 @@ class PlayerCore: NSObject {
   }
 
   func toggleSubVisibility(_ set: Bool? = nil) {
-    let newState = set ?? !info.isSubVisible
+    guard info.state.active || info.state == .idle else { return }
+    // The initial mpv visibility event can arrive before playback becomes active. Never base
+    // a toggle on a stale UI cache; during a dissolve, use its logical destination instead.
+    let currentState = subtitleDissolve.targetVisibility ?? mpv.getFlag(MPVOption.Subtitles.subVisibility)
+    let newState = set ?? !currentState
+    requestSubtitleVisibility(newState)
     Preference.set(newState, for: .subVisibility)
-    if mpv.getFlag(MPVOption.Subtitles.subVisibility) != newState {
-      mpv.setFlag(MPVOption.Subtitles.subVisibility, newState)
+  }
+
+  /// Shared by the keyboard, menu, Quick Settings and preference observer.
+  func requestSubtitleVisibility(_ visible: Bool) {
+    assert(Thread.isMainThread)
+    if info.state == .idle {
+      // Keep mpv's next-file default in sync even when no playback window is open.
+      mpv.setFlag(MPVOption.Subtitles.subVisibility, visible)
+      info.isSubVisible = visible
+      return
     }
+    guard info.state.active else { return }
+    if subtitleDissolve.targetVisibility == visible { return }
+    if subtitleDissolve.targetVisibility == nil,
+       mpv.getFlag(MPVOption.Subtitles.subVisibility) == visible {
+      subVisibilityChanged(visible)
+      return
+    }
+
+    let codec = info.currentTrack(.sub)?.codec ?? ""
+    let plainText = ["subrip", "srt", "text", "webvtt", "mov_text"].contains(codec)
+    let styledText = ["ass", "ssa"].contains(codec) &&
+      ["force", "strip"].contains(mpv.getString(MPVOption.Subtitles.subAssOverride) ?? "")
+    let hasVisibleSecondary = (info.secondSid ?? 0) > 0 && info.isSecondSubVisible
+    let canAnimate = info.state.loaded && (plainText || styledText) && !hasVisibleSecondary &&
+      !Preference.bool(for: .disableAnimations) && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion &&
+      !(mpv.getString("sub-text") ?? "").isEmpty
+
+    subVisibilityChanged(visible)
+    if canAnimate, subtitleDissolve.animate(to: visible) { return }
+    finishSubtitleDissolve()
+    mpv.setFlag(MPVOption.Subtitles.subVisibility, visible)
+  }
+
+  func subtitleVisibilityReportedByMPV(_ visible: Bool) {
+    guard subtitleDissolve.targetVisibility == nil, info.state.active || info.state == .idle,
+          visible == mpv.getFlag(MPVOption.Subtitles.subVisibility) else { return }
+    subVisibilityChanged(visible)
   }
 
   func toggleSecondSubVisibility(_ set: Bool? = nil) {
+    finishSubtitleDissolve()
     let newState = set ?? !info.isSecondSubVisible
     Preference.set(newState, for: .secondarySubVisibility)
     if mpv.getFlag(MPVOption.Subtitles.secondarySubVisibility) != newState {
@@ -1950,6 +1997,7 @@ class PlayerCore: NSObject {
   }
 
   func savePlaybackPosition() {
+    finishSubtitleDissolve()
     guard mpv.getFlag(MPVOption.WatchLater.savePositionOnQuit) else { return }
 
     // The player must be active to be able to save the watch later configuration.
@@ -2025,6 +2073,7 @@ class PlayerCore: NSObject {
   ///         the player is no longer active.
   func fileStarted(path: String) {
     guard info.state.active else { return }
+    finishSubtitleDissolve()
     log("File started")
 
     Task { @MainActor in
@@ -2200,6 +2249,7 @@ class PlayerCore: NSObject {
   }
 
   func fileEnded(_ dueToStopCommand: Bool) {
+    finishSubtitleDissolve()
     // if receive end-file when loading file, might be error
     // wait for idle
     if info.state == .loading || info.state == .starting {
@@ -2412,6 +2462,7 @@ class PlayerCore: NSObject {
   }
 
   func secondarySidChanged() {
+    finishSubtitleDissolve()
     guard info.state.active else { return }
     info.secondSid = Int(mpv.getInt(MPVOption.Subtitles.secondarySid))
     postNotification(.iinaSIDChanged)
@@ -2432,6 +2483,7 @@ class PlayerCore: NSObject {
   }
 
   func sidChanged() {
+    finishSubtitleDissolve()
     guard info.state.active else { return }
     info.sid = Int(mpv.getInt(MPVOption.TrackSelection.sid))
     postNotification(.iinaSIDChanged)

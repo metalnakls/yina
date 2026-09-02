@@ -301,11 +301,15 @@ class OSCFloatingView: TranslucentView {
       (dissolveBlur.value(forKey: kCIInputRadiusKey) as? NSNumber)?.doubleValue ?? 0
     layer.setValue(radius, forKeyPath: keyPath)
 
-    let animation = CABasicAnimation(keyPath: keyPath)
-    animation.fromValue = currentRadius
-    animation.toValue = radius
+    let easing = DissolveEasing(rawValue: Preference.integer(for: .oscDissolveEasing)) ?? .easeInOut
+    let overshoot = Double(Preference.float(for: .oscDissolveOvershoot))
+    let animation = CAKeyframeAnimation(keyPath: keyPath)
+    animation.values = (0...120).map { index in
+      let progress = easing.value(at: Double(index) / 120, overshoot: overshoot)
+      return max(0, currentRadius + (Double(radius) - currentRadius) * progress)
+    }
     animation.duration = duration
-    animation.timingFunction = CAMediaTimingFunction(name: radius > 0 ? .easeOut : .easeInEaseOut)
+    animation.calculationMode = .linear
     layer.add(animation, forKey: Self.dissolveAnimationKey)
   }
 

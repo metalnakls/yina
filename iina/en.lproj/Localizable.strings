@@ -1019,3 +1019,13 @@
 "sidebar.osc_appear_speed" = "Appear speed";
 "sidebar.osc_disappear_speed" = "Disappear speed";
 "sidebar.osc_blur_radius" = "Blur radius";
+"sidebar.sub_tuning" = "Subtitle dissolve";
+"sidebar.sub_fade_in" = "Fade in";
+"sidebar.sub_fade_out" = "Fade out";
+"sidebar.sub_extra_blur" = "Extra blur";
+"sidebar.blur_easing" = "Blur easing";
+"sidebar.blur_overshoot" = "Blur overshoot";
+"sidebar.ease_linear" = "Linear";
+"sidebar.ease_in" = "Ease in";
+"sidebar.ease_out" = "Ease out";
+"sidebar.ease_in_out" = "Ease in-out";

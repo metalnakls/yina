@@ -181,7 +181,7 @@ class SidebarLayoutPane: SidebarScrollView {
 
     container.addSubview(label)
     container.addSubview(stack)
-    let tuning = OSCDissolveTuningView()
+    let tuning = ui.vStack(spacing: 12, OSCDissolveTuningView(), SubtitleDissolveTuningView())
     container.addSubview(tuning)
     label.padding(.top, .leading, .trailing(greaterThan: 0))
     stack.padding(.horizontal(greaterThan: 0)).center(.x)
@@ -304,6 +304,9 @@ fileprivate final class OSCDissolveTuningView: NSStackView {
       addArrangedSubview(row)
       row.widthAnchor.constraint(equalTo: widthAnchor).isActive = true
     }
+    let curve = DissolveCurveTuningView(easingKey: .oscDissolveEasing, overshootKey: .oscDissolveOvershoot)
+    addArrangedSubview(curve)
+    curve.widthAnchor.constraint(equalTo: widthAnchor).isActive = true
   }
 
   @objc private func sliderChanged(_ sender: NSSlider) {
@@ -315,6 +318,183 @@ fileprivate final class OSCDissolveTuningView: NSStackView {
     guard let row = sender.superview as? NSStackView,
           let value = row.arrangedSubviews.compactMap({ $0 as? NSTextField }).last else { return }
     value.stringValue = setting.valueText(steppedValue)
+  }
+
+  required init?(coder: NSCoder) {
+    fatalError("init(coder:) has not been implemented")
+  }
+}
+
+
+fileprivate final class SubtitleDissolveTuningView: NSStackView, NSTextFieldDelegate {
+  private struct Setting {
+    let title: String
+    let key: Preference.Key
+    let scale: Double
+    let maximum: Double
+    let unit: String
+  }
+
+  private let settings = [
+    Setting(title: "sidebar.sub_fade_in", key: .subDissolveAppearDuration,
+            scale: 1000, maximum: 60000, unit: "ms"),
+    Setting(title: "sidebar.sub_fade_out", key: .subDissolveDisappearDuration,
+            scale: 1000, maximum: 60000, unit: "ms"),
+    Setting(title: "sidebar.sub_extra_blur", key: .subDissolveBlurRadius,
+            scale: 1, maximum: 20, unit: ""),
+  ]
+  private var sliders: [NSSlider] = []
+  private var fields: [NSTextField] = []
+
+  override init(frame frameRect: NSRect) {
+    super.init(frame: frameRect)
+    translatesAutoresizingMaskIntoConstraints = false
+    orientation = .vertical
+    alignment = .leading
+    spacing = 8
+    addArrangedSubview(ui.label("sidebar.sub_tuning", font: .boldSystemFont(ofSize: 11), isSecondary: true))
+
+    for (index, setting) in settings.enumerated() {
+      let stored = Double(Preference.float(for: setting.key)) * setting.scale
+      let initial = stored.isFinite ? min(max(stored, 0), setting.maximum) : 0
+      let slider = NSSlider(value: initial, minValue: 0,
+                            maxValue: setting.scale == 1 ? setting.maximum : max(2000, initial),
+                            target: self, action: #selector(sliderChanged(_:)))
+      slider.controlSize = .small
+      slider.isContinuous = true
+      slider.tag = index
+      slider.widthAnchor.constraint(greaterThanOrEqualToConstant: 64).isActive = true
+      slider.setContentHuggingPriority(.defaultLow, for: .horizontal)
+
+      let formatter = NumberFormatter()
+      formatter.numberStyle = .decimal
+      formatter.usesGroupingSeparator = false
+      formatter.minimum = 0
+      formatter.maximum = NSNumber(value: setting.maximum)
+      formatter.maximumFractionDigits = setting.scale == 1 ? 2 : 0
+      let field = NSTextField()
+      field.formatter = formatter
+      field.doubleValue = initial
+      field.controlSize = .small
+      field.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+      field.alignment = .right
+      field.tag = index
+      field.delegate = self
+      field.target = self
+      field.action = #selector(valueChanged(_:))
+      field.widthAnchor.constraint(equalToConstant: 60).isActive = true
+      let title = NSLocalizedString(setting.title, comment: "")
+      field.setAccessibilityLabel("\(title) \(setting.unit)")
+      slider.setAccessibilityLabel(title)
+      fields.append(field)
+      sliders.append(slider)
+
+      let row = ui.hStack(ui.label(setting.title, isSmall: true), ui.flexibleSpace(4),
+                         slider, field, ui.label(setting.unit, isSmall: true, isSecondary: true))
+      addArrangedSubview(row)
+      row.widthAnchor.constraint(equalTo: widthAnchor).isActive = true
+    }
+    let curve = DissolveCurveTuningView(easingKey: .subDissolveEasing, overshootKey: .subDissolveOvershoot)
+    addArrangedSubview(curve)
+    curve.widthAnchor.constraint(equalTo: widthAnchor).isActive = true
+  }
+
+  @objc private func sliderChanged(_ sender: NSSlider) {
+    let precision = settings[sender.tag].scale == 1 ? 100.0 : 1.0
+    let value = (sender.doubleValue * precision).rounded() / precision
+    fields[sender.tag].doubleValue = value
+    save(value, at: sender.tag)
+  }
+
+  @objc private func valueChanged(_ sender: NSTextField) {
+    save(sender.doubleValue, at: sender.tag)
+  }
+
+  func controlTextDidEndEditing(_ notification: Notification) {
+    guard let field = notification.object as? NSTextField else { return }
+    valueChanged(field)
+  }
+
+  private func save(_ value: Double, at index: Int) {
+    let setting = settings[index]
+    guard value.isFinite else { return }
+    let clamped = min(max(value, 0), setting.maximum)
+    fields[index].doubleValue = clamped
+    sliders[index].maxValue = setting.scale == 1 ? setting.maximum : max(2000, clamped)
+    sliders[index].doubleValue = clamped
+    Preference.set(Float(clamped / setting.scale), for: setting.key)
+  }
+
+  required init?(coder: NSCoder) {
+    fatalError("init(coder:) has not been implemented")
+  }
+}
+
+
+fileprivate final class DissolveCurveTuningView: NSStackView, NSTextFieldDelegate {
+  private let easingKey: Preference.Key
+  private let overshootKey: Preference.Key
+
+  init(easingKey: Preference.Key, overshootKey: Preference.Key) {
+    self.easingKey = easingKey
+    self.overshootKey = overshootKey
+    super.init(frame: .zero)
+    translatesAutoresizingMaskIntoConstraints = false
+    orientation = .vertical
+    alignment = .leading
+    spacing = 8
+
+    let picker = NSPopUpButton()
+    picker.controlSize = .small
+    for easing in DissolveEasing.allCases {
+      picker.addItem(withTitle: NSLocalizedString(easing.titleKey, comment: ""))
+      picker.lastItem?.tag = easing.rawValue
+    }
+    picker.selectItem(withTag: Preference.integer(for: easingKey))
+    picker.target = self
+    picker.action = #selector(easingChanged(_:))
+    picker.setAccessibilityLabel(NSLocalizedString("sidebar.blur_easing", comment: ""))
+
+    let field = NSTextField()
+    let formatter = NumberFormatter()
+    formatter.numberStyle = .decimal
+    formatter.minimum = 0
+    formatter.maximum = 100
+    formatter.maximumFractionDigits = 1
+    field.formatter = formatter
+    field.doubleValue = Double(Preference.float(for: overshootKey)) * 100
+    field.controlSize = .small
+    field.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+    field.alignment = .right
+    field.widthAnchor.constraint(equalToConstant: 60).isActive = true
+    field.target = self
+    field.action = #selector(overshootChanged(_:))
+    field.delegate = self
+    field.setAccessibilityLabel(NSLocalizedString("sidebar.blur_overshoot", comment: "") + " %")
+
+    for row in [ui.hStack(ui.label("sidebar.blur_easing", isSmall: true), ui.flexibleSpace(), picker),
+                ui.hStack(ui.label("sidebar.blur_overshoot", isSmall: true), ui.flexibleSpace(),
+                          field, ui.label("%", isSmall: true, isSecondary: true))] {
+      addArrangedSubview(row)
+      row.widthAnchor.constraint(equalTo: widthAnchor).isActive = true
+    }
+  }
+
+  @objc private func easingChanged(_ sender: NSPopUpButton) {
+    guard let item = sender.selectedItem else { return }
+    Preference.set(item.tag, for: easingKey)
+  }
+
+  @objc private func overshootChanged(_ sender: NSTextField) {
+    guard sender.doubleValue.isFinite else { return }
+    let value = min(max(sender.doubleValue, 0), 100)
+    sender.doubleValue = value
+    Preference.set(Float(value / 100), for: overshootKey)
+  }
+
+  func controlTextDidEndEditing(_ notification: Notification) {
+    guard let field = notification.object as? NSTextField else { return }
+    overshootChanged(field)
   }
 
   required init?(coder: NSCoder) {

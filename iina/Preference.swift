@@ -147,6 +147,15 @@ struct Preference {
     /** Floating OSC dissolve blur radius in points (float) */
     static let oscDissolveBlurRadius = Key("oscDissolveBlurRadius")
 
+    /** Subtitle visibility dissolve durations in seconds, and additional mpv blur (float). */
+    static let subDissolveAppearDuration = Key("subDissolveAppearDuration")
+    static let subDissolveDisappearDuration = Key("subDissolveDisappearDuration")
+    static let subDissolveBlurRadius = Key("subDissolveBlurRadius")
+    static let subDissolveEasing = Key("subDissolveEasing")
+    static let subDissolveOvershoot = Key("subDissolveOvershoot")
+    static let oscDissolveEasing = Key("oscDissolveEasing")
+    static let oscDissolveOvershoot = Key("oscDissolveOvershoot")
+
     /** Whether auto hiding control bar is enabled. (bool)*/
     static let enableControlBarAutoHide = Key("enableControlBarAutoHide")
 
@@ -1062,6 +1071,13 @@ struct Preference {
     .oscDissolveAppearDuration: Float(0.25),
     .oscDissolveDisappearDuration: Float(0.30),
     .oscDissolveBlurRadius: Float(22),
+    .subDissolveAppearDuration: Float(0.12),
+    .subDissolveDisappearDuration: Float(0.16),
+    .subDissolveBlurRadius: Float(4),
+    .subDissolveEasing: 3,
+    .subDissolveOvershoot: Float(0),
+    .oscDissolveEasing: 3,
+    .oscDissolveOvershoot: Float(0),
     .enableControlBarAutoHide: true,
     .controlBarToolbarButtons: [ToolBarButton.plugins.rawValue, ToolBarButton.pip.rawValue, ToolBarButton.playlist.rawValue, ToolBarButton.settings.rawValue],
     .showOSCVolumeControls: true,
@@ -1536,6 +1552,11 @@ struct Preference {
            .oscDissolveAppearDuration,
            .oscDissolveDisappearDuration,
            .oscDissolveBlurRadius,
+           .subDissolveAppearDuration,
+           .subDissolveDisappearDuration,
+           .subDissolveBlurRadius,
+           .subDissolveOvershoot,
+           .oscDissolveOvershoot,
            .osdAutoHideTimeout,
            .osdTextSize,
            .subBlur,
