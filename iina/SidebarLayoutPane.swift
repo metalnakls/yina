@@ -181,9 +181,13 @@ class SidebarLayoutPane: SidebarScrollView {
 
     container.addSubview(label)
     container.addSubview(stack)
+    let tuning = OSCDissolveTuningView()
+    container.addSubview(tuning)
     label.padding(.top, .leading, .trailing(greaterThan: 0))
-    stack.padding(.bottom(8), .horizontal(greaterThan: 0)).center(.x)
+    stack.padding(.horizontal(greaterThan: 0)).center(.x)
       .spacing(.top(.sidebarStackViewSpacing), to: label)
+    tuning.padding(.bottom(8), .horizontal)
+      .spacing(.top(.sidebarItemSpacing), to: stack)
 
     return container
   }
@@ -239,6 +243,82 @@ class SidebarLayoutPane: SidebarScrollView {
       .spacing(.top(.sidebarStackViewSpacing), to: label)
 
     return container
+  }
+}
+
+
+fileprivate final class OSCDissolveTuningView: NSStackView {
+  private struct Setting {
+    let title: String
+    let key: Preference.Key
+    let range: ClosedRange<Double>
+    let step: Double
+    let valueText: (Double) -> String
+  }
+
+  private let settings: [Setting] = [
+    Setting(title: "sidebar.osc_appear_speed", key: .oscDissolveAppearDuration,
+            range: 0.05...0.75, step: 0.01,
+            valueText: { "\(Int(($0 * 1000).rounded())) ms" }),
+    Setting(title: "sidebar.osc_disappear_speed", key: .oscDissolveDisappearDuration,
+            range: 0.05...1.0, step: 0.01,
+            valueText: { "\(Int(($0 * 1000).rounded())) ms" }),
+    Setting(title: "sidebar.osc_blur_radius", key: .oscDissolveBlurRadius,
+            range: 0...48, step: 1,
+            valueText: { "\(Int($0.rounded())) pt" }),
+  ]
+
+  override init(frame frameRect: NSRect) {
+    super.init(frame: frameRect)
+    translatesAutoresizingMaskIntoConstraints = false
+    orientation = .vertical
+    alignment = .leading
+    spacing = 8
+
+    addArrangedSubview(ui.label("sidebar.osc_tuning", font: .boldSystemFont(ofSize: 11), isSecondary: true))
+
+    for (index, setting) in settings.enumerated() {
+      let slider = NSSlider(value: Double(Preference.float(for: setting.key)),
+                            minValue: setting.range.lowerBound,
+                            maxValue: setting.range.upperBound,
+                            target: self,
+                            action: #selector(sliderChanged(_:)))
+      slider.controlSize = .small
+      slider.isContinuous = true
+      slider.tag = index
+      slider.widthAnchor.constraint(greaterThanOrEqualToConstant: 96).isActive = true
+      slider.setContentHuggingPriority(.defaultLow, for: .horizontal)
+
+      let value = ui.label(setting.valueText(slider.doubleValue), isSmall: true,
+                           isSecondary: true, canCompress: false)
+      value.identifier = NSUserInterfaceItemIdentifier("oscDissolveTuningValue")
+      value.alignment = .right
+      value.widthAnchor.constraint(equalToConstant: 52).isActive = true
+
+      let row = ui.hStack(
+        ui.label(setting.title, isSmall: true),
+        ui.flexibleSpace(4),
+        slider,
+        value
+      )
+      addArrangedSubview(row)
+      row.widthAnchor.constraint(equalTo: widthAnchor).isActive = true
+    }
+  }
+
+  @objc private func sliderChanged(_ sender: NSSlider) {
+    let setting = settings[sender.tag]
+    let steppedValue = (sender.doubleValue / setting.step).rounded() * setting.step
+    sender.doubleValue = steppedValue
+    Preference.set(Float(steppedValue), for: setting.key)
+
+    guard let row = sender.superview as? NSStackView,
+          let value = row.arrangedSubviews.compactMap({ $0 as? NSTextField }).last else { return }
+    value.stringValue = setting.valueText(steppedValue)
+  }
+
+  required init?(coder: NSCoder) {
+    fatalError("init(coder:) has not been implemented")
   }
 }
 

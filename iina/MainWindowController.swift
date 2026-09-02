@@ -12,7 +12,6 @@ import WebKit
 
 fileprivate let InteractiveModeBottomViewHeight: CGFloat = 60
 
-fileprivate let UIAnimationDuration = 0.25
 fileprivate let OSDAnimationDuration = 0.5
 fileprivate let CropAnimationDuration = 0.2
 
@@ -1946,14 +1945,26 @@ class MainWindowController: PlayerWindowController {
     }
     // Don't hide UI when auto hide control bar is disabled
     guard force || Preference.bool(for: .enableControlBarAutoHide) else { return }
+    guard animationState != .hidden, animationState != .willHide else { return }
 
     animationState = .willHide
     player.refreshSyncUITimer()
     fadeableViews.forEach { (v) in
       v.isHidden = false
     }
+    let configuredDuration = TimeInterval(min(max(Preference.float(for: .oscDissolveDisappearDuration), 0.05), 1.0))
+    let animationDuration = AccessibilityPreferences.adjustedDuration(configuredDuration)
+    let blurFloatingOSC = oscPosition == .floating &&
+      !AccessibilityPreferences.motionReductionEnabled &&
+      !Preference.bool(for: .disableAnimations)
+    if blurFloatingOSC {
+      oscFloatingView.animateDissolveBlur(to: OSCFloatingView.hiddenBlurRadius,
+                                         duration: animationDuration)
+    } else {
+      oscFloatingView.finishDissolveAppearance()
+    }
     NSAnimationContext.runAnimationGroup({ (context) in
-      context.duration = AccessibilityPreferences.adjustedDuration(UIAnimationDuration)
+      context.duration = animationDuration
       fadeableViews.forEach { (v) in
         v.animator().alphaValue = 0
       }
@@ -1978,16 +1989,38 @@ class MainWindowController: PlayerWindowController {
   func showUI() {
     if player.disableUI { return }
     guard !liveText.isActive, !interactiveMode.isActive else { return }
+    // Mouse movement repeatedly asks to show the UI. Do not let a redundant request create a
+    // no-op alpha animation whose completion removes the dissolve blur already in progress.
+    guard animationState != .willShow else { return }
+    let previousAnimationState = animationState
+    let isStartingShowTransition = previousAnimationState == .hidden || previousAnimationState == .willHide
     animationState = .willShow
     fadeableViews.forEach { (v) in
       v.isHidden = false
+    }
+    let configuredDuration = TimeInterval(min(max(Preference.float(for: .oscDissolveAppearDuration), 0.05), 0.75))
+    let animationDuration = AccessibilityPreferences.adjustedDuration(configuredDuration)
+    let blurFloatingOSC = isStartingShowTransition && oscPosition == .floating &&
+      !AccessibilityPreferences.motionReductionEnabled &&
+      !Preference.bool(for: .disableAnimations)
+    if blurFloatingOSC {
+      if previousAnimationState == .hidden {
+        let blurRadius = OSCFloatingView.hiddenBlurRadius
+        oscFloatingView.prepareDissolveBlur(blurRadius)
+        oscFloatingView.animateDissolveBlur(to: 0, duration: animationDuration,
+                                            startingAt: blurRadius)
+      } else {
+        oscFloatingView.animateDissolveBlur(to: 0, duration: animationDuration)
+      }
+    } else if isStartingShowTransition {
+      oscFloatingView.finishDissolveAppearance()
     }
     // The OSC may not have been updated while it was hidden to avoid wasting energy. Make sure it
     // is up to date.
     player.refreshSyncUITimer()
     standardWindowButtons.forEach { $0.isEnabled = true }
     NSAnimationContext.runAnimationGroup({ (context) in
-      context.duration = AccessibilityPreferences.adjustedDuration(UIAnimationDuration)
+      context.duration = animationDuration
       fadeableViews.forEach { (v) in
         v.animator().alphaValue = 1
       }
@@ -1997,6 +2030,7 @@ class MainWindowController: PlayerWindowController {
     }) {
       // if no interrupt then hide animation
       if self.animationState == .willShow {
+        self.oscFloatingView.finishDissolveAppearance()
         self.animationState = .shown
       }
     }
@@ -2901,25 +2935,26 @@ class MainWindowController: PlayerWindowController {
   private func updateTimePreview(_ percentage: Double) {
     guard let duration = player.info.videoDuration else { return }
     let time = duration * percentage
-    let chapterTitle = if let chapter = player.info.getChapter(forVideoTime: time) {
-      chapter.title + "\n"
-    } else {
-      ""
-    }
-    timePreviewView.textField.stringValue = chapterTitle + time.stringRepresentation
+    let chapterTitle = player.info.getChapter(forVideoTime: time)?.title
+    let chapterChanged = timePreviewView.update(chapterTitle: chapterTitle, time: time.stringRepresentation)
+    timePreviewView.layoutSubtreeIfNeeded()
+    let previewSize = timePreviewView.fittingSize
 
     let sliderFrame = playSlider.convert(playSlider.bounds, to: nil)
     let timeLabelYPos: CGFloat
     if oscPosition == .floating {
-      timeLabelYPos = sliderFrame.minY - timePreviewView.bounds.height - 5
+      timeLabelYPos = sliderFrame.minY - previewSize.height - 5
     } else if oscPosition == .top {
-      timeLabelYPos = sliderFrame.origin.y - timePreviewView.bounds.height - 5
+      timeLabelYPos = sliderFrame.origin.y - previewSize.height - 5
     } else {
       timeLabelYPos = sliderFrame.origin.y + playSlider.frame.height + 5
     }
-    timePreviewView.frame.origin = CGPoint(
-      x: round(sliderFrame.origin.x + sliderFrame.size.width * percentage - timePreviewView.frame.width / 2),
-      y: timeLabelYPos)
+    let targetFrame = NSRect(
+      x: round(sliderFrame.origin.x + sliderFrame.size.width * percentage - previewSize.width / 2),
+      y: timeLabelYPos,
+      width: previewSize.width,
+      height: previewSize.height)
+    timePreviewView.setPreviewFrame(targetFrame, chapterChanged: chapterChanged)
   }
 
 
