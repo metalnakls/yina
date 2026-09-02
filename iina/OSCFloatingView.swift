@@ -2,6 +2,8 @@
 //  OSCFloatingView.swift
 //  iina
 //
+
+import CoreImage
 //  Created by Hechen Li on 2026-06-09.
 //  Copyright © 2026 lhc. All rights reserved.
 //
@@ -182,9 +184,16 @@ private final class OSCFloatingDragSurface: NSView {
 
 class OSCFloatingView: TranslucentView {
   static let preferredWidth: CGFloat = 460
+  static var hiddenBlurRadius: CGFloat {
+    CGFloat(min(max(Preference.float(for: .oscDissolveBlurRadius), 0), 48))
+  }
+  private static let dissolveAnimationKey = "oscDissolveBlur"
+  private static let dissolveFilterName = "oscDissolve"
+  private static let dissolveRadiusKeyPath = "filters.\(dissolveFilterName).inputRadius"
   private let width = preferredWidth
   weak var mainWindow: MainWindowController!
   private let prefObserver = Preference.Observer()
+  private let dissolveBlur = CIFilter(name: "CIGaussianBlur")!
 
   var oscTopView: NSStackView!
   var oscBottomView: TimeLabelOverflowedStackView!
@@ -220,6 +229,12 @@ class OSCFloatingView: TranslucentView {
     container.translatesAutoresizingMaskIntoConstraints = false
 
     super.init(liquidGlassCornerRadius: 24, vevCornerRadius: 20, padding: (0, 0))
+
+    wantsLayer = true
+    dissolveBlur.name = Self.dissolveFilterName
+    dissolveBlur.setDefaults()
+    dissolveBlur.setValue(0, forKey: kCIInputRadiusKey)
+    contentFilters = [dissolveBlur]
 
     let dragSurface = OSCFloatingDragSurface()
     dragSurface.translatesAutoresizingMaskIntoConstraints = false
@@ -263,6 +278,41 @@ class OSCFloatingView: TranslucentView {
           let visualEffectView = container as? NSVisualEffectView else { return }
     visualEffectView.material = .hudWindow
     visualEffectView.appearance = NSAppearance(named: .darkAqua)
+  }
+
+  /// Sets the starting blur without animation. Used only while the OSC is fully transparent.
+  func prepareDissolveBlur(_ radius: CGFloat) {
+    layer?.removeAnimation(forKey: Self.dissolveAnimationKey)
+    dissolveBlur.setValue(radius, forKey: kCIInputRadiusKey)
+    layer?.setValue(radius, forKeyPath: Self.dissolveRadiusKeyPath)
+  }
+
+  /// Animates the attached Core Image filter directly on the backing layer instead of rebuilding
+  /// the filter graph on every animation frame.
+  func animateDissolveBlur(to radius: CGFloat, duration: TimeInterval,
+                           startingAt preparedRadius: CGFloat? = nil) {
+    guard duration > 0, let layer else {
+      prepareDissolveBlur(radius)
+      return
+    }
+    let keyPath = Self.dissolveRadiusKeyPath
+    let currentRadius = preparedRadius.map(Double.init) ??
+      (layer.presentation()?.value(forKeyPath: keyPath) as? NSNumber)?.doubleValue ??
+      (dissolveBlur.value(forKey: kCIInputRadiusKey) as? NSNumber)?.doubleValue ?? 0
+    layer.setValue(radius, forKeyPath: keyPath)
+
+    let animation = CABasicAnimation(keyPath: keyPath)
+    animation.fromValue = currentRadius
+    animation.toValue = radius
+    animation.duration = duration
+    animation.timingFunction = CAMediaTimingFunction(name: radius > 0 ? .easeOut : .easeInEaseOut)
+    layer.add(animation, forKey: Self.dissolveAnimationKey)
+  }
+
+  func finishDissolveAppearance() {
+    layer?.removeAnimation(forKey: Self.dissolveAnimationKey)
+    dissolveBlur.setValue(0, forKey: kCIInputRadiusKey)
+    layer?.setValue(0, forKeyPath: Self.dissolveRadiusKeyPath)
   }
 
   func setupConstraints() {

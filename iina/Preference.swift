@@ -138,6 +138,15 @@ struct Preference {
     /** Timeout for auto hiding control bar (float) */
     static let controlBarAutoHideTimeout = Key("controlBarAutoHideTimeout")
 
+    /** Floating OSC dissolve appearance duration in seconds (float) */
+    static let oscDissolveAppearDuration = Key("oscDissolveAppearDuration")
+
+    /** Floating OSC dissolve disappearance duration in seconds (float) */
+    static let oscDissolveDisappearDuration = Key("oscDissolveDisappearDuration")
+
+    /** Floating OSC dissolve blur radius in points (float) */
+    static let oscDissolveBlurRadius = Key("oscDissolveBlurRadius")
+
     /** Whether auto hiding control bar is enabled. (bool)*/
     static let enableControlBarAutoHide = Key("enableControlBarAutoHide")
 
@@ -1050,6 +1059,9 @@ struct Preference {
     .controlBarPositionVertical: Float(0.1),
     .controlBarStickToCenter: true,
     .controlBarAutoHideTimeout: Float(2.5),
+    .oscDissolveAppearDuration: Float(0.25),
+    .oscDissolveDisappearDuration: Float(0.30),
+    .oscDissolveBlurRadius: Float(22),
     .enableControlBarAutoHide: true,
     .controlBarToolbarButtons: [ToolBarButton.plugins.rawValue, ToolBarButton.pip.rawValue, ToolBarButton.playlist.rawValue, ToolBarButton.settings.rawValue],
     .showOSCVolumeControls: true,
@@ -1521,6 +1533,9 @@ struct Preference {
            .controlBarAutoHideTimeout,
            .controlBarPositionHorizontal,
            .controlBarPositionVertical,
+           .oscDissolveAppearDuration,
+           .oscDissolveDisappearDuration,
+           .oscDissolveBlurRadius,
            .osdAutoHideTimeout,
            .osdTextSize,
            .subBlur,
