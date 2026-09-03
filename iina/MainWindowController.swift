@@ -78,7 +78,6 @@ class MainWindowController: PlayerWindowController {
 
   var oscPlayControlView: NSStackView!
   var oscPlayControlMiddleView: NSStackView!
-  private var oscFloatingPlayControlsCenterConstraint: NSLayoutConstraint!
   var leftArrowButton: NSButton!
   var rightArrowButton: NSButton!
   var oscSpeedLabelLeftContainer: NSView!
@@ -518,6 +517,7 @@ class MainWindowController: PlayerWindowController {
     oscPlayControlView.orientation = .horizontal
     oscPlayControlView.alignment = .centerY
     oscPlayControlView.spacing = 0
+    oscPlayControlView.detachesHiddenViews = false
 
     self.leftArrowButton = OSCButton(image: .speedl, target: self, action: #selector(leftButtonAction))
     leftArrowButton.maxAcceleratorLevel = 5
@@ -630,8 +630,6 @@ class MainWindowController: PlayerWindowController {
     oscPlayControlView.addView(oscSpeedLabelRightContainer, in: .center)
     // Video controllers and timeline indicators should not flip in a right-to-left language.
     oscPlayControlView.userInterfaceLayoutDirection = .leftToRight
-    oscFloatingPlayControlsCenterConstraint = playButton.centerXAnchor
-      .constraint(equalTo: oscFloatingView.oscTopView.centerXAnchor)
     setupOnScreenController(withPosition: oscPosition, forced: true)
     oscVolumeView.isHidden = !Preference.bool(for: .showOSCVolumeControls)
     let buttons = (Preference.array(for: .controlBarToolbarButtons) as? [Int] ?? []).compactMap(Preference.ToolBarButton.init(rawValue:))
@@ -991,10 +989,10 @@ class MainWindowController: PlayerWindowController {
     [oscFloatingView, oscBottomView].forEach { $0.isHidden = true }
 
     oscFloatingView.isDragging = false
-    oscFloatingPlayControlsCenterConstraint.isActive = false
+    oscFloatingView.oscTopView.uninstall()
 
     // detach all fragment views
-    [oscFloatingView.oscTopView, titleBarView.oscView, oscBottomView.oscView].forEach { stackView in
+    [titleBarView.oscView, oscBottomView.oscView].forEach { stackView in
       stackView!.views.forEach {
         stackView!.removeView($0)
       }
@@ -1020,19 +1018,11 @@ class MainWindowController: PlayerWindowController {
       currentControlBar = oscFloatingView
       oscPlayControlView.setVisibilityPriority(.notVisible, for: oscSpeedLabelLeftContainer)
       oscPlayControlView.setVisibilityPriority(.notVisible, for: oscSpeedLabelRightContainer)
-      oscFloatingView.oscTopView.addView(oscVolumeView, in: .leading)
-      oscFloatingView.oscTopView.addView(oscToolbarView, in: .trailing)
-      oscFloatingView.oscTopView.addView(oscPlayControlView, in: .center)
-      oscFloatingView.oscTopView.setVisibilityPriority(.mustHold, for: oscPlayControlView)
       oscPlayControlView.setVisibilityPriority(.mustHold, for: oscPlayControlMiddleView)
-      oscFloatingPlayControlsCenterConstraint.isActive = true
-
-      oscFloatingView.oscTopView.setVisibilityPriority(.detachOnlyIfNecessary, for: oscVolumeView)
-      oscFloatingView.oscTopView.setVisibilityPriority(.detachOnlyIfNecessary, for: oscToolbarView)
-      oscFloatingView.oscTopView.setClippingResistancePriority(.defaultLow, for: .horizontal)
+      oscFloatingView.oscTopView.install(transport: oscPlayControlView, playButton: playButton,
+                                         volume: oscVolumeView, toolbar: oscToolbarView)
       oscFloatingView.oscBottomView.addSubview(oscSliderView)
       Utility.quickConstraints(["H:|[v]|", "V:|[v]|"], ["v": oscSliderView])
-      Utility.quickConstraints(["H:|-(>=0)-[v]-(>=0)-|"], ["v": oscPlayControlView])
       oscFloatingView.initPosition()
     case .top:
       let oscTopMainView = titleBarView.oscView!
