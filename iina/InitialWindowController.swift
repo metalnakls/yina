@@ -72,6 +72,11 @@ class InitialWindowController: NSWindowController {
   private var availabilityRefreshTimer: Timer?
   private var availabilityCheckGeneration = 0
   private var isCheckingAvailability = false
+  private let showFolderShelf = ShowFolderShelfView()
+  private var showFolders: [ShowFolder] = []
+  private var showFolderShelfTopConstraint: NSLayoutConstraint?
+  private var showFolderShelfHeightConstraint: NSLayoutConstraint?
+  private var recentFilesBelowShelfConstraint: NSLayoutConstraint?
 
   override func observeValue(forKeyPath keyPath: String?, of object: Any?, change: [NSKeyValueChangeKey : Any]?, context: UnsafeMutableRawPointer?) {
     guard let keyPath, let change else { return }
@@ -179,6 +184,7 @@ class InitialWindowController: NSWindowController {
       betaIndicatorView.isHidden = false
     }
 
+    setupShowFolderShelf()
     loadLastPlaybackInfo()
 
     recentFilesTableView.delegate = self
@@ -286,6 +292,75 @@ class InitialWindowController: NSWindowController {
     recentFilesTableView.selectRowIndexes(IndexSet(integer: firstAvailable), byExtendingSelection: false)
   }
 
+  private func setupShowFolderShelf() {
+    guard let recentScrollView = recentFilesTableView.enclosingScrollView,
+          let container = recentScrollView.superview,
+          let anchor = recentFilesTableTopConstraint.secondItem as? NSView else { return }
+    recentFilesTableTopConstraint.isActive = false
+    container.addSubview(showFolderShelf)
+    let shelfTop = showFolderShelf.topAnchor.constraint(equalTo: anchor.bottomAnchor, constant: 24)
+    let shelfHeight = showFolderShelf.heightAnchor.constraint(equalToConstant: 0)
+    let recentBelowShelf = recentScrollView.topAnchor.constraint(equalTo: showFolderShelf.bottomAnchor)
+    NSLayoutConstraint.activate([
+      showFolderShelf.leadingAnchor.constraint(equalTo: recentScrollView.leadingAnchor),
+      showFolderShelf.trailingAnchor.constraint(equalTo: recentScrollView.trailingAnchor),
+      shelfTop,
+      shelfHeight,
+      recentBelowShelf,
+    ])
+    showFolderShelfTopConstraint = shelfTop
+    showFolderShelfHeightConstraint = shelfHeight
+    recentFilesBelowShelfConstraint = recentBelowShelf
+  }
+
+  private func reloadShowFolders() {
+    let lastURL = Preference.url(for: .iinaLastPlayedFilePath)?.standardizedFileURL
+    let lastPosition = Preference.double(for: .iinaLastPlayedFilePosition)
+    let historyItems: [ShowFolderHistoryItem] = HistoryController.shared.$history.withLock { history in
+      history.compactMap { entry in
+        guard entry.url.isFileURL,
+              Utility.playableFileExt.contains(entry.url.pathExtension.lowercased()) else { return nil }
+        let url = entry.url.standardizedFileURL
+        let position = url == lastURL ? lastPosition : (entry.mpvProgress?.second ?? 0)
+        return ShowFolderHistoryItem(url: url,
+                                     lastPlayedAt: entry.addedDate,
+                                     position: position,
+                                     duration: entry.duration.second,
+                                     displayTitle: entry.title ?? entry.name,
+                                     thumbnailCacheName: entry.mpvMd5)
+      }
+    }
+    showFolders = ShowFolder.make(from: historyItems)
+    showFolderShelf.reload(shows: showFolders, target: self, action: #selector(openShowFolderCard(_:)))
+    let hasShows = !showFolders.isEmpty
+    showFolderShelf.isHidden = !hasShows
+    showFolderShelfHeightConstraint?.constant = hasShows ? ShowFolderShelfView.height : 0
+    recentFilesBelowShelfConstraint?.constant = hasShows ? 10 : 0
+
+    let generation = availabilityCheckGeneration
+    let shows = showFolders
+    availabilityQueue.async { [weak self] in
+      for show in shows {
+        guard ThumbnailCache.fileIsCached(forName: show.thumbnailCacheName, forVideo: show.resumeURL),
+              let thumbnails = ThumbnailCache.read(forName: show.thumbnailCacheName),
+              !thumbnails.isEmpty else { continue }
+        let targetTime = show.position
+        let thumbnail = thumbnails.min(by: { abs($0.realTime - targetTime) < abs($1.realTime - targetTime) })?.image
+        guard let thumbnail else { continue }
+        DispatchQueue.main.async {
+          guard let self, self.availabilityCheckGeneration == generation else { return }
+          self.showFolderShelf.setThumbnail(thumbnail, for: show.folderURL)
+        }
+      }
+    }
+  }
+
+  @objc private func openShowFolderCard(_ sender: NSButton) {
+    guard let identifier = sender.identifier?.rawValue,
+          let show = showFolders.first(where: { $0.folderURL.standardizedFileURL.path == identifier }) else { return }
+    player.openURL(show.resumeURL)
+  }
+
   private func setMaterial(_ theme: Preference.Theme?) {
     guard let window, let theme else { return }
     window.appearance = NSAppearance(iinaTheme: theme)
@@ -320,11 +395,11 @@ class InitialWindowController: NSWindowController {
       lastFileNameLabel.stringValue = lastFile.lastPathComponent
       let lastPosition = Preference.double(for: .iinaLastPlayedFilePosition)
       lastPositionLabel.stringValue = VideoTime(lastPosition).stringRepresentation
-      recentFilesTableTopConstraint.constant = 42
+      (showFolderShelfTopConstraint ?? recentFilesTableTopConstraint).constant = 42
     } else {
       lastPlaybackURL = nil
       lastFileContainerView.isHidden = true
-      recentFilesTableTopConstraint.constant = 24
+      (showFolderShelfTopConstraint ?? recentFilesTableTopConstraint).constant = 24
     }
   }
 
@@ -332,6 +407,7 @@ class InitialWindowController: NSWindowController {
     loadLastPlaybackInfo()
     recentDocuments = makeRecentDocumentsList()
     availabilityCheckGeneration += 1
+    reloadShowFolders()
     recentFilesTableView.reloadData()
     if window?.isVisible == true {
       refreshRecentDocumentAvailability()
