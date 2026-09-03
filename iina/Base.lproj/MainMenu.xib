@@ -152,7 +152,7 @@
                         </items>
                     </menu>
                 </menuItem>
-                <menuItem title="Edit" id="pWh-nh-0pN">
+                <menuItem title="Edit" hidden="YES" id="pWh-nh-0pN">
                     <modifierMask key="keyEquivalentModifierMask"/>
                     <menu key="submenu" title="Edit" id="w8n-XJ-Pgi">
                         <items>
