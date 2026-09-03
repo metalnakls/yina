@@ -195,7 +195,7 @@ class OSCFloatingView: TranslucentView {
   private let prefObserver = Preference.Observer()
   private let dissolveBlur = CIFilter(name: "CIGaussianBlur")!
 
-  var oscTopView: NSStackView!
+  var oscTopView: OSCFloatingTopView!
   var oscBottomView: TimeLabelOverflowedStackView!
 
   private var xConstraint: NSLayoutConstraint!
@@ -243,7 +243,7 @@ class OSCFloatingView: TranslucentView {
     dragSurface.padding(.all)
     container.dragSurface = dragSurface
 
-    self.oscTopView = NSStackView()
+    self.oscTopView = OSCFloatingTopView()
     oscTopView.translatesAutoresizingMaskIntoConstraints = false
     container.addSubview(oscTopView)
     oscTopView.padding(.top(.oscPaddingTop), .horizontal(12))
