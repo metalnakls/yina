@@ -651,6 +651,7 @@ final class ShowFolderShelfView: NSView {
   private var trailingSpacerWidth: NSLayoutConstraint!
   private var cards: [String: ShowFolderCardView] = [:]
   private var items: [String: ShowFolderShelfItemView] = [:]
+  private var dismissingPaths = Set<String>()
 
   override init(frame frameRect: NSRect) {
     super.init(frame: frameRect)
@@ -716,7 +717,7 @@ final class ShowFolderShelfView: NSView {
 
   func reload(shows: [ShowFolder], target: AnyObject, openAction: Selector, dismissAction: Selector) {
     let desiredPaths = Set(shows.map(\.identityPath))
-    for (path, item) in items where !desiredPaths.contains(path) {
+    for (path, item) in items where !desiredPaths.contains(path) && !dismissingPaths.contains(path) {
       stackView.removeArrangedSubview(item)
       item.removeFromSuperview()
       cards.removeValue(forKey: path)
@@ -728,6 +729,7 @@ final class ShowFolderShelfView: NSView {
     // keeps both their geometry and their native glass stable.
     for show in shows {
       let path = show.identityPath
+      if dismissingPaths.contains(path) { continue }
       if let card = cards[path] {
         card.update(show: show)
         continue
@@ -756,17 +758,20 @@ final class ShowFolderShelfView: NSView {
 
   func dismissCard(for show: ShowFolder, completion: @escaping () -> Void) {
     let path = show.identityPath
+    guard dismissingPaths.insert(path).inserted else { return }
     guard let item = items[path] else {
+      dismissingPaths.remove(path)
       completion()
       return
     }
 
     let motionDisabled = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ||
       UserDefaults.standard.bool(forKey: "disableAnimations")
-    let duration = motionDisabled ? 0 : 0.22
+    let fadeDuration = motionDisabled ? 0 : 0.14
+    let reflowDuration = motionDisabled ? 0 : 0.14
     NSAnimationContext.runAnimationGroup { context in
-      context.duration = duration
-      context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+      context.duration = fadeDuration
+      context.timingFunction = CAMediaTimingFunction(name: .easeOut)
       context.allowsImplicitAnimation = true
       item.animator().alphaValue = 0
     } completionHandler: { [weak self, weak item] in
@@ -778,7 +783,7 @@ final class ShowFolderShelfView: NSView {
       // slot. The remaining native stack items then slide into place without
       // showing a second shrinking copy of the dismissed card.
       NSAnimationContext.runAnimationGroup { context in
-        context.duration = duration
+        context.duration = reflowDuration
         context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
         context.allowsImplicitAnimation = true
         item.widthConstraint.constant = 0
@@ -788,6 +793,7 @@ final class ShowFolderShelfView: NSView {
         item.removeFromSuperview()
         self.cards.removeValue(forKey: path)
         self.items.removeValue(forKey: path)
+        self.dismissingPaths.remove(path)
         completion()
       }
     }
