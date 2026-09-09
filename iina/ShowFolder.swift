@@ -723,6 +723,9 @@ final class ShowFolderShelfView: NSView {
       items.removeValue(forKey: path)
     }
 
+    // Reconcile by identity instead of rebuilding the stack. Cards are the
+    // skeleton state while artwork loads, so retaining their views is what
+    // keeps both their geometry and their native glass stable.
     for show in shows {
       let path = show.identityPath
       if let card = cards[path] {
@@ -735,6 +738,19 @@ final class ShowFolderShelfView: NSView {
       stackView.insertArrangedSubview(item, at: stackView.arrangedSubviews.count - 1)
       cards[path] = card
       items[path] = item
+    }
+
+    // A history refresh can change recency without changing identities.
+    // Keep AppKit's arranged subviews in model order without replacing card
+    // instances (and therefore without replaying the loading placeholder).
+    for (index, show) in shows.enumerated() {
+      guard let item = items[show.identityPath] else { continue }
+      let desiredIndex = index + 1 // the leading spacer remains first
+      if stackView.arrangedSubviews.indices.contains(desiredIndex),
+         stackView.arrangedSubviews[desiredIndex] !== item {
+        stackView.removeArrangedSubview(item)
+        stackView.insertArrangedSubview(item, at: desiredIndex)
+      }
     }
   }
 
