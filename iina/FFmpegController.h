@@ -56,6 +56,16 @@
 - (void)generateThumbnailForFile:(nonnull NSString *)file
                       thumbWidth:(int)thumbWidth;
 
+/// Generates one frame at the requested playback position. This is deliberately
+/// separate from timeline-peek generation so callers can retain a sharp,
+/// position-specific artwork cache without expanding the preview cache.
+- (void)generateThumbnailForFile:(nonnull NSString *)file
+                           atTime:(double)time
+                       thumbWidth:(int)thumbWidth;
+
+/// Cancels any outstanding asynchronous thumbnail decode.
+- (void)cancelThumbnailGeneration;
+
 /// Read artwork from the file with the given URL.
 ///
 /// This method will open the file and search the streams for one that contains front cover artwork. If found the image data will be read
