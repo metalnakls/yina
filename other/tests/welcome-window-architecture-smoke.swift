@@ -22,6 +22,18 @@ import Foundation
     precondition(welcome.contains("ShowFolderSnapshotStore.load"))
     precondition(welcome.contains("ShowFolderSnapshotStore.save"))
     precondition(welcome.contains("case .unavailable where cachedFolderPaths.contains"))
+    let shelfAccessoryStart = welcome.range(of: "private func configureShelfAccessory()")!.lowerBound
+    let shelfAccessoryEnd = welcome.range(of: "override func showWindow", range: shelfAccessoryStart..<welcome.endIndex)!.lowerBound
+    let shelfAccessory = welcome[shelfAccessoryStart..<shelfAccessoryEnd]
+    precondition(!shelfAccessory.contains("recentScrollView.leadingAnchor"))
+    precondition(!shelfAccessory.contains("recentScrollView.trailingAnchor"))
+    precondition(shelfAccessory.contains("showFolderHeader.widthAnchor.constraint(equalToConstant: 400)"))
+    precondition(shelfAccessory.contains("recentFilesHeader.widthAnchor.constraint(equalToConstant: 400)"))
+    precondition(welcome.contains("layoutAttribute = .bottom"))
+    precondition(welcome.contains("automaticallyAdjustsSize = false"))
+    precondition(!welcome.contains("layoutAttribute = .top"))
+    precondition(welcome.contains("let recentRowsTop = accessoryHeight + recentHeaderHeight + 12"))
+    precondition(welcome.contains("NSEdgeInsets(top: recentRowsTop"))
     precondition(ffmpeg.contains("atTime:(double)time"))
     precondition(ffmpeg.contains("hasRequestedTime"))
     precondition(ffmpeg.contains("cancelThumbnailGeneration"))
