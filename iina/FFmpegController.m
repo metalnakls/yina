@@ -9,6 +9,7 @@
 #import "FFmpegController.h"
 #import <Accelerate/Accelerate.h>
 #import <Cocoa/Cocoa.h>
+#import <math.h>
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdocumentation"
@@ -55,7 +56,7 @@ return -1;\
   double _timestamp;
 }
 
-- (int)getPeeksForFile:(NSString *)file thumbnailsWidth:(int)thumbnailsWidth;
+- (int)getPeeksForFile:(NSString *)file thumbnailsWidth:(int)thumbnailsWidth requestedTime:(double)requestedTime operation:(NSOperation *)operation;
 - (void)saveThumbnail:(AVFrame *)pFrame width:(int)width height:(int)height index:(int)index realTime:(int)second forFile:(NSString *)file;
 
 @end
@@ -82,6 +83,13 @@ return -1;\
 - (void)generateThumbnailForFile:(NSString *)file
                       thumbWidth:(int)thumbWidth
 {
+  [self generateThumbnailForFile:file atTime:NAN thumbWidth:thumbWidth];
+}
+
+- (void)generateThumbnailForFile:(NSString *)file
+                           atTime:(double)time
+                       thumbWidth:(int)thumbWidth
+{
   [_queue cancelAllOperations];
   NSBlockOperation *op = [[NSBlockOperation alloc] init];
   __weak NSBlockOperation *weakOp = op;
@@ -90,7 +98,7 @@ return -1;\
       return;
     }
     self->_timestamp = CACurrentMediaTime();
-    int success = [self getPeeksForFile:file thumbnailsWidth:thumbWidth];
+    int success = [self getPeeksForFile:file thumbnailsWidth:thumbWidth requestedTime:time operation:weakOp];
     if (self.delegate) {
       [self.delegate didGenerateThumbnails:[NSArray arrayWithArray:self->_thumbnails]
                                    forFile: file
@@ -100,8 +108,15 @@ return -1;\
   [_queue addOperation:op];
 }
 
+- (void)cancelThumbnailGeneration
+{
+  [_queue cancelAllOperations];
+}
+
 - (int)getPeeksForFile:(NSString *)file
        thumbnailsWidth:(int)thumbnailsWidth
+         requestedTime:(double)requestedTime
+             operation:(NSOperation *)operation
 {
   int i, ret;
 
@@ -200,15 +215,21 @@ return -1;\
                                               SWS_BILINEAR,
                                               NULL, NULL, NULL);
 
-  // Get duration and interval
+  // Get duration and interval. A welcome card asks for a single saved-position
+  // frame; timeline peeks retain their established evenly-spaced behaviour.
   int64_t duration = av_rescale_q(pFormatCtx->duration, AV_TIME_BASE_Q, pVideoStream->time_base);
   double interval = duration / (double)self.thumbnailCount;
   double timebaseDouble = av_q2d(pVideoStream->time_base);
   AVPacket packet;
+  BOOL hasRequestedTime = isfinite(requestedTime);
+  int lastThumbnailIndex = hasRequestedTime ? 0 : self.thumbnailCount;
 
   // For each preview point
-  for (i = 0; i <= self.thumbnailCount; i++) {
-    int64_t seek_pos = interval * i + pVideoStream->start_time;
+  for (i = 0; i <= lastThumbnailIndex; i++) {
+    int64_t seek_pos = hasRequestedTime
+      ? av_rescale_q((int64_t)MAX(0, requestedTime * AV_TIME_BASE),
+                     AV_TIME_BASE_Q, pVideoStream->time_base) + pVideoStream->start_time
+      : interval * i + pVideoStream->start_time;
 
     avcodec_flush_buffers(pCodecCtx);
 
@@ -220,7 +241,7 @@ return -1;\
     avcodec_flush_buffers(pCodecCtx);
 
     // Read and decode frame
-    while(av_read_frame(pFormatCtx, &packet) >= 0) {
+    while(!operation.isCancelled && av_read_frame(pFormatCtx, &packet) >= 0) {
       @try {
         // Make sure it's video stream
         if (packet.stream_index == videoStream) {

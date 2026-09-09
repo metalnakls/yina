@@ -201,7 +201,6 @@
 		8492C2881E7721A600CE5825 /* ISO639Helper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8492C2871E7721A600CE5825 /* ISO639Helper.swift */; };
 		849581F11F02728700D3B359 /* InitialWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 849581EF1F02728700D3B359 /* InitialWindowController.swift */; };
 		A31000012F00000000000001 /* ShowFolder.swift in Sources */ = {isa = PBXBuildFile; fileRef = A31000002F00000000000001 /* ShowFolder.swift */; };
-		849581F31F03D55A00D3B359 /* InitialWindowController.xib in Resources */ = {isa = PBXBuildFile; fileRef = 849581F51F03D55A00D3B359 /* InitialWindowController.xib */; };
 		84A09A0E1F2DF596000FF343 /* MiniPlayerWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84A09A0C1F2DF596000FF343 /* MiniPlayerWindowController.swift */; };
 		84A0BA951D2F9E9600BC8DA1 /* MainMenu.xib in Resources */ = {isa = PBXBuildFile; fileRef = 84A0BA931D2F9E9600BC8DA1 /* MainMenu.xib */; };
 		84A0BA971D2FA1CE00BC8DA1 /* PlayerCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84A0BA961D2FA1CE00BC8DA1 /* PlayerCore.swift */; };
@@ -2434,7 +2433,6 @@
 				34F294C02C0B68B300F14962 /* Contribution.rtf in Resources */,
 				8400D5D21E1AB312006785F5 /* InspectorWindowController.xib in Resources */,
 				6100FF2B1EDF9806002CF0FB /* dsa_pub.pem in Resources */,
-				849581F31F03D55A00D3B359 /* InitialWindowController.xib in Resources */,
 				845AC09C1E1AE6C10080B614 /* Localizable.strings in Resources */,
 				8400D5D51E1AB317006785F5 /* FilterWindowController.xib in Resources */,
 				8418A2F5213F5791003166AC /* OpenURLWindowController.xib in Resources */,
