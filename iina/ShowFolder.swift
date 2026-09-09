@@ -273,10 +273,13 @@ final class ShowFolderCardView: NSView {
       artworkLegibilityEffect.trailingAnchor.constraint(equalTo: cardContentView.trailingAnchor),
       artworkLegibilityEffect.topAnchor.constraint(equalTo: cardContentView.topAnchor),
       artworkLegibilityEffect.bottomAnchor.constraint(equalTo: cardContentView.bottomAnchor),
-      progressView.leadingAnchor.constraint(equalTo: cardContentView.leadingAnchor),
-      progressView.trailingAnchor.constraint(equalTo: cardContentView.trailingAnchor),
-      progressView.topAnchor.constraint(equalTo: cardContentView.topAnchor),
-      progressView.bottomAnchor.constraint(equalTo: cardContentView.bottomAnchor),
+      // Give the drawing view room for the native Core Graphics shadow. The
+      // path itself stays on the card perimeter, but its soft halo must not be
+      // clipped at the card's rectangular backing store.
+      progressView.leadingAnchor.constraint(equalTo: cardContentView.leadingAnchor, constant: -12),
+      progressView.trailingAnchor.constraint(equalTo: cardContentView.trailingAnchor, constant: 12),
+      progressView.topAnchor.constraint(equalTo: cardContentView.topAnchor, constant: -12),
+      progressView.bottomAnchor.constraint(equalTo: cardContentView.bottomAnchor, constant: 12),
       titleLabel.leadingAnchor.constraint(equalTo: cardContentView.leadingAnchor,
                                           constant: ShowFolderCardMetrics.contentInset),
       titleLabel.trailingAnchor.constraint(lessThanOrEqualTo: playButton.leadingAnchor,
@@ -502,7 +505,8 @@ private final class ShowFolderCardProgressView: NSView {
 
   override func draw(_ dirtyRect: NSRect) {
     super.draw(dirtyRect)
-    let geometry = ShowFolderProgressGeometry.make(in: bounds,
+    let cardBounds = bounds.insetBy(dx: 12, dy: 12)
+    let geometry = ShowFolderProgressGeometry.make(in: cardBounds,
                                                     cornerRadius: ShowFolderCardMetrics.cornerRadius,
                                                     progress: progress,
                                                     isEligible: isEligible)
@@ -515,23 +519,22 @@ private final class ShowFolderCardProgressView: NSView {
       return
     }
 
-    // Two restrained white passes produce a material glow without exposing a
-    // line border or a colored track. The final pass is segmented so both ends
-    // taper into the vertical corner transitions.
-    for segment in geometry.valueSegments {
-      context.saveGState()
-      context.setLineWidth(segment.width * 4.5)
-      context.setStrokeColor(NSColor.white.withAlphaComponent(0.18).cgColor)
-      context.setShadow(offset: .zero, blur: 7,
-                        color: NSColor.white.withAlphaComponent(0.65).cgColor)
-      context.move(to: segment.start)
-      context.addLine(to: segment.end)
-      context.strokePath()
-      context.restoreGState()
-    }
+    // A continuous wide pass establishes the diffuse trace. It is intentionally
+    // not followed by an opaque one-pixel core: that is what made the previous
+    // indicator read as a border rather than light reflected in the glass.
+    context.saveGState()
+    context.setLineWidth(ShowFolderCardMetrics.progressLineWidth * 4.5)
+    context.setStrokeColor(NSColor.white.withAlphaComponent(0.13).cgColor)
+    context.setShadow(offset: .zero, blur: 7,
+                      color: NSColor.white.withAlphaComponent(0.58).cgColor)
+    context.addPath(geometry.valuePath!)
+    context.strokePath()
+    context.restoreGState()
+    // The tapered overlay only softens the two vertical ends; the full trace
+    // above remains one uninterrupted path, eliminating segment seams.
     for segment in geometry.valueSegments {
       context.setLineWidth(segment.width)
-      context.setStrokeColor(NSColor.white.withAlphaComponent(0.88).cgColor)
+      context.setStrokeColor(NSColor.white.withAlphaComponent(0.42).cgColor)
       context.move(to: segment.start)
       context.addLine(to: segment.end)
       context.strokePath()
