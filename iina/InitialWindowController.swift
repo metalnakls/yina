@@ -273,14 +273,14 @@ class InitialWindowController: NSWindowController {
     root.addSubview(showFolderShelf)
     root.addSubview(recentFilesHeader)
     NSLayoutConstraint.activate([
-      showFolderHeader.leadingAnchor.constraint(equalTo: recentScrollView.leadingAnchor),
-      showFolderHeader.trailingAnchor.constraint(equalTo: recentScrollView.trailingAnchor),
+      showFolderHeader.centerXAnchor.constraint(equalTo: root.centerXAnchor),
+      showFolderHeader.widthAnchor.constraint(equalToConstant: 400),
       showFolderHeader.topAnchor.constraint(equalTo: root.topAnchor, constant: 20),
       showFolderShelf.leadingAnchor.constraint(equalTo: root.leadingAnchor),
       showFolderShelf.trailingAnchor.constraint(equalTo: root.trailingAnchor),
       showFolderShelf.topAnchor.constraint(equalTo: showFolderHeader.bottomAnchor, constant: 6),
-      recentFilesHeader.leadingAnchor.constraint(equalTo: recentScrollView.leadingAnchor),
-      recentFilesHeader.trailingAnchor.constraint(equalTo: recentScrollView.trailingAnchor),
+      recentFilesHeader.centerXAnchor.constraint(equalTo: root.centerXAnchor),
+      recentFilesHeader.widthAnchor.constraint(equalToConstant: 400),
       recentFilesHeader.topAnchor.constraint(equalTo: showFolderShelf.bottomAnchor, constant: 18),
     ])
     window.addTitlebarAccessoryViewController(shelfAccessoryController)
@@ -621,7 +621,11 @@ class InitialWindowController: NSWindowController {
     let sectionOffset = showFolders.isEmpty ? CGFloat(0) : headerHeight + 6 + shelfHeight + 18
     let accessoryHeight = 20 + sectionOffset + recentHeaderHeight + 6
     shelfAccessoryController.view.frame.size.height = accessoryHeight
-    recentScrollView.contentInsets = NSEdgeInsets(top: accessoryHeight,
+    // The scroll edge begins at the accessory boundary. Keep the first row
+    // below the Recents label instead of allowing the row selection to render
+    // through that transition zone.
+    let recentRowsTop = accessoryHeight + recentHeaderHeight + 12
+    recentScrollView.contentInsets = NSEdgeInsets(top: recentRowsTop,
                                                   left: 0, bottom: 16, right: 0)
     if resetScrollPosition {
       recentFilesTableView.scrollToBeginningOfDocument(nil)
@@ -765,6 +769,8 @@ private final class InitialWindowRecentRowView: NSTableRowView {
   }
 }
 
+/// System-owned shelf chrome. The public soft scroll edge is owned by AppKit,
+/// so content scrolling beneath this titlebar accessory never uses a bitmap mask.
 private final class WelcomeShelfAccessoryController: NSTitlebarAccessoryViewController {
   override func loadView() {
     view = NSView(frame: NSRect(x: 0, y: 0, width: 760, height: 43))
@@ -772,7 +778,11 @@ private final class WelcomeShelfAccessoryController: NSTitlebarAccessoryViewCont
 
   override func viewDidLoad() {
     super.viewDidLoad()
-    layoutAttribute = .top
+    // A bottom titlebar accessory sits below the transparent titlebar and owns
+    // a dynamically adjustable height. A top accessory replaces the titlebar
+    // and clips this shelf to its initial titlebar-sized frame.
+    layoutAttribute = .bottom
+    automaticallyAdjustsSize = false
     preferredScrollEdgeEffectStyle = .soft
   }
 }
