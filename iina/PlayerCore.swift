@@ -382,6 +382,8 @@ class PlayerCore: NSObject {
       return
     }
     let isNetwork = !url.isFileURL || url.pathExtension.starts(with: "m3u")
+    let isRemoteFile = url.isFileURL &&
+      (try? url.resourceValues(forKeys: [.volumeIsLocalKey]).volumeIsLocal) == false
     if isNetwork, info.state != .idle, let currentWindow {
       // Replace the player window with the loading window. Closing the player window will result in
       // an asynchronous stop command being sent to mpv. As described above, delay sending the
@@ -398,7 +400,8 @@ class PlayerCore: NSObject {
     }
     info.hdrEnabled = Preference.bool(for: .enableHdrSupport)
     let path = url.isFileURL ? url.path : url.absoluteString
-    openMainWindow(path: path, url: url, isNetwork: isNetwork)
+    openMainWindow(path: path, url: url, isNetwork: isNetwork,
+                   usesDiskCache: isNetwork || isRemoteFile)
   }
 
   /**
@@ -462,7 +465,7 @@ class PlayerCore: NSObject {
 
   func openURLString(_ str: String) {
     if str == "-" {
-      openMainWindow(path: str, url: URL(string: "stdin")!, isNetwork: false)
+      openMainWindow(path: str, url: URL(string: "stdin")!, isNetwork: false, usesDiskCache: false)
       return
     }
     if str.first == "/" {
@@ -487,7 +490,7 @@ class PlayerCore: NSObject {
   ///   - path: Path to the media to open.
   ///   - url: URL of the media to open.
   ///   - isNetwork: Whether the media must be streamed over the network.
-  private func openMainWindow(path: String, url: URL, isNetwork: Bool) {
+  private func openMainWindow(path: String, url: URL, isNetwork: Bool, usesDiskCache: Bool) {
     log("Opening \(path) in main window")
     info.currentURL = url
     info.mpvMd5 = Utility.mpvWatchLaterMd5(url, ignorePathInWatchLaterConfig)
@@ -528,6 +531,7 @@ class PlayerCore: NSObject {
     // Delay force-window until an actual file load to avoid Xcode-launched app startup hanging
     // while mpv tries to create a VO before IINA has entered its normal media-open path.
     mpv.setString(MPVOption.Window.forceWindow, "yes", level: .verbose)
+    mpv.setFlag(MPVOption.Cache.cacheOnDisk, usesDiskCache, level: .verbose)
 
     // Send load file command
     info.justOpenedFile = true

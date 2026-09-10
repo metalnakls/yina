@@ -487,6 +487,12 @@ class Utility {
     return url
   }()
 
+  static let networkMediaCacheURL: URL = {
+    let url = cacheURL.appendingPathComponent(AppData.networkMediaCacheFolder, isDirectory: true)
+    createDirIfNotExist(url: url)
+    return url
+  }()
+
   static let playbackHistoryURL: URL = {
     return Utility.appSupportDirUrl.appendingPathComponent(AppData.historyFile, isDirectory: false)
   }()
