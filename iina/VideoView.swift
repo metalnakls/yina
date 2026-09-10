@@ -465,8 +465,12 @@ extension VideoView {
       edrEnabled = requestEdrMode()
       setToneMappingForHDR()
     } else {
+#if IINA_ENABLE_METAL_RENDERER
+      edrEnabled = Preference.bool(for: .enableToneMapping) ? requestEdrModeForSDR() : false
+#else
       edrEnabled = false
-      setToneMappingForSDR()
+#endif
+      setToneMappingForSDR(usingEDR: edrEnabled == true)
     }
     let edrAvailable = edrEnabled != false
     if player.info.hdrAvailable != edrAvailable {
@@ -537,6 +541,10 @@ extension VideoView {
     videoLayer.colorspace = CGColorSpace(name: name)
 #endif
     mpv.setFlag(MPVOption.GPURendererOptions.iccProfileAuto, false)
+#if IINA_ENABLE_METAL_RENDERER
+    mpv.setFlag(MPVOption.GPURendererOptions.targetColorspaceHint, true)
+    mpv.setString(MPVOption.GPURendererOptions.targetColorspaceHintMode, "target")
+#endif
     mpv.setString(MPVOption.GPURendererOptions.targetPrim, primaries)
     // PQ videos will be display as it was, HLG videos will be converted to PQ
     mpv.setString(MPVOption.GPURendererOptions.targetTrc, "pq")
@@ -544,60 +552,118 @@ extension VideoView {
     return true
   }
 
+#if IINA_ENABLE_METAL_RENDERER
+  /// Ask mpv's gpu-next/libplacebo renderer to expand SDR into the display's EDR headroom.
+  ///
+  /// This keeps the conversion in mpv's per-frame color pipeline. IINA only selects an HDR output
+  /// colorspace and reports the display peak; it does not render a second copy or apply its own shader.
+  private func requestEdrModeForSDR() -> Bool? {
+    guard let mpv = player.mpv else { return false }
+
+    guard (window?.screen?.maximumPotentialExtendedDynamicRangeColorComponentValue ?? 1.0) > 1.0 else {
+      logHDR("Tone mapping is enabled but the display does not support EDR mode")
+      return false
+    }
+
+    guard player.info.hdrEnabled else { return nil }
+
+    logHDR("Using mpv inverse tone mapping for SDR video")
+    mpv.setFlag(MPVOption.GPURendererOptions.iccProfileAuto, false)
+    mpv.setFlag(MPVOption.GPURendererOptions.targetColorspaceHint, true)
+    mpv.setString(MPVOption.GPURendererOptions.targetColorspaceHintMode, "target")
+    mpv.setString(MPVOption.GPURendererOptions.targetPrim, "display-p3")
+    mpv.setString(MPVOption.GPURendererOptions.targetTrc, "pq")
+    mpv.setFlag(MPVOption.Screenshot.screenshotTagColorspace, true)
+    return true
+  }
+#endif
+
   /// Set the mpv tone mapping options appropriately for a HDR video.
   ///
   /// If tone mapping is enabled then this method will set the following mpv options based on IINA's tone mapping settings:
   /// - [target-peak](https://mpv.io/manual/stable/#options-target-peak)
   /// - [tone-mapping](https://mpv.io/manual/stable/#options-tone-mapping)
   ///
-  /// If the IINA `Target peak` setting is set to `0` then this method will attempt to determine peak brightness of the display.
+  /// Otherwise these options will be set to their default values.
   private func setToneMappingForHDR() {
-    guard let mpv = player.mpv, Preference.bool(for: .enableToneMapping) else { return }
-    var targetPeak = Preference.integer(for: .toneMappingTargetPeak)
-    // If the target peak is set to zero then IINA attempts to determine peak brightness of the
-    // display.
-    if targetPeak == 0 {
-      if let displayInfo = CoreDisplay_DisplayCreateInfoDictionary(currentDisplay!)?.takeRetainedValue()
-                as? [String: AnyObject] {
-        logHDR("Successfully obtained information about the display")
-        if let hdrLuminance = displayInfo["NonReferencePeakHDRLuminance"] as? Int {
-          logHDR("Found NonReferencePeakHDRLuminance: \(hdrLuminance)")
-          targetPeak = hdrLuminance
-        } else if let hdrLuminance = displayInfo["DisplayBacklight"] as? Int {
-          logHDR("Found DisplayBacklight: \(hdrLuminance)")
-          targetPeak = hdrLuminance
-        } else {
-          logHDR("Didn't find NonReferencePeakHDRLuminance or DisplayBacklight, assuming HDR400")
-          logHDR("Display info dictionary: \(displayInfo)")
-          targetPeak = 400
-        }
-      } else {
-        logHDR("Unable to obtain display information, assuming HDR400", level: .warning)
-        targetPeak = 400
-      }
+    guard let mpv = player.mpv else { return }
+    mpv.setFlag(MPVOption.GPURendererOptions.inverseToneMapping, false)
+    guard Preference.bool(for: .enableToneMapping) else {
+      // Reset options to their defaults.
+      mpv.setStringToDefault(MPVOption.GPURendererOptions.targetPeak)
+      mpv.setStringToDefault(MPVOption.GPURendererOptions.toneMapping)
+      return
     }
-    let algorithm = Preference.string(for: .toneMappingAlgorithm,
-                                      ofType: Preference.ToneMappingAlgorithmOption.self)
+    let targetPeak = toneMappingTargetPeak()
+    let algorithm = String(describing: Preference.enum(for: .toneMappingAlgorithm) as
+                           Preference.ToneMappingAlgorithmOption)
     logHDR("Will enable tone mapping: target-peak=\(targetPeak) algorithm=\(algorithm)")
-    mpv.setInt(MPVOption.GPURendererOptions.targetPeak, targetPeak)
+    mpv.setString(MPVOption.GPURendererOptions.targetPeak, targetPeak)
     mpv.setString(MPVOption.GPURendererOptions.toneMapping, algorithm)
   }
 
-  /// Set the mpv tone mapping options appropriately for a SDR video.
-  ///
-  /// If tone mapping is enabled then this method will set the following mpv options back to their default value (`auto`):
-  /// - [target-peak](https://mpv.io/manual/stable/#options-target-peak)
-  /// - [tone-mapping](https://mpv.io/manual/stable/#options-tone-mapping)
-  private func setToneMappingForSDR() {
-    guard let mpv = player.mpv, Preference.bool(for: .enableToneMapping) else { return }
-    logHDR("Will enable tone mapping: target-peak=auto algorithm=auto")
-    mpv.setString(MPVOption.GPURendererOptions.targetPeak, "auto")
-    mpv.setString(MPVOption.GPURendererOptions.toneMapping, "auto")
+  /// Return the output peak requested by the user, or IINA's best measurement of the display peak.
+  private func toneMappingTargetPeak() -> String {
+    if Preference.bool(for: .enableToneMappingTargetPeakOverride) {
+      return String(Preference.integer(for: .toneMappingTargetPeakOverride))
+    }
+
+    // mpv cannot query display brightness on macOS, so supply it when CoreDisplay exposes it.
+    var displayInfo: [String: AnyObject]?
+    if let currentDisplay {
+      displayInfo = CoreDisplay_DisplayCreateInfoDictionary(currentDisplay)?.takeRetainedValue()
+        as? [String: AnyObject]
+    }
+    if let displayInfo {
+      logHDR("Successfully obtained information about the display")
+      if let hdrLuminance = displayInfo["NonReferencePeakHDRLuminance"] as? Int {
+        logHDR("Found NonReferencePeakHDRLuminance: \(hdrLuminance)")
+        return String(hdrLuminance)
+      }
+      if let hdrLuminance = displayInfo["DisplayBacklight"] as? Int {
+        logHDR("Found DisplayBacklight: \(hdrLuminance)")
+        return String(hdrLuminance)
+      }
+      logHDR("Display info dictionary:" + displayInfo.toStringForLog(), level: .verbose)
+    } else {
+      logHDR("Unable to obtain CoreDisplay information", level: .warning)
+    }
+
+    if let screen = window?.screen {
+      let currentHeadroom = screen.maximumExtendedDynamicRangeColorComponentValue
+      if currentHeadroom > 1 {
+        let inferredPeak = Int((currentHeadroom * 203).rounded())
+        logHDR("Using current EDR headroom to infer display peak: \(inferredPeak)")
+        return String(inferredPeak)
+      }
+    }
+
+    logHDR("Didn't find display luminance or usable EDR headroom, using mpv auto mode")
+    return "auto"
+  }
+
+  /// Ask mpv to inverse-tone-map SDR into EDR when the display and renderer support it.
+  private func setToneMappingForSDR(usingEDR: Bool) {
+    guard let mpv = player.mpv else { return }
+    guard Preference.bool(for: .enableToneMapping), usingEDR else {
+      // Reset options to their defaults.
+      mpv.setStringToDefault(MPVOption.GPURendererOptions.inverseToneMapping)
+      mpv.setStringToDefault(MPVOption.GPURendererOptions.targetPeak)
+      mpv.setStringToDefault(MPVOption.GPURendererOptions.toneMapping)
+      return
+    }
+    let targetPeak = toneMappingTargetPeak()
+    let algorithm = String(describing: Preference.enum(for: .toneMappingAlgorithm) as
+                           Preference.ToneMappingAlgorithmOption)
+    logHDR("Will expand SDR into EDR: target-peak=\(targetPeak) algorithm=\(algorithm)")
+    mpv.setFlag(MPVOption.GPURendererOptions.inverseToneMapping, true)
+    mpv.setString(MPVOption.GPURendererOptions.targetPeak, targetPeak)
+    mpv.setString(MPVOption.GPURendererOptions.toneMapping, algorithm)
   }
 
   // MARK: - Utils
 
-  func logHDR(_ message: String, level: Logger.Level = .debug) {
+  func logHDR(_ message: @autoclosure () -> String, level: Logger.Level = .debug) {
     Logger.log(message, level: level, subsystem: hdrSubsystem)
   }
 
