@@ -56,7 +56,6 @@ class PlayerWindowController: NSWindowController, NSWindowDelegate {
     .themeMaterial,
     .showRemainingTime,
     .alwaysFloatOnTop,
-    .maxVolume,
     .useExactSeek,
     .relativeSeekAmount,
     .volumeScrollAmount,
@@ -91,13 +90,6 @@ class PlayerWindowController: NSWindowController, NSWindowDelegate {
       if let newValue = change[.newKey] as? Bool {
         if player.info.state == .playing {
           setWindowFloatingOnTop(newValue)
-        }
-      }
-    case PK.maxVolume.rawValue:
-      if let newValue = change[.newKey] as? Int {
-        volumeSlider.maxValue = Double(newValue)
-        if player.mpv.getDouble(MPVOption.Audio.volume) > Double(newValue) {
-          player.mpv.setDouble(MPVOption.Audio.volume, Double(newValue))
         }
       }
     case PK.useExactSeek.rawValue:
@@ -208,8 +200,8 @@ class PlayerWindowController: NSWindowController, NSWindowDelegate {
     volumeSlider.translatesAutoresizingMaskIntoConstraints = false
     volumeSlider.refusesFirstResponder = true
     volumeSlider.controlSize = .mini
-    volumeSlider.minValue = 0
-    volumeSlider.maxValue = Double(Preference.integer(for: .maxVolume))
+    volumeSlider.minValue = PlayerCore.minimumVolume
+    volumeSlider.maxValue = PlayerCore.maximumVolume
     volumeSlider.target = self
     volumeSlider.action = #selector(volumeSliderChanges)
 
@@ -693,7 +685,7 @@ class PlayerWindowController: NSWindowController, NSWindowDelegate {
 
   @IBAction func volumeSliderChanges(_ sender: NSSlider) {
     let value = sender.doubleValue
-    if Preference.double(for: .maxVolume) > 100, value > 100 && value < 101 {
+    if value > PlayerCore.minimumVolume && value < PlayerCore.minimumVolume + 1 {
       NSHapticFeedbackManager.defaultPerformer.perform(.generic, performanceTime: .default)
     }
     player.setVolume(value)
