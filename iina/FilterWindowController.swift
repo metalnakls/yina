@@ -527,7 +527,6 @@ class NewFilterSheetViewController: NSViewController, NSTableViewDelegate, NSTab
   }
 
   @IBAction func sheetAddBtnAction(_ sender: Any) {
-    filterWindow.window!.endSheet(filterWindow.newFilterSheet, returnCode: .OK)
     guard let preset = currentPreset else { return }
     // create instance
     let instance = FilterPresetInstance(from: preset)
@@ -543,8 +542,14 @@ class NewFilterSheetViewController: NSViewController, NSTableViewDelegate, NSTab
         instance.params[name] = FilterParameterValue(string: preset.params[name]!.choices[Int(control.intValue)])
       }
     }
-    // create filter
-    if filterWindow.addFilter(preset.transformer(instance)) {
+    // Validate custom filter syntax before closing the sheet. MPVFilter rejects malformed labels,
+    // such as a name beginning with "@" but lacking the required label separator.
+    guard let filter = preset.transformer(instance) else {
+      Utility.showAlert("filter.incorrect", sheetWindow: filterWindow.newFilterSheet)
+      return
+    }
+    filterWindow.window!.endSheet(filterWindow.newFilterSheet, returnCode: .OK)
+    if filterWindow.addFilter(filter) {
       PlayerCore.lastActive.sendOSD(.addFilter(preset.localizedName))
     }
   }

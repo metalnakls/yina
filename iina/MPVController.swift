@@ -436,8 +436,6 @@ class MPVController: NSObject {
 
     setUserOption(PK.subTextColorString, type: .color, forName: MPVOption.Subtitles.subColor,
                   verboseIfDefault: true)
-    setUserOption(PK.subBgColorString, type: .color, forName: MPVOption.Subtitles.subBackColor,
-                  verboseIfDefault: true)
 
     setUserOption(PK.subBold, type: .bool, forName: MPVOption.Subtitles.subBold,
                   verboseIfDefault: true)
@@ -458,6 +456,11 @@ class MPVController: NSObject {
                   verboseIfDefault: true)
     setUserOption(PK.subShadowColorString, type: .color, forName: MPVOption.Subtitles.subBackColor,
                   verboseIfDefault: true)
+
+    setUserOption(PK.subBorderStyle, type: .other, forName: MPVOption.Subtitles.subBorderStyle,
+                  verboseIfDefault: true) { key in
+      String(describing: Preference.enum(for: key) as Preference.SubBorderStyle)
+    }
 
     setUserOption(PK.subAlignX, type: .other, forName: MPVOption.Subtitles.subAlignX,
                   verboseIfDefault: true) { key in
@@ -622,30 +625,10 @@ class MPVController: NSObject {
     chkErr(mpv_initialize(mpv))
 
     // The option watch-later-options is not available until after the mpv instance is initialized.
-    // Workaround for mpv issue #14417, watch-later-options missing secondary subtitle delay and sid.
-    // Allow the user to override this workaround by setting this mpv option in advanced settings.
+    // Keep global subtitle preferences out of per-file watch-later state unless the user explicitly
+    // supplies a custom watch-later option list in advanced settings.
     if !userOptionsContains(MPVOption.WatchLater.watchLaterOptions),
        var watchLaterOptions = getString(MPVOption.WatchLater.watchLaterOptions) {
-
-      // In mpv 0.38.0 the default value for the watch-later-options property contains the options
-      // sid and sub-delay, but not the corresponding options for the secondary subtitle. This
-      // inconsistency is likely to confuse users, so insure the secondary options are also saved in
-      // watch later files. Issue #14417 has been fixed, so this workaround will not be needed after
-      // the next mpv upgrade.
-      var needsUpdate = false
-      if watchLaterOptions.contains(MPVOption.TrackSelection.sid),
-         !watchLaterOptions.contains(MPVOption.Subtitles.secondarySid) {
-        log("Adding \(MPVOption.Subtitles.secondarySid) to \(MPVOption.WatchLater.watchLaterOptions)")
-        watchLaterOptions += "," + MPVOption.Subtitles.secondarySid
-        needsUpdate = true
-      }
-      if watchLaterOptions.contains(MPVOption.Subtitles.subDelay),
-         !watchLaterOptions.contains(MPVOption.Subtitles.secondarySubDelay) {
-        log("Adding \(MPVOption.Subtitles.secondarySubDelay) to \(MPVOption.WatchLater.watchLaterOptions)")
-        watchLaterOptions += "," + MPVOption.Subtitles.secondarySubDelay
-        needsUpdate = true
-      }
-
       let globalSubtitleOptions: Set = [
         MPVOption.Subtitles.subScale,
         MPVOption.Subtitles.subPos,
@@ -660,12 +643,12 @@ class MPVController: NSObject {
       if filteredOptions.count != savedOptions.count {
         log("Removing global subtitle options from \(MPVOption.WatchLater.watchLaterOptions)")
         watchLaterOptions = filteredOptions.joined(separator: ",")
-        needsUpdate = true
-      }
-      if needsUpdate {
         chkErr(setOptionString(MPVOption.WatchLater.watchLaterOptions, watchLaterOptions, level: .verbose))
       }
     }
+
+    // Useful to log the value of this option as users often ask about what the Watch Later feature
+    // remembers.
     if let watchLaterOptions = getString(MPVOption.WatchLater.watchLaterOptions) {
       let sorted = watchLaterOptions.components(separatedBy: ",").sorted().joined(separator: ",")
       log("Options mpv is configured to save in watch later files: \(sorted)")
@@ -923,6 +906,16 @@ class MPVController: NSObject {
   @discardableResult
   func setString(_ name: String, _ value: String, level: Logger.Level = .debug) -> Int32 {
     log("Set property: \(name)=\(value)", level: level)
+    return mpv_set_property_string(mpv, name, value)
+  }
+
+  @discardableResult
+  func setStringToDefault(_ name: String, level: Logger.Level = .debug) -> Int32 {
+    guard let value = MPVOptionDefaults.shared.getString(name) else {
+      log("Failed to obtain default for option: \(name)", level: .error)
+      return MPV_ERROR_OPTION_NOT_FOUND.rawValue
+    }
+    log("Set property to default: \(name)=\(value)", level: level)
     return mpv_set_property_string(mpv, name, value)
   }
 

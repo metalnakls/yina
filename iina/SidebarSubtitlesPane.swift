@@ -468,13 +468,17 @@ fileprivate class SubStyleView: NSView {
     let stack = ui.vStack(
       spacing: .sidebarItemSpacing,
       scaleStack,
-      ui.hStack(
-        spacing: 8,
-        ui.image("textformat", size: 16, config: .sidebarIconConfig),
-        ui.label("sidebar.font", font: .boldSystemFont(ofSize: 12)),
-        ui.flexibleSpace(),
-        fontChooser,
-      ),
+      {
+        let label = ui.label("sidebar.font", font: .boldSystemFont(ofSize: 12))
+        label.setContentCompressionResistancePriority(.required, for: .horizontal)
+        return ui.hStack(
+          spacing: 8,
+          ui.image("textformat", size: 16, config: .sidebarIconConfig),
+          label,
+          ui.flexibleSpace(),
+          fontChooser,
+        )
+      }(),
       ui.hStack(
         spacing: 8,
         ui.image("paintpalette.fill", size: 16, config: .sidebarIconConfig),
@@ -484,19 +488,18 @@ fileprivate class SubStyleView: NSView {
       ),
       ui.hStack(
         spacing: 8,
-        ui.image("inset.filled.rectangle", "rectangle.inset.filled", "rectangle.inset.fill",
-                 size: 16, config: .sidebarIconConfig),
-        ui.label("sidebar.background", font: .boldSystemFont(ofSize: 12)),
-        ui.flexibleSpace(),
-        createColorWell(\.backgroundColorWell, tag: 2),
-      ),
-      ui.hStack(
-        spacing: 8,
-        ui.image("paintpalette.fill", size: 16, config: .sidebarIconConfig),
+        ui.image("inset.filled.circle.dashed", "circle.dashed.inset.filled", "circle.dashed.inset.fill", size: 16, config: .sidebarIconConfig),
         ui.label("sidebar.border", font: .boldSystemFont(ofSize: 12)),
         ui.flexibleSpace(),
         borderSizePicker,
         createColorWell(\.borderColorWell, tag: 3),
+      ),
+      ui.hStack(
+        spacing: 8,
+        ui.image("shadow", size: 16, config: .sidebarIconConfig),
+        ui.label("sidebar.shadow", font: .boldSystemFont(ofSize: 12)),
+        ui.flexibleSpace(),
+        createColorWell(\.backgroundColorWell, tag: 2),
       )
     )
 
@@ -508,7 +511,7 @@ fileprivate class SubStyleView: NSView {
     prefObserver.addAll([
       .subTextFont,
       .subTextColorString,
-      .subBgColorString,
+      .subShadowColorString,
       .subBorderSize,
       .subBorderColorString,
     ]) { [unowned self] _ in
@@ -553,7 +556,7 @@ fileprivate class SubStyleView: NSView {
     for (key, colorWell) in [
       (Preference.Key.subTextColorString, textColorWell),
       (Preference.Key.subBorderColorString, borderColorWell),
-      (Preference.Key.subBgColorString, backgroundColorWell),
+      (Preference.Key.subShadowColorString, backgroundColorWell),
     ] {
       if let colorString = Preference.string(for: key),
          let color = NSColor(mpvColorString: colorString) {

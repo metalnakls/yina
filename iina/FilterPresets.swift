@@ -14,7 +14,7 @@ fileprivate typealias PM = FilterParameter
  A filter preset or template, which contains the filter name and definitions of all parameters.
  */
 class FilterPreset {
-  typealias Transformer = (FilterPresetInstance) -> MPVFilter
+  typealias Transformer = (FilterPresetInstance) -> MPVFilter?
 
   private static let defaultTransformer: Transformer = { instance in
     return MPVFilter(lavfiFilterFromPresetInstance: instance)
@@ -166,7 +166,7 @@ extension FilterPreset {
   }()
 
   static private let customMPVFilterPreset = FilterPreset("custom_mpv", params: ["name": PM.text(defaultValue: ""), "string": PM.text(defaultValue: "")], paramOrder: "name:string") { instance in
-      return MPVFilter(rawString: instance.value(for: "name").stringValue + "=" + instance.value(for: "string").stringValue)!
+    MPVFilter(rawString: instance.value(for: "name").stringValue + "=" + instance.value(for: "string").stringValue)
   }
   // custom ffmpeg
   static private let customFFmpegFilterPreset = FilterPreset("custom_ffmpeg", params: [ "name": PM.text(defaultValue: ""), "string": PM.text(defaultValue: "") ], paramOrder: "name:string") { instance in

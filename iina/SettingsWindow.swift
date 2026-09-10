@@ -35,6 +35,7 @@ class SettingsWindow: CommonWindow {
   ])
 
   let sidebarList: NSTableView
+  private let sidebarScrollView: NSScrollView
   private let contentScrollView: NSScrollView
   private let highlightView: HighlightView
 
@@ -84,6 +85,7 @@ class SettingsWindow: CommonWindow {
     contentScrollView.autohidesScrollers = true
 
     self.sidebarList = NSTableView()
+    self.sidebarScrollView = NSScrollView()
     self.searchBox = NSSearchField()
     self.highlightView = HighlightView()
 
@@ -109,7 +111,6 @@ class SettingsWindow: CommonWindow {
     searchBox.target = self
     searchBox.action = #selector(searchBoxAction(_:))
 
-    let sidebarScrollView = NSScrollView()
     sidebarScrollView.hasVerticalScroller = true
     sidebarScrollView.autohidesScrollers = true
     sidebarScrollView.translatesAutoresizingMaskIntoConstraints = false
@@ -150,6 +151,9 @@ class SettingsWindow: CommonWindow {
 
     NotificationCenter.default.addObserver(self, selector: #selector(scrolled),
                                            name: NSView.boundsDidChangeNotification, object: nil)
+
+    NotificationCenter.default.addObserver(self, selector: #selector(syncSidebarTableHeight),
+                                           name: NSView.boundsDidChangeNotification, object: sidebarScrollView.contentView)
 
     // Add the sidebar and content view controllers to the split view
     let sidebarSplitItem = NSSplitViewItem(sidebarWithViewController: sidebarViewController)
@@ -230,6 +234,18 @@ class SettingsWindow: CommonWindow {
   @objc func scrolled(_ notification: Notification) {
     titlebarAppearsTransparent = contentScrollView.contentView.bounds.origin.y <= -52
     updateSectionIndicator()
+  }
+
+  // NSTableView's own `.frame.height` can desync from what its rows actually need after an
+  // animated insertRows/removeRows. See https://github.com/iina/iina/issues/6320 for details.
+  // Consider remove it when deprecating macOS 12 Monterey.
+  @objc private func syncSidebarTableHeight() {
+    let rowCount = sidebarList.numberOfRows
+    let totalHeight = rowCount > 0 ? sidebarList.rect(ofRow: rowCount - 1).maxY : 0
+    guard abs(sidebarList.frame.height - totalHeight) > 0.5 else { return }
+    var frame = sidebarList.frame
+    frame.size.height = totalHeight
+    sidebarList.setFrameSize(frame.size)
   }
 
   private func updateSectionIndicator() {
@@ -833,6 +849,7 @@ extension SettingsWindow: NSTableViewDataSource, NSTableViewDelegate {
       tableView.insertRows(at: IndexSet(integer: newIndicatorRow), withAnimation: options)
     }
     tableView.endUpdates()
+    syncSidebarTableHeight()
   }
 }
 
