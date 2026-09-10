@@ -523,6 +523,8 @@ class MPVController: NSObject {
       return "\(Preference.integer(for: key))KiB"
     }
     setUserOption(PK.secPrefech, type: .int, forName: MPVOption.Cache.cacheSecs, verboseIfDefault: true)
+    chkErr(setOptionString(MPVOption.Cache.demuxerCacheDir,
+                           Utility.networkMediaCacheURL.path, level: .verbose))
 
     setUserOption(PK.userAgent, type: .other, forName: MPVOption.Network.userAgent,
                   verboseIfDefault: true) { key in
