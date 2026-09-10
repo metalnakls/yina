@@ -386,6 +386,7 @@ class InitialWindowController: NSWindowController {
       }
     }
     let dismissals = ShowFolderDismissalStore.dismissedAtByFolder()
+    let cachedFolderPaths = ShowFolderSnapshotStore.load()
     let excludedContainerPaths = Self.nonShowContainerPaths()
     let historyGroupedPaths = ShowFolder.groupedFolderPaths(from: historyItems,
                                                             volumeRootPaths: excludedContainerPaths)
@@ -401,8 +402,18 @@ class InitialWindowController: NSWindowController {
     availabilityQueue.async { [weak self] in
       var folderPaths = historyGroupedPaths
       for folderURL in candidateFolders {
-        if self?.folderClassificationCache.isShowFolder(folderURL, playableExtensions: playableExtensions) == true {
+        switch self?.folderClassificationCache.classification(of: folderURL,
+                                                               playableExtensions: playableExtensions) {
+        case .show:
           folderPaths.insert(folderURL.standardizedFileURL.path)
+        case .unavailable where cachedFolderPaths.contains(folderURL.standardizedFileURL.path):
+          // A persisted card is proof that this was a real show folder while
+          // the volume was reachable. Rebuild it from current history so its
+          // progress and episode remain current, but keep it glass-only until
+          // the source can be validated again.
+          folderPaths.insert(folderURL.standardizedFileURL.path)
+        case .notShow, .unavailable, .none:
+          break
         }
       }
 
@@ -425,6 +436,9 @@ class InitialWindowController: NSWindowController {
         let previousCardIdentities = self.showFolders.map(\.identityPath)
         let cardIdentities = cards.map(\.identityPath)
         self.showFolders = cards
+        ShowFolderSnapshotStore.save(Set(cards.compactMap {
+          $0.kind == .folder ? $0.folderURL.standardizedFileURL.path : nil
+        }))
         self.showFolderShelf.reload(shows: cards,
                                     target: self,
                                     openAction: #selector(self.openShowFolderCard(_:)),
@@ -525,6 +539,9 @@ class InitialWindowController: NSWindowController {
           let show = showFolders.first(where: { $0.identityPath == identifier }) else { return }
     ShowFolderDismissalStore.dismiss(show)
     showFolders.removeAll { $0.identityPath == identifier }
+    ShowFolderSnapshotStore.save(Set(showFolders.compactMap {
+      $0.kind == .folder ? $0.folderURL.standardizedFileURL.path : nil
+    }))
     showFolderShelf.dismissCard(for: show) { [weak self] in
       guard let self else { return }
       self.showFolderHeader.isHidden = self.showFolders.isEmpty
@@ -787,16 +804,31 @@ private final class WelcomeWindowCoordinator {
 
 /// Filesystem classification is only performed once per folder generation. The
 /// workspace mount/unmount event invalidates it before any new result publishes.
-private final class WelcomeFolderClassificationCache {
-  private let lock = NSLock()
-  private var values: [String: Bool] = [:]
+private enum WelcomeFolderClassification {
+  case show
+  case notShow
+  case unavailable
+}
 
-  func isShowFolder(_ folderURL: URL, playableExtensions: Set<String>) -> Bool {
+private final class WelcomeFolderClassificationCache {
+  private struct Entry {
+    let modificationDate: Date?
+    let isShow: Bool
+  }
+
+  private let lock = NSLock()
+  private var values: [String: Entry] = [:]
+
+  func classification(of folderURL: URL,
+                      playableExtensions: Set<String>) -> WelcomeFolderClassification {
     let path = folderURL.standardizedFileURL.path
+    guard let resourceValues = try? folderURL.resourceValues(forKeys: [.isDirectoryKey, .contentModificationDateKey]),
+          resourceValues.isDirectory == true else { return .unavailable }
+    let modificationDate = resourceValues.contentModificationDate
     lock.lock()
-    if let value = values[path] {
+    if let entry = values[path], entry.modificationDate == modificationDate {
       lock.unlock()
-      return value
+      return entry.isShow ? .show : .notShow
     }
     lock.unlock()
 
@@ -809,12 +841,12 @@ private final class WelcomeFolderClassificationCache {
       at: folderURL, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles]) {
       result = contents.lazy.filter { playableExtensions.contains($0.pathExtension.lowercased()) }.prefix(2).count == 2
     } else {
-      result = false
+      return .unavailable
     }
     lock.lock()
-    values[path] = result
+    values[path] = Entry(modificationDate: modificationDate, isShow: result)
     lock.unlock()
-    return result
+    return result ? .show : .notShow
   }
 
   func invalidate() {

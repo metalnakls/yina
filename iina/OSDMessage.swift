@@ -190,7 +190,9 @@ enum OSDMessage {
 
     case .volume(let value):
       let text = String(format: NSLocalizedString("osd.volume", comment: "Volume: %@"), String(format: "%.0f", value))
-      return (text, .withProgress(value / Preference.double(for: .maxVolume)))
+      let gainProgress = (value - PlayerCore.minimumVolume) /
+        (PlayerCore.maximumVolume - PlayerCore.minimumVolume)
+      return (text, .withProgress(gainProgress))
 
     case .speed(let value):
       return (

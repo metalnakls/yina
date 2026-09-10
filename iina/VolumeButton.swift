@@ -58,16 +58,9 @@ class VolumeButton: NSView {
       let name = "speaker.slash.fill"
       return (.sf(name), name)
     }
-    let volume = Int(player.info.volume)
-    guard volume >= 0 else {
-      return (nil, "")
-    }
-    let symbol = switch Int(player.info.volume) {
-    case 0: "speaker.fill"
-    case 1...33: "speaker.wave.1.fill"
-    case 34...66: "speaker.wave.2.fill"
-    default: "speaker.wave.3.fill"
-    }
+    let symbol = player.info.volume > PlayerCore.minimumVolume
+      ? "speaker.wave.3.fill"
+      : "speaker.fill"
     let configuration = NSImage.SymbolConfiguration(pointSize: 13, weight: .regular)
     return (.sf(symbol, withConfiguration: configuration), symbol)
   }

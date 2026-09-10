@@ -86,19 +86,6 @@ class SettingsPageAudio: SettingsPage {
   private func sectionVolume() -> SettingsSection {
     return section {
       SettingsList(title: .text_Volume) {
-        SettingsItem.SwitchWithInput()
-          .image(name: "speaker.wave.3")
-          .labelKey(.enableInitialVolume)
-          .bindInputTo(.initialVolume)
-          .bindSwitchTo(.enableInitialVolume)
-          .range(0...1000) // mpv option is a float, but IINA uses integers for volume.
-        SettingsItem.Input()
-          .bindTo(.maxVolume)
-          .range(100...1000)
-          .hasDescription()
-      }
-
-      SettingsList {
         SettingsItem.PopupButton()
           .image(name: "speaker.plus")
           .bindTo(.replayGain, ofType: Preference.ReplayGainOption.self)

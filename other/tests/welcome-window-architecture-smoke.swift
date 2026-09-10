@@ -19,6 +19,9 @@ import Foundation
     precondition(welcome.contains("thumbWidth: 480"))
     precondition(welcome.contains("cancelArtworkRequests()"))
     precondition(welcome.contains("WelcomeFolderClassificationCache"))
+    precondition(welcome.contains("ShowFolderSnapshotStore.load"))
+    precondition(welcome.contains("ShowFolderSnapshotStore.save"))
+    precondition(welcome.contains("case .unavailable where cachedFolderPaths.contains"))
     let shelfAccessoryStart = welcome.range(of: "private func configureShelfAccessory()")!.lowerBound
     let shelfAccessoryEnd = welcome.range(of: "override func showWindow", range: shelfAccessoryStart..<welcome.endIndex)!.lowerBound
     let shelfAccessory = welcome[shelfAccessoryStart..<shelfAccessoryEnd]
