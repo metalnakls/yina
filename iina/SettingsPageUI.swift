@@ -60,7 +60,7 @@ class SettingsPageUI: SettingsPage {
           .image(name: "moonphase.first.quarter")
           .bindTo(.themeMaterial, ofType: Preference.Theme.self)
         SettingsItem.General(title: .general("sidebar.liquid_glass"))
-          .image(name: "liquid.glass")
+          .image(name: ["capsule.on.rectangle.liquid.glass", "liquid.glass"])
           .withExpandingDetailView {
             SettingsItem.Switch(title: .text_OnScreenDisplay)
               .bindTo(.useLiquidGlassOSD)

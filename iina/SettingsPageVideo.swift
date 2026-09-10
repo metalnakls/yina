@@ -49,9 +49,11 @@ class SettingsPageVideo: SettingsPage {
             SettingsAccessory.Selection()
               .bindTo(.hardwareDecoder, ofType: Preference.HardwareDecoderOption.self)
           )
+#if !arch(arm64)
         SettingsItem.Switch()
           .bindTo(.forceDedicatedGPU)
           .hasDescription()
+#endif
       }
     }
   }
@@ -89,15 +91,17 @@ class SettingsPageVideo: SettingsPage {
           .bindTo(.enableToneMapping)
           .withHelpLink(AppData.toneMappingHelpLink)
           .withDetailView {
-            SettingsItem.Input()
-              .bindTo(.toneMappingTargetPeak)
-              .range(0...10000)  // mpv option is "auto" or 10...10000, todo align with mpv.
+            SettingsItem.SwitchWithInput()
+              .labelKey(.toneMappingTargetPeak)
+              .bindInputTo(.toneMappingTargetPeakOverride)
+              .bindSwitchTo(.enableToneMappingTargetPeakOverride)
+              .range(10...10000)  // mpv option is "auto" or 10...10000.
               .trailingLabel(.text_nits)
               .hasDescription()
-              .withHelpLink(AppData.targetPeakHelpLink)
+              .withHelpLink(AppData.mpvManualLink.appending("/#options-target-peak"))
             SettingsItem.PopupButton()
               .bindTo(.toneMappingAlgorithm, ofType: Preference.ToneMappingAlgorithmOption.self)
-              .withHelpLink(AppData.algorithmHelpLink)
+              .withHelpLink(AppData.mpvManualLink.appending("/#options-tone-mapping"))
           }
       }
     }

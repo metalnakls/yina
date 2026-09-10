@@ -1984,7 +1984,7 @@ class PlayerCore: NSObject {
   }
 
   func setSubTextBgColor(_ colorString: String) {
-    Preference.set(colorString, for: .subBgColorString)
+    Preference.set(colorString, for: .subShadowColorString)
   }
 
   func setSubEncoding(_ encoding: String) {
