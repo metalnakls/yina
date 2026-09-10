@@ -247,7 +247,7 @@ class MiniPlayerWindowController: PlayerWindowController, NSPopoverDelegate {
     volumeContainerTrailingConstraint.isActive = true
 
     volumeControlContainer.addSubview(volumeSlider)
-    volumeSlider.maxValue = Double(Preference.integer(for: .maxVolume))
+    volumeSlider.maxValue = PlayerCore.maximumVolume
     volumeSlider.size(width: 100)
       .padding(.vertical(12), .leading(45))
 

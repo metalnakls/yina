@@ -250,13 +250,9 @@ class MPVController: NSObject {
 
     // User default settings
 
-    if Preference.bool(for: .enableInitialVolume) {
-      setUserOption(PK.initialVolume, type: .int, forName: MPVOption.Audio.volume, sync: false,
-                    level: .verbose)
-    } else {
-      setUserOption(PK.softVolume, type: .int, forName: MPVOption.Audio.volume, sync: false,
-                    level: .verbose)
-    }
+    let volume = Preference.double(for: .softVolume)
+      .clamped(to: PlayerCore.minimumVolume...PlayerCore.maximumVolume)
+    chkErr(setOptionInt(MPVOption.Audio.volume, Int(volume), level: .verbose))
 
     // - Advanced
 
@@ -352,7 +348,7 @@ class MPVController: NSObject {
 
     setUserOption(PK.audioLanguage, type: .string, forName: MPVOption.TrackSelection.alang,
                   level: .verbose)
-    setUserOption(PK.maxVolume, type: .int, forName: MPVOption.Audio.volumeMax, level: .verbose)
+    chkErr(setOptionInt(MPVOption.Audio.volumeMax, Int(PlayerCore.maximumVolume), level: .verbose))
 
     let spdifValue = { (key: Preference.Key) -> String in
       var spdif: [String] = []
@@ -1429,6 +1425,10 @@ class MPVController: NSObject {
         break
       }
       DispatchQueue.main.async { [self] in
+        guard data >= PlayerCore.minimumVolume else {
+          player.setVolume(PlayerCore.minimumVolume)
+          return
+        }
         player.info.volume = data
         player.syncUI(.volume)
         player.sendOSD(.volume(data))

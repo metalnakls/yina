@@ -9,6 +9,9 @@
 import Cocoa
 
 class PlayerCore: NSObject {
+  static let minimumVolume = 100.0
+  static let maximumVolume = 400.0
+
   private lazy var subtitleDissolve = SubtitleDissolve(mpv: mpv)
 
   func finishSubtitleDissolve() { subtitleDissolve.finish() }
@@ -1234,14 +1237,12 @@ class PlayerCore: NSObject {
     postNotification(.iinaPlaylistChanged)
   }
 
-  func setVolume(_ volume: Double, constrain: Bool = true) {
-    let maxVolume = Preference.integer(for: .maxVolume)
-    let constrainedVolume = volume.clamped(to: 0...Double(maxVolume))
-    let appliedVolume = constrain ? constrainedVolume : volume
+  func setVolume(_ volume: Double) {
+    let constrainedVolume = volume.clamped(to: Self.minimumVolume...Self.maximumVolume)
     let shouldSendConstrainedVolumeOSD =
-      constrain && volume != constrainedVolume && info.volume == appliedVolume
-    info.volume = appliedVolume
-    mpv.setDouble(MPVOption.Audio.volume, appliedVolume, level: .verbose)
+      volume != constrainedVolume && info.volume == constrainedVolume
+    info.volume = constrainedVolume
+    mpv.setDouble(MPVOption.Audio.volume, constrainedVolume, level: .verbose)
     Preference.set(constrainedVolume, for: .softVolume)
     if shouldSendConstrainedVolumeOSD {
       // mpv won't send MPV_EVENT_PROPERTY_CHANGE if the volume is unchanged.
