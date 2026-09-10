@@ -54,7 +54,7 @@ struct ShowFolder: Equatable {
       $0.url.deletingLastPathComponent().standardizedFileURL.path
     }
     return Set(grouped.compactMap { path, entries in
-      guard !volumeRootPaths.contains(path),
+      guard !volumeRootPaths.contains(path), !isVolumeRootPath(path),
             Set(entries.map { $0.url.standardizedFileURL.path }).count >= 2 else { return nil }
       return path
     })
@@ -76,7 +76,7 @@ struct ShowFolder: Equatable {
       let isShowFolder = folderPaths?.contains(folderURL.path) ?? (distinctFiles.count >= 2)
       guard isShowFolder,
             now.timeIntervalSince(latest.lastPlayedAt) <= inactivityInterval else { return nil }
-      guard !volumeRootPaths.contains(folderURL.path) else { return nil }
+      guard !volumeRootPaths.contains(folderURL.path), !isVolumeRootPath(folderURL.path) else { return nil }
       if let dismissedAt = dismissedAtByFolder[folderURL.path], latest.lastPlayedAt <= dismissedAt {
         return nil
       }
@@ -122,6 +122,25 @@ struct ShowFolder: Equatable {
     Set(FileManager.default.mountedVolumeURLs(includingResourceValuesForKeys: nil,
                                                options: [.skipHiddenVolumes])?
       .map { $0.standardizedFileURL.path } ?? [])
+  }
+
+  /// A disconnected share is no longer reported by the workspace as mounted,
+  /// but history URLs still identify the mount root unambiguously.
+  static func isVolumeRootPath(_ path: String) -> Bool {
+    URL(fileURLWithPath: path, isDirectory: true).standardizedFileURL
+      .deletingLastPathComponent().path == "/Volumes"
+  }
+}
+
+enum ShowFolderSnapshotStore {
+  private static let key = "IINAWelcomeShelfSnapshotV1"
+
+  static func load(defaults: UserDefaults = .standard) -> Set<String> {
+    Set(defaults.stringArray(forKey: key) ?? [])
+  }
+
+  static func save(_ folderPaths: Set<String>, defaults: UserDefaults = .standard) {
+    defaults.set(folderPaths.sorted(), forKey: key)
   }
 }
 
@@ -599,14 +618,14 @@ private final class ShowFolderArtworkView: NSView {
     placeholderView.isHidden = true
     let reducedMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ||
       UserDefaults.standard.bool(forKey: "disableAnimations")
-    let fadeDuration = reducedMotion ? 0 : 0.28
+    let fadeDuration = reducedMotion ? 0 : 1.8
     guard fadeDuration > 0, alphaValue < 0.99 else {
       alphaValue = 1
       return
     }
     NSAnimationContext.runAnimationGroup { context in
       context.duration = fadeDuration
-      context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+      context.timingFunction = CAMediaTimingFunction(name: .easeOut)
       animator().alphaValue = 1
     }
   }

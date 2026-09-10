@@ -894,7 +894,6 @@ class MenuController: NSObject, NSMenuDelegate {
       (doubleSize, false, ["set", "window-scale", "2"], true, nil, nil),
       (fullScreen, false, ["cycle", "fullscreen"], false, nil, nil),
       (alwaysOnTop, false, ["cycle", "ontop"], false, nil, nil),
-      (mute, false, ["cycle", "mute"], false, nil, nil),
       (increaseVolume, false, ["add", "volume", "5"], true, 5.0...10.0, "volume_up"),
       (decreaseVolume, false, ["add", "volume", "-5"], true, -10.0...(-5.0), "volume_down"),
       (increaseVolumeSlightly, false, ["add", "volume", "1"], true, 1.0...2.0, "volume_up"),

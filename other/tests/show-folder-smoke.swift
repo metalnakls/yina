@@ -25,6 +25,23 @@ import Foundation
                                         item("S01E02.mkv", ageDays: 32)], now: now).isEmpty)
     precondition(ShowFolder.make(from: [item("S01E01.mkv", ageDays: 29),
                                         item("S01E02.mkv", ageDays: 31)], now: now).count == 1)
+
+    let shareRoot = URL(fileURLWithPath: "/Volumes/and", isDirectory: true)
+    let shareRootItems = [
+      ShowFolderHistoryItem(url: shareRoot.appendingPathComponent("Superbad.mkv"),
+                            lastPlayedAt: now, position: 0, duration: 100,
+                            displayTitle: "Superbad", thumbnailCacheName: "superbad"),
+      ShowFolderHistoryItem(url: shareRoot.appendingPathComponent("Other.mkv"),
+                            lastPlayedAt: now.addingTimeInterval(-1), position: 0, duration: 100,
+                            displayTitle: "Other", thumbnailCacheName: "other"),
+    ]
+    precondition(ShowFolder.isVolumeRootPath("/Volumes/and"))
+    precondition(ShowFolder.make(from: shareRootItems).isEmpty)
+
+    let defaults = UserDefaults(suiteName: "ShowFolderSmoke-\(UUID().uuidString)")!
+    let cachedPaths = Set([shows[0].folderURL.standardizedFileURL.path])
+    ShowFolderSnapshotStore.save(cachedPaths, defaults: defaults)
+    precondition(ShowFolderSnapshotStore.load(defaults: defaults) == cachedPaths)
     print("PASS: show folders group repeated files, resume personal latest progress, exclude films, and expire after 30 days.")
   }
 }
