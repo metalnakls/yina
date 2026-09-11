@@ -917,7 +917,7 @@ class InitialWindowContentView: NSView {
   }
 
   override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
-    return player.openFromPasteboard(sender)
+    return player.openFromPasteboard(sender, useGlobalOpenRouting: true)
   }
 
 }
