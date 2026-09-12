@@ -313,6 +313,8 @@
 		E38099C92FC05B2E00D3333E /* SettingsPageSubtitles.swift in Sources */ = {isa = PBXBuildFile; fileRef = E38099BE2FC05B2E00D3333E /* SettingsPageSubtitles.swift */; };
 		E38099CA2FC05B2E00D3333E /* SettingsPageUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = E38099BF2FC05B2E00D3333E /* SettingsPageUI.swift */; };
 		E38099CB2FC05B2E00D3333E /* SettingsPageUtilities.swift in Sources */ = {isa = PBXBuildFile; fileRef = E38099C02FC05B2E00D3333E /* SettingsPageUtilities.swift */; };
+		7FA364E0D900440FDDFB3848 /* DefaultApplicationSetter.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA6261B6B7303FCE1E585D69 /* DefaultApplicationSetter.swift */; };
+		A67EFAA8AC5541F4CAC9739E /* DefaultAppUTITargets.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2E0D3C71DB1354DBBC4E0FB /* DefaultAppUTITargets.swift */; };
 		E38372922443634500F57718 /* LanguageTokenField.swift in Sources */ = {isa = PBXBuildFile; fileRef = E38372912443634500F57718 /* LanguageTokenField.swift */; };
 		E3839C5724FFF201007D0AB4 /* PluginStandaloneWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3839C5624FFF201007D0AB4 /* PluginStandaloneWindow.swift */; };
 		E3839C5924FFF817007D0AB4 /* JavascriptAPIStandaloneWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3839C5824FFF817007D0AB4 /* JavascriptAPIStandaloneWindow.swift */; };
@@ -1350,6 +1352,8 @@
 		E38099BE2FC05B2E00D3333E /* SettingsPageSubtitles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsPageSubtitles.swift; sourceTree = "<group>"; };
 		E38099BF2FC05B2E00D3333E /* SettingsPageUI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsPageUI.swift; sourceTree = "<group>"; };
 		E38099C02FC05B2E00D3333E /* SettingsPageUtilities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsPageUtilities.swift; sourceTree = "<group>"; };
+		EA6261B6B7303FCE1E585D69 /* DefaultApplicationSetter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefaultApplicationSetter.swift; sourceTree = "<group>"; };
+		A2E0D3C71DB1354DBBC4E0FB /* DefaultAppUTITargets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefaultAppUTITargets.swift; sourceTree = "<group>"; };
 		E38372912443634500F57718 /* LanguageTokenField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LanguageTokenField.swift; sourceTree = "<group>"; };
 		E3839C5624FFF201007D0AB4 /* PluginStandaloneWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginStandaloneWindow.swift; sourceTree = "<group>"; };
 		E3839C5824FFF817007D0AB4 /* JavascriptAPIStandaloneWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JavascriptAPIStandaloneWindow.swift; sourceTree = "<group>"; };
@@ -2126,6 +2130,8 @@
 				E38099BE2FC05B2E00D3333E /* SettingsPageSubtitles.swift */,
 				E38099BF2FC05B2E00D3333E /* SettingsPageUI.swift */,
 				E38099C02FC05B2E00D3333E /* SettingsPageUtilities.swift */,
+				EA6261B6B7303FCE1E585D69 /* DefaultApplicationSetter.swift */,
+				A2E0D3C71DB1354DBBC4E0FB /* DefaultAppUTITargets.swift */,
 				E3BBBBBB0000000000000001 /* SettingsPageVideo.swift */,
 				E3BBBBBB0000000000000003 /* SettingsPageAudio.swift */,
 			);
@@ -2612,6 +2618,8 @@
 				E38099C92FC05B2E00D3333E /* SettingsPageSubtitles.swift in Sources */,
 				E38099CA2FC05B2E00D3333E /* SettingsPageUI.swift in Sources */,
 				E38099CB2FC05B2E00D3333E /* SettingsPageUtilities.swift in Sources */,
+				7FA364E0D900440FDDFB3848 /* DefaultApplicationSetter.swift in Sources */,
+				A67EFAA8AC5541F4CAC9739E /* DefaultAppUTITargets.swift in Sources */,
 				E3AD62792FF8C19A00D2CAC5 /* VolumeButton.swift in Sources */,
 				E3A239AC2FC70EC300CE6ACC /* AdditionalInfoView.swift in Sources */,
 				E3C2280B2FDFB7C7009A1A89 /* SidebarAudioPane.swift in Sources */,
