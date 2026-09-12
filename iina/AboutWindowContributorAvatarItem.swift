@@ -8,39 +8,48 @@
 
 import Cocoa
 import Just
+import SwiftUI
 
-class AboutWindowContributorAvatarItem: NSCollectionViewItem {
-
+private final class AboutWindowContributorAvatarLoader: ObservableObject {
   static let imageCache = NSCache<NSString, NSImage>()
 
-  override func viewDidLoad() {
-    guard let imageView else { return }
-    imageView.wantsLayer = true
-    imageView.layer?.shadowColor = NSColor.controlBackgroundColor.cgColor
-    imageView.layer?.shadowOffset = CGSize(width: 0, height: 1)
-    imageView.layer?.shadowRadius = 2
+  @Published private(set) var image: NSImage?
+
+  init(avatarURL: String) {
+    if let cachedImage = Self.imageCache.object(forKey: avatarURL as NSString) {
+      image = cachedImage
+      return
+    }
+
+    Just.get(avatarURL, asyncCompletionHandler: { [weak self] response in
+      guard let data = response.content, var image = NSImage(data: data) else { return }
+      image = image.rounded()
+      Self.imageCache.setObject(image, forKey: avatarURL as NSString)
+      DispatchQueue.main.async {
+        self?.image = image
+      }
+    })
+  }
+}
+
+struct AboutWindowContributorAvatarItem: View {
+  @StateObject private var loader: AboutWindowContributorAvatarLoader
+
+  init(avatarURL: String) {
+    _loader = StateObject(wrappedValue: AboutWindowContributorAvatarLoader(avatarURL: avatarURL))
   }
 
-  override func viewDidLayout() {
-    guard let imageView else { return }
-    imageView.layer?.cornerRadius = imageView.frame.width / 2
-  }
-
-  var avatarURL: String? {
-    didSet {
-      guard let url = avatarURL else { return }
-      if let data = AboutWindowContributorAvatarItem.imageCache.object(forKey: url as NSString) {
-        self.imageView!.image = data
+  var body: some View {
+    Group {
+      if let image = loader.image {
+        Image(nsImage: image)
+          .resizable()
+          .scaledToFill()
       } else {
-        Just.get(url, asyncCompletionHandler: { respond in
-          guard let data = respond.content, var image = NSImage(data: data) else { return }
-          image = image.rounded()
-          DispatchQueue.main.async {
-            self.imageView!.image = image
-          }
-          AboutWindowContributorAvatarItem.imageCache.setObject(image, forKey: url as NSString)
-        })
+        Color.clear
       }
     }
+    .clipShape(Circle())
+    .shadow(color: Color(nsColor: .controlBackgroundColor), radius: 2, x: 0, y: -1)
   }
 }

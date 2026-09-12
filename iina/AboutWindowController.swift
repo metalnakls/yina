@@ -8,201 +8,310 @@
 
 import Cocoa
 import Just
+import SwiftUI
 
-fileprivate extension NSUserInterfaceItemIdentifier {
-  static let dataSourceItem = NSUserInterfaceItemIdentifier(rawValue: "dataSourceItem")
-}
-
-struct Contributor: Decodable {
+struct Contributor: Decodable, Identifiable {
   let avatarURL: String
+
+  var id: String { avatarURL }
 
   enum CodingKeys: String, CodingKey {
     case avatarURL = "avatar_url"
   }
 }
 
-class AboutWindowController: NSWindowController {
+private enum AboutLocalizedString {
+  static let title = value("F0z-JX-Cv5.title", fallback: "About")
+  static let license = value("jEf-xN-6xb.title", fallback: "License")
+  static let contributors = value("XWg-VQ-fRV.title", fallback: "Contributors")
+  static let credits = value("zCH-uO-acx.title", fallback: "Credits")
+  static let translators = value("JlJ-V6-PVY.title", fallback: "Translators:")
+  static let localizationCredit = value("HLj-vT-kNp.title", fallback: "IINA localization is powered by Crowdin.")
 
-  override var windowNibName: NSNib.Name {
-    return NSNib.Name("AboutWindowController")
+  private static func value(_ key: String, fallback: String) -> String {
+    NSLocalizedString(key, tableName: "AboutWindowController", bundle: .main, value: fallback, comment: "")
   }
+}
 
-  @IBOutlet weak var windowBackgroundBox: NSBox!
-  @IBOutlet weak var iconImageView: NSImageView!
-  @IBOutlet weak var iinaLabel: NSTextField! {
-    didSet {
-      iinaLabel.font = NSFont.systemFont(ofSize: 24, weight: .light)
-    }
-  }
-  @IBOutlet weak var versionLabel: NSTextField!
-  @IBOutlet weak var mpvVersionLabel: NSTextField!
-  @IBOutlet weak var ffmpegVersionLabel: NSTextField!
-  @IBOutlet weak var buildView: NSView!
-  @IBOutlet weak var buildBranchButton: NSButton!
-  @IBOutlet weak var buildDateLabel: NSTextField!
+private struct AboutBuildInfo {
+  let version: String
+  let mpvVersion: String
+  let ffmpegVersion: String
+  let branch: String?
+  let date: String?
+  let commitURL: URL?
 
-  @IBOutlet var detailTextView: NSTextView!
-  @IBOutlet var creditsTextView: NSTextView!
-
-  @IBOutlet weak var licenseButton: AboutWindowButton!
-  @IBOutlet weak var contributorsButton: AboutWindowButton!
-  @IBOutlet weak var creditsButton: AboutWindowButton!
-  @IBOutlet weak var tabView: NSTabView!
-  @IBOutlet weak var contributorsCollectionView: NSCollectionView!
-  @IBOutlet weak var contributorsFooterView: NSVisualEffectView!
-
-  private lazy var contributors = getContributors()
-
-  override func windowDidLoad() {
-    super.windowDidLoad()
-
-    window?.titlebarAppearsTransparent = true
-    window?.titleVisibility = .hidden
-
-    windowBackgroundBox.fillColor = .windowBackgroundColor
-    iconImageView.image = NSApp.applicationIconImage
-
+  init() {
     let (version, build) = InfoDictionary.shared.version
-    versionLabel.stringValue = "\(version) Build \(build)"
+    self.version = "\(version) Build \(build)"
+    mpvVersion = MPVOptionDefaults.shared.mpvVersion
+    ffmpegVersion = "FFmpeg \(String(cString: av_version_info()))"
 
-    mpvVersionLabel.stringValue = MPVOptionDefaults.shared.mpvVersion
-    ffmpegVersionLabel.stringValue = "FFmpeg \(String(cString: av_version_info()))"
-
-    // Use a localized date for the build date.
-    let toString = DateFormatter()
-    toString.dateStyle = .medium
-    toString.timeStyle = .medium
+    let formatter = DateFormatter()
+    formatter.dateStyle = .medium
+    formatter.timeStyle = .medium
 
     switch InfoDictionary.shared.buildType {
     case .nightly:
       if let buildDate = InfoDictionary.shared.buildDate,
          let buildSHA = InfoDictionary.shared.shortCommitSHA {
-        buildDateLabel.stringValue = toString.string(from: buildDate)
-        buildDateLabel.isHidden = false
-        buildBranchButton.title = "NIGHTLY " + buildSHA
-        buildBranchButton.action = #selector(self.openCommitLink)
-        buildBranchButton.isHidden = false
+        branch = "NIGHTLY \(buildSHA)"
+        date = formatter.string(from: buildDate)
+      } else {
+        branch = nil
+        date = nil
       }
     case .debug:
       if let buildDate = InfoDictionary.shared.buildDate,
          let buildBranch = InfoDictionary.shared.buildBranch,
          let buildSHA = InfoDictionary.shared.shortCommitSHA {
-        buildDateLabel.stringValue = toString.string(from: buildDate)
-        buildDateLabel.isHidden = false
-        buildBranchButton.title = buildBranch + " " + buildSHA
-        buildBranchButton.action = #selector(self.openCommitLink)
-        buildBranchButton.isHidden = false
+        branch = "\(buildBranch) \(buildSHA)"
+        date = formatter.string(from: buildDate)
+      } else {
+        branch = nil
+        date = nil
       }
     default:
-      break
+      branch = nil
+      date = nil
     }
 
-    if let contributionFile = Bundle.main.path(forResource: "Contribution", ofType: "rtf") {
-      detailTextView.readRTFD(fromFile: contributionFile)
-      detailTextView.textColor = NSColor.secondaryLabelColor
+    commitURL = InfoDictionary.shared.buildCommit.flatMap {
+      URL(string: "https://github.com/iina/iina/commit/\($0)")
     }
-
-    if let creditsFile = Bundle.main.path(forResource: "Credits", ofType: "rtf") {
-      creditsTextView.readRTFD(fromFile: creditsFile)
-      creditsTextView.textColor = NSColor.secondaryLabelColor
-    }
-
-    contributorsCollectionView.dataSource = self
-    contributorsCollectionView.backgroundColors = [.clear]
-    contributorsCollectionView.register(AboutWindowContributorAvatarItem.self, forItemWithIdentifier: .dataSourceItem)
-
-    let image = NSImage(size: contributorsFooterView.frame.size)
-    let rect = CGRect(origin: .zero, size: contributorsFooterView.frame.size)
-    image.lockFocus()
-    let loc: [CGFloat] = [0, 0.3, 0.6, 0.8, 1]
-    let colors: [CGFloat] = [1, 0.95, 0.8, 0.05, 0]
-    let gradient = NSGradient(colors: colors.map { NSColor(white: 0.925, alpha: $0) }, atLocations: loc, colorSpace: .deviceGray)
-    gradient!.draw(in: rect, angle: 90)
-    image.unlockFocus()
-    contributorsFooterView.material = .windowBackground
-    contributorsFooterView.maskImage = image
-
-    contributorsCollectionView.enclosingScrollView?.contentInsets.bottom = contributorsFooterView.frame.height * loc[colors.firstIndex(of: 0)! - 1]
-  }
-
-  @objc func openCommitLink() {
-    guard let commitSHA = InfoDictionary.shared.buildCommit else { return }
-    NSWorkspace.shared.open(.init(string: "https://github.com/iina/iina/commit/\(commitSHA)")!)
-  }
-
-  @IBAction func sectionBtnAction(_ sender: NSButton) {
-    tabView.selectTabViewItem(at: sender.tag)
-    [licenseButton, contributorsButton, creditsButton].forEach {
-      $0?.state = $0 == sender ? .on : .off
-      $0?.updateState()
-    }
-  }
-
-  @IBAction func contributorsBtnAction(_ sender: Any) {
-    NSWorkspace.shared.open(URL(string: AppData.contributorsLink)!)
-  }
-
-  @IBAction func translatorsBtnAction(_ sender: Any) {
-    NSWorkspace.shared.open(URL(string: AppData.crowdinMembersLink)!)
   }
 }
 
-extension AboutWindowController: NSCollectionViewDataSource {
-  func collectionView(_ collectionView: NSCollectionView, numberOfItemsInSection section: Int) -> Int {
-    return contributors.count
-  }
+private final class ContributorsModel: ObservableObject {
+  @Published private(set) var contributors: [Contributor] = []
 
-  func collectionView(_ collectionView: NSCollectionView, itemForRepresentedObjectAt indexPath: IndexPath) -> NSCollectionViewItem {
-    let item = contributorsCollectionView.makeItem(withIdentifier: .dataSourceItem, for: indexPath) as! AboutWindowContributorAvatarItem
-    item.imageView?.image = nil
-    guard let contributor = contributors[at: indexPath.item] else { return item }
-    item.avatarURL = contributor.avatarURL
-    return item
-  }
-
-  private func getContributors() -> [Contributor] {
-    // This method will be called only once when `self.contributors` is needed,
-    // i.e. when `contributorsCollectionView` is being initialized.
+  init() {
     loadContributors(from: "https://api.github.com/repos/iina/iina/contributors")
-    return []
   }
 
   private func loadContributors(from url: String) {
-    Just.get(url, asyncCompletionHandler: { response in
-      let prevCount = self.contributors.count
-      guard let data = response.content,
-        let contributors = try? JSONDecoder().decode([Contributor].self, from: data) else {
-          return
+    Just.get(url, asyncCompletionHandler: { [weak self] response in
+      guard let self,
+            let data = response.content,
+            let contributors = try? JSONDecoder().decode([Contributor].self, from: data) else {
+        return
       }
-      self.contributors.append(contentsOf: contributors)
-      // avoid possible crash
-      guard self.contributors.count > prevCount else { return }
-      let insertIndices = ([Int](prevCount..<self.contributors.count)).map {
-        IndexPath(item: $0, section: 0)
-      }
-      DispatchQueue.main.sync {
-        self.contributorsCollectionView.insertItems(at: Set(insertIndices))
-      }
-      if let nextURL = response.links["next"]?["url"] {
-        self.loadContributors(from: nextURL)
+
+      DispatchQueue.main.async {
+        self.contributors.append(contentsOf: contributors)
+        if let nextURL = response.links["next"]?["url"] {
+          self.loadContributors(from: nextURL)
+        }
       }
     })
   }
 }
 
-class AboutWindowButton: NSButton {
+class AboutWindowController: NSWindowController {
 
-  override func awakeFromNib() {
-    wantsLayer = true
-    layer?.cornerRadius = 4
-    updateState()
+  convenience init() {
+    let window = CommonWindow(
+      contentRect: NSRect(x: 0, y: 0, width: 640, height: 400),
+      styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
+      backing: .buffered,
+      defer: false
+    )
+    window.title = AboutLocalizedString.title
+    window.titlebarAppearsTransparent = true
+    window.titleVisibility = .hidden
+    window.minSize = NSSize(width: 640, height: 400)
+
+    self.init(window: window)
+    window.contentViewController = NSHostingController(rootView: AboutWindowView(
+      buildInfo: AboutBuildInfo(),
+      openURL: { [weak self] url in self?.open(url) }
+    ))
   }
 
-  func updateState() {
-    if let cell = self.cell as? NSButtonCell {
-      cell.backgroundColor = state == .on ? .controlAccentColor : .clear
+  required init?(coder: NSCoder) {
+    fatalError("init(coder:) has not been implemented")
+  }
+
+  private func open(_ url: URL) {
+    NSWorkspace.shared.open(url)
+  }
+}
+
+private struct AboutWindowView: View {
+  private enum Section: Hashable {
+    case license
+    case contributors
+    case credits
+  }
+
+  let buildInfo: AboutBuildInfo
+  let openURL: (URL) -> Void
+
+  @StateObject private var contributors = ContributorsModel()
+  @State private var section: Section = .license
+
+  var body: some View {
+    HStack(spacing: 0) {
+      sidebar
+        .frame(width: 220)
+
+      content
+        .padding(.top, 36)
+        .padding(.trailing, 20)
+        .padding(.bottom, 20)
     }
-    attributedTitle = NSAttributedString(string: title,
-                                         attributes: [.foregroundColor: state == .on ? NSColor.white : NSColor.labelColor])
+    .frame(minWidth: 640, minHeight: 400)
+    .background(Color(nsColor: .windowBackgroundColor))
   }
+
+  private var sidebar: some View {
+    VStack(spacing: 0) {
+      Image(nsImage: NSApp.applicationIconImage)
+        .resizable()
+        .scaledToFit()
+        .frame(width: 80, height: 80)
+        .padding(.top, 40)
+
+      Text("IINA")
+        .font(.system(size: 24, weight: .light))
+        .padding(.top, 8)
+
+      Text(buildInfo.version)
+        .font(.footnote)
+        .foregroundStyle(.secondary)
+        .padding(.top, 8)
+
+      HStack(spacing: 6) {
+        Text(buildInfo.mpvVersion)
+          .multilineTextAlignment(.trailing)
+        Text(buildInfo.ffmpegVersion)
+          .multilineTextAlignment(.leading)
+      }
+      .font(.system(size: 9))
+      .foregroundStyle(.secondary)
+      .padding(.top, 4)
+
+      if let branch = buildInfo.branch, let date = buildInfo.date, let commitURL = buildInfo.commitURL {
+        VStack(spacing: 2) {
+          Button(branch) { openURL(commitURL) }
+            .buttonStyle(.link)
+            .font(.system(size: 9))
+          Text(date)
+            .font(.system(size: 9))
+            .foregroundStyle(.secondary)
+        }
+        .padding(.top, 4)
+      }
+
+      Spacer(minLength: 8)
+
+      sectionButton(AboutLocalizedString.license, for: .license)
+      sectionButton(AboutLocalizedString.contributors, for: .contributors)
+        .padding(.top, 10)
+      sectionButton(AboutLocalizedString.credits, for: .credits)
+        .padding(.top, 10)
+        .padding(.bottom, 50)
+    }
+    .padding(.horizontal, 40)
+  }
+
+  @ViewBuilder
+  private var content: some View {
+    switch section {
+    case .license:
+      AboutRichTextView(resource: "Contribution")
+    case .contributors:
+      contributorsView
+    case .credits:
+      AboutRichTextView(resource: "Credits")
+    }
+  }
+
+  private var contributorsView: some View {
+    VStack(spacing: 0) {
+      ScrollView {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 32, maximum: 32), spacing: 4)], spacing: 4) {
+          ForEach(contributors.contributors) { contributor in
+            AboutWindowContributorAvatarItem(avatarURL: contributor.avatarURL)
+              .frame(width: 32, height: 32)
+          }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 4)
+        .padding(.top, 4)
+        .padding(.bottom, 12)
+      }
+
+      VStack(spacing: 8) {
+        Button("iina/contributors") {
+          openURL(URL(string: AppData.contributorsLink)!)
+        }
+        .buttonStyle(.link)
+        .font(.system(size: NSFont.smallSystemFontSize, weight: .semibold))
+
+        Text(AboutLocalizedString.localizationCredit)
+          .frame(maxWidth: .infinity, alignment: .leading)
+
+        Text(AboutLocalizedString.translators)
+          .frame(maxWidth: .infinity, alignment: .leading)
+
+        Button("Crowdin") {
+          openURL(URL(string: AppData.crowdinMembersLink)!)
+        }
+        .buttonStyle(.link)
+        .font(.system(size: NSFont.smallSystemFontSize, weight: .semibold))
+      }
+      .font(.system(size: NSFont.systemFontSize))
+      .padding(.top, 8)
+      .padding(.bottom, 2)
+      .background(Color(nsColor: .windowBackgroundColor).opacity(0.95))
+    }
+  }
+
+  private func sectionButton(_ title: String, for section: Section) -> some View {
+    Button(title) { self.section = section }
+      .buttonStyle(AboutSectionButtonStyle(isSelected: self.section == section))
+      .frame(maxWidth: .infinity, minHeight: 24)
+  }
+}
+
+private struct AboutSectionButtonStyle: ButtonStyle {
+  let isSelected: Bool
+
+  func makeBody(configuration: Configuration) -> some View {
+    configuration.label
+      .frame(maxWidth: .infinity, minHeight: 24)
+      .foregroundStyle(isSelected ? Color.white : Color(nsColor: .labelColor))
+      .background(isSelected ? Color.accentColor : Color.clear)
+      .clipShape(RoundedRectangle(cornerRadius: 4))
+      .opacity(configuration.isPressed ? 0.7 : 1)
+  }
+}
+
+private struct AboutRichTextView: NSViewRepresentable {
+  let resource: String
+
+  func makeNSView(context: Context) -> NSScrollView {
+    let scrollView = NSScrollView()
+    scrollView.drawsBackground = false
+    scrollView.hasHorizontalScroller = false
+    scrollView.hasVerticalScroller = true
+    scrollView.autohidesScrollers = true
+
+    let textView = NSTextView()
+    textView.isEditable = false
+    textView.drawsBackground = false
+    textView.isVerticallyResizable = true
+    textView.autoresizingMask = [.width]
+    textView.textContainer?.widthTracksTextView = true
+    textView.textContainerInset = NSSize(width: 0, height: 0)
+    if let path = Bundle.main.path(forResource: resource, ofType: "rtf") {
+      textView.readRTFD(fromFile: path)
+    }
+    textView.textColor = .secondaryLabelColor
+    scrollView.documentView = textView
+    return scrollView
+  }
+
+  func updateNSView(_ nsView: NSScrollView, context: Context) {}
 }
