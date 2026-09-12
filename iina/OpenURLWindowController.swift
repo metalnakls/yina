@@ -7,27 +7,149 @@
 //
 
 import Cocoa
+import SwiftUI
 
-class OpenURLWindowController: NSWindowController, NSTextFieldDelegate, NSControlTextEditingDelegate, NSWindowDelegate {
+@MainActor
+private final class OpenURLViewModel: ObservableObject {
+  @Published var urlText = ""
+  @Published var username = ""
+  @Published var password = ""
+  @Published var rememberPassword = false
+  @Published var errorMessage = ""
+  @Published var showsError = false
+  @Published var showsHTTPPrefix = false
+  @Published var canOpen = true
+  @Published var isLoading = false
+  @Published var focusRequest = 0
+}
 
-  override var windowNibName: NSNib.Name {
-    return NSNib.Name("OpenURLWindowController")
+private struct OpenURLView: View {
+  @ObservedObject var model: OpenURLViewModel
+  let validateURL: () -> Void
+  let cancel: () -> Void
+  let open: () -> Void
+  let stopLoading: () -> Void
+
+  @FocusState private var focusedField: Field?
+
+  private enum Field {
+    case url
+    case username
+    case password
   }
 
-  @IBOutlet weak var urlStackView: NSStackView!
-  @IBOutlet weak var httpPrefixTextField: NSTextField!
-  @IBOutlet weak var urlField: NSTextField!
-  @IBOutlet weak var usernameField: NSTextField!
-  @IBOutlet weak var passwordField: NSSecureTextField!
-  @IBOutlet weak var rememberPasswordCheckBox: NSButton!
-  @IBOutlet weak var errorMessageLabel: NSTextField!
-  @IBOutlet weak var openButton: NSButton!
+  private func localized(_ key: String, _ value: String) -> String {
+    NSLocalizedString(key,
+                      tableName: "OpenURLWindowController",
+                      bundle: .main,
+                      value: value,
+                      comment: "")
+  }
 
-  @IBOutlet weak var overlayView: NSVisualEffectView!
-  @IBOutlet weak var loadingMediaProgressIndicator: NSProgressIndicator!
+  var body: some View {
+    ZStack {
+      VStack(alignment: .leading, spacing: 20) {
+        VStack(alignment: .leading, spacing: 4) {
+          HStack(spacing: 4) {
+            if model.showsHTTPPrefix {
+              Text("http://")
+                .foregroundStyle(.secondary)
+            }
+            TextField(localized("XV7-VP-Ua2.placeholderString", "Please enter the URL here……"),
+                      text: $model.urlText)
+              .textFieldStyle(.plain)
+              .foregroundStyle(model.showsError ? Color.red : Color.primary)
+              .focused($focusedField, equals: .url)
+              .onSubmit(open)
+              .onChange(of: model.urlText) {
+                validateURL()
+              }
+          }
+          .font(.system(size: 20))
+
+          if model.showsError {
+            Text(model.errorMessage)
+              .font(.caption2)
+              .foregroundStyle(.red)
+          }
+        }
+
+        GroupBox {
+          VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 16) {
+              VStack(alignment: .leading, spacing: 6) {
+                Text(localized("Q1z-9O-n4X.title", "Username"))
+                  .font(.caption)
+                TextField("", text: $model.username)
+                  .focused($focusedField, equals: .username)
+              }
+              VStack(alignment: .leading, spacing: 6) {
+                Text(localized("uM6-Bp-Wdk.title", "Password"))
+                  .font(.caption)
+                SecureField("", text: $model.password)
+                  .focused($focusedField, equals: .password)
+              }
+            }
+
+            Toggle(localized("m0D-hR-3pr.title",
+                             "Remember username and password for this host in keychain"),
+                   isOn: $model.rememberPassword)
+          }
+          .padding(8)
+        } label: {
+          Text(localized("wxH-ic-Uug.title", "HTTP Authentication"))
+            .fontWeight(.semibold)
+        }
+
+        HStack {
+          Spacer()
+          Button(localized("iNG-ee-EW6.title", "Cancel"), action: cancel)
+            .keyboardShortcut(.cancelAction)
+          Button(localized("8sC-lH-DOd.title", "Open"), action: open)
+            .keyboardShortcut(.defaultAction)
+            .disabled(!model.canOpen)
+        }
+      }
+      .padding(16)
+      .frame(minWidth: 544, minHeight: 225)
+
+      if model.isLoading {
+        ZStack {
+          Rectangle()
+            .fill(.ultraThinMaterial)
+          VStack(spacing: 8) {
+            ProgressView()
+              .controlSize(.large)
+            Text(NSLocalizedString("main.opening_stream", comment: "Opening stream…"))
+              .font(.title3)
+          }
+          VStack {
+            Spacer()
+            HStack {
+              Spacer()
+              Button(localized("zbf-uh-uGz.title", "Stop Loading"), action: stopLoading)
+            }
+          }
+          .padding(16)
+        }
+      }
+    }
+    .background(.ultraThinMaterial)
+    .onAppear {
+      focusedField = .url
+    }
+    .onChange(of: model.focusRequest) {
+      focusedField = .url
+    }
+  }
+}
+
+@MainActor
+class OpenURLWindowController: NSWindowController, NSWindowDelegate {
+
+  private let viewModel = OpenURLViewModel()
 
   var isAlternativeAction = false
-
   var playerCore: PlayerCore?
   var loadingURL: String?
 
@@ -39,24 +161,38 @@ class OpenURLWindowController: NSWindowController, NSTextFieldDelegate, NSContro
     NSLocalizedString("alert.error_open", comment: "Cannot open file or stream!")
   }
 
+  override func loadWindow() {
+    let content = OpenURLView(model: viewModel,
+                              validateURL: { [weak self] in self?.validateURL() },
+                              cancel: { [weak self] in self?.window?.close() },
+                              open: { [weak self] in self?.openURL() },
+                              stopLoading: { [weak self] in self?.stopLoading() })
+    let hostingView = NSHostingView(rootView: content)
+    let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 576, height: 257),
+                          styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
+                          backing: .buffered,
+                          defer: false)
+    window.contentView = hostingView
+    window.collectionBehavior.insert(.fullScreenNone)
+    window.setFrameAutosaveName("IINAOpenURLWindow")
+    window.isReleasedWhenClosed = false
+    self.window = window
+  }
+
   override func windowDidLoad() {
     super.windowDidLoad()
+    window?.delegate = self
     window?.isMovableByWindowBackground = true
     window?.titlebarAppearsTransparent = true
     window?.titleVisibility = .hidden
-    urlStackView.setVisibilityPriority(.notVisible, for: httpPrefixTextField)
-    urlField.delegate = self
     ([.closeButton, .miniaturizeButton, .zoomButton] as [NSWindow.ButtonType]).forEach {
       window?.standardWindowButton($0)?.isHidden = true
     }
-
-    loadingMediaProgressIndicator.startAnimation(self)
   }
 
   func showLoadingScreen(playerCore: PlayerCore) {
     _ = window
-    overlayView.isHidden = false
-    // Must not leave the focus in the username or password text fields.
+    viewModel.isLoading = true
     window?.makeFirstResponder(nil)
     self.playerCore = playerCore
     loadingURL = playerCore.info.currentURL?.absoluteString
@@ -66,24 +202,24 @@ class OpenURLWindowController: NSWindowController, NSTextFieldDelegate, NSContro
 
   func failedToLoadURL() {
     guard isWindowLoaded && window?.isVisible == true else { return }
-    urlField.stringValue = loadingURL ?? ""
-    errorMessageLabel.stringValue = failedToOpenURLMessage
-    errorMessageLabel.isHidden = false
-    overlayView.isHidden = true
-    urlField.textColor = .systemRed
+    viewModel.urlText = loadingURL ?? ""
+    viewModel.errorMessage = failedToOpenURLMessage
+    viewModel.showsError = true
+    viewModel.isLoading = false
   }
 
   func resetWindowState() {
-    urlField.stringValue = ""
-    urlField.textColor = .labelColor
-    usernameField.stringValue = ""
-    passwordField.stringValue = ""
-    errorMessageLabel.stringValue = invalidURLMessage
-    errorMessageLabel.isHidden = true
-    rememberPasswordCheckBox.state = .off
-    urlStackView.setVisibilityPriority(.notVisible, for: httpPrefixTextField)
-    window?.makeFirstResponder(urlField)
-    overlayView.isHidden = true
+    _ = window
+    viewModel.urlText = ""
+    viewModel.username = ""
+    viewModel.password = ""
+    viewModel.errorMessage = invalidURLMessage
+    viewModel.showsError = false
+    viewModel.rememberPassword = false
+    viewModel.showsHTTPPrefix = false
+    viewModel.canOpen = true
+    viewModel.isLoading = false
+    viewModel.focusRequest += 1
     playerCore = nil
     loadingURL = nil
   }
@@ -96,36 +232,31 @@ class OpenURLWindowController: NSWindowController, NSTextFieldDelegate, NSContro
 
   func windowWillClose(_ notification: Notification) {
     playerCore = nil
-    overlayView.isHidden = true
+    viewModel.isLoading = false
   }
 
   override func cancelOperation(_ sender: Any?) {
     window?.close()
   }
 
-  @IBAction func cancelBtnAction(_ sender: Any) {
-    window?.close()
-  }
-
-  @IBAction func stopLoadingBtnAction(_ sender: Any) {
+  private func stopLoading() {
     guard let playerCore else { return }
     playerCore.stop()
-    overlayView.isHidden = true
+    viewModel.isLoading = false
   }
 
-  @IBAction func openBtnAction(_ sender: Any) {
+  private func openURL() {
     if let url = getURL().url {
-      if rememberPasswordCheckBox.state == .on,
+      if viewModel.rememberPassword,
          let host = url.host,
-         !usernameField.stringValue.isEmpty {
-        try? KeychainAccess.write(username: usernameField.stringValue,
-                                  password: passwordField.stringValue,
+         !viewModel.username.isEmpty {
+        try? KeychainAccess.write(username: viewModel.username,
+                                  password: viewModel.password,
                                   forService: .httpAuth,
                                   server: host,
                                   port: url.port)
       }
-      overlayView.isHidden = false
-      // Must not leave the focus in the username or password text fields.
+      viewModel.isLoading = true
       window?.makeFirstResponder(nil)
       playerCore = PlayerCore.activeOrNewForMenuAction(isAlternative: isAlternativeAction)
       playerCore!.openURL(url)
@@ -135,62 +266,56 @@ class OpenURLWindowController: NSWindowController, NSTextFieldDelegate, NSContro
   }
 
   private func getURL() -> (url: URL?, hasScheme: Bool) {
-    guard !urlField.stringValue.isEmpty else { return (nil, false) }
-    let username = usernameField.stringValue
-    let password = passwordField.stringValue
-    let trimmedUrlString = urlField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-    var pstr = trimmedUrlString
+    guard !viewModel.urlText.isEmpty else { return (nil, false) }
+    let trimmedURLString = viewModel.urlText.trimmingCharacters(in: .whitespacesAndNewlines)
+    var urlString = trimmedURLString
     var hasScheme = true
-    if let url = URL(string: pstr), url.scheme == nil {
-      pstr = "http://" + pstr
+    if let url = URL(string: urlString), url.scheme == nil {
+      urlString = "http://" + urlString
       hasScheme = false
     }
-    guard let nsurl = NSURL(string: pstr)?.standardized, let urlComponents = NSURLComponents(url: nsurl, resolvingAgainstBaseURL: false) else { return (nil, false) }
-    if !username.isEmpty {
-      urlComponents.user = username
-      if !password.isEmpty {
-        urlComponents.password = password
+    guard let standardizedURL = NSURL(string: urlString)?.standardized,
+          let components = NSURLComponents(url: standardizedURL, resolvingAgainstBaseURL: false) else {
+      return (nil, false)
+    }
+    if !viewModel.username.isEmpty {
+      components.user = viewModel.username
+      if !viewModel.password.isEmpty {
+        components.password = viewModel.password
       }
     }
-    return (urlComponents.url, hasScheme)
+    return (components.url, hasScheme)
   }
 
-  // NSControlTextEditingDelegate
-
-  func controlTextDidChange(_ obj: Notification) {
-    if let textView = obj.userInfo?["NSFieldEditor"] as? NSTextView, let str = textView.textStorage?.string, str.isEmpty {
-      errorMessageLabel.stringValue = invalidURLMessage
-      errorMessageLabel.isHidden = true
-      urlField.textColor = .labelColor
-      urlStackView.setVisibilityPriority(.notVisible, for: httpPrefixTextField)
-      openButton.isEnabled = true
+  private func validateURL() {
+    if viewModel.urlText.isEmpty {
+      viewModel.errorMessage = invalidURLMessage
+      viewModel.showsError = false
+      viewModel.showsHTTPPrefix = false
+      viewModel.canOpen = true
       return
     }
+
     let (url, hasScheme) = getURL()
     if let url, let host = url.host {
-      errorMessageLabel.isHidden = true
-      urlField.textColor = .labelColor
-      openButton.isEnabled = true
-      if hasScheme {
-        urlStackView.setVisibilityPriority(.notVisible, for: httpPrefixTextField)
+      viewModel.showsError = false
+      viewModel.canOpen = true
+      viewModel.showsHTTPPrefix = !hasScheme
+      if let (username, password) = try? KeychainAccess.read(username: nil,
+                                                              forService: .httpAuth,
+                                                              server: host,
+                                                              port: url.port) {
+        viewModel.username = username
+        viewModel.password = password
       } else {
-        urlStackView.setVisibilityPriority(.mustHold, for: httpPrefixTextField)
-      }
-      // find saved password
-      if let (username, password) = try? KeychainAccess.read(username: nil, forService: .httpAuth, server: host, port: url.port) {
-        usernameField.stringValue = username
-        passwordField.stringValue = password
-      } else {
-        usernameField.stringValue = ""
-        passwordField.stringValue = ""
+        viewModel.username = ""
+        viewModel.password = ""
       }
     } else {
-      urlField.textColor = .systemRed
-      errorMessageLabel.stringValue = invalidURLMessage
-      errorMessageLabel.isHidden = false
-      urlStackView.setVisibilityPriority(.notVisible, for: httpPrefixTextField)
-      openButton.isEnabled = false
+      viewModel.errorMessage = invalidURLMessage
+      viewModel.showsError = true
+      viewModel.showsHTTPPrefix = false
+      viewModel.canOpen = false
     }
   }
-
 }
