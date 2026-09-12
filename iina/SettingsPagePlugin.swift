@@ -749,15 +749,26 @@ fileprivate class PluginDetailsWindow: NSWindow {
 
 extension PluginDetailsWindow: WKScriptMessageHandler, WKNavigationDelegate {
   func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
-    // don't allow remote pages in settings or about tab
+    // Keep settings and about content in this WebView only when it is local.
     if currentTab != .help {
-      guard let url = navigationAction.request.url,
-            url.absoluteString.starts(with: plugin.preferencesPageURL?.absoluteString ?? "000") || url.absoluteString == "about:blank"
-      else {
-        Logger.log("Loading page from \(navigationAction.request.url?.absoluteString ?? "?") is not allowed", level: .error)
+      guard let url = navigationAction.request.url else {
         decisionHandler(.cancel)
         return
       }
+
+      let absoluteURL = url.absoluteString
+      if absoluteURL.starts(with: plugin.preferencesPageURL?.absoluteString ?? "000") || absoluteURL == "about:blank" {
+        decisionHandler(.allow)
+        return
+      }
+
+      if let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" {
+        NSWorkspace.shared.open(url)
+      } else {
+        Logger.log("Loading page from \(absoluteURL) is not allowed", level: .error)
+      }
+      decisionHandler(.cancel)
+      return
     }
     decisionHandler(.allow)
   }
