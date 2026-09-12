@@ -112,7 +112,7 @@ class JSPluginSub {
           resolver.reject(OnlineSubtitle.CommonError.canceled)
         }
         PlayerCore.active.sendOSD(.foundSub(subs.count), autoHide: false, accessoryView: subChooseViewController.view)
-        subChooseViewController.tableView.reloadData()
+        subChooseViewController.refresh()
       }
     }
   }
