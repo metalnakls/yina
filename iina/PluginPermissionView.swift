@@ -78,7 +78,7 @@ private struct PluginPermissionContentView: View {
       RoundedRectangle(cornerRadius: 4)
         .fill(isDangerous
               ? Color(nsColor: NSColor.systemRed.withAlphaComponent(0.3))
-              : Color(nsColor: .controlAlternatingRowColor))
+              : Color(nsColor: NSColor.alternatingContentBackgroundColors.last ?? .controlBackgroundColor))
     }
     .overlay {
       RoundedRectangle(cornerRadius: 4)

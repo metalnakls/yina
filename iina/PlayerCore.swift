@@ -508,7 +508,9 @@ class PlayerCore: NSObject {
     info.videoTracks = []
     info.videoWidth = nil
     if isNetwork {
-      AppDelegate.shared.openURLWindow.showLoadingScreen(playerCore: self)
+      Task { @MainActor in
+        AppDelegate.shared.openURLWindow.showLoadingScreen(playerCore: self)
+      }
     }
 
     let _ = mainWindow.window

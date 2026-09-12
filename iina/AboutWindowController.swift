@@ -109,6 +109,10 @@ private final class ContributorsModel: ObservableObject {
 
 class AboutWindowController: NSWindowController {
 
+  override init(window: NSWindow?) {
+    super.init(window: window)
+  }
+
   convenience init() {
     let window = CommonWindow(
       contentRect: NSRect(x: 0, y: 0, width: 640, height: 400),

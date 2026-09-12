@@ -458,8 +458,10 @@ extension FloatingPoint {
 }
 
 extension NSColor {
-  static func hdrWhite(alpha: CGFloat = 1) -> NSColor {
-    NSColor(red: 1, green: 1, blue: 1, alpha: alpha, exposure: 1)
+  static func hdrWhite(intensity: CGFloat = 1, headroom: CGFloat = 2) -> NSColor {
+    NSColor(red: 1, green: 1, blue: 1, alpha: 1,
+            linearExposure: OSCExtendedDynamicRange.luminance(intensity: intensity,
+                                                               headroom: headroom))
   }
 
   var mpvColorString: String {
@@ -512,12 +514,16 @@ extension NSColor {
 }
 
 extension NSView {
-  func setExtendedDynamicRange(_ enabled: Bool) {
+  func setOwnExtendedDynamicRange(_ enabled: Bool, headroom: CGFloat) {
     wantsLayer = true
     layer?.contentsFormat = enabled ? .RGBA16Float : .RGBA8Uint
     layer?.preferredDynamicRange = enabled ? .high : .standard
-    layer?.contentsHeadroom = enabled ? 2 : 1
-    subviews.forEach { $0.setExtendedDynamicRange(enabled) }
+    layer?.contentsHeadroom = enabled ? max(1, headroom) : 1
+  }
+
+  func setExtendedDynamicRange(_ enabled: Bool, headroom: CGFloat) {
+    setOwnExtendedDynamicRange(enabled, headroom: headroom)
+    subviews.forEach { $0.setExtendedDynamicRange(enabled, headroom: headroom) }
   }
 }
 

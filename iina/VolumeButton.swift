@@ -15,6 +15,14 @@ class VolumeButton: NSView {
   var action: Selector?
 
   private var previousIcon: String?
+  var extendedDynamicRangeHeadroom: CGFloat = 1 {
+    didSet {
+      imageView.contentTintColor = extendedDynamicRangeHeadroom > 1
+        ? .hdrWhite(intensity: 0.84, headroom: extendedDynamicRangeHeadroom)
+        : nil
+      imageView.needsDisplay = true
+    }
+  }
 
   init(player: PlayerCore, target: Any? = nil, action: Selector? = nil) {
     self.target = target

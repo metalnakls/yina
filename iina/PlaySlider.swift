@@ -36,6 +36,48 @@ private final class SliderChapterMarks: NSView {
   }
 }
 
+private final class FloatingPlaySliderCell: NSSliderCell {
+  var extendedDynamicRangeHeadroom: CGFloat = 1
+
+  private var usesExtendedDynamicRange: Bool { extendedDynamicRangeHeadroom > 1 }
+
+  override func drawKnob(_ knobRect: NSRect) {
+    guard usesExtendedDynamicRange else {
+      super.drawKnob(knobRect)
+      return
+    }
+    NSColor.hdrWhite(headroom: extendedDynamicRangeHeadroom).setFill()
+    let diameter = min(knobRect.width, knobRect.height)
+    let circle = NSRect(x: knobRect.midX - diameter / 2, y: knobRect.midY - diameter / 2,
+                        width: diameter, height: diameter)
+    NSBezierPath(ovalIn: circle).fill()
+  }
+
+  override func drawBar(inside rect: NSRect, flipped: Bool) {
+    guard usesExtendedDynamicRange else {
+      super.drawBar(inside: rect, flipped: flipped)
+      return
+    }
+    let knob = knobRect(flipped: flipped)
+    let progress = min(max(knob.midX, rect.minX), rect.maxX)
+    let path = NSBezierPath(roundedRect: rect, xRadius: rect.height / 2, yRadius: rect.height / 2)
+
+    NSGraphicsContext.saveGraphicsState()
+    NSBezierPath(rect: NSRect(x: rect.minX, y: rect.minY,
+                              width: progress - rect.minX, height: rect.height)).addClip()
+    NSColor.hdrWhite(intensity: 0.45, headroom: extendedDynamicRangeHeadroom).setFill()
+    path.fill()
+    NSGraphicsContext.restoreGraphicsState()
+
+    NSGraphicsContext.saveGraphicsState()
+    NSBezierPath(rect: NSRect(x: progress, y: rect.minY,
+                              width: rect.maxX - progress, height: rect.height)).addClip()
+    NSColor.hdrWhite(intensity: 0.18, headroom: extendedDynamicRangeHeadroom).setFill()
+    path.fill()
+    NSGraphicsContext.restoreGraphicsState()
+  }
+}
+
 extension NSSlider {
   func replaceCellPreservingConfiguration(with replacement: NSSliderCell) {
     let currentValue = doubleValue
@@ -83,7 +125,7 @@ final class PlaySlider: NSSlider {
   private(set) var usesSystemAppearance = false
   private var originalTrackFillColor: NSColor?
   private var legacyCell: PlaySliderCell!
-  private var floatingCell: NSSliderCell!
+  private var floatingCell: FloatingPlaySliderCell!
   private var chapterMarks: SliderChapterMarks!
   private(set) var isDraggingPlaybackThumb = false
   private var resumeAfterTracking = false
@@ -113,10 +155,11 @@ final class PlaySlider: NSSlider {
   /// Span of the range of values the slider is configured to return.
   var span: Double { maxValue - minValue }
 
-  var usesExtendedDynamicRange: Bool {
-    get { legacyCell.usesExtendedDynamicRange }
+  var extendedDynamicRangeHeadroom: CGFloat {
+    get { legacyCell.extendedDynamicRangeHeadroom }
     set {
-      legacyCell.usesExtendedDynamicRange = newValue
+      legacyCell.extendedDynamicRangeHeadroom = newValue
+      floatingCell.extendedDynamicRangeHeadroom = newValue
       needsDisplay = true
       abLoopA.needsDisplay = true
       abLoopB.needsDisplay = true
@@ -147,7 +190,7 @@ final class PlaySlider: NSSlider {
 
   private func initializeCells() {
     legacyCell = PlaySliderCell()
-    floatingCell = NSSliderCell()
+    floatingCell = FloatingPlaySliderCell()
     [legacyCell, floatingCell].forEach {
       $0.refusesFirstResponder = true
       $0.minValue = 0

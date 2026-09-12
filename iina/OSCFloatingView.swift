@@ -36,6 +36,16 @@ class OSCButton: NSButton {
   private var originalContentTintColor: NSColor?
   private var originalConstraintSizes: [ObjectIdentifier: CGFloat] = [:]
   private var usesQuickTimeStyle = false
+  var extendedDynamicRangeHeadroom: CGFloat = 1 {
+    didSet {
+      if usesQuickTimeStyle {
+        contentTintColor = extendedDynamicRangeHeadroom > 1
+          ? .hdrWhite(intensity: 0.84, headroom: extendedDynamicRangeHeadroom)
+          : .white.withAlphaComponent(0.84)
+      }
+      needsDisplay = true
+    }
+  }
   private var isPressed = false
   @objc dynamic private var visualScale: CGFloat = 1 {
     didSet { needsDisplay = true }
@@ -63,7 +73,9 @@ class OSCButton: NSButton {
       imageScaling = .scaleProportionallyDown
       bezelStyle = .shadowlessSquare
       isBordered = false
-      contentTintColor = .white.withAlphaComponent(0.84)
+      contentTintColor = extendedDynamicRangeHeadroom > 1
+        ? .hdrWhite(intensity: 0.84, headroom: extendedDynamicRangeHeadroom)
+        : .white.withAlphaComponent(0.84)
     } else {
       imagePosition = originalImagePosition!
       imageScaling = originalImageScaling!
@@ -95,18 +107,39 @@ class OSCButton: NSButton {
   }
 
   override func draw(_ dirtyRect: NSRect) {
-    guard usesQuickTimeStyle, visualScale != 1 else {
+    guard usesQuickTimeStyle else {
       super.draw(dirtyRect)
       return
     }
     NSGraphicsContext.saveGraphicsState()
-    let transform = NSAffineTransform()
-    transform.translateX(by: bounds.midX, yBy: bounds.midY)
-    transform.scale(by: visualScale)
-    transform.translateX(by: -bounds.midX, yBy: -bounds.midY)
-    transform.concat()
-    super.draw(dirtyRect)
+    if visualScale != 1 {
+      let transform = NSAffineTransform()
+      transform.translateX(by: bounds.midX, yBy: bounds.midY)
+      transform.scale(by: visualScale)
+      transform.translateX(by: -bounds.midX, yBy: -bounds.midY)
+      transform.concat()
+    }
+    if extendedDynamicRangeHeadroom > 1, let image {
+      drawExtendedDynamicRangeImage(image)
+    } else {
+      super.draw(dirtyRect)
+    }
     NSGraphicsContext.restoreGraphicsState()
+  }
+
+  private func drawExtendedDynamicRangeImage(_ image: NSImage) {
+    let imageSize = image.size
+    guard imageSize.width > 0, imageSize.height > 0 else { return }
+    let scale = min(1, bounds.width / imageSize.width, bounds.height / imageSize.height)
+    let drawSize = NSSize(width: imageSize.width * scale, height: imageSize.height * scale)
+    let imageRect = NSRect(x: bounds.midX - drawSize.width / 2,
+                           y: bounds.midY - drawSize.height / 2,
+                           width: drawSize.width, height: drawSize.height)
+    image.draw(in: imageRect, from: .zero, operation: .sourceOver, fraction: 1,
+               respectFlipped: true, hints: [.interpolation: NSImageInterpolation.high])
+    NSColor.hdrWhite(intensity: isPressed ? 1 : 0.84,
+                     headroom: extendedDynamicRangeHeadroom).setFill()
+    imageRect.fill(using: .sourceAtop)
   }
 
   private func setPressed(_ pressed: Bool) {
@@ -194,6 +227,7 @@ class OSCFloatingView: TranslucentView {
   weak var mainWindow: MainWindowController!
   private let prefObserver = Preference.Observer()
   private let dissolveBlur = CIFilter(name: "CIGaussianBlur")!
+  private var isDissolveFilterEnabled = true
 
   var oscTopView: OSCFloatingTopView!
   var oscBottomView: TimeLabelOverflowedStackView!
@@ -228,7 +262,8 @@ class OSCFloatingView: TranslucentView {
     let container = OSCFloatingContentView(mainWindow: mainWindow)
     container.translatesAutoresizingMaskIntoConstraints = false
 
-    super.init(liquidGlassCornerRadius: 24, vevCornerRadius: 20, padding: (0, 0))
+    super.init(liquidGlassCornerRadius: 24, vevCornerRadius: 20, padding: (0, 0),
+               contentPlacement: .aboveMaterial)
 
     wantsLayer = true
     dissolveBlur.name = Self.dissolveFilterName
@@ -282,6 +317,7 @@ class OSCFloatingView: TranslucentView {
 
   /// Sets the starting blur without animation. Used only while the OSC is fully transparent.
   func prepareDissolveBlur(_ radius: CGFloat) {
+    guard isDissolveFilterEnabled else { return }
     layer?.removeAnimation(forKey: Self.dissolveAnimationKey)
     dissolveBlur.setValue(radius, forKey: kCIInputRadiusKey)
     layer?.setValue(radius, forKeyPath: Self.dissolveRadiusKeyPath)
@@ -291,6 +327,7 @@ class OSCFloatingView: TranslucentView {
   /// the filter graph on every animation frame.
   func animateDissolveBlur(to radius: CGFloat, duration: TimeInterval,
                            startingAt preparedRadius: CGFloat? = nil) {
+    guard isDissolveFilterEnabled else { return }
     guard duration > 0, let layer else {
       prepareDissolveBlur(radius)
       return
@@ -316,7 +353,17 @@ class OSCFloatingView: TranslucentView {
   func finishDissolveAppearance() {
     layer?.removeAnimation(forKey: Self.dissolveAnimationKey)
     dissolveBlur.setValue(0, forKey: kCIInputRadiusKey)
+    guard isDissolveFilterEnabled else { return }
     layer?.setValue(0, forKeyPath: Self.dissolveRadiusKeyPath)
+  }
+
+  func setDissolveFilterEnabled(_ enabled: Bool) {
+    guard enabled != isDissolveFilterEnabled else { return }
+    if !enabled {
+      finishDissolveAppearance()
+    }
+    isDissolveFilterEnabled = enabled
+    contentFilters = enabled ? [dissolveBlur] : []
   }
 
   func setupConstraints() {
