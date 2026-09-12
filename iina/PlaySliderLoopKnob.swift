@@ -116,7 +116,8 @@ final class PlaySliderLoopKnob: NSView {
 
   private func knobColor() -> NSColor {
     guard let legacyCell = slider.cell as? PlaySliderCell else { return .mainSliderLoopKnob }
-    return legacyCell.usesExtendedDynamicRange ? .hdrWhite(alpha: 0.7) : .mainSliderLoopKnob
+    let headroom = legacyCell.extendedDynamicRangeHeadroom
+    return headroom > 1 ? .hdrWhite(intensity: 0.7, headroom: headroom) : .mainSliderLoopKnob
   }
 
   /// Draw the knob.

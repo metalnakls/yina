@@ -11,10 +11,10 @@ import Cocoa
 /// A custom [slider](https://developer.apple.com/design/human-interface-guidelines/macos/selectors/sliders/)
 /// for the volume slider in the on screen controller.
 class VolumeSlider: NSSlider {
-  var usesExtendedDynamicRange: Bool {
-    get { (cell as? VolumeSliderCell)?.usesExtendedDynamicRange ?? false }
+  var extendedDynamicRangeHeadroom: CGFloat {
+    get { (cell as? VolumeSliderCell)?.extendedDynamicRangeHeadroom ?? 1 }
     set {
-      (cell as? VolumeSliderCell)?.usesExtendedDynamicRange = newValue
+      (cell as? VolumeSliderCell)?.extendedDynamicRangeHeadroom = newValue
       needsDisplay = true
     }
   }
@@ -45,15 +45,20 @@ class VolumeSlider: NSSlider {
 
 
 fileprivate class VolumeSliderCell: NSSliderCell {
-  var usesExtendedDynamicRange = false
+  var extendedDynamicRangeHeadroom: CGFloat = 1
+
+  private var usesExtendedDynamicRange: Bool { extendedDynamicRangeHeadroom > 1 }
 
   override func drawKnob(_ knobRect: NSRect) {
     guard usesExtendedDynamicRange else {
       super.drawKnob(knobRect)
       return
     }
-    NSColor.hdrWhite().setFill()
-    NSBezierPath(ovalIn: knobRect).fill()
+    NSColor.hdrWhite(headroom: extendedDynamicRangeHeadroom).setFill()
+    let diameter = min(knobRect.width, knobRect.height)
+    let circle = NSRect(x: knobRect.midX - diameter / 2, y: knobRect.midY - diameter / 2,
+                        width: diameter, height: diameter)
+    NSBezierPath(ovalIn: circle).fill()
   }
 
   /// Draws the slider’s bar—but not its bezel or knob—inside the specified rectangle.
@@ -86,7 +91,7 @@ fileprivate class VolumeSliderCell: NSSliderCell {
     NSGraphicsContext.saveGraphicsState()
     let clipLeft = NSBezierPath(rect: NSMakeRect(rect.minX, rect.minY, knobPos, rect.height))
     clipLeft.addClip()
-    (usesExtendedDynamicRange ? NSColor.hdrWhite(alpha: 0.45) : .volumeSliderBarLeft).setFill()
+    (usesExtendedDynamicRange ? NSColor.hdrWhite(intensity: 0.45, headroom: extendedDynamicRangeHeadroom) : .volumeSliderBarLeft).setFill()
     path.fill()
     NSGraphicsContext.restoreGraphicsState()
 
@@ -95,7 +100,7 @@ fileprivate class VolumeSliderCell: NSSliderCell {
     let rightRect = NSMakeRect(rect.minX + knobPos, rect.minY, rect.width - knobPos, rect.height)
     let clipRight = NSBezierPath(rect: rightRect)
     clipRight.addClip()
-    (usesExtendedDynamicRange ? NSColor.hdrWhite(alpha: 0.18) : .volumeSliderBarRight).setFill()
+    (usesExtendedDynamicRange ? NSColor.hdrWhite(intensity: 0.18, headroom: extendedDynamicRangeHeadroom) : .volumeSliderBarRight).setFill()
     path.fill()
     NSGraphicsContext.restoreGraphicsState()
   }

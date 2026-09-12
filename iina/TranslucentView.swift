@@ -12,18 +12,29 @@ class TranslucentView: NSView {
     case visualEffect
   }
 
+  enum ContentPlacement {
+    case insideMaterial
+    case aboveMaterial
+  }
+
   private var liquidGlassCornerRadius: CGFloat
   private var vevCornerRadius: CGFloat
   private var padding: (CGFloat, CGFloat)
+  private let contentPlacement: ContentPlacement
   var content: NSView?
   var container: NSView?
+  private var contentPlane: NSView?
+  private var contentEDREnabled = false
+  private var contentEDRHeadroom: CGFloat = 1
   var style: Style
   private var appliedStyle: Style?
 
-  init(liquidGlassCornerRadius: CGFloat = 16, vevCornerRadius: CGFloat = 8, padding: (CGFloat, CGFloat)) {
+  init(liquidGlassCornerRadius: CGFloat = 16, vevCornerRadius: CGFloat = 8,
+       padding: (CGFloat, CGFloat), contentPlacement: ContentPlacement = .insideMaterial) {
     self.liquidGlassCornerRadius = liquidGlassCornerRadius
     self.vevCornerRadius = vevCornerRadius
     self.padding = padding
+    self.contentPlacement = contentPlacement
     self.style = .liquidGlass
     super.init(frame: .zero)
 
@@ -68,7 +79,9 @@ class TranslucentView: NSView {
       let view = NSGlassEffectView()
       view.cornerRadius = liquidGlassCornerRadius
       view.translatesAutoresizingMaskIntoConstraints = false
-      view.contentView = wrapper
+      if contentPlacement == .insideMaterial {
+        view.contentView = wrapper
+      }
       container = view
     case .visualEffect:
       let view = NSVisualEffectView()
@@ -76,8 +89,10 @@ class TranslucentView: NSView {
       view.translatesAutoresizingMaskIntoConstraints = false
       view.blendingMode = .withinWindow
       view.material = .popover
-      view.addSubview(wrapper)
-      wrapper.padding(.all)
+      if contentPlacement == .insideMaterial {
+        view.addSubview(wrapper)
+        wrapper.padding(.all)
+      }
       view.wantsLayer = true
       view.layer?.cornerRadius = vevCornerRadius
       container = view
@@ -86,8 +101,26 @@ class TranslucentView: NSView {
     subviews.forEach { $0.removeFromSuperview() }
     addSubview(container!)
     container!.padding(.all)
+    if contentPlacement == .aboveMaterial {
+      addSubview(wrapper, positioned: .above, relativeTo: container)
+      wrapper.padding(.all)
+    }
+    contentPlane = wrapper
+    if contentPlacement == .aboveMaterial {
+      container?.setOwnExtendedDynamicRange(contentEDREnabled, headroom: contentEDRHeadroom)
+      wrapper.setExtendedDynamicRange(contentEDREnabled, headroom: contentEDRHeadroom)
+    }
 
     appliedStyle = style
+  }
+
+  func setContentExtendedDynamicRange(_ enabled: Bool, headroom: CGFloat) {
+    contentEDREnabled = enabled
+    contentEDRHeadroom = headroom
+    if contentPlacement == .aboveMaterial {
+      container?.setOwnExtendedDynamicRange(enabled, headroom: headroom)
+    }
+    contentPlane?.setExtendedDynamicRange(enabled, headroom: headroom)
   }
 
   func addContentPadding() {

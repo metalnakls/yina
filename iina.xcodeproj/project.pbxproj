@@ -141,6 +141,7 @@
 		51E63DFB29CFB031008AFC20 /* PlaySlider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51E63DFA29CFB031008AFC20 /* PlaySlider.swift */; };
 		FBCBA4112026090200000001 /* SubtitleDissolve.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBCBA4112026090200000002 /* SubtitleDissolve.swift */; };
 		FBCBA4112026090300000001 /* OSCFloatingTopView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBCBA4112026090300000002 /* OSCFloatingTopView.swift */; };
+		FBCBA4112026091200000001 /* OSCExtendedDynamicRange.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBCBA4112026091200000002 /* OSCExtendedDynamicRange.swift */; };
 		51E63DFD29CFB04C008AFC20 /* PlaySliderLoopKnob.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51E63DFC29CFB04B008AFC20 /* PlaySliderLoopKnob.swift */; };
 		51EDB4722E85EE10007E5018 /* DisplayController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51EDB4712E85EE10007E5018 /* DisplayController.swift */; };
 		51F7974728C7E00200812D0D /* Lock.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51F7974628C7E00200812D0D /* Lock.swift */; };
@@ -1282,6 +1283,7 @@
 		E31E62FA2FD38516005527B2 /* LayoutValue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutValue.swift; sourceTree = "<group>"; };
 		E31E62FC2FD8F4C5005527B2 /* OSCBottomView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OSCBottomView.swift; sourceTree = "<group>"; };
 		E31E62FE2FD90284005527B2 /* OSCFloatingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OSCFloatingView.swift; sourceTree = "<group>"; };
+		FBCBA4112026091200000002 /* OSCExtendedDynamicRange.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OSCExtendedDynamicRange.swift; sourceTree = "<group>"; };
 		E31E63002FDB96E9005527B2 /* FadeableViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FadeableViewController.swift; sourceTree = "<group>"; };
 		E32693F824BA138000BF7ADC /* JavascriptPluginSubtitleItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JavascriptPluginSubtitleItem.swift; sourceTree = "<group>"; };
 		E32712AE24EAA14500359DAB /* ScreenshootOSDView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshootOSDView.swift; sourceTree = "<group>"; };
@@ -1790,6 +1792,7 @@
 				84EB1F061D2F5E76004FA5A1 /* Utility.swift */,
 				8461C52F1D462488006E91FF /* VideoTime.swift */,
 				8434BAA61D5DF2DA003BECF2 /* Extensions.swift */,
+				FBCBA4112026091200000002 /* OSCExtendedDynamicRange.swift */,
 				84C8D5901D796F9700D98A0E /* Aspect.swift */,
 				84AABE961DBFB62F00D138FD /* FixedFontManager.h */,
 				84AABE971DBFB62F00D138FD /* FixedFontManager.m */,
@@ -2700,6 +2703,7 @@
 				E301EFDA21312AB300BC8588 /* KeychainAccess.swift in Sources */,
 				E318D9092FE096A10025DBC5 /* SidebarSubtitlesPane.swift in Sources */,
 				8434BAA71D5DF2DA003BECF2 /* Extensions.swift in Sources */,
+				FBCBA4112026091200000001 /* OSCExtendedDynamicRange.swift in Sources */,
 				E35306F42147F78D008FE492 /* JavascriptAPICore.swift in Sources */,
 				847557141F405F8C0006B0FF /* MainWindowMenuActions.swift in Sources */,
 				E3DC53982A28F0DC002A5A48 /* JavascriptAPIInput.swift in Sources */,

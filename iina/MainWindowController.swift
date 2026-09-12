@@ -90,6 +90,8 @@ class MainWindowController: PlayerWindowController {
   var oscSliderView: NSView!
   private var oscPlaySliderTopConstraint: NSLayoutConstraint!
   private var oscPlaySliderBottomConstraint: NSLayoutConstraint!
+  private var oscEDREnabled = false
+  private var oscEDRHeadroom: CGFloat = 1
 
   var osdView: OSDView!
   var additionalInfoView: AdditionalInfoView!
@@ -720,6 +722,7 @@ class MainWindowController: PlayerWindowController {
     }
 
     addObserver(to: .default, forName: NSApplication.didChangeScreenParametersNotification) { [unowned self] _ in
+      updateOSCExtendedDynamicRange()
       // This observer handles a situation that the user connected a new screen or removed a screen
       let screens = NSScreen.screens
 
@@ -912,7 +915,7 @@ class MainWindowController: PlayerWindowController {
     oscToolbarView.views.forEach { oscToolbarView.removeView($0) }
     let liveTextEnabled = Preference.bool(for: .enableLiveText)
     for buttonType in effectiveButtons {
-      let button = NSButton()
+      let button = OSCButton()
       OSCToolbarButton.setStyle(of: button, buttonType: buttonType, reducedWidth: false)
       if buttonType == .liveText && liveTextEnabled {
         button.image = Preference.ToolBarButton.liveText.alternateImage()
@@ -920,7 +923,7 @@ class MainWindowController: PlayerWindowController {
       button.action = #selector(self.toolBarButtonAction(_:))
       oscToolbarView.addView(button, in: .trailing)
     }
-    updateOSCExtendedDynamicRange()
+    updateOSCExtendedDynamicRange(force: true)
 
 //    let menuButton = NSButton()
 //    menuButton.bezelStyle = .regularSquare
@@ -931,26 +934,44 @@ class MainWindowController: PlayerWindowController {
 //    oscToolbarView.addView(menuButton, in: .trailing)
   }
 
-  func updateOSCExtendedDynamicRange() {
-    let enabled = player.info.hdrAvailable && player.info.hdrEnabled
+  func updateOSCExtendedDynamicRange(force: Bool = false) {
+    let enabled = player.info.hdrEnabled
+    let screen = window?.screen
+    let headroom = OSCExtendedDynamicRange.headroom(
+      hdrEnabled: enabled,
+      currentDisplayHeadroom: screen?.maximumExtendedDynamicRangeColorComponentValue ?? 1,
+      potentialDisplayHeadroom: screen?.maximumPotentialExtendedDynamicRangeColorComponentValue ?? 1,
+      renderedContentHeadroom: videoView.videoLayer.contentsHeadroom)
+    guard force || enabled != oscEDREnabled || abs(headroom - oscEDRHeadroom) >= 0.05 else { return }
+    oscEDREnabled = enabled
+    oscEDRHeadroom = headroom
+    oscFloatingView.setDissolveFilterEnabled(!enabled)
+    oscFloatingView.setContentExtendedDynamicRange(enabled, headroom: headroom)
 
-    [oscFloatingView, oscBottomView, titleBarView, oscPlayControlView,
+    [oscBottomView, titleBarView, oscPlayControlView,
      oscToolbarView, oscVolumeView, oscSliderView].forEach {
-      $0?.setExtendedDynamicRange(enabled)
+      $0?.setExtendedDynamicRange(enabled, headroom: headroom)
     }
 
+    let primaryColor: NSColor? = enabled ? .hdrWhite(headroom: headroom) : nil
+    let secondaryColor: NSColor = enabled ? .hdrWhite(intensity: 0.75, headroom: headroom) : .secondaryLabelColor
     [playButton, leftArrowButton, rightArrowButton].forEach {
-      $0?.contentTintColor = nil
+      $0?.contentTintColor = primaryColor
     }
     oscToolbarView.arrangedSubviews.compactMap { $0 as? NSButton }.forEach {
-      $0.contentTintColor = nil
+      $0.contentTintColor = primaryColor
     }
-    muteButton.imageView.contentTintColor = nil
+    ([playButton, leftArrowButton, rightArrowButton] +
+      oscToolbarView.arrangedSubviews.compactMap { $0 as? NSButton }).forEach {
+      ($0 as? OSCButton)?.extendedDynamicRangeHeadroom = enabled ? headroom : 1
+    }
+    muteButton.extendedDynamicRangeHeadroom = enabled ? headroom : 1
+    muteButton.imageView.contentTintColor = primaryColor
     [leftLabel, rightLabel, oscSpeedLabelLeft, oscSpeedLabelRight].forEach {
-      $0?.textColor = .secondaryLabelColor
+      $0?.textColor = secondaryColor
     }
-    playSlider.usesExtendedDynamicRange = false
-    (volumeSlider as? VolumeSlider)?.usesExtendedDynamicRange = false
+    playSlider.extendedDynamicRangeHeadroom = enabled ? headroom : 1
+    (volumeSlider as? VolumeSlider)?.extendedDynamicRangeHeadroom = enabled ? headroom : 1
   }
 
   @objc
@@ -1078,6 +1099,7 @@ class MainWindowController: PlayerWindowController {
       playButton.image = NSImage(named: player.info.state == .playing ? "pause" : "play")
     }
     updateArrowButtons()
+    updateOSCExtendedDynamicRange(force: true)
   }
 
   private func quickTimePlayButtonImage(paused: Bool) -> NSImage? {
@@ -1991,6 +2013,7 @@ class MainWindowController: PlayerWindowController {
   func showUI() {
     if player.disableUI { return }
     guard !liveText.isActive, !interactiveMode.isActive else { return }
+    updateOSCExtendedDynamicRange()
     // Mouse movement repeatedly asks to show the UI. Do not let a redundant request create a
     // no-op alpha animation whose completion removes the dissolve blur already in progress.
     guard animationState != .willShow else { return }
