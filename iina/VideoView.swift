@@ -342,18 +342,77 @@ class VideoView: NSView {
     RunLoop.current.add(displayIdleTimer!, forMode: .default)
   }
 
+#if IINA_ENABLE_METAL_RENDERER
+  /// Return the current ICC profile path for the active display.
+  ///
+  /// mpv's `icc-profile-auto` render parameter is not reliable with the fork's
+  /// Metal/libmpv path. ColorSync remains the authority for selecting the
+  /// display profile; this only resolves its existing profile URL so mpv can
+  /// consume it through the regular `icc-profile` option.
+  private func currentICCProfilePath() -> String? {
+    guard let displayId = currentDisplay,
+          let displayUUID = CGDisplayCreateUUIDFromDisplayID(displayId)?.takeRetainedValue() else {
+      return nil
+    }
+
+    typealias ProfileData = (uuid: CFUUID, profileURL: URL?)
+    var result: ProfileData = (displayUUID, nil)
+    withUnsafeMutablePointer(to: &result) { pointer in
+      ColorSyncIterateDeviceProfiles({ dictionary, rawPointer in
+        guard let rawPointer,
+              let info = dictionary as? [String: Any],
+              let isCurrent = info["DeviceProfileIsCurrent"] as? Int,
+              isCurrent == 1,
+              let deviceID = info["DeviceID"],
+              CFEqual(deviceID as CFTypeRef,
+                      rawPointer.assumingMemoryBound(to: ProfileData.self).pointee.uuid),
+              let profileURL = info["DeviceProfileURL"] as? URL else {
+          return true
+        }
+        rawPointer.assumingMemoryBound(to: ProfileData.self).pointee.profileURL = profileURL
+        return false
+      }, pointer)
+    }
+
+    guard let path = result.profileURL?.path,
+          FileManager.default.fileExists(atPath: path) else {
+      return nil
+    }
+    return path
+  }
+#endif
+
   private func setICCProfile() {
     let screenColorSpace = player.mainWindow.window?.screen?.colorSpace
     if !Preference.bool(for: .loadIccProfile) {
       logHDR("Not using ICC profile due to user preference")
       player.mpv.setFlag(MPVOption.GPURendererOptions.iccProfileAuto, false)
+#if IINA_ENABLE_METAL_RENDERER
+      player.mpv.setString(MPVOption.GPURendererOptions.iccProfile, "")
+#endif
     } else if let screenColorSpace {
       let name = screenColorSpace.localizedName ?? "unnamed"
       logHDR("Using the ICC profile of the color space \(name)")
+#if IINA_ENABLE_METAL_RENDERER
+      if let profilePath = currentICCProfilePath() {
+        logHDR("Loading ICC profile: \(profilePath)")
+        player.mpv.setString(MPVOption.GPURendererOptions.iccProfile, profilePath)
+      } else {
+        logHDR("Failed to find ICC profile to load", level: .error)
+        player.mpv.setString(MPVOption.GPURendererOptions.iccProfile, "")
+      }
+#else
       // Set MPV_RENDER_PARAM_ICC_PROFILE before enabling icc-profile-auto to true as mpv requires
       // that parameter be set in the render context when icc-profile-auto is in use.
       videoLayer.setRenderICCProfile(screenColorSpace)
       player.mpv.setFlag(MPVOption.GPURendererOptions.iccProfileAuto, true)
+#endif
+    } else {
+      logHDR("Failed to find display color space", level: .error)
+      player.mpv.setFlag(MPVOption.GPURendererOptions.iccProfileAuto, false)
+#if IINA_ENABLE_METAL_RENDERER
+      player.mpv.setString(MPVOption.GPURendererOptions.iccProfile, "")
+#endif
     }
 
 #if IINA_ENABLE_METAL_RENDERER
@@ -544,6 +603,7 @@ extension VideoView {
 #if IINA_ENABLE_METAL_RENDERER
     mpv.setFlag(MPVOption.GPURendererOptions.targetColorspaceHint, true)
     mpv.setString(MPVOption.GPURendererOptions.targetColorspaceHintMode, "target")
+    mpv.setString(MPVOption.GPURendererOptions.iccProfile, "")
 #endif
     mpv.setString(MPVOption.GPURendererOptions.targetPrim, primaries)
     // PQ videos will be display as it was, HLG videos will be converted to PQ
@@ -569,6 +629,7 @@ extension VideoView {
 
     logHDR("Using mpv inverse tone mapping for SDR video")
     mpv.setFlag(MPVOption.GPURendererOptions.iccProfileAuto, false)
+    mpv.setString(MPVOption.GPURendererOptions.iccProfile, "")
     mpv.setFlag(MPVOption.GPURendererOptions.targetColorspaceHint, true)
     mpv.setString(MPVOption.GPURendererOptions.targetColorspaceHintMode, "target")
     mpv.setString(MPVOption.GPURendererOptions.targetPrim, "display-p3")
