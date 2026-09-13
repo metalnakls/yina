@@ -15,6 +15,7 @@ fileprivate let KeyPlayed = "IINAPHPlayed"
 fileprivate let KeyAddedDate = "IINAPHDate"
 fileprivate let KeyDuration = "IINAPHDuration"
 fileprivate let KeyTitle = "IINAPHTitle"
+fileprivate let KeyBookmark = "IINAPHBookmark"
 
 /// An entry in the playback history file.
 /// - Important: This class conforms to [NSSecureCoding](https://developer.apple.com/documentation/foundation/nssecurecoding).
@@ -41,6 +42,7 @@ class PlaybackHistory: NSObject, NSSecureCoding {
   var mpvProgress: VideoTime?
 
   var title: String?
+  private var bookmarkData: Data?
 
   /// A description of this playback history entry suitable to include in a log message.
   override var description: String {
@@ -68,6 +70,7 @@ class PlaybackHistory: NSObject, NSSecureCoding {
     let played = aDecoder.decodeBool(forKey: KeyPlayed)
     let duration = aDecoder.decodeDouble(forKey: KeyDuration)
     let title = aDecoder.decodeObject(of: NSString.self, forKey: KeyTitle)
+    let bookmarkData = aDecoder.decodeObject(of: NSData.self, forKey: KeyBookmark) as Data?
 
     self.url = url as URL
     self.name = name as String
@@ -76,8 +79,11 @@ class PlaybackHistory: NSObject, NSSecureCoding {
     self.addedDate = date as Date
     self.duration = VideoTime(duration)
     self.title = title as String?
+    self.bookmarkData = bookmarkData
 
     self.mpvProgress = Utility.playbackProgressFromWatchLater(mpvMd5)
+    super.init()
+    _ = resolvedURL()
   }
 
   init(url: URL, duration: Double, name: String? = nil, title: String?, mpvMd5: String) {
@@ -88,6 +94,54 @@ class PlaybackHistory: NSObject, NSSecureCoding {
     self.addedDate = Date()
     self.duration = VideoTime(duration)
     self.title = title
+    self.bookmarkData = Self.makeBookmark(for: url)
+    super.init()
+  }
+
+  /// Returns the current location of a local file after Finder moves or renames it.
+  /// Existing history archives did not contain bookmarks, so use thumbnail metadata
+  /// as a conservative one-time migration when exactly one sibling still matches.
+  func resolvedURL() -> URL {
+    guard url.isFileURL else { return url }
+
+    if let bookmarkData {
+      var isStale = false
+      if let resolved = try? URL(resolvingBookmarkData: bookmarkData,
+                                 options: [.withoutMounting, .withoutUI],
+                                 relativeTo: nil,
+                                 bookmarkDataIsStale: &isStale),
+         FileManager.default.fileExists(atPath: resolved.path) {
+        updateFileURL(resolved, refreshBookmark: isStale)
+        return url
+      }
+    }
+
+    if FileManager.default.fileExists(atPath: url.path) {
+      if bookmarkData == nil {
+        bookmarkData = Self.makeBookmark(for: url)
+      }
+      return url
+    }
+
+    if bookmarkData == nil,
+       let recovered = ThumbnailCache.uniquelyRenamedVideo(forName: mpvMd5, originalURL: url) {
+      updateFileURL(recovered, refreshBookmark: true)
+    }
+    return url
+  }
+
+  private func updateFileURL(_ newURL: URL, refreshBookmark: Bool) {
+    let standardizedURL = newURL.standardizedFileURL
+    url = standardizedURL
+    name = standardizedURL.lastPathComponent
+    if refreshBookmark || bookmarkData == nil {
+      bookmarkData = Self.makeBookmark(for: standardizedURL)
+    }
+  }
+
+  private static func makeBookmark(for url: URL) -> Data? {
+    guard url.isFileURL, FileManager.default.fileExists(atPath: url.path) else { return nil }
+    return try? url.bookmarkData(options: [], includingResourceValuesForKeys: nil, relativeTo: nil)
   }
 
   func encode(with aCoder: NSCoder) {
@@ -98,5 +152,6 @@ class PlaybackHistory: NSObject, NSSecureCoding {
     aCoder.encode(addedDate, forKey: KeyAddedDate)
     aCoder.encode(duration.second, forKey: KeyDuration)
     aCoder.encode(title, forKey: KeyTitle)
+    aCoder.encode(bookmarkData ?? Self.makeBookmark(for: url), forKey: KeyBookmark)
   }
 }

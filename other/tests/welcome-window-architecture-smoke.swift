@@ -5,6 +5,8 @@ import Foundation
 @main struct WelcomeWindowArchitectureSmoke {
   static func main() throws {
     let welcome = try String(contentsOfFile: "iina/InitialWindowController.swift", encoding: .utf8)
+    let playbackHistory = try String(contentsOfFile: "iina/PlaybackHistory.swift", encoding: .utf8)
+    let thumbnailCache = try String(contentsOfFile: "iina/ThumbnailCache.swift", encoding: .utf8)
     let ffmpeg = try String(contentsOfFile: "iina/FFmpegController.m", encoding: .utf8)
     let project = try String(contentsOfFile: "iina.xcodeproj/project.pbxproj", encoding: .utf8)
 
@@ -24,6 +26,11 @@ import Foundation
     precondition(welcome.contains("case .unavailable where cachedFolderPaths.contains"))
     precondition(welcome.contains("if openLeftmostShowFolderCard()"))
     precondition(welcome.contains("guard let show = showFolders.first else { return false }"))
+    precondition(welcome.contains("history.map { $0.resolvedURL() }"))
+    precondition(playbackHistory.contains("KeyBookmark"))
+    precondition(playbackHistory.contains("URL(resolvingBookmarkData:"))
+    precondition(playbackHistory.contains("ThumbnailCache.uniquelyRenamedVideo"))
+    precondition(thumbnailCache.contains("guard match == nil else { return nil }"))
     let shelfAccessoryStart = welcome.range(of: "private func configureShelfAccessory()")!.lowerBound
     let shelfAccessoryEnd = welcome.range(of: "override func showWindow", range: shelfAccessoryStart..<welcome.endIndex)!.lowerBound
     let shelfAccessory = welcome[shelfAccessoryStart..<shelfAccessoryEnd]
