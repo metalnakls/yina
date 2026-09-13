@@ -5,6 +5,8 @@ set -euo pipefail
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 readonly INSTALL_APP="/Applications/Utilities/IINA.app"
+readonly BACKUP_DIR="$(cd "$REPO_DIR/.." && pwd)/.build-backups"
+readonly BACKUP_APP="$BACKUP_DIR/IINA.app"
 readonly DERIVED_DATA="${1:-/tmp/iina-nightly-final}"
 readonly BUILD_APP="$DERIVED_DATA/Build/Products/Nightly/IINA.app"
 readonly MODULE_CACHE_DIR="$DERIVED_DATA/ModuleCache.noindex"
@@ -94,6 +96,15 @@ codesign --force --sign "$SIGN_IDENTITY" --options runtime \
   --entitlements "$IINA_ENTITLEMENTS" "$BUILD_APP"
 codesign --verify --deep --strict --verbose=2 "$BUILD_APP"
 
+# Preserve the last known installed build before updating the stable wrapper.
+# The wrapper stays in place; only its contents are refreshed.
+if test -x "$INSTALL_APP/Contents/MacOS/IINA"; then
+  mkdir -p "$BACKUP_APP"
+  find "$BACKUP_APP" -mindepth 1 -delete
+  ditto "$INSTALL_APP" "$BACKUP_APP"
+  codesign --verify --deep --strict "$BACKUP_APP"
+fi
+
 # This script owns one exact install destination. Preserve the app bundle itself
 # and replace only its contents.
 test "$INSTALL_APP" = "/Applications/Utilities/IINA.app"
@@ -103,4 +114,15 @@ ditto "$BUILD_APP" "$INSTALL_APP"
 
 codesign --verify --deep --strict "$INSTALL_APP"
 "$SCRIPT_DIR/verify_arm64_bundle.sh" "$INSTALL_APP"
+
+# Keep exactly the rotating backup. This runs only after the new installed bundle
+# has verified, so a build or signing failure never removes a recoverable app.
+if [[ -d "$BACKUP_DIR" ]]; then
+  while IFS= read -r -d '' path; do
+    if [[ "$path" != "$BACKUP_APP" ]]; then
+      rm -rf -- "$path"
+    fi
+  done < <(find "$BACKUP_DIR" -maxdepth 1 -type d -name 'IINA*.app' -print0)
+fi
+
 echo "Installed $INSTALL_APP"
