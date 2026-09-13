@@ -64,26 +64,22 @@ class GuideWindowController: NSWindowController {
       defer: false
     )
     self.init(window: window)
-  }
-
-  required init?(coder: NSCoder) {
-    fatalError("init(coder:) has not been implemented")
-  }
-
-  override func windowDidLoad() {
-    super.windowDidLoad()
 
     let webView = WKWebView()
     webView.navigationDelegate = self
     highlightsWebView = webView
 
-    window?.title = NSLocalizedString("guide.highlights", comment: "Highlights")
-    window?.contentViewController = NSHostingController(rootView: GuideWindowView(
+    window.title = NSLocalizedString("guide.highlights", comment: "Highlights")
+    window.contentViewController = NSHostingController(rootView: GuideWindowView(
       webView: webView,
       model: model,
       continueAction: { [weak self] in self?.continueBtnAction() },
       websiteAction: { [weak self] in self?.visitIINAWebsite() }
     ))
+  }
+
+  required init?(coder: NSCoder) {
+    fatalError("init(coder:) has not been implemented")
   }
 
   func show(pages: [Page]) {

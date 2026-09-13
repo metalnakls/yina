@@ -1304,7 +1304,6 @@
 		E34BC28E2C27A68100A94680 /* SettingsItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsItem.swift; sourceTree = "<group>"; };
 		E34BC2A72C27C01800A94680 /* SettingsLocalization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsLocalization.swift; sourceTree = "<group>"; };
 		E34BC2AB2C27DAE900A94680 /* SettingsHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsHelper.swift; sourceTree = "<group>"; };
-		E34E909B24F821280073BF04 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.xib; name = Base; path = Base.lproj/GuideWindowController.xib; sourceTree = "<group>"; };
 		E34E909E24F821300073BF04 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/GuideWindowController.strings; sourceTree = "<group>"; };
 		E34E90C824F821B00073BF04 /* ca */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ca; path = ca.lproj/GuideWindowController.strings; sourceTree = "<group>"; };
 		E34E90CA24F821B10073BF04 /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/GuideWindowController.strings"; sourceTree = "<group>"; };
@@ -3430,7 +3429,6 @@
 		E34E909C24F821280073BF04 /* GuideWindowController.xib */ = {
 			isa = PBXVariantGroup;
 			children = (
-				E34E909B24F821280073BF04 /* Base */,
 				E34E909E24F821300073BF04 /* en */,
 				E34E90C824F821B00073BF04 /* ca */,
 				E34E90CA24F821B10073BF04 /* zh-Hans */,
