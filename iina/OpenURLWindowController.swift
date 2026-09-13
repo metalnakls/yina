@@ -59,6 +59,7 @@ private struct OpenURLView: View {
                       text: $model.urlText)
               .textFieldStyle(.plain)
               .foregroundStyle(model.showsError ? Color.red : Color.primary)
+              .accessibilityLabel(Text(localized("XV7-VP-Ua2.placeholderString", "Please enter the URL here……")))
               .focused($focusedField, equals: .url)
               .onSubmit(open)
               .onChange(of: model.urlText) {
@@ -81,12 +82,14 @@ private struct OpenURLView: View {
                 Text(localized("Q1z-9O-n4X.title", "Username"))
                   .font(.caption)
                 TextField("", text: $model.username)
+                  .accessibilityLabel(Text(localized("Q1z-9O-n4X.title", "Username")))
                   .focused($focusedField, equals: .username)
               }
               VStack(alignment: .leading, spacing: 6) {
                 Text(localized("uM6-Bp-Wdk.title", "Password"))
                   .font(.caption)
                 SecureField("", text: $model.password)
+                  .accessibilityLabel(Text(localized("uM6-Bp-Wdk.title", "Password")))
                   .focused($focusedField, equals: .password)
               }
             }
@@ -112,17 +115,25 @@ private struct OpenURLView: View {
       }
       .padding(16)
       .frame(minWidth: 544, minHeight: 225)
+      .disabled(model.isLoading)
+      .accessibilityHidden(model.isLoading)
 
       if model.isLoading {
         ZStack {
           Rectangle()
             .fill(.ultraThinMaterial)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .contentShape(Rectangle())
+            .accessibilityHidden(true)
           VStack(spacing: 8) {
             ProgressView()
               .controlSize(.large)
-            Text(NSLocalizedString("main.opening_stream", comment: "Opening stream…"))
+              .accessibilityLabel(Text(localized("3T9-gp-4UE.title", "Loading Media……")))
+            Text(localized("3T9-gp-4UE.title", "Loading Media……"))
               .font(.title3)
           }
+          .accessibilityElement(children: .combine)
+          .accessibilityLabel(Text(localized("3T9-gp-4UE.title", "Loading Media……")))
           VStack {
             Spacer()
             HStack {
@@ -132,14 +143,25 @@ private struct OpenURLView: View {
           }
           .padding(16)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .zIndex(1)
       }
     }
     .background(.ultraThinMaterial)
     .onAppear {
-      focusedField = .url
+      if !model.isLoading {
+        focusedField = .url
+      }
     }
     .onChange(of: model.focusRequest) {
-      focusedField = .url
+      if !model.isLoading {
+        focusedField = .url
+      }
+    }
+    .onChange(of: model.isLoading) {
+      if model.isLoading {
+        focusedField = nil
+      }
     }
   }
 }
@@ -152,6 +174,7 @@ class OpenURLWindowController: NSWindowController, NSWindowDelegate {
   var isAlternativeAction = false
   var playerCore: PlayerCore?
   var loadingURL: String?
+  private var suppressNextURLValidation = false
 
   private var invalidURLMessage: String {
     NSLocalizedString("alert.invalid_url", comment: "The URL is invalid.")
@@ -173,6 +196,7 @@ class OpenURLWindowController: NSWindowController, NSWindowDelegate {
                           backing: .buffered,
                           defer: false)
     window.contentView = hostingView
+    window.contentMinSize = NSSize(width: 576, height: 257)
     window.collectionBehavior.insert(.fullScreenNone)
     window.setFrameAutosaveName("IINAOpenURLWindow")
     window.isReleasedWhenClosed = false
@@ -202,7 +226,9 @@ class OpenURLWindowController: NSWindowController, NSWindowDelegate {
 
   func failedToLoadURL() {
     guard isWindowLoaded && window?.isVisible == true else { return }
-    viewModel.urlText = loadingURL ?? ""
+    let failedURL = loadingURL ?? ""
+    suppressNextURLValidation = viewModel.urlText != failedURL
+    viewModel.urlText = failedURL
     viewModel.errorMessage = failedToOpenURLMessage
     viewModel.showsError = true
     viewModel.isLoading = false
@@ -210,6 +236,7 @@ class OpenURLWindowController: NSWindowController, NSWindowDelegate {
 
   func resetWindowState() {
     _ = window
+    suppressNextURLValidation = false
     viewModel.urlText = ""
     viewModel.username = ""
     viewModel.password = ""
@@ -246,6 +273,7 @@ class OpenURLWindowController: NSWindowController, NSWindowDelegate {
   }
 
   private func openURL() {
+    guard !viewModel.isLoading else { return }
     if let url = getURL().url {
       if viewModel.rememberPassword,
          let host = url.host,
@@ -258,8 +286,9 @@ class OpenURLWindowController: NSWindowController, NSWindowDelegate {
       }
       viewModel.isLoading = true
       window?.makeFirstResponder(nil)
-      playerCore = PlayerCore.activeOrNewForMenuAction(isAlternative: isAlternativeAction)
-      playerCore!.openURL(url)
+      let playerCore = PlayerCore.activeOrNewForMenuAction(isAlternative: isAlternativeAction)
+      self.playerCore = playerCore
+      playerCore.openURL(url)
     } else {
       Utility.showAlert("wrong_url_format")
     }
@@ -288,6 +317,11 @@ class OpenURLWindowController: NSWindowController, NSWindowDelegate {
   }
 
   private func validateURL() {
+    guard !suppressNextURLValidation else {
+      suppressNextURLValidation = false
+      return
+    }
+
     if viewModel.urlText.isEmpty {
       viewModel.errorMessage = invalidURLMessage
       viewModel.showsError = false
