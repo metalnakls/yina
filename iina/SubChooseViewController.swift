@@ -62,7 +62,7 @@ class SubChooseViewController: NSViewController {
 
   private func downloadSelectedSubtitles() {
     guard let userDoneAction else { return }
-    let selectedSubtitles = viewState.selectedRows.sorted().compactMap { index in
+    let selectedSubtitles: [OnlineSubtitle] = viewState.selectedRows.sorted().compactMap { index in
       guard subtitles.indices.contains(index) else { return nil }
       return subtitles[index]
     }
