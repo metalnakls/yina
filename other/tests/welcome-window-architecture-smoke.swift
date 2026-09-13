@@ -22,6 +22,8 @@ import Foundation
     precondition(welcome.contains("ShowFolderSnapshotStore.load"))
     precondition(welcome.contains("ShowFolderSnapshotStore.save"))
     precondition(welcome.contains("case .unavailable where cachedFolderPaths.contains"))
+    precondition(welcome.contains("if openLeftmostShowFolderCard()"))
+    precondition(welcome.contains("guard let show = showFolders.first else { return false }"))
     let shelfAccessoryStart = welcome.range(of: "private func configureShelfAccessory()")!.lowerBound
     let shelfAccessoryEnd = welcome.range(of: "override func showWindow", range: shelfAccessoryStart..<welcome.endIndex)!.lowerBound
     let shelfAccessory = welcome[shelfAccessoryStart..<shelfAccessoryEnd]
