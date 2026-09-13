@@ -7,6 +7,25 @@ for macOS windowing, menus, media rendering, WebKit, and system integration.
 
 This is a roadmap, not a proposal to rewrite IINA wholesale.
 
+## Implementation status
+
+The first migration wave is now implemented on the `swift` branch:
+
+- Open URL uses SwiftUI content inside an AppKit-owned window.
+- Subtitle chooser uses a SwiftUI multi-selection list inside the existing OSD flow.
+- Plugin permissions use SwiftUI content inside the existing AppKit list.
+- Screenshot OSD uses SwiftUI content while file operations remain system adapters.
+- About uses SwiftUI content and contributor layout with a narrow rich-text wrapper.
+- Guide uses SwiftUI content with `WKWebView` retained as a narrow WebKit adapter.
+- The obsolete Base XIBs for these surfaces, plus their nonlocalized helper XIBs,
+  have been removed. Existing localized `.strings` tables remain bundled.
+
+The next practical wave is settings-page slices, the initial/recent-files content,
+font picker, logs, and history. Inspector, Filters, key recording, and OSC toolbar
+customization remain dedicated higher-risk projects. The player window, rendering,
+PiP, dynamic menus, WebKit runtime, and display/EDR authority remain AppKit or
+system-framework led by design.
+
 ## Current implementation split
 
 ### SwiftUI-backed surfaces
@@ -22,7 +41,7 @@ existing application model.
 
 ### XIB-backed surfaces
 
-The application still contains these app-owned XIBs:
+After the first migration wave, the application still contains these app-owned XIBs:
 
 - Main window: `Base.lproj/MainWindowController.xib`.
 - Initial/recent-files window: `Base.lproj/InitialWindowController.xib`.
@@ -30,15 +49,9 @@ The application still contains these app-owned XIBs:
 - Inspector: `Base.lproj/InspectorWindowController.xib`.
 - Filters: `Base.lproj/FilterWindowController.xib`.
 - Font picker: `Base.lproj/FontPickerWindowController.xib`.
-- About: `Base.lproj/AboutWindowController.xib` and `AboutWindowContributorAvatarItem.xib`.
-- Guide: `Base.lproj/GuideWindowController.xib`.
-- Open URL: `Base.lproj/OpenURLWindowController.xib`.
-- Subtitle chooser: `Base.lproj/SubChooseViewController.xib`.
 - Key recording: `Base.lproj/KeyRecordViewController.xib`.
 - OSC toolbar settings: `Base.lproj/OSCToolbarSettingsSheetController.xib`.
 - OSC toolbar drag item: `OSCToolbarDraggingItemViewController.xib`.
-- Plugin permission view: `PluginPermissionView.xib`.
-- Screenshot OSD: `Base.lproj/ScreenshootOSDView.xib`.
 - Application menu: `Base.lproj/MainMenu.xib`.
 
 IINA's contribution rules already say not to introduce new XIBs and to use
@@ -52,6 +65,9 @@ Priority is based on user-facing value, dependency risk, and whether the
 surface is a good SwiftUI candidate.
 
 ### Priority 1: small, low-risk XIB migrations
+
+Completed on `swift`: Subtitle chooser, Open URL, Plugin permission view, and
+Screenshot OSD. Their localized string tables remain in place.
 
 These are good pilots for establishing an IINA SwiftUI window pattern:
 
@@ -93,6 +109,9 @@ These are good pilots for establishing an IINA SwiftUI window pattern:
    `AboutWindowContributorAvatarItem.swift`, and their XIBs.
    The contributor collection can become a SwiftUI `LazyVGrid` or list. The
    window lifecycle and external-link actions can remain AppKit-owned.
+
+   Completed on `swift`; AppKit continues to own the window lifecycle and an
+   `NSTextView` wrapper renders the existing rich-text resources.
 
 8. **Log and history windows** — `LogWindowController.swift` and
    `HistoryWindowController.swift`.
