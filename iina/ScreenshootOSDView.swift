@@ -9,6 +9,24 @@
 import Cocoa
 import SwiftUI
 
+private enum ScreenshootOSDActionLabels {
+  static let delete = NSLocalizedString(
+    "JGi-s6-8NZ.title",
+    tableName: "ScreenshootOSDView",
+    value: "DELETE",
+    comment: "Delete screenshot")
+  static let edit = NSLocalizedString(
+    "H12-rV-dHF.title",
+    tableName: "ScreenshootOSDView",
+    value: "EDIT",
+    comment: "Edit screenshot")
+  static let reveal = NSLocalizedString(
+    "5fX-iV-Qu2.title",
+    tableName: "ScreenshootOSDView",
+    value: "REVEAL",
+    comment: "Reveal screenshot in Finder")
+}
+
 private struct ScreenshootOSDContent: View {
   let image: NSImage
   let imageSize: NSSize
@@ -31,22 +49,38 @@ private struct ScreenshootOSDContent: View {
 
       if showsFileActions {
         HStack(spacing: 12) {
-          Button("DELETE", action: deleteAction)
+          Button(action: deleteAction) {
+            Text(ScreenshootOSDActionLabels.delete)
+              .lineLimit(1)
+              .truncationMode(.tail)
+          }
             .buttonStyle(.borderless)
             .font(.system(size: 11, weight: .bold))
             .frame(width: 54, height: 16)
-          Button("EDIT", action: editAction)
+            .accessibilityLabel(Text(ScreenshootOSDActionLabels.delete))
+          Button(action: editAction) {
+            Text(ScreenshootOSDActionLabels.edit)
+              .lineLimit(1)
+              .truncationMode(.tail)
+          }
             .buttonStyle(.borderless)
             .font(.system(size: 11, weight: .bold))
             .frame(width: 35, height: 16)
-          Button("REVEAL", action: revealAction)
+            .accessibilityLabel(Text(ScreenshootOSDActionLabels.edit))
+          Button(action: revealAction) {
+            Text(ScreenshootOSDActionLabels.reveal)
+              .lineLimit(1)
+              .truncationMode(.tail)
+          }
             .buttonStyle(.borderless)
             .font(.system(size: 11, weight: .bold))
             .frame(width: 56, height: 16)
+            .accessibilityLabel(Text(ScreenshootOSDActionLabels.reveal))
         }
       }
     }
     .padding(.vertical, 8)
+    .frame(width: imageSize.width, alignment: .topLeading)
   }
 }
 
