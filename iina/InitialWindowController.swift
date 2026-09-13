@@ -534,6 +534,13 @@ class InitialWindowController: NSWindowController {
     player.openURL(show.resumeURL)
   }
 
+  @discardableResult
+  private func openLeftmostShowFolderCard() -> Bool {
+    guard let show = showFolders.first else { return false }
+    player.openURL(show.resumeURL)
+    return true
+  }
+
   @objc private func dismissShowFolderCard(_ sender: NSMenuItem) {
     guard let identifier = sender.representedObject as? String,
           let show = showFolders.first(where: { $0.identityPath == identifier }) else { return }
@@ -730,6 +737,9 @@ extension InitialWindowController: NSTableViewDelegate, NSTableViewDataSource {
     let keyChar = KeyCodeHelper.keyMap[event.keyCode]?.0
     switch keyChar {
       case "ENTER", "KP_ENTER":  // RETURN or (keypad ENTER)
+        if openLeftmostShowFolderCard() {
+          return
+        }
         if recentFilesTableView.selectedRow >= 0 {
           // If user selected a row in the table using the keyboard, use that
           openRecentItemFromTable(recentFilesTableView.selectedRow)
