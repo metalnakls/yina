@@ -14,11 +14,6 @@ class PluginPermissionView: NSViewController {
   var desc: String
   var isDangerous: Bool
 
-  @IBOutlet weak var box: NSBox!
-  @IBOutlet weak var nameLabel: NSTextField!
-  @IBOutlet weak var descLabel: NSTextField!
-  @IBOutlet weak var cautionImage: NSImageView!
-
   init(name: String, desc: String, isDangerous: Bool) {
     self.name = name
     self.desc = desc
@@ -60,6 +55,7 @@ private struct PluginPermissionContentView: View {
             .resizable()
             .scaledToFit()
             .frame(width: 16, height: 16)
+            .accessibilityLabel(Text(NSLocalizedString("alert.title_warning", comment: "Warning")))
         }
       }
       .frame(minHeight: 16)
