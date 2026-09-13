@@ -5,3 +5,9 @@ When sending progress updates during longer tasks, title them with a short level
 # Local build installation
 
 At the end of each normal implementation turn, replace `/Applications/Utilities/IINA.app` with the final successful build. Do not copy intermediate builds, and do not install builds from experimental branches unless the user explicitly asks for it.
+
+# Persistent build skills
+
+For any macOS app signing, certificate, identity, or bundle-verification work, read and follow `/Users/wsb/.codex/skills/macos-app-signing/SKILL.md`.
+
+For any app build, packaging, installation, or CI/CD script, read and follow `/Users/wsb/.codex/skills/app-build-install-scripts/SKILL.md`.
