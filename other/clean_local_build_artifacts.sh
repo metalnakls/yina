@@ -22,11 +22,15 @@ declare -a candidates=()
 
 for path in \
   "$REPO_DIR"/DerivedData-* \
-  "$REPO_DIR"/.scratch/IINA-*.app \
+  "$REPO_DIR"/.scratch \
   "$BACKUP_DIR"/IINA-before-*.app \
   /private/tmp/iina-* \
   /private/tmp/IINA-before-*.app; do
   [[ -e "$path" ]] || continue
+  git_root="$(/usr/bin/git -C "$path" rev-parse --show-toplevel 2>/dev/null || true)"
+  if [[ "$git_root" == "$path" ]]; then
+    continue
+  fi
   candidates+=("$path")
 done
 
