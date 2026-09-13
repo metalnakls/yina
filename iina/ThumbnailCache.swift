@@ -32,39 +32,56 @@ class ThumbnailCache {
   }
 
   static func fileIsCached(forName name: String, forVideo videoPath: URL?) -> Bool {
-    guard let fileAttr = try? FileManager.default.attributesOfItem(atPath: videoPath!.path) else {
+    guard let videoPath,
+          let videoMetadata = metadata(forVideo: videoPath) else {
       log("Cannot get video file attributes", level: .error)
       return false
     }
+    return cachedMetadata(forName: name) == videoMetadata
+  }
 
-    // file size
-    guard let fileSize = fileAttr[.size] as? FileSize else {
-      log("Cannot get video file size", level: .error)
-      return false
+  /// Recovers a pre-bookmark history entry after a Finder rename. Requiring one
+  /// exact metadata match avoids redirecting a stale card to an unrelated file.
+  static func uniquelyRenamedVideo(forName name: String, originalURL: URL) -> URL? {
+    guard originalURL.isFileURL,
+          let expected = cachedMetadata(forName: name),
+          let siblings = try? FileManager.default.contentsOfDirectory(
+            at: originalURL.deletingLastPathComponent(),
+            includingPropertiesForKeys: [.isRegularFileKey, .fileSizeKey, .contentModificationDateKey],
+            options: [.skipsHiddenFiles]) else { return nil }
+
+    let originalExtension = originalURL.pathExtension.lowercased()
+    var match: URL?
+    for candidate in siblings where candidate.pathExtension.lowercased() == originalExtension {
+      guard metadata(forVideo: candidate) == expected else { continue }
+      guard match == nil else { return nil }
+      match = candidate
     }
+    return match
+  }
 
-    // modified date
-    guard let fileModifiedDate = fileAttr[.modificationDate] as? Date else {
-      log("Cannot get video file modification date", level: .error)
-      return false
-    }
-    let fileTimestamp = FileTimestamp(fileModifiedDate.timeIntervalSince1970)
+  private struct Metadata: Equatable {
+    let size: FileSize
+    let timestamp: FileTimestamp
+  }
 
-    // Check metadate in the cache
-    if self.fileExists(forName: name) {
-      guard let file = try? FileHandle(forReadingFrom: urlFor(name)) else {
-        log("Cannot open cache file.", level: .error)
-        return false
-      }
+  private static func metadata(forVideo url: URL) -> Metadata? {
+    guard let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey,
+                                                          .contentModificationDateKey]),
+          values.isRegularFile == true,
+          let size = values.fileSize,
+          let modificationDate = values.contentModificationDate else { return nil }
+    return Metadata(size: FileSize(size),
+                    timestamp: FileTimestamp(modificationDate.timeIntervalSince1970))
+  }
 
-      let cacheVersion = file.read(type: CacheVersion.self)
-      if cacheVersion != version { return false }
-
-      return file.read(type: FileSize.self) == fileSize &&
-        file.read(type: FileTimestamp.self) == fileTimestamp
-    }
-
-    return false
+  private static func cachedMetadata(forName name: String) -> Metadata? {
+    guard let file = try? FileHandle(forReadingFrom: urlFor(name)) else { return nil }
+    defer { file.closeFile() }
+    guard file.read(type: CacheVersion.self) == version,
+          let size = file.read(type: FileSize.self),
+          let timestamp = file.read(type: FileTimestamp.self) else { return nil }
+    return Metadata(size: size, timestamp: timestamp)
   }
 
   /// Write thumbnail cache to file.

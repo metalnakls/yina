@@ -138,7 +138,7 @@ class InitialWindowController: NSWindowController {
 
     if Preference.bool(for: .recordRecentFiles) {
       HistoryController.shared.$history.withLock { history in
-        history.map(\.url).forEach(append)
+        history.map { $0.resolvedURL() }.forEach(append)
       }
     }
     appKitRecents.forEach(append)
@@ -371,9 +371,10 @@ class InitialWindowController: NSWindowController {
     let lastPosition = Preference.double(for: .iinaLastPlayedFilePosition)
     let historyItems: [ShowFolderHistoryItem] = HistoryController.shared.$history.withLock { history in
       history.compactMap { entry in
-        guard entry.url.isFileURL,
-              Utility.playableFileExt.contains(entry.url.pathExtension.lowercased()) else { return nil }
-        let url = entry.url.standardizedFileURL
+        let resolvedURL = entry.resolvedURL()
+        guard resolvedURL.isFileURL,
+              Utility.playableFileExt.contains(resolvedURL.pathExtension.lowercased()) else { return nil }
+        let url = resolvedURL.standardizedFileURL
         let savedPosition = Utility.playbackProgressFromWatchLater(entry.mpvMd5)?.second ??
           entry.mpvProgress?.second ?? 0
         let position = url == lastURL && lastPosition > 0 ? lastPosition : savedPosition
