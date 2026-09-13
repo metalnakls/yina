@@ -11,12 +11,13 @@ readonly DERIVED_DATA="${1:-/tmp/iina-nightly-final}"
 readonly BUILD_APP="$DERIVED_DATA/Build/Products/Nightly/IINA.app"
 readonly MODULE_CACHE_DIR="$DERIVED_DATA/ModuleCache.noindex"
 readonly SWIFTPM_CACHE_DIR="$DERIVED_DATA/SwiftPMCache"
-readonly SOURCE_PACKAGES_DIR="$REPO_DIR/SourcePackages"
+readonly DEFAULT_SOURCE_PACKAGES_DIR="$REPO_DIR/SourcePackages"
 readonly IINA_ENTITLEMENTS="$REPO_DIR/iina/IINA.entitlements"
 readonly OPEN_IN_IINA_ENTITLEMENTS="$REPO_DIR/OpenInIINA/OpenInIINA.entitlements"
-readonly DEVELOPMENT_TEAM="67CQ77V27R"
+readonly DEFAULT_SIGN_IDENTITY="919F9538E1E91B7C10FD2556CC9030B76ED39E58"
 
-SIGN_IDENTITY="${IINA_CODESIGN_IDENTITY:-}"
+SIGN_IDENTITY="${IINA_CODESIGN_IDENTITY:-$DEFAULT_SIGN_IDENTITY}"
+SOURCE_PACKAGES_DIR="${IINA_SOURCE_PACKAGES_DIR:-$DEFAULT_SOURCE_PACKAGES_DIR}"
 
 if (( $# > 1 )); then
   echo "usage: $0 [derived-data-path]" >&2
@@ -30,16 +31,9 @@ if [[ ! -d "$SOURCE_PACKAGES_DIR/checkouts" ]]; then
   exit 66
 fi
 
-if [[ -z "$SIGN_IDENTITY" ]]; then
-  SIGN_IDENTITY="$(
-    security find-identity -v -p codesigning |
-      awk -F '"' "/Apple Development:.*\\(${DEVELOPMENT_TEAM}\\)/ { print \$2; exit }"
-  )"
-fi
-
-if [[ -z "$SIGN_IDENTITY" || "$SIGN_IDENTITY" == "-" ]]; then
-  echo "No Apple Development signing identity for team $DEVELOPMENT_TEAM was found." >&2
-  echo "Install one in Xcode, or set IINA_CODESIGN_IDENTITY to an explicit valid identity." >&2
+if ! security find-identity -v -p codesigning | awk -v identity="$SIGN_IDENTITY" 'index($0, identity) { found = 1 } END { exit !found }'; then
+  echo "The requested Apple Development signing identity is unavailable: $SIGN_IDENTITY" >&2
+  echo "Confirm the intended identity in Xcode or set IINA_CODESIGN_IDENTITY to a valid explicit identity." >&2
   exit 65
 fi
 
