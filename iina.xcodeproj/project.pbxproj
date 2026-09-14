@@ -964,7 +964,6 @@
 		8400D5C71E1AB2F1006785F5 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.xib; name = Base; path = Base.lproj/MainWindowController.xib; sourceTree = "<group>"; };
 		8400D5D31E1AB312006785F5 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.xib; name = Base; path = Base.lproj/InspectorWindowController.xib; sourceTree = "<group>"; };
 		8400D5D61E1AB317006785F5 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.xib; name = Base; path = Base.lproj/FilterWindowController.xib; sourceTree = "<group>"; };
-		8400D5DC1E1AB326006785F5 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.xib; name = Base; path = Base.lproj/FontPickerWindowController.xib; sourceTree = "<group>"; };
 		8400D5EB1E1AB33B006785F5 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.xib; name = Base; path = Base.lproj/KeyRecordViewController.xib; sourceTree = "<group>"; };
 		8400D5F91E1AB411006785F5 /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/MainMenu.strings"; sourceTree = "<group>"; };
 		8400D5FA1E1AB411006785F5 /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/MainWindowController.strings"; sourceTree = "<group>"; };
@@ -2963,7 +2962,6 @@
 		8400D5DD1E1AB326006785F5 /* FontPickerWindowController.xib */ = {
 			isa = PBXVariantGroup;
 			children = (
-				8400D5DC1E1AB326006785F5 /* Base */,
 				8400D6011E1AB412006785F5 /* zh-Hans */,
 				D27E35D61E379B6E0064BE57 /* zh-Hant */,
 				C78987221E34EBDE0005769F /* ko */,

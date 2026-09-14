@@ -377,16 +377,20 @@ class Utility {
      - callback: A closure accepting the font name.
    */
   static func quickFontPickerWindow(selecting initialSelection: String?, sheetWindow: NSWindow? = nil, callback: @escaping (String?) -> Void) {
-    let fontPicker = AppDelegate.shared.fontPicker
-    let _ = fontPicker.window  // load if not loaded
-    if let initialSelection {
-      fontPicker.select(initialSelection)
-    }
-    fontPicker.finishedPicking = callback
-    if let sheetWindow {
-      sheetWindow.beginSheet(fontPicker.window!)
-    } else {
-      fontPicker.showWindow(self)
+    // This synchronous helper is only called by AppKit control and menu actions,
+    // which are delivered on the main actor.
+    MainActor.assumeIsolated {
+      let fontPicker = AppDelegate.shared.fontPicker
+      let _ = fontPicker.window  // load if not loaded
+      if let initialSelection {
+        fontPicker.select(initialSelection)
+      }
+      fontPicker.finishedPicking = callback
+      if let sheetWindow {
+        sheetWindow.beginSheet(fontPicker.window!)
+      } else {
+        fontPicker.showWindow(self)
+      }
     }
   }
 
