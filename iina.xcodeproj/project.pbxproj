@@ -281,7 +281,6 @@
 		E337D5E6241EF60400B5729A /* JavascriptAPISubtitle.swift in Sources */ = {isa = PBXBuildFile; fileRef = E337D5E5241EF60400B5729A /* JavascriptAPISubtitle.swift */; };
 		E33836852026223800ABC812 /* OSCToolbarSettingsSheetController.swift in Sources */ = {isa = PBXBuildFile; fileRef = E33836832026223800ABC812 /* OSCToolbarSettingsSheetController.swift */; };
 		E3383689202651CF00ABC812 /* OSCToolbarDraggingItemViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3383687202651CF00ABC812 /* OSCToolbarDraggingItemViewController.swift */; };
-		E338368A202651CF00ABC812 /* OSCToolbarDraggingItemViewController.xib in Resources */ = {isa = PBXBuildFile; fileRef = E3383688202651CF00ABC812 /* OSCToolbarDraggingItemViewController.xib */; };
 		E33BA5C4204315740069A0F6 /* AssrtSubtitle.swift in Sources */ = {isa = PBXBuildFile; fileRef = E33BA5C3204315740069A0F6 /* AssrtSubtitle.swift */; };
 		E33BA5C7204BD9FE0069A0F6 /* SubChooseViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = E33BA5C5204BD9FE0069A0F6 /* SubChooseViewController.swift */; };
 		E33FEEB52229A44F00B59711 /* JavascriptAPIUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = E33FEEB42229A44F00B59711 /* JavascriptAPIUtils.swift */; };
@@ -1290,7 +1289,6 @@
 		E337D5E5241EF60400B5729A /* JavascriptAPISubtitle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JavascriptAPISubtitle.swift; sourceTree = "<group>"; };
 		E33836832026223800ABC812 /* OSCToolbarSettingsSheetController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OSCToolbarSettingsSheetController.swift; sourceTree = "<group>"; };
 		E3383687202651CF00ABC812 /* OSCToolbarDraggingItemViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OSCToolbarDraggingItemViewController.swift; sourceTree = "<group>"; };
-		E3383688202651CF00ABC812 /* OSCToolbarDraggingItemViewController.xib */ = {isa = PBXFileReference; lastKnownFileType = file.xib; path = OSCToolbarDraggingItemViewController.xib; sourceTree = "<group>"; };
 		E33BA5C3204315740069A0F6 /* AssrtSubtitle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssrtSubtitle.swift; sourceTree = "<group>"; };
 		E33BA5C5204BD9FE0069A0F6 /* SubChooseViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubChooseViewController.swift; sourceTree = "<group>"; };
 		E33C31592107017000983986 /* zh-Hant */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hant"; path = "zh-Hant.lproj/SubChooseViewController.strings"; sourceTree = "<group>"; };
@@ -1595,7 +1593,6 @@
 				E33836832026223800ABC812 /* OSCToolbarSettingsSheetController.swift */,
 				E34A0E032053F93A00B50097 /* OSCToolbarSettingsSheetController.xib */,
 				E3383687202651CF00ABC812 /* OSCToolbarDraggingItemViewController.swift */,
-				E3383688202651CF00ABC812 /* OSCToolbarDraggingItemViewController.xib */,
 				84BEEC3D1DFEDE2F00F945CA /* KeyBindingConfiguration.swift */,
 				840D47991DFEF649000D9A64 /* KeyRecordViewController.swift */,
 				8400D5EC1E1AB33B006785F5 /* KeyRecordViewController.xib */,
@@ -2420,7 +2417,6 @@
 				84A0BA951D2F9E9600BC8DA1 /* MainMenu.xib in Resources */,
 				8400D5D81E1AB31B006785F5 /* AboutWindowController.xib in Resources */,
 				E3AD62772FF4C9BE00D2CAC5 /* VerbatimStrings.strings in Resources */,
-				E338368A202651CF00ABC812 /* OSCToolbarDraggingItemViewController.xib in Resources */,
 				8483FB001EDFF325000F55D6 /* Credits.rtf in Resources */,
 				84F5D49A1E44E9A50060A838 /* KeyBinding.strings in Resources */,
 				E34A0E012053F93A00B50097 /* OSCToolbarSettingsSheetController.xib in Resources */,
