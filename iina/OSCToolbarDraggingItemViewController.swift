@@ -8,13 +8,31 @@
 
 import Cocoa
 
+fileprivate let ui = UIHelper.shared
+
+
 class OSCToolbarDraggingItemViewController: NSViewController, NSPasteboardWriting {
 
-  var availableItemsView: OSCToolbarAvailableItemsView?
-  var buttonType: Preference.ToolBarButton
+  weak var availableItemsView: OSCToolbarAvailableItemsView?
 
-  @IBOutlet weak var toolbarButton: NSButton!
-  @IBOutlet weak var descriptionLabel: NSTextField!
+  private let buttonType: Preference.ToolBarButton
+  private let toolbarButton: NSButton = {
+    let button = ui.button("")
+    button.imagePosition = .imageOnly
+    button.alignment = .center
+    button.focusRingType = .none
+    button.isEnabled = false
+    return button
+  }()
+  private let descriptionLabel: NSTextField = {
+    let label = ui.label("", canCompress: false)
+    label.lineBreakMode = .byClipping
+    label.cell?.isScrollable = true
+    label.font = .systemFont(ofSize: NSFont.systemFontSize)
+    label.textColor = .labelColor
+    label.backgroundColor = .controlColor
+    return label
+  }()
 
 
   init(buttonType: Preference.ToolBarButton) {
@@ -29,7 +47,7 @@ class OSCToolbarDraggingItemViewController: NSViewController, NSPasteboardWritin
   override func loadView() {
     let itemView = NSView(frame: NSRect(x: 0, y: 0, width: 332, height: 33))
     itemView.translatesAutoresizingMaskIntoConstraints = false
-    itemView.heightAnchor.constraint(equalToConstant: 33).isActive = true
+    itemView.size(height: 33)
 
     let box = NSBox()
     box.translatesAutoresizingMaskIntoConstraints = false
@@ -41,38 +59,17 @@ class OSCToolbarDraggingItemViewController: NSViewController, NSPasteboardWritin
     contentView.translatesAutoresizingMaskIntoConstraints = false
     box.contentView = contentView
 
-    let button = NSButton()
-    button.imagePosition = .imageOnly
-    button.alignment = .center
-    button.focusRingType = .none
-    button.isEnabled = false
-
-    let label = NSTextField(labelWithString: "")
-    label.translatesAutoresizingMaskIntoConstraints = false
-    label.lineBreakMode = .byClipping
-    label.cell?.isScrollable = true
-    label.font = .systemFont(ofSize: NSFont.systemFontSize)
-    label.textColor = .labelColor
-    label.backgroundColor = .controlColor
-
-    contentView.addSubview(button)
-    contentView.addSubview(label)
+    contentView.addSubview(toolbarButton)
+    contentView.addSubview(descriptionLabel)
     itemView.addSubview(box)
 
-    NSLayoutConstraint.activate([
-      box.leadingAnchor.constraint(equalTo: itemView.leadingAnchor),
-      box.trailingAnchor.constraint(equalTo: itemView.trailingAnchor),
-      box.topAnchor.constraint(equalTo: itemView.topAnchor),
-      box.bottomAnchor.constraint(equalTo: itemView.bottomAnchor),
-      button.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
-      button.centerYAnchor.constraint(equalTo: contentView.centerYAnchor),
-      label.leadingAnchor.constraint(equalTo: button.trailingAnchor),
-      label.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
-      label.centerYAnchor.constraint(equalTo: button.centerYAnchor)
-    ])
+    box.padding(.all, from: itemView)
+    toolbarButton.padding(.leading, from: contentView)
+    toolbarButton.center(.y, with: contentView)
+    descriptionLabel.spacing(.leading, to: toolbarButton)
+    descriptionLabel.padding(.trailing, from: contentView)
+    descriptionLabel.center(.y, with: toolbarButton)
 
-    toolbarButton = button
-    descriptionLabel = label
     view = itemView
   }
 

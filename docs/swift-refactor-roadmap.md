@@ -19,6 +19,9 @@ The first migration wave is now implemented on the `swift` branch:
 - Guide uses SwiftUI content with `WKWebView` retained as a narrow WebKit adapter.
 - Font picker uses SwiftUI lists, search, preview, and manual entry inside an
   AppKit-owned sheet/window.
+- The OSC toolbar available-item drag surface is now a programmatic AppKit
+  controller; its obsolete helper XIB has been removed. The broader OSC toolbar
+  settings migration remains a higher-risk future project.
 - The obsolete Base XIBs for these surfaces, plus their nonlocalized helper XIBs,
   have been removed. Existing localized `.strings` tables remain bundled.
 
@@ -52,7 +55,6 @@ After the first migration wave, the application still contains these app-owned X
 - Filters: `Base.lproj/FilterWindowController.xib`.
 - Key recording: `Base.lproj/KeyRecordViewController.xib`.
 - OSC toolbar settings: `Base.lproj/OSCToolbarSettingsSheetController.xib`.
-- OSC toolbar drag item: `OSCToolbarDraggingItemViewController.xib`.
 - Application menu: `Base.lproj/MainMenu.xib`.
 
 IINA's contribution rules already say not to introduce new XIBs and to use
@@ -147,8 +149,10 @@ string tables remain bundled.
 
 12. **OSC toolbar customization** —
     `OSCToolbarSettingsSheetController.swift`,
-    `OSCToolbarDraggingItemViewController.swift`, and related OSC views.
-    SwiftUI can render the settings UI, but AppKit is still a good adapter for
+    `Base.lproj/OSCToolbarSettingsSheetController.xib`, and related OSC views.
+    The small available-item drag surface is now programmatic AppKit. The
+    broader settings migration remains a higher-risk future project: SwiftUI
+    can render the settings UI, but AppKit is still a good adapter for
     pasteboard writing, drag/drop, toolbar-item identity, and precise mouse
     interaction.
 
