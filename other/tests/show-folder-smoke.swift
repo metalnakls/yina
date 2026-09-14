@@ -6,19 +6,27 @@ import Foundation
   static func main() {
     let now = Date(timeIntervalSince1970: 2_000_000_000)
     let root = URL(fileURLWithPath: "/shows/Breaking Bad", isDirectory: true)
-    func item(_ name: String, ageDays: Double, position: Double = 0, duration: Double = 100) -> ShowFolderHistoryItem {
+    func item(_ name: String, ageDays: Double, position: Double = 0, duration: Double = 100,
+              mediaTitle: String? = nil) -> ShowFolderHistoryItem {
       ShowFolderHistoryItem(url: root.appendingPathComponent(name),
                             lastPlayedAt: now.addingTimeInterval(-ageDays * 86_400),
                             position: position, duration: duration,
-                            displayTitle: name, thumbnailCacheName: name)
+                            mediaTitle: mediaTitle, thumbnailCacheName: name)
     }
 
     let shows = ShowFolder.make(from: [item("S01E01.mkv", ageDays: 4),
-                                       item("S01E02.mkv", ageDays: 1, position: 50)])
+                                       item("S01E02.mkv", ageDays: 1, position: 50,
+                                            mediaTitle: "S03E11 — Abiquiu")])
     precondition(shows.count == 1)
-    precondition(shows[0].title == "Breaking Bad")
+    precondition(shows[0].primaryTitle == "S03E11 — Abiquiu")
+    precondition(shows[0].secondaryTitle == "Breaking Bad")
     precondition(shows[0].resumeURL.lastPathComponent == "S01E02.mkv")
     precondition(shows[0].progress == 0.5)
+
+    let latestFile = ShowFolder.makeLatestFile(from: [item("Movie.mkv", ageDays: 1)],
+                                               excludingFolderPaths: [])
+    precondition(latestFile?.primaryTitle == "Movie")
+    precondition(latestFile?.secondaryTitle == "Breaking Bad")
 
     precondition(ShowFolder.make(from: [item("Movie.mkv", ageDays: 1)]).isEmpty)
     precondition(ShowFolder.make(from: [item("S01E01.mkv", ageDays: 31),
@@ -30,10 +38,10 @@ import Foundation
     let shareRootItems = [
       ShowFolderHistoryItem(url: shareRoot.appendingPathComponent("Superbad.mkv"),
                             lastPlayedAt: now, position: 0, duration: 100,
-                            displayTitle: "Superbad", thumbnailCacheName: "superbad"),
+                            mediaTitle: "Superbad", thumbnailCacheName: "superbad"),
       ShowFolderHistoryItem(url: shareRoot.appendingPathComponent("Other.mkv"),
                             lastPlayedAt: now.addingTimeInterval(-1), position: 0, duration: 100,
-                            displayTitle: "Other", thumbnailCacheName: "other"),
+                            mediaTitle: "Other", thumbnailCacheName: "other"),
     ]
     precondition(ShowFolder.isVolumeRootPath("/Volumes/and"))
     precondition(ShowFolder.make(from: shareRootItems).isEmpty)

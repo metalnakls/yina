@@ -10,7 +10,7 @@ struct ShowFolderHistoryItem {
   let lastPlayedAt: Date
   let position: Double
   let duration: Double
-  let displayTitle: String
+  let mediaTitle: String?
   let thumbnailCacheName: String
 }
 
@@ -24,9 +24,11 @@ struct ShowFolder: Equatable {
 
   let kind: Kind
   let folderURL: URL
-  let title: String
+  /// The specific media item that will resume when the card is opened.
+  let primaryTitle: String
   let resumeURL: URL
-  let episodeTitle: String
+  /// The containing folder or show, used only as supporting context.
+  let secondaryTitle: String
   let lastPlayedAt: Date
   let position: Double
   let duration: Double
@@ -46,6 +48,11 @@ struct ShowFolder: Equatable {
 
   private static func fileDisplayName(for url: URL) -> String {
     url.deletingPathExtension().lastPathComponent
+  }
+
+  private static func primaryTitle(for item: ShowFolderHistoryItem) -> String {
+    let metadataTitle = item.mediaTitle?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    return metadataTitle.isEmpty ? fileDisplayName(for: item.url) : metadataTitle
   }
 
   static func groupedFolderPaths(from items: [ShowFolderHistoryItem],
@@ -82,16 +89,16 @@ struct ShowFolder: Equatable {
       }
       return ShowFolder(kind: .folder,
                         folderURL: folderURL,
-                        title: folderURL.lastPathComponent,
+                        primaryTitle: primaryTitle(for: latest),
                         resumeURL: latest.url,
-                        episodeTitle: fileDisplayName(for: latest.url),
+                        secondaryTitle: folderURL.lastPathComponent,
                         lastPlayedAt: latest.lastPlayedAt,
                         position: latest.position,
                         duration: latest.duration,
                         thumbnailCacheName: latest.thumbnailCacheName)
     }.sorted { lhs, rhs in
       if lhs.lastPlayedAt != rhs.lastPlayedAt { return lhs.lastPlayedAt > rhs.lastPlayedAt }
-      return lhs.title.localizedStandardCompare(rhs.title) == .orderedAscending
+      return lhs.primaryTitle.localizedStandardCompare(rhs.primaryTitle) == .orderedAscending
     }
   }
 
@@ -109,9 +116,9 @@ struct ShowFolder: Equatable {
     }
     return ShowFolder(kind: .file,
                       folderURL: url.deletingLastPathComponent(),
-                      title: fileDisplayName(for: url),
+                      primaryTitle: primaryTitle(for: latest),
                       resumeURL: url,
-                      episodeTitle: "",
+                      secondaryTitle: url.deletingLastPathComponent().lastPathComponent,
                       lastPlayedAt: latest.lastPlayedAt,
                       position: latest.position,
                       duration: latest.duration,
@@ -223,13 +230,13 @@ final class ShowFolderCardView: NSView {
     titleLabel.font = NSFontManager.shared.convert(.preferredFont(forTextStyle: .title2),
                                                    toHaveTrait: .boldFontMask)
     titleLabel.lineBreakMode = .byTruncatingTail
-    titleLabel.stringValue = show.title
+    titleLabel.stringValue = show.primaryTitle
 
     episodeLabel.translatesAutoresizingMaskIntoConstraints = false
     episodeLabel.font = .preferredFont(forTextStyle: .footnote)
     episodeLabel.textColor = .secondaryLabelColor
     episodeLabel.lineBreakMode = .byTruncatingTail
-    episodeLabel.stringValue = show.episodeTitle
+    episodeLabel.stringValue = show.secondaryTitle
 
     playButton.translatesAutoresizingMaskIntoConstraints = false
     playButton.isBordered = false
@@ -248,7 +255,7 @@ final class ShowFolderCardView: NSView {
     playButton.target = target
     playButton.action = openAction
     playButton.identifier = NSUserInterfaceItemIdentifier(show.identityPath)
-    playButton.setAccessibilityLabel("Resume \(show.title)")
+    playButton.setAccessibilityLabel("Resume \(show.primaryTitle)")
 
     button.translatesAutoresizingMaskIntoConstraints = false
     button.isBordered = false
@@ -256,11 +263,9 @@ final class ShowFolderCardView: NSView {
     button.target = target
     button.action = openAction
     button.identifier = NSUserInterfaceItemIdentifier(show.identityPath)
-    button.toolTip = show.episodeTitle.isEmpty
-      ? "Resume \(show.title)"
-      : "Resume \(show.title): \(show.episodeTitle)"
-    button.setAccessibilityLabel("Resume \(show.title)")
-    button.setAccessibilityHelp("Opens \(show.episodeTitle.isEmpty ? show.title : show.episodeTitle) at your saved position")
+    button.toolTip = "Resume \(show.primaryTitle) — \(show.secondaryTitle)"
+    button.setAccessibilityLabel("Resume \(show.primaryTitle)")
+    button.setAccessibilityHelp("Opens \(show.primaryTitle) from \(show.secondaryTitle) at your saved position")
 
     let contextMenu = NSMenu()
     let dismissItem = NSMenuItem(title: "Dismiss",
@@ -335,16 +340,14 @@ final class ShowFolderCardView: NSView {
       artworkView.artwork = nil
       hasThumbnail = false
     }
-    titleLabel.stringValue = show.title
-    episodeLabel.stringValue = show.episodeTitle
+    titleLabel.stringValue = show.primaryTitle
+    episodeLabel.stringValue = show.secondaryTitle
     button.identifier = NSUserInterfaceItemIdentifier(show.identityPath)
     playButton.identifier = NSUserInterfaceItemIdentifier(show.identityPath)
-    playButton.setAccessibilityLabel("Resume \(show.title)")
-    button.toolTip = show.episodeTitle.isEmpty
-      ? "Resume \(show.title)"
-      : "Resume \(show.title): \(show.episodeTitle)"
-    button.setAccessibilityLabel("Resume \(show.title)")
-    button.setAccessibilityHelp("Opens \(show.episodeTitle.isEmpty ? show.title : show.episodeTitle) at your saved position")
+    playButton.setAccessibilityLabel("Resume \(show.primaryTitle)")
+    button.toolTip = "Resume \(show.primaryTitle) — \(show.secondaryTitle)"
+    button.setAccessibilityLabel("Resume \(show.primaryTitle)")
+    button.setAccessibilityHelp("Opens \(show.primaryTitle) from \(show.secondaryTitle) at your saved position")
     updateThumbnailPresentation()
   }
 

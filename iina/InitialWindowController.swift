@@ -382,7 +382,7 @@ class InitialWindowController: NSWindowController {
                                      lastPlayedAt: entry.addedDate,
                                      position: position,
                                      duration: entry.duration.second,
-                                     displayTitle: entry.title ?? entry.name,
+                                     mediaTitle: entry.title,
                                      thumbnailCacheName: entry.mpvMd5)
       }
     }
@@ -429,7 +429,7 @@ class InitialWindowController: NSWindowController {
       }
       cards.sort { lhs, rhs in
         if lhs.lastPlayedAt != rhs.lastPlayedAt { return lhs.lastPlayedAt > rhs.lastPlayedAt }
-        return lhs.title.localizedStandardCompare(rhs.title) == .orderedAscending
+        return lhs.primaryTitle.localizedStandardCompare(rhs.primaryTitle) == .orderedAscending
       }
 
       DispatchQueue.main.async {
