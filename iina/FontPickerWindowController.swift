@@ -7,195 +7,332 @@
 //
 
 import Cocoa
+import SwiftUI
 
-class FontPickerWindowController: NSWindowController, NSTableViewDelegate, NSTableViewDataSource, NSTextFieldDelegate, NSControlTextEditingDelegate {
+private enum FontPickerLocalizedString {
+  static let windowTitle = value("F0z-JX-Cv5.title", fallback: "Choose a Font")
+  static let chooseFont = value("TSI-Wt-Edx.title", fallback: "Choose a font:")
+  static let searchPlaceholder = value("DwS-ve-MLJ.placeholderString", fallback: "Type to filter…")
+  static let family = value("2Ld-md-U2v.headerCell.title", fallback: "Family")
+  static let typeface = value("fez-Z3-dnL.headerCell.title", fallback: "Typeface")
+  static let preview = value("XsF-e7-fXF.title", fallback: "Preview")
+  static let previewText = value("qwM-r2-9ki.title", fallback: "Test")
+  static let manualEntry = value("waR-LB-484.title", fallback: "Or enter the font name:")
+  static let cancel = value("Ihd-HK-wsv.title", fallback: "Cancel")
+  static let ok = value("S5m-SJ-Ggp.title", fallback: "OK")
 
-  struct FontInfo {
-    var name: String
-    var localizedName: String
+  private static func value(_ key: String, fallback: String) -> String {
+    NSLocalizedString(key,
+                      tableName: "FontPickerWindowController",
+                      bundle: .main,
+                      value: fallback,
+                      comment: "")
+  }
+}
+
+@MainActor
+private final class FontPickerModel: ObservableObject {
+  struct Family: Identifiable, Hashable {
+    let name: String
+    let localizedName: String
+
+    var id: String { name }
   }
 
-  @IBOutlet weak var familyTableView: NSTableView!
-  @IBOutlet weak var faceTableView: NSTableView!
-  @IBOutlet weak var previewField: NSTextField!
-  /// "Type to filter"
-  @IBOutlet weak var searchField: NSTextField!
-  /// Font name manual entry
-  @IBOutlet weak var otherField: NSTextField!
+  struct Typeface: Identifiable, Hashable {
+    let name: String
+    let localizedName: String
 
-  var fontNames: [FontInfo] = []
-  var filteredFontNames: [FontInfo] = []
-  var isSearching = false
-
-  private var displayedFontNames: [FontInfo] {
-    isSearching ? filteredFontNames : fontNames
+    var id: String { name }
   }
 
-  private var chosenFontMembers: [[Any]] {
-    let familyIndex = familyTableView.selectedRow
-    guard displayedFontNames.indices.contains(familyIndex) else { return [] }
-    let chosenFamily = displayedFontNames[familyIndex]
-    return FixedFontManager.typefaces(forFontFamily: chosenFamily.name) as? [[Any]] ?? []
+  @Published var families: [Family] = []
+  @Published var searchText = "" {
+    didSet { reconcileSelection() }
   }
-  private var chosenFace: String {
-    let typefaceIndex = faceTableView.selectedRow
-    let members = chosenFontMembers
-    guard members.indices.contains(typefaceIndex),
-          members[typefaceIndex].indices.contains(0),
-          let face = members[typefaceIndex][0] as? String else { return "" }
-    return face
+  @Published var selectedFamily: String? {
+    didSet {
+      guard selectedFamily != oldValue else { return }
+      updateTypefaces(selectFirst: true)
+    }
   }
-
-  var finishedPicking: ((String) -> Void)?
-
-  private var enableSelectionChangeListener = true
-
-  override var windowNibName: NSNib.Name {
-    get {
-      return NSNib.Name("FontPickerWindowController")
+  @Published var typefaces: [Typeface] = []
+  @Published var selectedTypeface: String? {
+    didSet {
+      guard selectedTypeface != oldValue, let selectedTypeface else { return }
+      enteredFontName = selectedTypeface
+    }
+  }
+  @Published var enteredFontName = "" {
+    didSet {
+      guard enteredFontName != oldValue else { return }
+      matchEnteredFont()
     }
   }
 
-  init() {
-    super.init(window: nil)
+  private var isSynchronizing = false
+
+  var displayedFamilies: [Family] {
+    guard !searchText.isEmpty else { return families }
+    return families.filter {
+      $0.localizedName.localizedCaseInsensitiveContains(searchText)
+    }
+  }
+
+  var selectedFontName: String {
+    enteredFontName.isEmpty ? Constants.String.mpvDefaultFont : enteredFontName
+  }
+
+  var previewFont: NSFont {
+    guard let font = NSFont(name: enteredFontName, size: 24) else {
+      return .systemFont(ofSize: 24)
+    }
+    return font
+  }
+
+  func loadFonts() {
+    let manager = NSFontManager.shared
+    families = manager.availableFontFamilies
+      .filter { !$0.hasPrefix(".") && !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+      .map { Family(name: $0, localizedName: manager.localizedName(forFamily: $0, face: nil)) }
+      .sorted { $0.localizedName.localizedStandardCompare($1.localizedName) == .orderedAscending }
+    reconcileSelection()
+  }
+
+  func select(_ fontName: String) {
+    enteredFontName = fontName == Constants.String.mpvDefaultFont ? "" : fontName
+    if enteredFontName.isEmpty {
+      selectedFamily = nil
+      selectedTypeface = nil
+      typefaces = []
+    }
+  }
+
+  private func reconcileSelection() {
+    guard !isSynchronizing else { return }
+    if let selectedFamily, !displayedFamilies.contains(where: { $0.name == selectedFamily }) {
+      isSynchronizing = true
+      self.selectedFamily = nil
+      selectedTypeface = nil
+      typefaces = []
+      isSynchronizing = false
+    }
+    matchEnteredFont()
+  }
+
+  private func updateTypefaces(selectFirst: Bool) {
+    guard !isSynchronizing else { return }
+    guard let selectedFamily,
+          let family = displayedFamilies.first(where: { $0.name == selectedFamily }) else {
+      typefaces = []
+      selectedTypeface = nil
+      return
+    }
+
+    typefaces = Self.typefaces(for: family)
+    if selectFirst {
+      selectedTypeface = typefaces.first?.name
+    } else if let selectedTypeface, !typefaces.contains(where: { $0.name == selectedTypeface }) {
+      self.selectedTypeface = nil
+    }
+  }
+
+  private func matchEnteredFont() {
+    guard !isSynchronizing, !enteredFontName.isEmpty else { return }
+
+    for family in displayedFamilies {
+      let familyTypefaces = Self.typefaces(for: family)
+      guard familyTypefaces.contains(where: { $0.name == enteredFontName }) else { continue }
+
+      isSynchronizing = true
+      selectedFamily = family.name
+      typefaces = familyTypefaces
+      selectedTypeface = enteredFontName
+      isSynchronizing = false
+      return
+    }
+  }
+
+  private static func typefaces(for family: Family) -> [Typeface] {
+    guard let members = FixedFontManager.typefaces(forFontFamily: family.name) as? [[Any]] else {
+      return []
+    }
+    return members.compactMap { member in
+      guard member.indices.contains(1),
+            let name = member[0] as? String,
+            let localizedName = member[1] as? String else { return nil }
+      return Typeface(name: name, localizedName: localizedName)
+    }
+  }
+}
+
+private struct FontPickerView: View {
+  @ObservedObject var model: FontPickerModel
+  let confirm: () -> Void
+  let cancel: () -> Void
+
+  @FocusState private var isSearchFocused: Bool
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      Text(FontPickerLocalizedString.chooseFont)
+
+      TextField(FontPickerLocalizedString.searchPlaceholder, text: $model.searchText)
+        .textFieldStyle(.roundedBorder)
+        .focused($isSearchFocused)
+        .accessibilityLabel(FontPickerLocalizedString.searchPlaceholder)
+
+      HStack(spacing: 0) {
+        fontList(title: FontPickerLocalizedString.family,
+                 values: model.displayedFamilies,
+                 selection: $model.selectedFamily,
+                 confirmsOnDoubleClick: false) { family in
+          family.localizedName
+        }
+
+        Divider()
+
+        fontList(title: FontPickerLocalizedString.typeface,
+                 values: model.typefaces,
+                 selection: $model.selectedTypeface,
+                 confirmsOnDoubleClick: true) { typeface in
+          typeface.localizedName
+        }
+      }
+      .frame(minHeight: 260)
+      .background(Color(nsColor: .controlBackgroundColor))
+      .clipShape(RoundedRectangle(cornerRadius: 6))
+      .overlay {
+        RoundedRectangle(cornerRadius: 6)
+          .stroke(Color(nsColor: .separatorColor))
+      }
+
+      VStack(alignment: .leading, spacing: 4) {
+        Text(FontPickerLocalizedString.preview)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+        Text(FontPickerLocalizedString.previewText)
+          .font(Font(model.previewFont))
+          .lineLimit(1)
+          .frame(maxWidth: .infinity, minHeight: 40)
+          .background(Color(nsColor: .textBackgroundColor))
+          .clipShape(RoundedRectangle(cornerRadius: 5))
+          .overlay {
+            RoundedRectangle(cornerRadius: 5)
+              .stroke(Color(nsColor: .separatorColor))
+          }
+          .accessibilityLabel(FontPickerLocalizedString.preview)
+          .accessibilityValue(FontPickerLocalizedString.previewText)
+      }
+
+      VStack(alignment: .leading, spacing: 4) {
+        Text(FontPickerLocalizedString.manualEntry)
+        TextField(Constants.String.mpvDefaultFont, text: $model.enteredFontName)
+          .textFieldStyle(.roundedBorder)
+          .accessibilityLabel(FontPickerLocalizedString.manualEntry)
+          .onSubmit(confirm)
+      }
+
+      HStack(spacing: 8) {
+        Spacer()
+        Button(FontPickerLocalizedString.cancel, action: cancel)
+          .keyboardShortcut(.cancelAction)
+        Button(FontPickerLocalizedString.ok, action: confirm)
+          .keyboardShortcut(.defaultAction)
+      }
+    }
+    .padding(12)
+    .frame(minWidth: 458, minHeight: 496)
+    .onAppear {
+      isSearchFocused = true
+    }
+  }
+
+  private func fontList<Value: Identifiable & Hashable>(
+    title: String,
+    values: [Value],
+    selection: Binding<Value.ID?>,
+    confirmsOnDoubleClick: Bool,
+    label: @escaping (Value) -> String
+  ) -> some View where Value.ID == String {
+    VStack(alignment: .leading, spacing: 0) {
+      Text(title)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+
+      Divider()
+
+      List(values, selection: selection) { value in
+        Text(label(value))
+          .lineLimit(1)
+          .tag(value.id)
+          .onTapGesture(count: 2) {
+            if confirmsOnDoubleClick {
+              confirm()
+            }
+          }
+      }
+      .listStyle(.plain)
+      .accessibilityLabel(title)
+    }
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
+  }
+}
+
+@MainActor
+class FontPickerWindowController: NSWindowController {
+  private let model = FontPickerModel()
+
+  var finishedPicking: ((String) -> Void)?
+
+  override init(window: NSWindow?) {
+    super.init(window: window)
+  }
+
+  convenience init() {
+    let window = CommonWindow(
+      contentRect: NSRect(x: 0, y: 0, width: 458, height: 524),
+      styleMask: [.titled, .closable, .miniaturizable],
+      backing: .buffered,
+      defer: false
+    )
+    window.title = FontPickerLocalizedString.windowTitle
+    window.isReleasedWhenClosed = false
+    window.setFrameAutosaveName("IINAFontPickerWindow")
+
+    self.init(window: window)
+    window.contentViewController = NSHostingController(rootView: FontPickerView(
+      model: model,
+      confirm: { [weak self] in self?.finishPicking() },
+      cancel: { [weak self] in self?.cancelPicking() }
+    ))
+    model.loadFonts()
+    Logger.log("FontPickerWindow init done")
   }
 
   required init?(coder: NSCoder) {
     fatalError("init(coder:) has not been implemented")
   }
 
-  override func windowDidLoad() {
-    super.windowDidLoad()
-
-    let manager = NSFontManager.shared
-
-    fontNames = manager.availableFontFamilies
-      .filter { !$0.hasPrefix(".") && !$0.trimmingCharacters(in: .whitespaces).isEmpty }
-      .map { FontInfo(name: $0, localizedName: manager.localizedName(forFamily: $0, face: nil)) }
-      .sorted { $0.localizedName < $1.localizedName }
-    withAllTableViews { tv in
-      tv.dataSource = self
-      tv.delegate = self
-    }
-    otherField.placeholderString = Constants.String.mpvDefaultFont
-    searchField.delegate = self
-    faceTableView.doubleAction = #selector(okBtnPressed)
-    Logger.log("FontPickerWindow init done")
+  func select(_ fontString: String) {
+    Logger.log("FontPickerWindow selecting \(fontString.quoted)")
+    model.select(fontString)
   }
 
-  func select(_ fontString: String ) {
-    Logger.log("FontPickerWindow selecting \(fontString.quoted) (searching=\(isSearching))")
-
-    otherField.stringValue = fontString == Constants.String.mpvDefaultFont ? "" : fontString
-
-    updateTablesFromOtherFieldValue()
+  override func cancelOperation(_ sender: Any?) {
+    cancelPicking()
   }
 
-  /// Updates all other UI state from the `otherField` value (i.e., the manually entered typeface name).
-  private func updateTablesFromOtherFieldValue() {
-    let selectedFace = otherField.stringValue
-    guard !selectedFace.isEmpty else {
-      // Deselect any previous table selections
-      familyTableView.selectRowIndexes(IndexSet(), byExtendingSelection: false)
-      faceTableView.selectRowIndexes(IndexSet(), byExtendingSelection: false)
-      return
-    }
-
-    // Search for font. Unfortunately this requires checking all typefaces in the system.
-    // But it's still quite fast.
-    // If there is a filter string already set don't try to change it, even if this means not finding a match.
-    let fontNamesDisplayed = isSearching ? filteredFontNames : fontNames
-    for (familyIndex, family) in fontNamesDisplayed.enumerated() {
-      guard let typefaces = FixedFontManager.typefaces(forFontFamily: family.name) as? [[Any]] else { continue }
-      for (typefaceIndex, typeface) in typefaces.enumerated() {
-        guard typeface.indices.contains(0),
-              let faceName = typeface[0] as? String,
-              faceName == selectedFace else { continue }
-        enableSelectionChangeListener = false
-
-        familyTableView.selectRowIndexes(IndexSet(integer: familyIndex), byExtendingSelection: false)
-        familyTableView.scrollRowToVisible(familyIndex)
-
-        faceTableView.reloadData()
-        faceTableView.selectRowIndexes(IndexSet(integer: typefaceIndex), byExtendingSelection: false)
-        faceTableView.scrollRowToVisible(typefaceIndex)
-
-        enableSelectionChangeListener = true
-        updatePreview()
-        return
-      }
-    }
-  }
-
-  // - MARK: NSTableView delegate and data source
-
-  func numberOfRows(in tableView: NSTableView) -> Int {
-    if tableView == familyTableView {
-      return isSearching ? filteredFontNames.count : fontNames.count
-    } else if tableView == faceTableView {
-      return chosenFontMembers.count
-    } else {
-      return 0
-    }
-  }
-
-  func tableView(_ tableView: NSTableView, objectValueFor tableColumn: NSTableColumn?, row: Int) -> Any? {
-    if tableView == familyTableView {
-      guard displayedFontNames.indices.contains(row) else { return nil }
-      return displayedFontNames[row].localizedName
-    } else if tableView == faceTableView {
-      let members = chosenFontMembers
-      guard members.indices.contains(row), members[row].indices.contains(1) else { return nil }
-      let face = members[row]
-      return face[1]
-    } else {
-      return 0
-    }
-  }
-
-  func tableViewSelectionDidChange(_ notification: Notification) {
-    guard enableSelectionChangeListener else { return }
-    guard let activeTv = notification.object as? NSTableView else { return }
-    if activeTv == familyTableView {
-      faceTableView.reloadData()
-      faceTableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
-    }
-
-    if !chosenFace.isEmpty {
-      otherField.stringValue = chosenFace
-    }
-    updatePreview()
-  }
-
-  // - MARK: NSTextField delegate
-
-  /// Type-to-filter updates
-  func controlTextDidChange(_ notification: Notification) {
-    familyTableView.deselectAll(searchField)
-    let str = searchField.stringValue
-    if str.isEmpty {
-      isSearching = false
-      familyTableView.reloadData()
-      faceTableView.reloadData()
-    } else {
-      isSearching = true
-      filteredFontNames = fontNames.filter { $0.localizedName.lowercased().contains(str.lowercased()) }
-      familyTableView.reloadData()
-      faceTableView.reloadData()
-    }
-    updateTablesFromOtherFieldValue()
-  }
-
-  @IBAction func okBtnPressed(_ sender: AnyObject) {
-    let otherString = otherField.stringValue
-    let selectedFont = otherString.isEmpty ? Constants.String.mpvDefaultFont : otherString
+  private func finishPicking() {
     let callback = finishedPicking
     finishedPicking = nil
     dismissPicker()
-    callback?(selectedFont)
+    callback?(model.selectedFontName)
   }
 
-  @IBAction func cancelBtnPressed(_ sender: AnyObject) {
+  private func cancelPicking() {
     finishedPicking = nil
     dismissPicker()
   }
@@ -208,22 +345,4 @@ class FontPickerWindowController: NSWindowController, NSTableViewDelegate, NSTab
       close()
     }
   }
-
-
-  // - MARK: Utils
-
-  private func updatePreview() {
-    let chosenFont = NSFont(name: chosenFace, size: 24)
-    if let chosenFont {
-      Logger.log("Previewing chosen typeface: \(chosenFont.fontName)")
-    }
-    let font = chosenFont ?? NSFont.systemFont(ofSize: 24)
-    previewField.font = font
-  }
-
-  private func withAllTableViews (_ block: (NSTableView) -> Void) {
-    block(familyTableView)
-    block(faceTableView)
-  }
-
 }

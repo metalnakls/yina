@@ -17,11 +17,13 @@ The first migration wave is now implemented on the `swift` branch:
 - Screenshot OSD uses SwiftUI content while file operations remain system adapters.
 - About uses SwiftUI content and contributor layout with a narrow rich-text wrapper.
 - Guide uses SwiftUI content with `WKWebView` retained as a narrow WebKit adapter.
+- Font picker uses SwiftUI lists, search, preview, and manual entry inside an
+  AppKit-owned sheet/window.
 - The obsolete Base XIBs for these surfaces, plus their nonlocalized helper XIBs,
   have been removed. Existing localized `.strings` tables remain bundled.
 
 The next practical wave is settings-page slices, the initial/recent-files content,
-font picker, logs, and history. Inspector, Filters, key recording, and OSC toolbar
+logs, and history. Inspector, Filters, key recording, and OSC toolbar
 customization remain dedicated higher-risk projects. The player window, rendering,
 PiP, dynamic menus, WebKit runtime, and display/EDR authority remain AppKit or
 system-framework led by design.
@@ -48,7 +50,6 @@ After the first migration wave, the application still contains these app-owned X
 - Mini player: `Base.lproj/MiniPlayerWindowController.xib`.
 - Inspector: `Base.lproj/InspectorWindowController.xib`.
 - Filters: `Base.lproj/FilterWindowController.xib`.
-- Font picker: `Base.lproj/FontPickerWindowController.xib`.
 - Key recording: `Base.lproj/KeyRecordViewController.xib`.
 - OSC toolbar settings: `Base.lproj/OSCToolbarSettingsSheetController.xib`.
 - OSC toolbar drag item: `OSCToolbarDraggingItemViewController.xib`.
@@ -118,6 +119,11 @@ These are good pilots for establishing an IINA SwiftUI window pattern:
    Both are programmatic AppKit surfaces using `NSTableView`/`NSOutlineView`.
    SwiftUI is viable, but preserve keyboard navigation, column sizing,
    contextual menus, copy/export behavior, and large-data performance.
+
+The font picker is also completed on `swift`: SwiftUI owns its search, family
+and typeface selection, preview, manual entry, and actions. AppKit continues to
+own font enumeration and sheet/window lifecycle, and the existing localized
+string tables remain bundled.
 
 ### Priority 3: complex controls that need a designed replacement
 
