@@ -383,7 +383,6 @@ class InitialWindowController: NSWindowController {
                                      lastPlayedAt: entry.addedDate,
                                      position: position,
                                      duration: entry.duration.second,
-                                     mediaTitle: entry.title,
                                      thumbnailCacheName: entry.mpvMd5)
       }
     }
@@ -846,14 +845,11 @@ private final class WelcomeFolderClassificationCache {
     }
     lock.unlock()
 
-    let metadataURL = folderURL.appendingPathComponent(".iina-multiplayer", isDirectory: true)
-      .appendingPathComponent("room.json", isDirectory: false)
     let result: Bool
-    if FileManager.default.fileExists(atPath: metadataURL.path) {
-      result = true
-    } else if let contents = try? FileManager.default.contentsOfDirectory(
+    if let contents = try? FileManager.default.contentsOfDirectory(
       at: folderURL, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles]) {
-      result = contents.lazy.filter { playableExtensions.contains($0.pathExtension.lowercased()) }.prefix(2).count == 2
+      let playableFiles = contents.filter { playableExtensions.contains($0.pathExtension.lowercased()) }
+      result = ShowFolder.isEpisodeCollection(playableFiles)
     } else {
       return .unavailable
     }
