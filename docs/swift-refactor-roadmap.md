@@ -26,11 +26,14 @@ The first migration wave is now implemented on the `swift` branch:
   profile, and HDR support) are now SwiftUI-backed. The settings window,
   page/section/list layout, search index, and remaining input, selection, and
   expandable tone-mapping rows remain AppKit-owned.
+- The programmatic welcome window now uses reusable SwiftUI content for Recent
+  rows. AppKit continues to own its window, scroll view, `NSTableView`
+  selection, keyboard navigation, availability checks, and open routing.
 - The obsolete Base XIBs for these surfaces, plus their nonlocalized helper XIBs,
   have been removed. Existing localized `.strings` tables remain bundled.
 
-The next practical wave is additional settings-page slices, the initial/recent-files content,
-logs, and history. Inspector, Filters, key recording, and OSC toolbar
+The next practical wave is additional settings-page slices, logs, and history.
+Inspector, Filters, key recording, and OSC toolbar
 customization remain dedicated higher-risk projects. The player window, rendering,
 PiP, dynamic menus, WebKit runtime, and display/EDR authority remain AppKit or
 system-framework led by design.
@@ -53,7 +56,6 @@ existing application model.
 After the first migration wave, the application still contains these app-owned XIBs:
 
 - Main window: `Base.lproj/MainWindowController.xib`.
-- Initial/recent-files window: `Base.lproj/InitialWindowController.xib`.
 - Mini player: `Base.lproj/MiniPlayerWindowController.xib`.
 - Inspector: `Base.lproj/InspectorWindowController.xib`.
 - Filters: `Base.lproj/FilterWindowController.xib`.
@@ -65,6 +67,12 @@ IINA's contribution rules already say not to introduce new XIBs and to use
 programmatic views and existing helpers for new UI. Migration work should
 therefore remove XIB ownership as a surface is deliberately reworked; it
 should not churn every XIB as a standalone cleanup.
+
+`Base.lproj/InitialWindowController.xib` remains as an unowned project artifact:
+the welcome window is constructed programmatically, no controller loads the
+nib, and the XIB is not in the Resources build phase. Audit its localized
+`.strings` siblings before removing the variant group; it is not the active
+Recents implementation.
 
 ## What should be refactored
 
@@ -107,10 +115,11 @@ These are good pilots for establishing an IINA SwiftUI window pattern:
    toolbar/sidebar selection, preference binding, and plugin page coordination
    behind an AppKit adapter until navigation and state restoration are proven.
 
-6. **Initial/recent-files window** — `InitialWindowController.swift` and
-   `InitialWindowController.xib`.
-   The recent-files table is a good SwiftUI candidate. Keep custom window
-   behavior and drag/open handling in the controller.
+6. **Initial/recent-files window** — `InitialWindowController.swift`.
+   This window is already programmatic. Recent-row presentation is now
+   SwiftUI-backed; `NSTableView` deliberately retains selection, focus,
+   keyboard navigation, and scrolling while the controller retains custom
+   window behavior, availability checks, drag handling, and open routing.
 
 7. **About window** — `AboutWindowController.swift`,
    `AboutWindowContributorAvatarItem.swift`, and their XIBs.
