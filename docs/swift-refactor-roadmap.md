@@ -68,11 +68,10 @@ programmatic views and existing helpers for new UI. Migration work should
 therefore remove XIB ownership as a surface is deliberately reworked; it
 should not churn every XIB as a standalone cleanup.
 
-`Base.lproj/InitialWindowController.xib` remains as an unowned project artifact:
-the welcome window is constructed programmatically, no controller loads the
-nib, and the XIB is not in the Resources build phase. Audit its localized
-`.strings` siblings before removing the variant group; it is not the active
-Recents implementation.
+The obsolete `Base.lproj/InitialWindowController.xib` and its localized
+`.strings` siblings were removed from the project on `swift`. The welcome
+window is constructed programmatically and is not part of the XIB inventory
+above; it remains the active home for the Recents implementation.
 
 ## What should be refactored
 
