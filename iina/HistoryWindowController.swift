@@ -192,6 +192,7 @@ class HistoryWindowController: NSWindowController, NSOutlineViewDelegate, NSOutl
     let historyList = historyList ?? HistoryController.shared.history
 
     for entry in historyList {
+      _ = entry.resolvedURL()
       addToData(entry, forKey: getKey[groupBy]!(entry))
     }
 

@@ -12,6 +12,9 @@ import UniformTypeIdentifiers
 
 class InitialWindowController: NSWindowController {
 
+  private static let maximumShowFolderCount = 20
+  private static let maximumRecentDocumentCount = 20
+
   private struct RecentDocument {
     let url: URL
     var isAvailable: Bool
@@ -120,7 +123,8 @@ class InitialWindowController: NSWindowController {
                                        excludingDocumentIdentities: Set<String>) -> [RecentDocument] {
     let documentController = NSDocumentController.shared
     let appKitRecents = documentController.recentDocumentURLs
-    let maximumCount = max(appKitRecents.count, Int(documentController.maximumRecentDocumentCount))
+    let now = Date()
+    let cutoffDate = now.addingTimeInterval(-ShowFolder.inactivityInterval)
     let previousAvailability = Dictionary(uniqueKeysWithValues: recentDocuments.map {
       (documentIdentity($0.url), $0.isAvailable)
     })
@@ -128,7 +132,7 @@ class InitialWindowController: NSWindowController {
     var urls: [URL] = []
 
     func append(_ url: URL) {
-      guard urls.count < maximumCount else { return }
+      guard urls.count < Self.maximumRecentDocumentCount else { return }
       let identity = documentIdentity(url)
       if url.isFileURL,
          excludingFolderPaths.contains(url.deletingLastPathComponent().standardizedFileURL.path) {
@@ -140,10 +144,15 @@ class InitialWindowController: NSWindowController {
 
     if Preference.bool(for: .recordRecentFiles) {
       HistoryController.shared.$history.withLock { history in
-        history.map { $0.resolvedURL() }.forEach(append)
+        for entry in history.lazy
+          .filter({ $0.addedDate >= cutoffDate })
+          .prefix(Self.maximumRecentDocumentCount) {
+          append(entry.resolvedURL())
+        }
       }
+    } else {
+      appKitRecents.prefix(Self.maximumRecentDocumentCount).forEach(append)
     }
-    appKitRecents.forEach(append)
 
     return urls.map { url in
       let identity = documentIdentity(url)
@@ -368,43 +377,46 @@ class InitialWindowController: NSWindowController {
   }
 
   private func reloadShowFolders() {
-    let lastURL = Preference.url(for: .iinaLastPlayedFilePath)?.standardizedFileURL
-    let lastPosition = Preference.double(for: .iinaLastPlayedFilePosition)
-    let historyItems: [ShowFolderHistoryItem] = HistoryController.shared.$history.withLock { history in
-      history.compactMap { entry in
-        let resolvedURL = entry.resolvedURL()
-        guard resolvedURL.isFileURL,
-              Utility.playableFileExt.contains(resolvedURL.pathExtension.lowercased()) else { return nil }
-        let url = resolvedURL.standardizedFileURL
-        let savedPosition = Utility.playbackProgressFromWatchLater(entry.mpvMd5)?.second ??
-          entry.mpvProgress?.second ?? 0
-        let position = url == lastURL && lastPosition > 0 ? lastPosition : savedPosition
-        return ShowFolderHistoryItem(url: url,
-                                     lastPlayedAt: entry.addedDate,
-                                     position: position,
-                                     duration: entry.duration.second,
-                                     thumbnailCacheName: entry.mpvMd5)
-      }
-    }
-    let dismissals = ShowFolderDismissalStore.dismissedAtByFolder()
-    let cachedFolderPaths = ShowFolderSnapshotStore.load()
-    let excludedContainerPaths = Self.nonShowContainerPaths()
-    let historyGroupedPaths = ShowFolder.groupedFolderPaths(from: historyItems,
-                                                            volumeRootPaths: excludedContainerPaths)
-    let candidateFolders = Dictionary(grouping: historyItems.filter { item in
-      Date().timeIntervalSince(item.lastPlayedAt) <= ShowFolder.inactivityInterval
-    }) { item in
-      item.url.deletingLastPathComponent().standardizedFileURL.path
-    }.compactMap { path, _ in
-      excludedContainerPaths.contains(path) ? nil : URL(fileURLWithPath: path, isDirectory: true)
-    }
-    let playableExtensions = Set(Utility.playableFileExt)
     let generation = coordinator.currentGeneration
     availabilityQueue.async { [weak self] in
+      guard let self else { return }
+      let now = Date()
+      let cutoffDate = now.addingTimeInterval(-ShowFolder.inactivityInterval)
+      let lastURL = Preference.url(for: .iinaLastPlayedFilePath)?.standardizedFileURL
+      let lastPosition = Preference.double(for: .iinaLastPlayedFilePosition)
+      let historyItems: [ShowFolderHistoryItem] = HistoryController.shared.$history.withLock { history in
+        history.lazy
+          .filter { $0.addedDate >= cutoffDate }
+          .prefix(Self.maximumShowFolderCount)
+          .compactMap { entry in
+            let resolvedURL = entry.resolvedURL()
+            guard resolvedURL.isFileURL,
+                  Utility.playableFileExt.contains(resolvedURL.pathExtension.lowercased()) else { return nil }
+            let url = resolvedURL.standardizedFileURL
+            let savedPosition = entry.mpvProgress?.second ?? 0
+            let position = url == lastURL && lastPosition > 0 ? lastPosition : savedPosition
+            return ShowFolderHistoryItem(url: url,
+                                         lastPlayedAt: entry.addedDate,
+                                         position: position,
+                                         duration: entry.duration.second,
+                                         thumbnailCacheName: entry.mpvMd5)
+          }
+      }
+      let dismissals = ShowFolderDismissalStore.dismissedAtByFolder()
+      let cachedFolderPaths = ShowFolderSnapshotStore.load()
+      let excludedContainerPaths = Self.nonShowContainerPaths()
+      let historyGroupedPaths = ShowFolder.groupedFolderPaths(from: historyItems,
+                                                              volumeRootPaths: excludedContainerPaths)
+      let candidateFolders = Dictionary(grouping: historyItems) {
+        $0.url.deletingLastPathComponent().standardizedFileURL.path
+      }.compactMap { path, _ in
+        excludedContainerPaths.contains(path) ? nil : URL(fileURLWithPath: path, isDirectory: true)
+      }
+      let playableExtensions = Set(Utility.playableFileExt)
       var folderPaths = historyGroupedPaths
       for folderURL in candidateFolders {
-        switch self?.folderClassificationCache.classification(of: folderURL,
-                                                               playableExtensions: playableExtensions) {
+        switch self.folderClassificationCache.classification(of: folderURL,
+                                                              playableExtensions: playableExtensions) {
         case .show:
           folderPaths.insert(folderURL.standardizedFileURL.path)
         case .unavailable where cachedFolderPaths.contains(folderURL.standardizedFileURL.path):
@@ -413,7 +425,7 @@ class InitialWindowController: NSWindowController {
           // progress and episode remain current, but keep it glass-only until
           // the source can be validated again.
           folderPaths.insert(folderURL.standardizedFileURL.path)
-        case .notShow, .unavailable, .none:
+        case .notShow, .unavailable:
           break
         }
       }
@@ -431,8 +443,9 @@ class InitialWindowController: NSWindowController {
         if lhs.lastPlayedAt != rhs.lastPlayedAt { return lhs.lastPlayedAt > rhs.lastPlayedAt }
         return lhs.primaryTitle.localizedStandardCompare(rhs.primaryTitle) == .orderedAscending
       }
+      cards = Array(cards.prefix(Self.maximumShowFolderCount))
 
-      DispatchQueue.main.async {
+      DispatchQueue.main.async { [weak self] in
         guard let self, self.coordinator.isCurrent(generation) else { return }
         let previousCardIdentities = self.showFolders.map(\.identityPath)
         let cardIdentities = cards.map(\.identityPath)
@@ -580,7 +593,6 @@ class InitialWindowController: NSWindowController {
     coordinator.invalidate()
     cancelArtworkRequests()
     reloadShowFolders()
-    reloadRecents()
   }
 
   // AppDelegate refreshes this controller through the historical selector.

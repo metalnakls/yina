@@ -19,7 +19,7 @@ struct ShowFolder: Equatable {
     case file
   }
 
-  static let inactivityInterval: TimeInterval = 30 * 24 * 60 * 60
+  static let inactivityInterval: TimeInterval = 60 * 24 * 60 * 60
 
   let kind: Kind
   let folderURL: URL

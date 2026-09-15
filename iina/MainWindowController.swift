@@ -468,12 +468,6 @@ class MainWindowController: PlayerWindowController {
     videoViewContainer.wantsLayer = true
     videoViewContainer.layer?.backgroundColor = NSColor.black.cgColor
 
-    DispatchQueue.main.async { [weak self] in
-      self?.sidebars.quickSettingView.loadViewIfNeeded()
-      self?.sidebars.playlistView.loadViewIfNeeded()
-      self?.sidebars.pluginView.loadViewIfNeeded()
-    }
-
     // create translucent views
     oscBottomView = OSCBottomView(mainWindow: self)
     cv.addSubview(oscBottomView)
