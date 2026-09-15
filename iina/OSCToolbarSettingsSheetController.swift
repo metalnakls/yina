@@ -18,18 +18,173 @@ class ToolbarSettingsSheetWindow: NSWindow {
 }
 
 class OSCToolbarSettingsSheetController: NSWindowController, OSCToolbarCurrentItemsViewDelegate {
-  override var windowNibName: NSNib.Name {
-    return NSNib.Name("OSCToolbarSettingsSheetController")
-  }
-
   var currentButtonTypes: [Preference.ToolBarButton] = []
   private var itemViewControllers: [OSCToolbarDraggingItemViewController] = []
 
-  @IBOutlet weak var availableItemsView: OSCToolbarAvailableItemsView!
-  @IBOutlet weak var currentItemsView: OSCToolbarCurrentItemsView!
+  var availableItemsView: OSCToolbarAvailableItemsView!
+  var currentItemsView: OSCToolbarCurrentItemsView!
 
-  override func windowDidLoad() {
-    super.windowDidLoad()
+  private enum LocalizedString {
+    static let currentItemsHeading = "rNU-8V-iQt.title"
+    static let currentItemsHint = "jlb-xc-k6x.title"
+    static let availableItemsHeading = "DeE-Yj-Q4D.title"
+    static let availableItemsHint = "VCG-VX-E3M.title"
+    static let restoreDefault = "SmC-AI-FG6.title"
+    static let cancel = "Jrf-II-Cfc.title"
+    static let done = "0wJ-C7-Gds.title"
+
+    static func value(_ key: String, fallback: String) -> String {
+      NSLocalizedString(key,
+                        tableName: "OSCToolbarSettingsSheetController",
+                        bundle: .main,
+                        value: fallback,
+                        comment: "")
+    }
+  }
+
+  override init(window: NSWindow?) {
+    let sheetWindow = window ?? ToolbarSettingsSheetWindow(
+      contentRect: NSRect(x: 0, y: 0, width: 425, height: 355),
+      styleMask: [.titled, .closable, .fullSizeContentView],
+      backing: .buffered,
+      defer: false
+    )
+    availableItemsView = OSCToolbarAvailableItemsView()
+    currentItemsView = OSCToolbarCurrentItemsView()
+    super.init(window: sheetWindow)
+    configureWindow(sheetWindow)
+  }
+
+  convenience init() {
+    self.init(window: nil)
+  }
+
+  required init?(coder: NSCoder) {
+    fatalError("init(coder:) has not been implemented")
+  }
+
+  private func configureWindow(_ window: NSWindow) {
+    window.title = "Toolbar Settings"
+    window.isReleasedWhenClosed = false
+    if #available(macOS 11.0, *) {
+      window.titlebarSeparatorStyle = .none
+    }
+
+    let contentView = NSView()
+    contentView.wantsLayer = true
+    window.contentView = contentView
+
+    let currentItemsHeading = NSTextField(labelWithString: LocalizedString.value(
+      LocalizedString.currentItemsHeading,
+      fallback: "Current Items:"
+    ))
+    let currentItemsHint = NSTextField(labelWithString: LocalizedString.value(
+      LocalizedString.currentItemsHint,
+      fallback: "Drag an item out of the box to delete it."
+    ))
+    let availableItemsHeading = NSTextField(labelWithString: LocalizedString.value(
+      LocalizedString.availableItemsHeading,
+      fallback: "Available Items:"
+    ))
+    let availableItemsHint = NSTextField(labelWithString: LocalizedString.value(
+      LocalizedString.availableItemsHint,
+      fallback: "Drag an item and drop it to the box above to add it."
+    ))
+
+    for label in [currentItemsHeading, availableItemsHeading] {
+      label.translatesAutoresizingMaskIntoConstraints = false
+    }
+    for hint in [currentItemsHint, availableItemsHint] {
+      hint.translatesAutoresizingMaskIntoConstraints = false
+      hint.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+      hint.textColor = .secondaryLabelColor
+      hint.lineBreakMode = .byClipping
+    }
+
+    let currentItemsBox = NSBox()
+    currentItemsBox.translatesAutoresizingMaskIntoConstraints = false
+    currentItemsBox.boxType = .primary
+    currentItemsBox.titlePosition = .noTitle
+    currentItemsBox.contentViewMargins = .zero
+
+    let currentItemsContentView = NSView()
+    currentItemsContentView.translatesAutoresizingMaskIntoConstraints = false
+    currentItemsBox.contentView = currentItemsContentView
+    currentItemsView.translatesAutoresizingMaskIntoConstraints = false
+    currentItemsContentView.addSubview(currentItemsView)
+    let currentItemsHeightConstraint = currentItemsView.heightAnchor.constraint(equalTo: currentItemsContentView.heightAnchor)
+    currentItemsHeightConstraint.priority = .init(900)
+
+    availableItemsView.translatesAutoresizingMaskIntoConstraints = false
+    availableItemsView.orientation = .vertical
+    availableItemsView.alignment = .leading
+    availableItemsView.spacing = 4
+
+    let restoreDefaultButton = NSButton(
+      title: LocalizedString.value(LocalizedString.restoreDefault, fallback: "Restore Default"),
+      target: self,
+      action: #selector(restoreDefaultButtonAction(_:))
+    )
+    let cancelButton = NSButton(
+      title: LocalizedString.value(LocalizedString.cancel, fallback: "Cancel"),
+      target: self,
+      action: #selector(cancelButtonAction(_:))
+    )
+    let doneButton = NSButton(
+      title: LocalizedString.value(LocalizedString.done, fallback: "Done"),
+      target: self,
+      action: #selector(okButtonAction(_:))
+    )
+    restoreDefaultButton.translatesAutoresizingMaskIntoConstraints = false
+    cancelButton.translatesAutoresizingMaskIntoConstraints = false
+    doneButton.translatesAutoresizingMaskIntoConstraints = false
+    cancelButton.keyEquivalent = "\u{1b}"
+    doneButton.keyEquivalent = "\r"
+
+    for view in [currentItemsHeading, currentItemsHint, currentItemsBox,
+                 availableItemsHeading, availableItemsHint, availableItemsView,
+                 restoreDefaultButton, cancelButton, doneButton] {
+      contentView.addSubview(view)
+    }
+
+    NSLayoutConstraint.activate([
+      currentItemsHeading.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
+      currentItemsHeading.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 20),
+      currentItemsHint.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
+      currentItemsHint.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
+      currentItemsHint.topAnchor.constraint(equalTo: currentItemsHeading.bottomAnchor, constant: 4),
+
+      currentItemsBox.centerXAnchor.constraint(equalTo: contentView.centerXAnchor),
+      currentItemsBox.topAnchor.constraint(equalTo: currentItemsHint.bottomAnchor, constant: 10),
+      currentItemsBox.widthAnchor.constraint(equalTo: currentItemsBox.heightAnchor, multiplier: 5),
+      currentItemsBox.heightAnchor.constraint(greaterThanOrEqualToConstant: 16),
+
+      currentItemsView.centerXAnchor.constraint(equalTo: currentItemsContentView.centerXAnchor),
+      currentItemsView.centerYAnchor.constraint(equalTo: currentItemsContentView.centerYAnchor),
+      currentItemsView.widthAnchor.constraint(equalTo: currentItemsView.heightAnchor, multiplier: 5),
+      currentItemsView.heightAnchor.constraint(lessThanOrEqualTo: currentItemsContentView.heightAnchor),
+      currentItemsHeightConstraint,
+
+      availableItemsHeading.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
+      availableItemsHeading.topAnchor.constraint(equalTo: currentItemsBox.bottomAnchor, constant: 20),
+      availableItemsHint.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
+      availableItemsHint.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
+      availableItemsHint.topAnchor.constraint(equalTo: availableItemsHeading.bottomAnchor, constant: 4),
+      availableItemsView.centerXAnchor.constraint(equalTo: contentView.centerXAnchor),
+      availableItemsView.topAnchor.constraint(equalTo: availableItemsHint.bottomAnchor, constant: 10),
+      availableItemsView.widthAnchor.constraint(equalToConstant: 240),
+
+      restoreDefaultButton.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
+      restoreDefaultButton.topAnchor.constraint(equalTo: availableItemsView.bottomAnchor, constant: 20),
+      restoreDefaultButton.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -20),
+      cancelButton.leadingAnchor.constraint(greaterThanOrEqualTo: restoreDefaultButton.trailingAnchor, constant: 8),
+      cancelButton.firstBaselineAnchor.constraint(equalTo: restoreDefaultButton.firstBaselineAnchor),
+      doneButton.leadingAnchor.constraint(equalTo: cancelButton.trailingAnchor, constant: 12),
+      doneButton.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
+      doneButton.firstBaselineAnchor.constraint(equalTo: restoreDefaultButton.firstBaselineAnchor),
+      doneButton.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -20)
+    ])
+
     currentItemsView.registerForDraggedTypes([.iinaOSCAvailableToolbarButtonType, .iinaOSCCurrentToolbarButtonType])
     currentItemsView.currentItemsViewDelegate = self
     currentItemsView.initItems(fromItems: OSCToolbarConfiguration.items)
@@ -49,17 +204,22 @@ class OSCToolbarSettingsSheetController: NSWindowController, OSCToolbarCurrentIt
     currentButtonTypes = items
   }
 
-  @IBAction func okButtonAction(_ sender: Any) {
-    window!.sheetParent!.endSheet(window!, returnCode: .OK)
+  @objc func okButtonAction(_ sender: Any) {
+    endSheet(with: .OK)
   }
 
-  @IBAction func cancelButtonAction(_ sender: Any) {
-    window!.sheetParent!.endSheet(window!, returnCode: .cancel)
+  @objc func cancelButtonAction(_ sender: Any) {
+    endSheet(with: .cancel)
   }
 
-  @IBAction func restoreDefaultButtonAction(_ sender: Any) {
+  @objc func restoreDefaultButtonAction(_ sender: Any) {
     currentButtonTypes = [.volume] + (Preference.defaultPreference[.controlBarToolbarButtons] as! [Int]).compactMap(Preference.ToolBarButton.init(rawValue:))
     currentItemsView.initItems(fromItems: currentButtonTypes)
+  }
+
+  private func endSheet(with returnCode: NSApplication.ModalResponse) {
+    guard let window, let sheetParent = window.sheetParent else { return }
+    sheetParent.endSheet(window, returnCode: returnCode)
   }
 }
 
