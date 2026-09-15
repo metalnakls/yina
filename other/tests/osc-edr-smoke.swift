@@ -40,7 +40,9 @@ import Foundation
 
     let floatingOSC = try String(contentsOfFile: "iina/OSCFloatingView.swift", encoding: .utf8)
     precondition(floatingOSC.contains("contentPlacement: .aboveMaterial"))
-    precondition(floatingOSC.contains("guard isDissolveFilterEnabled else { return }"))
+    precondition(floatingOSC.contains("prefersUnfilteredVisibleAppearance"))
+    precondition(floatingOSC.contains("ensureDissolveFilterAttached()"))
+    precondition(floatingOSC.contains("contentFilters = [dissolveBlur]"))
     precondition(floatingOSC.contains("extendedDynamicRangeHeadroom > 1"))
     precondition(floatingOSC.contains("drawExtendedDynamicRangeImage"))
     precondition(floatingOSC.contains("imageRect.fill(using: .sourceAtop)"))
@@ -53,8 +55,9 @@ import Foundation
     precondition(mainWindow.contains("let enabled = player.info.hdrEnabled"))
     precondition(!mainWindow.contains("player.info.hdrAvailable && player.info.hdrEnabled"))
     precondition(mainWindow.contains("setContentExtendedDynamicRange(enabled, headroom: headroom)"))
-    precondition(mainWindow.contains("setDissolveFilterEnabled(!enabled)"))
+    precondition(mainWindow.contains("setPrefersUnfilteredVisibleAppearance(enabled)"))
+    precondition(!mainWindow.contains("setDissolveFilterEnabled(!enabled)"))
 
-    print("PASS: floating OSC controls use a separate adaptive EDR plane above AppKit material.")
+    print("PASS: floating OSC preserves EDR while keeping Gaussian dissolve blur available.")
   }
 }

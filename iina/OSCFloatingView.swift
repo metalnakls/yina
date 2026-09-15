@@ -227,7 +227,8 @@ class OSCFloatingView: TranslucentView {
   weak var mainWindow: MainWindowController!
   private let prefObserver = Preference.Observer()
   private let dissolveBlur = CIFilter(name: "CIGaussianBlur")!
-  private var isDissolveFilterEnabled = true
+  private var prefersUnfilteredVisibleAppearance = false
+  private var dissolveAnimationInProgress = false
 
   var oscTopView: OSCFloatingTopView!
   var oscBottomView: TimeLabelOverflowedStackView!
@@ -317,8 +318,9 @@ class OSCFloatingView: TranslucentView {
 
   /// Sets the starting blur without animation. Used only while the OSC is fully transparent.
   func prepareDissolveBlur(_ radius: CGFloat) {
-    guard isDissolveFilterEnabled else { return }
+    ensureDissolveFilterAttached()
     layer?.removeAnimation(forKey: Self.dissolveAnimationKey)
+    dissolveAnimationInProgress = false
     dissolveBlur.setValue(radius, forKey: kCIInputRadiusKey)
     layer?.setValue(radius, forKeyPath: Self.dissolveRadiusKeyPath)
   }
@@ -327,7 +329,7 @@ class OSCFloatingView: TranslucentView {
   /// the filter graph on every animation frame.
   func animateDissolveBlur(to radius: CGFloat, duration: TimeInterval,
                            startingAt preparedRadius: CGFloat? = nil) {
-    guard isDissolveFilterEnabled else { return }
+    ensureDissolveFilterAttached()
     guard duration > 0, let layer else {
       prepareDissolveBlur(radius)
       return
@@ -347,23 +349,35 @@ class OSCFloatingView: TranslucentView {
     }
     animation.duration = duration
     animation.calculationMode = .linear
+    dissolveAnimationInProgress = true
     layer.add(animation, forKey: Self.dissolveAnimationKey)
   }
 
   func finishDissolveAppearance() {
     layer?.removeAnimation(forKey: Self.dissolveAnimationKey)
+    dissolveAnimationInProgress = false
     dissolveBlur.setValue(0, forKey: kCIInputRadiusKey)
-    guard isDissolveFilterEnabled else { return }
     layer?.setValue(0, forKeyPath: Self.dissolveRadiusKeyPath)
+    if prefersUnfilteredVisibleAppearance {
+      contentFilters = []
+    }
   }
 
-  func setDissolveFilterEnabled(_ enabled: Bool) {
-    guard enabled != isDissolveFilterEnabled else { return }
-    if !enabled {
+  /// EDR content should not remain behind a Core Image filter while the OSC is fully visible.
+  /// The dissolve temporarily reattaches the Gaussian filter, then removes it after fading in.
+  func setPrefersUnfilteredVisibleAppearance(_ enabled: Bool) {
+    guard enabled != prefersUnfilteredVisibleAppearance else { return }
+    prefersUnfilteredVisibleAppearance = enabled
+    if enabled, !dissolveAnimationInProgress {
       finishDissolveAppearance()
+    } else if !enabled {
+      ensureDissolveFilterAttached()
     }
-    isDissolveFilterEnabled = enabled
-    contentFilters = enabled ? [dissolveBlur] : []
+  }
+
+  private func ensureDissolveFilterAttached() {
+    guard !contentFilters.contains(where: { $0 === dissolveBlur }) else { return }
+    contentFilters = [dissolveBlur]
   }
 
   func setupConstraints() {
