@@ -945,7 +945,7 @@ class MainWindowController: PlayerWindowController {
     guard force || enabled != oscEDREnabled || abs(headroom - oscEDRHeadroom) >= 0.05 else { return }
     oscEDREnabled = enabled
     oscEDRHeadroom = headroom
-    oscFloatingView.setDissolveFilterEnabled(!enabled)
+    oscFloatingView.setPrefersUnfilteredVisibleAppearance(enabled)
     oscFloatingView.setContentExtendedDynamicRange(enabled, headroom: headroom)
 
     [oscBottomView, titleBarView, oscPlayControlView,
