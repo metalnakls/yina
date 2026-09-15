@@ -88,10 +88,10 @@ import Foundation
       .contains(mixedRoot.standardizedFileURL.path))
 
     precondition(ShowFolder.make(from: [item("Movie.mkv", ageDays: 1)]).isEmpty)
-    precondition(ShowFolder.make(from: [item("S01E01.mkv", ageDays: 31),
-                                        item("S01E02.mkv", ageDays: 32)], now: now).isEmpty)
-    precondition(ShowFolder.make(from: [item("S01E01.mkv", ageDays: 29),
-                                        item("S01E02.mkv", ageDays: 31)], now: now).count == 1)
+    precondition(ShowFolder.make(from: [item("S01E01.mkv", ageDays: 61),
+                                        item("S01E02.mkv", ageDays: 62)], now: now).isEmpty)
+    precondition(ShowFolder.make(from: [item("S01E01.mkv", ageDays: 59),
+                                        item("S01E02.mkv", ageDays: 61)], now: now).count == 1)
 
     let shareRoot = URL(fileURLWithPath: "/Volumes/and", isDirectory: true)
     let shareRootItems = [

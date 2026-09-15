@@ -39,7 +39,9 @@ class PlaybackHistory: NSObject, NSSecureCoding {
   var addedDate: Date
 
   var duration: VideoTime
-  var mpvProgress: VideoTime?
+  var mpvProgress: VideoTime? {
+    Utility.playbackProgressFromWatchLater(mpvMd5)
+  }
 
   var title: String?
   private var bookmarkData: Data?
@@ -81,9 +83,7 @@ class PlaybackHistory: NSObject, NSSecureCoding {
     self.title = title as String?
     self.bookmarkData = bookmarkData
 
-    self.mpvProgress = Utility.playbackProgressFromWatchLater(mpvMd5)
     super.init()
-    _ = resolvedURL()
   }
 
   init(url: URL, duration: Double, name: String? = nil, title: String?, mpvMd5: String) {
