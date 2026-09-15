@@ -142,7 +142,7 @@ class OSCToolbarSettingsSheetController: NSWindowController, OSCToolbarCurrentIt
     doneButton.keyEquivalent = "\r"
 
     for view in [currentItemsHeading, currentItemsHint, currentItemsBox,
-                 availableItemsHeading, availableItemsHint, availableItemsView,
+                 availableItemsHeading, availableItemsHint, availableItemsView!,
                  restoreDefaultButton, cancelButton, doneButton] {
       contentView.addSubview(view)
     }
