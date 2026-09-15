@@ -7,6 +7,7 @@
 //
 
 import Cocoa
+import SwiftUI
 
 fileprivate let ui = SettingsUIHelper.sharedUI
 
@@ -524,6 +525,122 @@ struct SettingsItem {
       override func mouseUp(with event: NSEvent) {
         owner.handleMouseUp()
       }
+    }
+  }
+
+  class SwiftUIToggle: Base {
+    private var key: Preference.Key?
+    private var imageName: [String]?
+    private var hasDesc = false
+
+    func bindTo(_ key: Preference.Key) -> Self {
+      self.key = key
+      return self
+    }
+
+    func image(name: String) -> Self {
+      imageName = [name]
+      return self
+    }
+
+    func image(name: [String]) -> Self {
+      imageName = name
+      return self
+    }
+
+    func hasDescription() -> Self {
+      hasDesc = true
+      return self
+    }
+
+    override func makeView() -> NSView {
+      guard let key else {
+        preconditionFailure("SettingsItem.SwiftUIToggle requires a preference key")
+      }
+
+      let view = View(tag: itemID)
+      view.translatesAutoresizingMaskIntoConstraints = false
+      let hostingView = NSHostingView(rootView: SwiftUIToggleRow(
+        title: localizedTitle(for: key),
+        description: hasDesc ? localizedDescription(for: key) : nil,
+        image: imageName.flatMap { NSImage.sf($0) },
+        key: key
+      ))
+      hostingView.translatesAutoresizingMaskIntoConstraints = false
+      view.addSubview(hostingView)
+      hostingView.padding(.all, from: view)
+      return view
+    }
+
+    override func registerSearchEntry(context: SettingsSearch.Context) {
+      guard let key else { return }
+      context.add(itemID, localizedTitle(for: key), isMain: true)
+      if hasDesc {
+        context.add(itemID, localizedDescription(for: key))
+      }
+    }
+
+    private func localizedTitle(for key: Preference.Key) -> String {
+      ui.localized(.init("\(key.rawValue).label"))
+    }
+
+    private func localizedDescription(for key: Preference.Key) -> String {
+      ui.localized(.init("\(key.rawValue).desc"))
+    }
+
+    class View: SettingsView { }
+  }
+
+  private struct SwiftUIToggleRow: View {
+    let title: String
+    let description: String?
+    let image: NSImage?
+    @AppStorage private var isOn: Bool
+
+    init(title: String, description: String?, image: NSImage?, key: Preference.Key) {
+      self.title = title
+      self.description = description
+      self.image = image
+      _isOn = AppStorage(wrappedValue: UserDefaults.standard.bool(forKey: key.rawValue),
+                         key.rawValue,
+                         store: UserDefaults.standard)
+    }
+
+    var body: some View {
+      Toggle(isOn: $isOn) {
+        HStack(alignment: .top, spacing: 6) {
+          if let image {
+            Image(nsImage: image)
+              .resizable()
+              .scaledToFit()
+              .frame(width: 24, height: 20)
+              .accessibilityHidden(true)
+          } else {
+            Color.clear
+              .frame(width: 24, height: 20)
+              .accessibilityHidden(true)
+          }
+
+          VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+              .fixedSize(horizontal: false, vertical: true)
+            if let description {
+              Text(description)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+          }
+          .frame(maxWidth: .infinity, alignment: .leading)
+        }
+      }
+      .toggleStyle(.switch)
+      .controlSize(.mini)
+      .accessibilityLabel(Text(title))
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .padding(.leading, 6)
+      .padding(.trailing, 8)
+      .padding(.vertical, 12)
     }
   }
 

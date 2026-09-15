@@ -61,7 +61,7 @@ class SettingsPageVideo: SettingsPage {
   private func sectionLiveText() -> SettingsSection {
     return section {
       SettingsList(title: .text_LiveText) {
-        SettingsItem.Switch()
+        SettingsItem.SwiftUIToggle()
           .image(name: "text.viewfinder")
           .bindTo(.enableLiveText)
           .hasDescription()
