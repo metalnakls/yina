@@ -10,7 +10,6 @@ struct ShowFolderHistoryItem {
   let lastPlayedAt: Date
   let position: Double
   let duration: Double
-  let mediaTitle: String?
   let thumbnailCacheName: String
 }
 
@@ -24,10 +23,10 @@ struct ShowFolder: Equatable {
 
   let kind: Kind
   let folderURL: URL
-  /// The specific media item that will resume when the card is opened.
+  /// The visually dominant card title: show name for folders, filename for standalone items.
   let primaryTitle: String
   let resumeURL: URL
-  /// The containing folder or show, used only as supporting context.
+  /// Supporting context: episode filename for shows, containing folder for standalone items.
   let secondaryTitle: String
   let lastPlayedAt: Date
   let position: Double
@@ -46,13 +45,40 @@ struct ShowFolder: Equatable {
     return min(max(position / duration, 0), 1)
   }
 
+  /// The actual file that will resume, independent of its visual position on the card.
+  var resumeItemTitle: String {
+    Self.fileDisplayName(for: resumeURL)
+  }
+
+  /// The folder or show containing the resumable file.
+  var containerTitle: String {
+    folderURL.lastPathComponent
+  }
+
+  var resumeActionLabel: String {
+    "Resume \(resumeItemTitle)"
+  }
+
+  var resumeActionHelp: String {
+    "Opens \(resumeItemTitle) from \(containerTitle) at your saved position"
+  }
+
   private static func fileDisplayName(for url: URL) -> String {
     url.deletingPathExtension().lastPathComponent
   }
 
-  private static func primaryTitle(for item: ShowFolderHistoryItem) -> String {
-    let metadataTitle = item.mediaTitle?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-    return metadataTitle.isEmpty ? fileDisplayName(for: item.url) : metadataTitle
+  /// A folder is only a show when its playable files consistently identify
+  /// episodes. Folder size or container metadata are not classification signals.
+  static func isEpisodeFileURL(_ url: URL) -> Bool {
+    let name = fileDisplayName(for: url)
+    let pattern = #"(?i)(?:^|[^a-z0-9])(?:s\d{1,3}(?:[\s._-]*e\d{1,4})+|\d{1,3}x\d{1,4}|ep(?:isode)?[\s._-]*\d{1,4})(?:[^a-z0-9]|$)"#
+    return name.range(of: pattern, options: .regularExpression) != nil
+  }
+
+  static func isEpisodeCollection(_ urls: [URL]) -> Bool {
+    var paths = Set<String>()
+    let distinctURLs = urls.filter { paths.insert($0.standardizedFileURL.path).inserted }
+    return distinctURLs.count >= 2 && distinctURLs.allSatisfy(isEpisodeFileURL)
   }
 
   static func groupedFolderPaths(from items: [ShowFolderHistoryItem],
@@ -62,7 +88,7 @@ struct ShowFolder: Equatable {
     }
     return Set(grouped.compactMap { path, entries in
       guard !volumeRootPaths.contains(path), !isVolumeRootPath(path),
-            Set(entries.map { $0.url.standardizedFileURL.path }).count >= 2 else { return nil }
+            isEpisodeCollection(entries.map(\.url)) else { return nil }
       return path
     })
   }
@@ -77,10 +103,9 @@ struct ShowFolder: Equatable {
     }
 
     return grouped.values.compactMap { entries in
-      let distinctFiles = Set(entries.map { $0.url.standardizedFileURL.path })
       guard let latest = entries.max(by: { $0.lastPlayedAt < $1.lastPlayedAt }) else { return nil }
       let folderURL = latest.url.deletingLastPathComponent().standardizedFileURL
-      let isShowFolder = folderPaths?.contains(folderURL.path) ?? (distinctFiles.count >= 2)
+      let isShowFolder = folderPaths?.contains(folderURL.path) ?? isEpisodeCollection(entries.map(\.url))
       guard isShowFolder,
             now.timeIntervalSince(latest.lastPlayedAt) <= inactivityInterval else { return nil }
       guard !volumeRootPaths.contains(folderURL.path), !isVolumeRootPath(folderURL.path) else { return nil }
@@ -89,9 +114,11 @@ struct ShowFolder: Equatable {
       }
       return ShowFolder(kind: .folder,
                         folderURL: folderURL,
-                        primaryTitle: primaryTitle(for: latest),
+                        primaryTitle: folderURL.lastPathComponent,
                         resumeURL: latest.url,
-                        secondaryTitle: folderURL.lastPathComponent,
+                        // Filename is authoritative for the episode line. Do not
+                        // replace it with noisy container media-title metadata.
+                        secondaryTitle: fileDisplayName(for: latest.url),
                         lastPlayedAt: latest.lastPlayedAt,
                         position: latest.position,
                         duration: latest.duration,
@@ -116,7 +143,7 @@ struct ShowFolder: Equatable {
     }
     return ShowFolder(kind: .file,
                       folderURL: url.deletingLastPathComponent(),
-                      primaryTitle: primaryTitle(for: latest),
+                      primaryTitle: fileDisplayName(for: latest.url),
                       resumeURL: url,
                       secondaryTitle: url.deletingLastPathComponent().lastPathComponent,
                       lastPlayedAt: latest.lastPlayedAt,
@@ -255,7 +282,7 @@ final class ShowFolderCardView: NSView {
     playButton.target = target
     playButton.action = openAction
     playButton.identifier = NSUserInterfaceItemIdentifier(show.identityPath)
-    playButton.setAccessibilityLabel("Resume \(show.primaryTitle)")
+    playButton.setAccessibilityLabel(show.resumeActionLabel)
 
     button.translatesAutoresizingMaskIntoConstraints = false
     button.isBordered = false
@@ -263,9 +290,9 @@ final class ShowFolderCardView: NSView {
     button.target = target
     button.action = openAction
     button.identifier = NSUserInterfaceItemIdentifier(show.identityPath)
-    button.toolTip = "Resume \(show.primaryTitle) — \(show.secondaryTitle)"
-    button.setAccessibilityLabel("Resume \(show.primaryTitle)")
-    button.setAccessibilityHelp("Opens \(show.primaryTitle) from \(show.secondaryTitle) at your saved position")
+    button.toolTip = "\(show.resumeActionLabel) — \(show.containerTitle)"
+    button.setAccessibilityLabel(show.resumeActionLabel)
+    button.setAccessibilityHelp(show.resumeActionHelp)
 
     let contextMenu = NSMenu()
     let dismissItem = NSMenuItem(title: "Dismiss",
@@ -344,10 +371,10 @@ final class ShowFolderCardView: NSView {
     episodeLabel.stringValue = show.secondaryTitle
     button.identifier = NSUserInterfaceItemIdentifier(show.identityPath)
     playButton.identifier = NSUserInterfaceItemIdentifier(show.identityPath)
-    playButton.setAccessibilityLabel("Resume \(show.primaryTitle)")
-    button.toolTip = "Resume \(show.primaryTitle) — \(show.secondaryTitle)"
-    button.setAccessibilityLabel("Resume \(show.primaryTitle)")
-    button.setAccessibilityHelp("Opens \(show.primaryTitle) from \(show.secondaryTitle) at your saved position")
+    playButton.setAccessibilityLabel(show.resumeActionLabel)
+    button.toolTip = "\(show.resumeActionLabel) — \(show.containerTitle)"
+    button.setAccessibilityLabel(show.resumeActionLabel)
+    button.setAccessibilityHelp(show.resumeActionHelp)
     updateThumbnailPresentation()
   }
 
