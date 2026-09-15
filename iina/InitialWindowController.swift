@@ -38,6 +38,7 @@ class InitialWindowController: NSWindowController {
   private var showFolders: [ShowFolder] = []
   private var showFolderShelfHeightConstraint: NSLayoutConstraint?
   private var showFolderHeaderHeightConstraint: NSLayoutConstraint?
+  private var recentScrollViewTopConstraint: NSLayoutConstraint?
   private var documentIconCache: [String: NSImage] = [:]
   private var showFolderArtworkCache: [String: ShowFolderCardArtwork] = [:]
   private var artworkRequests: [String: WelcomeArtworkRequest] = [:]
@@ -244,6 +245,8 @@ class InitialWindowController: NSWindowController {
     showFolderShelfHeightConstraint = shelfHeight
     let showHeaderHeight = showFolderHeader.heightAnchor.constraint(equalToConstant: 17)
     showFolderHeaderHeightConstraint = showHeaderHeight
+    let recentScrollTop = recentScrollView.topAnchor.constraint(equalTo: mainView.topAnchor)
+    recentScrollViewTopConstraint = recentScrollTop
     NSLayoutConstraint.activate([
       mainView.widthAnchor.constraint(greaterThanOrEqualToConstant: 760),
       mainView.heightAnchor.constraint(greaterThanOrEqualToConstant: 560),
@@ -251,10 +254,7 @@ class InitialWindowController: NSWindowController {
       visualEffectView.trailingAnchor.constraint(equalTo: mainView.trailingAnchor),
       visualEffectView.topAnchor.constraint(equalTo: mainView.topAnchor),
       visualEffectView.bottomAnchor.constraint(equalTo: mainView.bottomAnchor),
-      // The table occupies the full content plane. The titlebar accessory owns
-      // the static shelf and AppKit applies the soft scroll edge as rows pass
-      // beneath it.
-      recentScrollView.topAnchor.constraint(equalTo: mainView.topAnchor),
+      recentScrollTop,
       recentScrollView.bottomAnchor.constraint(equalTo: mainView.bottomAnchor),
       recentScrollView.centerXAnchor.constraint(equalTo: mainView.centerXAnchor),
       recentScrollView.widthAnchor.constraint(equalToConstant: 400),
@@ -630,11 +630,12 @@ class InitialWindowController: NSWindowController {
     let sectionOffset = showFolders.isEmpty ? CGFloat(0) : headerHeight + 6 + shelfHeight + 18
     let accessoryHeight = 20 + sectionOffset + recentHeaderHeight + 6
     shelfAccessoryController.view.frame.size.height = accessoryHeight
-    // The scroll edge begins at the accessory boundary. Keep the first row
-    // below the Recents label instead of allowing the row selection to render
-    // through that transition zone.
+    // Make the accessory and the Recents viewport non-overlapping layout
+    // regions. A content inset positions rows initially but still lets AppKit's
+    // selection layer scroll underneath the shelf and header.
     let recentRowsTop = accessoryHeight + recentHeaderHeight + 12
-    recentScrollView.contentInsets = NSEdgeInsets(top: recentRowsTop,
+    recentScrollViewTopConstraint?.constant = recentRowsTop
+    recentScrollView.contentInsets = NSEdgeInsets(top: 0,
                                                   left: 0, bottom: 16, right: 0)
     if resetScrollPosition {
       recentFilesTableView.scrollToBeginningOfDocument(nil)
