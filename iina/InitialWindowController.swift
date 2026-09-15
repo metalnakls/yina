@@ -7,6 +7,7 @@
 //
 
 import Cocoa
+import SwiftUI
 import UniformTypeIdentifiers
 
 class InitialWindowController: NSWindowController {
@@ -662,35 +663,13 @@ extension InitialWindowController: NSTableViewDelegate, NSTableViewDataSource {
     return recentDocuments.count
   }
 
-  func tableView(_ tableView: NSTableView, objectValueFor tableColumn: NSTableColumn?, row: Int) -> Any? {
-    let document = recentDocuments[row]
-    let url = document.url
-    let icon: NSImage
-    let identity = documentIdentity(url)
-    if let cachedIcon = documentIconCache[identity] {
-      icon = cachedIcon
-    } else if document.isAvailable {
-      icon = NSWorkspace.shared.icon(forFile: url.path)
-      documentIconCache[identity] = icon
-    } else {
-      let contentType = UTType(filenameExtension: url.pathExtension) ?? .data
-      icon = NSWorkspace.shared.icon(for: contentType)
-      documentIconCache[identity] = icon
-    }
-    return [
-      "filename": url.lastPathComponent,
-      "docIcon": icon
-    ] as [String: Any]
-  }
-
   func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
     let identifier = NSUserInterfaceItemIdentifier("InitialWindowRecentCell")
-    let cell = tableView.makeView(withIdentifier: identifier, owner: self) as? NSTableCellView
-      ?? makeRecentCell(identifier: identifier)
+    let cell = tableView.makeView(withIdentifier: identifier, owner: self) as? InitialWindowRecentHostingCell
+      ?? InitialWindowRecentHostingCell(identifier: identifier)
     let document = recentDocuments[row]
-    let icon = documentIcon(for: document)
-    cell.textField?.stringValue = document.url.lastPathComponent
-    cell.imageView?.image = icon
+    cell.update(title: document.url.lastPathComponent,
+                icon: documentIcon(for: document))
     return cell
   }
 
@@ -705,33 +684,6 @@ extension InitialWindowController: NSTableViewDelegate, NSTableViewDataSource {
     }
     documentIconCache[identity] = icon
     return icon
-  }
-
-  private func makeRecentCell(identifier: NSUserInterfaceItemIdentifier) -> NSTableCellView {
-    let cell = NSTableCellView()
-    cell.identifier = identifier
-    let icon = NSImageView()
-    icon.translatesAutoresizingMaskIntoConstraints = false
-    icon.imageScaling = .scaleProportionallyDown
-    let label = NSTextField(labelWithString: "")
-    label.translatesAutoresizingMaskIntoConstraints = false
-    label.lineBreakMode = .byTruncatingTail
-    label.font = .systemFont(ofSize: NSFont.systemFontSize)
-    label.textColor = .labelColor
-    cell.addSubview(icon)
-    cell.addSubview(label)
-    cell.imageView = icon
-    cell.textField = label
-    NSLayoutConstraint.activate([
-      icon.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 9),
-      icon.centerYAnchor.constraint(equalTo: cell.centerYAnchor, constant: -1),
-      icon.widthAnchor.constraint(equalToConstant: 16),
-      icon.heightAnchor.constraint(equalToConstant: 16),
-      label.leadingAnchor.constraint(equalTo: icon.trailingAnchor, constant: 2),
-      label.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -2),
-      label.centerYAnchor.constraint(equalTo: cell.centerYAnchor, constant: -1),
-    ])
-    return cell
   }
 
   override func keyDown(with event: NSEvent) {
@@ -767,6 +719,56 @@ extension InitialWindowController: NSTableViewDelegate, NSTableViewDataSource {
     }
   }
 
+}
+
+private struct InitialWindowRecentCellContent: View {
+  let title: String
+  let icon: NSImage
+
+  var body: some View {
+    HStack(spacing: 2) {
+      Image(nsImage: icon)
+        .resizable()
+        .scaledToFit()
+        .frame(width: 16, height: 16)
+        .accessibilityHidden(true)
+      Text(title)
+        .font(.system(size: NSFont.systemFontSize))
+        .lineLimit(1)
+        .truncationMode(.tail)
+    }
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+    .padding(.leading, 9)
+    .padding(.trailing, 2)
+    .offset(y: -1)
+    .accessibilityElement(children: .combine)
+  }
+}
+
+private final class InitialWindowRecentHostingCell: NSTableCellView {
+  private let hostingView: NSHostingView<InitialWindowRecentCellContent>
+
+  init(identifier: NSUserInterfaceItemIdentifier) {
+    hostingView = NSHostingView(rootView: InitialWindowRecentCellContent(title: "", icon: NSImage()))
+    super.init(frame: .zero)
+    self.identifier = identifier
+    hostingView.translatesAutoresizingMaskIntoConstraints = false
+    addSubview(hostingView)
+    NSLayoutConstraint.activate([
+      hostingView.leadingAnchor.constraint(equalTo: leadingAnchor),
+      hostingView.trailingAnchor.constraint(equalTo: trailingAnchor),
+      hostingView.topAnchor.constraint(equalTo: topAnchor),
+      hostingView.bottomAnchor.constraint(equalTo: bottomAnchor),
+    ])
+  }
+
+  required init?(coder: NSCoder) {
+    fatalError("init(coder:) has not been implemented")
+  }
+
+  func update(title: String, icon: NSImage) {
+    hostingView.rootView = InitialWindowRecentCellContent(title: title, icon: icon)
+  }
 }
 
 private final class InitialWindowRecentRowView: NSTableRowView {
