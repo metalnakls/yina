@@ -50,7 +50,7 @@ class SettingsPageVideo: SettingsPage {
               .bindTo(.hardwareDecoder, ofType: Preference.HardwareDecoderOption.self)
           )
 #if !arch(arm64)
-        SettingsItem.Switch()
+        SettingsItem.SwiftUIToggle()
           .bindTo(.forceDedicatedGPU)
           .hasDescription()
 #endif
@@ -72,14 +72,14 @@ class SettingsPageVideo: SettingsPage {
   private func sectionColor() -> SettingsSection {
     return section {
       SettingsList(title: .text_ColorHDR) {
-        SettingsItem.Switch()
+        SettingsItem.SwiftUIToggle()
           .image(name: ["document.badge.gearshape", "doc.badge.gearshape"])
           .bindTo(.loadIccProfile)
           .hasDescription()
       }
 
       SettingsList {
-        SettingsItem.Switch()
+        SettingsItem.SwiftUIToggle()
           .image(name: ["sun.lefthalf.filled", "sun.max"])
           .bindTo(.enableHdrSupport)
           .hasDescription()
