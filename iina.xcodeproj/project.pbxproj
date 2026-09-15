@@ -1266,7 +1266,6 @@
 		E33C315B2107018000983986 /* zh-Hant */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hant"; path = "zh-Hant.lproj/OSCToolbarSettingsSheetController.strings"; sourceTree = "<group>"; };
 		E33FEEB42229A44F00B59711 /* JavascriptAPIUtils.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JavascriptAPIUtils.swift; sourceTree = "<group>"; };
 		E342832E20B7149800139865 /* Logger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Logger.swift; sourceTree = "<group>"; };
-		E34A0E022053F93A00B50097 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.xib; name = Base; path = Base.lproj/OSCToolbarSettingsSheetController.xib; sourceTree = "<group>"; };
 		E34A0E052053F93E00B50097 /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/OSCToolbarSettingsSheetController.strings"; sourceTree = "<group>"; };
 		E34BC28C2C27733200A94680 /* SettingsPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsPage.swift; sourceTree = "<group>"; };
 		E34BC28E2C27A68100A94680 /* SettingsItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsItem.swift; sourceTree = "<group>"; };
@@ -3312,7 +3311,6 @@
 		E34A0E032053F93A00B50097 /* OSCToolbarSettingsSheetController.xib */ = {
 			isa = PBXVariantGroup;
 			children = (
-				E34A0E022053F93A00B50097 /* Base */,
 				E34A0E052053F93E00B50097 /* zh-Hans */,
 				E53EB2A7205A865D003F34A0 /* fr */,
 				C77164E12058D45C009E41DA /* ko */,

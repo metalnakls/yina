@@ -19,9 +19,9 @@ The first migration wave is now implemented on the `swift` branch:
 - Guide uses SwiftUI content with `WKWebView` retained as a narrow WebKit adapter.
 - Font picker uses SwiftUI lists, search, preview, and manual entry inside an
   AppKit-owned sheet/window.
-- The OSC toolbar available-item drag surface is now a programmatic AppKit
-  controller; its obsolete helper XIB has been removed. The broader OSC toolbar
-  settings migration remains a higher-risk future project.
+- OSC toolbar customization is now fully programmatic AppKit. Its drag/drop,
+  pasteboard, item identity, and sheet lifecycle remain AppKit-owned while the
+  obsolete settings and available-item XIBs have been removed.
 - The Video page's four independent toggle rows (Live Text, dedicated GPU, ICC
   profile, and HDR support) are now SwiftUI-backed. The settings window,
   page/section/list layout, search index, and remaining input, selection, and
@@ -33,8 +33,7 @@ The first migration wave is now implemented on the `swift` branch:
   have been removed. Existing localized `.strings` tables remain bundled.
 
 The next practical wave is additional settings-page slices, logs, and history.
-Inspector, Filters, key recording, and OSC toolbar
-customization remain dedicated higher-risk projects. The player window, rendering,
+Inspector, Filters, and key recording remain dedicated higher-risk projects. The player window, rendering,
 PiP, dynamic menus, WebKit runtime, and display/EDR authority remain AppKit or
 system-framework led by design.
 
@@ -60,7 +59,6 @@ After the first migration wave, the application still contains these app-owned X
 - Inspector: `Base.lproj/InspectorWindowController.xib`.
 - Filters: `Base.lproj/FilterWindowController.xib`.
 - Key recording: `Base.lproj/KeyRecordViewController.xib`.
-- OSC toolbar settings: `Base.lproj/OSCToolbarSettingsSheetController.xib`.
 - Application menu: `Base.lproj/MainMenu.xib`.
 
 IINA's contribution rules already say not to introduce new XIBs and to use
@@ -159,14 +157,12 @@ string tables remain bundled.
     new rule editor, not mechanically translating the XIB. Keep the key event
     recorder and key-binding model independent from the replacement view.
 
-12. **OSC toolbar customization** —
-    `OSCToolbarSettingsSheetController.swift`,
-    `Base.lproj/OSCToolbarSettingsSheetController.xib`, and related OSC views.
-    The small available-item drag surface is now programmatic AppKit. The
-    broader settings migration remains a higher-risk future project: SwiftUI
-    can render the settings UI, but AppKit is still a good adapter for
-    pasteboard writing, drag/drop, toolbar-item identity, and precise mouse
-    interaction.
+12. **OSC toolbar customization** — completed on `swift`.
+    `OSCToolbarSettingsSheetController.swift` and its related OSC views now
+    construct the sheet programmatically. AppKit deliberately remains the
+    owner of pasteboard writing, drag/drop, toolbar-item identity, precise
+    mouse interaction, and sheet lifecycle. Existing localized `.strings`
+    tables remain bundled.
 
 ## Surfaces that should remain AppKit-led
 
