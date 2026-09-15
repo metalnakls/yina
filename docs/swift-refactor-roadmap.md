@@ -22,9 +22,10 @@ The first migration wave is now implemented on the `swift` branch:
 - The OSC toolbar available-item drag surface is now a programmatic AppKit
   controller; its obsolete helper XIB has been removed. The broader OSC toolbar
   settings migration remains a higher-risk future project.
-- The Video page's Live Text preference row is now the first SwiftUI-backed
-  settings-page slice. The settings window, page/section/list layout, search
-  index, and remaining page rows remain AppKit-owned.
+- The Video page's four independent toggle rows (Live Text, dedicated GPU, ICC
+  profile, and HDR support) are now SwiftUI-backed. The settings window,
+  page/section/list layout, search index, and remaining input, selection, and
+  expandable tone-mapping rows remain AppKit-owned.
 - The obsolete Base XIBs for these surfaces, plus their nonlocalized helper XIBs,
   have been removed. Existing localized `.strings` tables remain bundled.
 
