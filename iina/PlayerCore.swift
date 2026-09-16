@@ -296,6 +296,11 @@ class PlayerCore: NSObject {
   /// URL to open once an outstanding mpv stop command completes.
   private var pendingUrl: URL?
 
+  /// Media waiting for the initial player window to finish creating its render context.
+  /// `windowDidLoad` starts this load before it builds the rest of the AppKit controls so
+  /// network I/O can overlap the expensive tail of window setup.
+  private var pendingWindowLoadPath: String?
+
   let playerNumber: Int
 
   static var keyBindings: [String: KeyMapping] = [:]
@@ -513,11 +518,6 @@ class PlayerCore: NSObject {
       }
     }
 
-    let _ = mainWindow.window
-    mainWindow.pendingShow = true
-    miniPlayer.pendingShow = true
-    initialWindow.close()
-
     if !mpv.getFlag(MPVOption.PlaybackControl.pause) {
       log("Pausing playback before running load command")
       mpv.setFlag(MPVOption.PlaybackControl.pause, true, level: .verbose)
@@ -535,15 +535,28 @@ class PlayerCore: NSObject {
     mpv.setString(MPVOption.Window.forceWindow, "yes", level: .verbose)
     mpv.setFlag(MPVOption.Cache.cacheOnDisk, usesDiskCache, level: .verbose)
 
-    // Send load file command
+    if Preference.bool(for: .autoRepeat) {
+      let loopMode = Preference.DefaultRepeatMode(rawValue: Preference.integer(for: .defaultRepeatMode))
+      setLoopMode(loopMode == .file ? .file : .playlist)
+    }
+
+    mainWindow.pendingShow = true
+    miniPlayer.pendingShow = true
     info.justOpenedFile = true
     info.state = .loading
-    mpv.command(.loadfile, args: [path], level: .verbose)
+    pendingWindowLoadPath = path
 
-    if Preference.bool(for: .autoRepeat) {
-       let loopMode = Preference.DefaultRepeatMode(rawValue: Preference.integer(for: .defaultRepeatMode))
-       setLoopMode(loopMode == .file ? .file : .playlist)
-     }
+    // On the first open, windowDidLoad starts the mpv load as soon as the video render
+    // context exists. Later opens use the already-loaded window and start here.
+    let _ = mainWindow.window
+    initialWindow.close()
+    startPendingWindowLoad()
+  }
+
+  func startPendingWindowLoad() {
+    guard let path = pendingWindowLoadPath else { return }
+    pendingWindowLoadPath = nil
+    mpv.command(.loadfile, args: [path], level: .verbose)
   }
 
   static func loadKeyBindings() {
