@@ -2099,21 +2099,6 @@ class PlayerCore: NSObject {
     }
     info.isNetworkResource = !info.currentURL!.isFileURL
 
-    // set "date last opened" attribute
-    if let url = info.currentURL, url.isFileURL {
-      let time = Date().timeIntervalSince1970
-      // Data mimics timespec struct
-      let ts = [UInt64(time), UInt64(time.truncatingRemainder(dividingBy: 1) * 1_000_000_000)]
-      let data = Data(bytesOf: ts)
-      // set the attribute; the key is undocumented
-      let name = "com.apple.lastuseddate#PS"
-      url.withUnsafeFileSystemRepresentation { fileSystemPath in
-        let _ = data.withUnsafeBytes {
-          setxattr(fileSystemPath, name, $0.baseAddress, data.count, 0, 0)
-        }
-      }
-    }
-
     NowPlayingInfoManager.shared.updateInfo(withTitle: true)
 
     // Auto load
