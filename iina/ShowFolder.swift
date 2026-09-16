@@ -168,6 +168,45 @@ struct ShowFolder: Equatable {
 
 enum ShowFolderSnapshotStore {
   private static let key = "IINAWelcomeShelfSnapshotV1"
+  private static let cardsKey = "IINAWelcomeShelfCardsV1"
+
+  private struct Card: Codable {
+    let isFolder: Bool
+    let folderURL: String
+    let primaryTitle: String
+    let resumeURL: String
+    let secondaryTitle: String
+    let lastPlayedAt: Date
+    let position: Double
+    let duration: Double
+    let thumbnailCacheName: String
+
+    init(_ show: ShowFolder) {
+      isFolder = show.kind == .folder
+      folderURL = show.folderURL.absoluteString
+      primaryTitle = show.primaryTitle
+      resumeURL = show.resumeURL.absoluteString
+      secondaryTitle = show.secondaryTitle
+      lastPlayedAt = show.lastPlayedAt
+      position = show.position
+      duration = show.duration
+      thumbnailCacheName = show.thumbnailCacheName
+    }
+
+    var show: ShowFolder? {
+      guard let folderURL = URL(string: folderURL),
+            let resumeURL = URL(string: resumeURL) else { return nil }
+      return ShowFolder(kind: isFolder ? .folder : .file,
+                        folderURL: folderURL,
+                        primaryTitle: primaryTitle,
+                        resumeURL: resumeURL,
+                        secondaryTitle: secondaryTitle,
+                        lastPlayedAt: lastPlayedAt,
+                        position: position,
+                        duration: duration,
+                        thumbnailCacheName: thumbnailCacheName)
+    }
+  }
 
   static func load(defaults: UserDefaults = .standard) -> Set<String> {
     Set(defaults.stringArray(forKey: key) ?? [])
@@ -175,6 +214,47 @@ enum ShowFolderSnapshotStore {
 
   static func save(_ folderPaths: Set<String>, defaults: UserDefaults = .standard) {
     defaults.set(folderPaths.sorted(), forKey: key)
+  }
+
+  static func loadCards(now: Date = Date(), defaults: UserDefaults = .standard) -> [ShowFolder] {
+    guard let data = defaults.data(forKey: cardsKey),
+          let cards = try? PropertyListDecoder().decode([Card].self, from: data) else { return [] }
+    return cards.compactMap(\.show).filter {
+      now.timeIntervalSince($0.lastPlayedAt) <= ShowFolder.inactivityInterval
+    }
+  }
+
+  static func save(_ shows: [ShowFolder], defaults: UserDefaults = .standard) {
+    let cards = shows.map(Card.init)
+    if let data = try? PropertyListEncoder().encode(cards) {
+      defaults.set(data, forKey: cardsKey)
+    }
+    save(Set(shows.compactMap {
+      $0.kind == .folder ? $0.folderURL.standardizedFileURL.path : nil
+    }), defaults: defaults)
+  }
+}
+
+enum WelcomeRecentSnapshotStore {
+  private static let key = "IINAWelcomeRecentDocumentsV1"
+
+  private struct Snapshot: Codable {
+    let savedAt: Date
+    let urls: [String]
+  }
+
+  static func load(now: Date = Date(), defaults: UserDefaults = .standard) -> [URL] {
+    guard let data = defaults.data(forKey: key),
+          let snapshot = try? PropertyListDecoder().decode(Snapshot.self, from: data),
+          now.timeIntervalSince(snapshot.savedAt) <= ShowFolder.inactivityInterval else { return [] }
+    return snapshot.urls.compactMap(URL.init(string:))
+  }
+
+  static func save(_ urls: [URL], defaults: UserDefaults = .standard) {
+    let snapshot = Snapshot(savedAt: Date(), urls: urls.map(\.absoluteString))
+    if let data = try? PropertyListEncoder().encode(snapshot) {
+      defaults.set(data, forKey: key)
+    }
   }
 }
 

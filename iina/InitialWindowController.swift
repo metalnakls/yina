@@ -31,6 +31,7 @@ class InitialWindowController: NSWindowController {
 
   private let observedPrefKeys: [Preference.Key] = [.themeMaterial]
   private let availabilityQueue = DispatchQueue(label: "IINAInitialWindowAvailability", qos: .utility)
+  private let recentDocumentsQueue = DispatchQueue(label: "IINAInitialWindowRecents", qos: .utility)
   private let coordinator = WelcomeWindowCoordinator()
   private let folderClassificationCache = WelcomeFolderClassificationCache()
   private var isCheckingAvailability = false
@@ -120,14 +121,11 @@ class InitialWindowController: NSWindowController {
   }
 
   private func makeRecentDocumentsList(excludingFolderPaths: Set<String>,
-                                       excludingDocumentIdentities: Set<String>) -> [RecentDocument] {
-    let documentController = NSDocumentController.shared
-    let appKitRecents = documentController.recentDocumentURLs
+                                       excludingDocumentIdentities: Set<String>,
+                                       appKitRecents: [URL],
+                                       previousAvailability: [String: Bool]) -> [RecentDocument] {
     let now = Date()
     let cutoffDate = now.addingTimeInterval(-ShowFolder.inactivityInterval)
-    let previousAvailability = Dictionary(uniqueKeysWithValues: recentDocuments.map {
-      (documentIdentity($0.url), $0.isAvailable)
-    })
     var seen = Set<String>()
     var urls: [URL] = []
 
@@ -447,27 +445,8 @@ class InitialWindowController: NSWindowController {
 
       DispatchQueue.main.async { [weak self] in
         guard let self, self.coordinator.isCurrent(generation) else { return }
-        let previousCardIdentities = self.showFolders.map(\.identityPath)
-        let cardIdentities = cards.map(\.identityPath)
-        self.showFolders = cards
-        ShowFolderSnapshotStore.save(Set(cards.compactMap {
-          $0.kind == .folder ? $0.folderURL.standardizedFileURL.path : nil
-        }))
-        self.showFolderShelf.reload(shows: cards,
-                                    target: self,
-                                    openAction: #selector(self.openShowFolderCard(_:)),
-                                    dismissAction: #selector(self.dismissShowFolderCard(_:)))
-        let hasShows = !cards.isEmpty
-        let shelfVisibilityChanged = self.showFolderShelf.isHidden == hasShows
-        self.showFolderHeader.isHidden = !hasShows
-        self.showFolderShelf.isHidden = !hasShows
-        self.showFolderHeaderHeightConstraint?.constant = hasShows ? 17 : 0
-        self.showFolderShelfHeightConstraint?.constant = hasShows ? ShowFolderShelfView.height : 0
-        if shelfVisibilityChanged {
-          self.mainView.layoutSubtreeIfNeeded()
-        }
+        self.displayShowFolders(cards, saveSnapshot: true)
         self.reloadRecents()
-        self.updateRecentLayout(resetScrollPosition: previousCardIdentities != cardIdentities)
 
         // Publish the stable shelf before doing any thumbnail I/O or image
         // processing. The serial utility queue then fills these existing
@@ -560,9 +539,7 @@ class InitialWindowController: NSWindowController {
           let show = showFolders.first(where: { $0.identityPath == identifier }) else { return }
     ShowFolderDismissalStore.dismiss(show)
     showFolders.removeAll { $0.identityPath == identifier }
-    ShowFolderSnapshotStore.save(Set(showFolders.compactMap {
-      $0.kind == .folder ? $0.folderURL.standardizedFileURL.path : nil
-    }))
+    ShowFolderSnapshotStore.save(showFolders)
     showFolderShelf.dismissCard(for: show) { [weak self] in
       guard let self else { return }
       self.showFolderHeader.isHidden = self.showFolders.isEmpty
@@ -592,6 +569,8 @@ class InitialWindowController: NSWindowController {
   func reloadData() {
     coordinator.invalidate()
     cancelArtworkRequests()
+    restoreWelcomeSnapshot()
+    reloadRecents()
     reloadShowFolders()
   }
 
@@ -599,39 +578,110 @@ class InitialWindowController: NSWindowController {
   // The rebuilt welcome surface derives all of its state in reloadData().
   func loadLastPlaybackInfo() { }
 
+  private func restoreWelcomeSnapshot() {
+    let cachedCards = showFolders.isEmpty ? ShowFolderSnapshotStore.loadCards() : []
+    if !cachedCards.isEmpty {
+      displayShowFolders(cachedCards, saveSnapshot: false)
+      let generation = coordinator.currentGeneration
+      availabilityQueue.async { [weak self] in
+        self?.loadShowFolderArtwork(for: cachedCards, generation: generation)
+      }
+    }
+
+    let cardsForExclusion = cachedCards.isEmpty ? showFolders : cachedCards
+    let collapsedFolderPaths = Set(cardsForExclusion.compactMap {
+      $0.kind == .folder ? $0.folderURL.standardizedFileURL.path : nil
+    })
+    let collapsedDocumentIdentities = Set(cardsForExclusion.compactMap {
+      $0.kind == .file ? documentIdentity($0.resumeURL) : nil
+    })
+    let cachedURLs = recentDocuments.isEmpty ? WelcomeRecentSnapshotStore.load().filter { url in
+      if url.isFileURL,
+         collapsedFolderPaths.contains(url.deletingLastPathComponent().standardizedFileURL.path) {
+        return false
+      }
+      return !collapsedDocumentIdentities.contains(documentIdentity(url))
+    } : []
+    guard !cachedURLs.isEmpty else { return }
+    recentDocuments = cachedURLs.prefix(Self.maximumRecentDocumentCount).map {
+      RecentDocument(url: $0, isAvailable: true)
+    }
+    recentFilesHeader.isHidden = false
+    recentFilesTableView.reloadData()
+    selectFirstRecentDocumentIfNeeded()
+  }
+
+  private func displayShowFolders(_ cards: [ShowFolder], saveSnapshot: Bool) {
+    let previousCardIdentities = showFolders.map(\.identityPath)
+    let cardIdentities = cards.map(\.identityPath)
+    showFolders = cards
+    if saveSnapshot {
+      ShowFolderSnapshotStore.save(cards)
+    }
+    showFolderShelf.reload(shows: cards,
+                           target: self,
+                           openAction: #selector(openShowFolderCard(_:)),
+                           dismissAction: #selector(dismissShowFolderCard(_:)))
+    let hasShows = !cards.isEmpty
+    let shelfVisibilityChanged = showFolderShelf.isHidden == hasShows
+    showFolderHeader.isHidden = !hasShows
+    showFolderShelf.isHidden = !hasShows
+    showFolderHeaderHeightConstraint?.constant = hasShows ? 17 : 0
+    showFolderShelfHeightConstraint?.constant = hasShows ? ShowFolderShelfView.height : 0
+    if shelfVisibilityChanged {
+      mainView.layoutSubtreeIfNeeded()
+    }
+    updateRecentLayout(resetScrollPosition: previousCardIdentities != cardIdentities)
+  }
+
   private func reloadRecents() {
+    let generation = coordinator.currentGeneration
     let collapsedFolderPaths = Set(showFolders.compactMap {
       $0.kind == .folder ? $0.folderURL.standardizedFileURL.path : nil
     })
     let collapsedDocumentIdentities = Set(showFolders.compactMap {
       $0.kind == .file ? documentIdentity($0.resumeURL) : nil
     })
-    let previousDocuments = recentDocuments
-    recentDocuments = makeRecentDocumentsList(excludingFolderPaths: collapsedFolderPaths,
-                                              excludingDocumentIdentities: collapsedDocumentIdentities)
-    recentFilesHeader.isHidden = recentDocuments.isEmpty
-    let documentListChanged = previousDocuments.count != recentDocuments.count ||
-      zip(previousDocuments, recentDocuments).contains { old, new in
-        documentIdentity(old.url) != documentIdentity(new.url) || old.isAvailable != new.isAvailable
-      }
-    if documentListChanged {
-      recentFilesTableView.reloadData()
-    }
-    if window?.isVisible == true {
-      refreshRecentDocumentAvailability()
-    }
+    let appKitRecents = NSDocumentController.shared.recentDocumentURLs
+    let previousAvailability = Dictionary(uniqueKeysWithValues: recentDocuments.map {
+      (documentIdentity($0.url), $0.isAvailable)
+    })
+    recentDocumentsQueue.async { [weak self] in
+      guard let self else { return }
+      let documents = self.makeRecentDocumentsList(
+        excludingFolderPaths: collapsedFolderPaths,
+        excludingDocumentIdentities: collapsedDocumentIdentities,
+        appKitRecents: appKitRecents,
+        previousAvailability: previousAvailability)
+      DispatchQueue.main.async { [weak self] in
+        guard let self, self.coordinator.isCurrent(generation) else { return }
+        let previousDocuments = self.recentDocuments
+        self.recentDocuments = documents
+        WelcomeRecentSnapshotStore.save(documents.map(\.url))
+        self.recentFilesHeader.isHidden = documents.isEmpty
+        let documentListChanged = previousDocuments.count != documents.count ||
+          zip(previousDocuments, documents).contains { old, new in
+            self.documentIdentity(old.url) != self.documentIdentity(new.url) ||
+              old.isAvailable != new.isAvailable
+          }
+        if documentListChanged {
+          self.recentFilesTableView.reloadData()
+        }
+        if self.window?.isVisible == true {
+          self.refreshRecentDocumentAvailability()
+        }
 
-    if Logger.isEmitting(.verbose) {
-      for (index, url) in NSDocumentController.shared.recentDocumentURLs.enumerated() {
-        Logger.log("InitialWindow.reloadData(): RecentDocuments_Unfiltered[\(index)]: \(url.resolvingSymlinksInPath().path)", level: .verbose)
-      }
-
-      for (index, document) in recentDocuments.enumerated() {
-        Logger.log("InitialWindow.reloadData(): Loaded RecentDocuments[\(index)]: \(document.url.path), available: \(document.isAvailable)", level: .verbose)
+        if Logger.isEmitting(.verbose) {
+          for (index, url) in appKitRecents.enumerated() {
+            Logger.log("InitialWindow.reloadData(): RecentDocuments_Unfiltered[\(index)]: \(url.resolvingSymlinksInPath().path)", level: .verbose)
+          }
+          for (index, document) in documents.enumerated() {
+            Logger.log("InitialWindow.reloadData(): Loaded RecentDocuments[\(index)]: \(document.url.path), available: \(document.isAvailable)", level: .verbose)
+          }
+        }
+        self.selectFirstRecentDocumentIfNeeded()
       }
     }
-    
-    selectFirstRecentDocumentIfNeeded()
   }
 
   private func updateRecentLayout(resetScrollPosition: Bool = false) {
