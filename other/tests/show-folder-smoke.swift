@@ -109,6 +109,13 @@ import Foundation
     let cachedPaths = Set([shows[0].folderURL.standardizedFileURL.path])
     ShowFolderSnapshotStore.save(cachedPaths, defaults: defaults)
     precondition(ShowFolderSnapshotStore.load(defaults: defaults) == cachedPaths)
+    ShowFolderSnapshotStore.save(shows, defaults: defaults)
+    precondition(ShowFolderSnapshotStore.loadCards(now: now, defaults: defaults) == shows)
+    WelcomeRecentSnapshotStore.save([URL(fileURLWithPath: "/movies/One.mkv"),
+                                     URL(fileURLWithPath: "/movies/Two.mkv")],
+                                    defaults: defaults)
+    precondition(WelcomeRecentSnapshotStore.load(defaults: defaults).map(\.path) ==
+      ["/movies/One.mkv", "/movies/Two.mkv"])
     print("PASS: only episode-pattern folders become shows; cards use the correct hierarchy and resume progress.")
   }
 }
