@@ -559,6 +559,12 @@ class NowPlayingInfoManager {
     artworkUpdateInProgress = true
     // Copy state that can change for use by the background task.
     let isNetworkResource = player.info.isNetworkResource
+    // A mounted network volume still produces a file URL. Do not hand the currently-playing
+    // remote file to Quick Look: it opens a second decoder and performs its own seeks, which can
+    // contend with playback. OSC thumbnails remain available when the user explicitly enabled
+    // thumbnail generation for mounted remote drives.
+    let isMountedRemoteFile = url.isFileURL &&
+      (try? url.resourceValues(forKeys: [.volumeIsLocalKey]).volumeIsLocal) == false
     let ticket = artworkTicket
     let tracks = player.info.videoTracks
     artworkQueue.async { [self] in
@@ -571,6 +577,15 @@ class NowPlayingInfoManager {
       // streaming.
       guard !isNetworkResource else {
         DispatchQueue.main.async { self.artworkUpdateComplete() }
+        return
+      }
+
+      guard !isMountedRemoteFile else {
+        DispatchQueue.main.async { [self] in
+          defer { artworkUpdateComplete() }
+          guard artworkTicket == ticket else { return }
+          useOSCThumbnail(player, url)
+        }
         return
       }
 
