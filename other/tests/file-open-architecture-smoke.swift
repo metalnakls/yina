@@ -9,8 +9,8 @@ import Foundation
 
     precondition(playerCore.contains("pendingWindowLoadPath = path"))
     precondition(playerCore.contains("func startPendingWindowLoad()"))
-    precondition(mainWindow.contains("player.initVideo()\n    player.startPendingWindowLoad()"),
-                 "mpv should start opening media as soon as the render context is ready")
+    precondition(!mainWindow.contains("player.initVideo()\n    player.startPendingWindowLoad()"),
+                 "mpv must not start while the player window is still being assembled")
 
     let openStart = playerCore.range(of: "private func openMainWindow")!.lowerBound
     let openBody = playerCore[openStart...]
@@ -19,6 +19,11 @@ import Foundation
     precondition(pending < loadWindow,
                  "the pending media path must be available during windowDidLoad")
 
-    print("PASS: initial media loading overlaps the tail of AppKit player-window setup.")
+    let closeWelcome = openBody.range(of: "initialWindow.close()")!.lowerBound
+    let startLoad = openBody.range(of: "startPendingWindowLoad()")!.lowerBound
+    precondition(loadWindow < closeWelcome && closeWelcome < startLoad,
+                 "finish the player window and close the welcome window before loading media")
+
+    print("PASS: initial media loading starts after AppKit player-window setup.")
   }
 }
