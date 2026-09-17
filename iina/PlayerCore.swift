@@ -546,8 +546,8 @@ class PlayerCore: NSObject {
     info.state = .loading
     pendingWindowLoadPath = path
 
-    // On the first open, windowDidLoad starts the mpv load as soon as the video render
-    // context exists. Later opens use the already-loaded window and start here.
+    // Finish creating the initial player window before starting mpv. Later opens use the
+    // already-loaded window and start immediately.
     let _ = mainWindow.window
     initialWindow.close()
     startPendingWindowLoad()

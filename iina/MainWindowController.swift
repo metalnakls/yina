@@ -616,7 +616,6 @@ class MainWindowController: PlayerWindowController {
 
     addVideoViewToWindow()
     player.initVideo()
-    player.startPendingWindowLoad()
     videoView.postsFrameChangedNotifications = true
 
     // osc views
