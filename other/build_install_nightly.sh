@@ -32,8 +32,8 @@ if [[ ! -d "$SOURCE_PACKAGES_DIR/checkouts" ]]; then
 fi
 
 if ! security find-identity -v -p codesigning | awk -v identity="$SIGN_IDENTITY" 'index($0, identity) { found = 1 } END { exit !found }'; then
-  echo "The requested Apple Development signing identity is unavailable: $SIGN_IDENTITY" >&2
-  echo "Confirm the intended identity in Xcode or set IINA_CODESIGN_IDENTITY to a valid explicit identity." >&2
+  echo "The requested Apple Development signing identity is unavailable in this execution context: $SIGN_IDENTITY" >&2
+  echo "Retry this build with approved elevated local/keychain access. Keep the signing private key in the macOS Keychain; do not substitute another identity." >&2
   exit 65
 fi
 
