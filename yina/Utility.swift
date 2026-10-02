@@ -439,7 +439,8 @@ class Utility {
 
   static let appSupportDirUrl: URL = {
     // get path
-    let asPath = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)
+    let asPath = AppEnvironment.temporaryRoot.map { [$0.appendingPathComponent("Application Support")] }
+      ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)
     Logger.ensure(asPath.count >= 1, "Cannot get path to Application Support directory")
     let bundleID = Bundle.main.bundleIdentifier!
     let appAsUrl = asPath.first!.appendingPathComponent(bundleID)
@@ -472,7 +473,8 @@ class Utility {
   }()
 
   static let cacheURL: URL = {
-    let cachesPath = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)
+    let cachesPath = AppEnvironment.temporaryRoot.map { [$0.appendingPathComponent("Caches")] }
+      ?? FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)
     Logger.ensure(cachesPath.count >= 1, "Cannot get path to Caches directory")
     let bundleID = Bundle.main.bundleIdentifier!
     let appCachesUrl = cachesPath.first!.appendingPathComponent(bundleID, isDirectory: true)

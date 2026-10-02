@@ -121,7 +121,7 @@ struct SettingsItem {
 
       if let key {
         label.stringValue = ui.localized(.init("\(key.rawValue).label"))
-        textField.bind(.value, to: UserDefaults.standard, withKeyPath: key.rawValue)
+        textField.bind(.value, to: AppEnvironment.defaults, withKeyPath: key.rawValue)
       }
 
       let labelStackView = NSStackView(views: [iconView, label])
@@ -601,9 +601,9 @@ struct SettingsItem {
       self.title = title
       self.description = description
       self.image = image
-      _isOn = AppStorage(wrappedValue: UserDefaults.standard.bool(forKey: key.rawValue),
+      _isOn = AppStorage(wrappedValue: AppEnvironment.defaults.bool(forKey: key.rawValue),
                          key.rawValue,
-                         store: UserDefaults.standard)
+                         store: AppEnvironment.defaults)
     }
 
     var body: some View {
@@ -722,7 +722,7 @@ struct SettingsItem {
       }
       popupButton.controlSize = controlSize
       if let key {
-        popupButton.bind(.selectedTag, to: UserDefaults.standard, withKeyPath: key.rawValue)
+        popupButton.bind(.selectedTag, to: AppEnvironment.defaults, withKeyPath: key.rawValue)
       } else if customBinding, let customBindingBlock {
         customBindingBlock(popupButton)
       }
@@ -780,7 +780,7 @@ struct SettingsItem {
 
     override func initBinding() {
       if let key {
-        nsSwitch.bind(.value, to: UserDefaults.standard, withKeyPath: key.rawValue)
+        nsSwitch.bind(.value, to: AppEnvironment.defaults, withKeyPath: key.rawValue)
       } else if customBinding, let customBindingBlock {
         customBindingBlock(self)
       }
@@ -886,7 +886,7 @@ struct SettingsItem {
     override func initBinding() {
       // switch
       if let key = keySwitch {
-        nsSwitch.bind(.value, to: UserDefaults.standard, withKeyPath: key.rawValue)
+        nsSwitch.bind(.value, to: AppEnvironment.defaults, withKeyPath: key.rawValue)
       } else if customBindingSwitch, let customBindingBlock = customBindingBlockSwitch {
         customBindingBlock(nsSwitch)
       }
@@ -899,7 +899,7 @@ struct SettingsItem {
       }
       popupButton.controlSize = controlSize
       if let key = keyPopup {
-        popupButton.bind(.selectedTag, to: UserDefaults.standard, withKeyPath: key.rawValue)
+        popupButton.bind(.selectedTag, to: AppEnvironment.defaults, withKeyPath: key.rawValue)
       } else if customBindingPopup, let customBindingBlock = customBindingBlockPopup {
         customBindingBlock(popupButton)
       }
@@ -1029,7 +1029,7 @@ struct SettingsItem {
 
     override func initBinding() {
       if let key {
-        textField.bind(.value, to: UserDefaults.standard, withKeyPath: key.rawValue, options: [.continuouslyUpdatesValue: true])
+        textField.bind(.value, to: AppEnvironment.defaults, withKeyPath: key.rawValue, options: [.continuouslyUpdatesValue: true])
       } else if customBinding, let customBindingBlock {
         customBindingBlock(textField)
       }
@@ -1116,13 +1116,13 @@ struct SettingsItem {
     override func initBinding() {
       // switch
       if let key = keySwitch {
-        nsSwitch.bind(.value, to: UserDefaults.standard, withKeyPath: key.rawValue)
+        nsSwitch.bind(.value, to: AppEnvironment.defaults, withKeyPath: key.rawValue)
       } else if customBindingSwitch, let customBindingBlock = customBindingBlockSwitch {
         customBindingBlock(nsSwitch)
       }
       // input
       if let key = keyInput {
-        textField.bind(.value, to: UserDefaults.standard, withKeyPath: key.rawValue)
+        textField.bind(.value, to: AppEnvironment.defaults, withKeyPath: key.rawValue)
       } else if customBindingInput, let customBindingBlock = customBindingBlockInput {
         customBindingBlock(textField)
       }
@@ -1386,7 +1386,7 @@ class SettingsAccessory {
       } else {
         selectedValue = Preference.integer(for: key)
       }
-      UserDefaults.standard.addObserver(self, forKeyPath: key.rawValue, options: [.new], context: nil)
+      AppEnvironment.defaults.addObserver(self, forKeyPath: key.rawValue, options: [.new], context: nil)
     }
 
     private func updateSelection() {
@@ -1407,7 +1407,7 @@ class SettingsAccessory {
     deinit {
       guard let key else { return }
       ObjcUtils.silenced {
-        UserDefaults.standard.removeObserver(self, forKeyPath: key.rawValue)
+        AppEnvironment.defaults.removeObserver(self, forKeyPath: key.rawValue)
       }
     }
 
@@ -1431,7 +1431,7 @@ class SettingsAccessory {
 
     init(_ key: Preference.Key) {
       textField = NSTextField(labelWithString: "")
-      textField.bind(.value, to: UserDefaults.standard, withKeyPath: key.rawValue)
+      textField.bind(.value, to: AppEnvironment.defaults, withKeyPath: key.rawValue)
       chooseButton = NSButton(
         title: "",
         image: .init(systemSymbolName: "folder.fill", accessibilityDescription: nil)!,
@@ -1444,7 +1444,7 @@ class SettingsAccessory {
     @objc func chooseFolder(_ sender: AnyObject) {
       Utility.quickOpenPanel(title: "Choose a path", chooseDir: true, sheetWindow: chooseButton.window) { url in
         Preference.set(url.path, for: .screenshotFolder)
-        UserDefaults.standard.synchronize()
+        AppEnvironment.defaults.synchronize()
       }
     }
   }

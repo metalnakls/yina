@@ -74,7 +74,7 @@ class HistoryWindowController: NSWindowController, NSOutlineViewDelegate, NSOutl
       usesUnifiedToolbar: true
     )
     window.title = NSLocalizedString("history_window.title", comment: "Playback History")
-    window.setFrameAutosaveName("PlaybackHistoryWindow")
+    if !AppEnvironment.isCleanStart { window.setFrameAutosaveName("PlaybackHistoryWindow") }
     window.minSize = NSMakeSize(400, 200)
     super.init(window: window)
 

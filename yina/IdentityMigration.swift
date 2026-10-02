@@ -1,115 +1,159 @@
-//
-//  IdentityMigration.swift
-//  yina
-//
-//  One-time migration of user data from the previous `com.colliderli.iina`
-//  application identity to the current `tsmc.yina` identity.
-//
-//  The bundle identifier determines both the `NSUserDefaults` domain and the
-//  `Application Support` directory, so changing it orphans the settings,
-//  plugins, watch-later history and input configurations of an existing
-//  installation. This copies that data across exactly once, then records a
-//  marker so it never runs twice.
-//
+import Cocoa
 
-import Foundation
+struct IINAImportProfile {
+  let bundleIdentifier: String
+  let displayName: String
+  let preferences: [String: Any]
+  let supportURL: URL
+}
 
-class IdentityMigration {
+/// Detect and import an IINA profile once, before registering YINA's defaults.
+final class IdentityMigration {
+  static let shared = IdentityMigration()
+  static let migrationFlag = "didCheckIINAImport"
 
-  /// Bundle identifier of the application identity this build replaces.
-  static let legacyBundleID = "com.colliderli.iina"
-
-  /// Records that the legacy identity has already been imported.
-  private static let migrationFlag = "didMigrateFromLegacyBundleID"
-
-  static var shared = IdentityMigration()
-
-  /// Import settings and application support data from the legacy identity.
-  ///
-  /// Does nothing when the current bundle identifier is not `tsmc.yina`, when
-  /// the migration already ran, or when no legacy data exists.
   func migrateLegacyIdentityIfNeeded() {
-    let currentBundleID = Bundle.main.bundleIdentifier ?? ""
-    guard currentBundleID == "tsmc.yina" else { return }
-    // The legacy identity is the app we are replacing, so never import when we
-    // are running as that identity itself.
-    guard currentBundleID != IdentityMigration.legacyBundleID else { return }
-    guard !UserDefaults.standard.bool(forKey: IdentityMigration.migrationFlag) else { return }
-
-    var importedSomething = false
-    importedSomething = migratePreferences(from: IdentityMigration.legacyBundleID) || importedSomething
-    importedSomething = migrateApplicationSupport(from: IdentityMigration.legacyBundleID) || importedSomething
-
-    // Record the attempt either way: if the legacy data is absent now it will
-    // not reappear, and re-running on every launch would be wasteful.
-    UserDefaults.standard.set(true, forKey: IdentityMigration.migrationFlag)
-
-    if importedSomething {
-      Logger.log("Imported user data from \(IdentityMigration.legacyBundleID)")
-    } else {
-      Logger.log("No user data to import from \(IdentityMigration.legacyBundleID)")
-    }
-  }
-
-  /// Copy legacy preference values that the current domain does not define yet.
-  ///
-  /// Existing values always win so that a migration never overwrites settings
-  /// the user has already changed in the new identity.
-  private func migratePreferences(from legacyBundleID: String) -> Bool {
-    guard let legacy = UserDefaults.standard.persistentDomain(forName: legacyBundleID),
-          !legacy.isEmpty else {
-      return false
-    }
-    var didImport = false
-    let current = UserDefaults.standard
-    for (key, value) in legacy where current.object(forKey: key) == nil {
-      current.set(value, forKey: key)
-      didImport = true
-    }
-    return didImport
-  }
-
-  /// Copy the legacy `Application Support` directory into the current one.
-  ///
-  /// Only runs when the current directory is effectively empty, so it can never
-  /// overwrite data that the new identity has already created.
-  private func migrateApplicationSupport(from legacyBundleID: String) -> Bool {
-    let fileManager = FileManager.default
-    guard let support = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
-      return false
-    }
-    let legacyURL = support.appendingPathComponent(legacyBundleID, isDirectory: true)
-    let currentURL = support.appendingPathComponent(Bundle.main.bundleIdentifier ?? "", isDirectory: true)
-
-    var isDirectory: ObjCBool = false
-    guard fileManager.fileExists(atPath: legacyURL.path, isDirectory: &isDirectory), isDirectory.boolValue else {
-      return false
-    }
-
-    // The current directory is created eagerly during startup, so treat a
-    // directory that holds nothing but our own scaffolding as empty.
-    let existing = (try? fileManager.contentsOfDirectory(atPath: currentURL.path)) ?? []
-    let meaningful = existing.filter { entry in
-      // These are recreated on every launch and carry no user data.
-      !entry.hasPrefix(".") && entry != AppData.pluginsFolder
-        && entry != AppData.userInputConfFolder && entry != AppData.watchLaterFolder
-        && entry != AppData.binariesFolder
-    }
-    guard meaningful.isEmpty else { return false }
+    guard !AppEnvironment.isCleanStart, Bundle.main.bundleIdentifier == "tsmc.yina",
+          !AppEnvironment.defaults.bool(forKey: Self.migrationFlag) else { return }
 
     do {
-      try fileManager.createDirectory(at: currentURL, withIntermediateDirectories: true)
-      for entry in try fileManager.contentsOfDirectory(at: legacyURL, includingPropertiesForKeys: nil) {
-        let destination = currentURL.appendingPathComponent(entry.lastPathComponent)
-        if fileManager.fileExists(atPath: destination.path) {
-          try fileManager.removeItem(at: destination)
-        }
-        try fileManager.copyItem(at: entry, to: destination)
-      }
-      return true
+      try Self.importOnFirstLaunch(defaults: AppEnvironment.defaults,
+                                   domain: AppEnvironment.preferencesDomain,
+                                   supportURL: Utility.appSupportDirUrl,
+                                   discover: { Self.discoverProfiles() },
+                                   choose: Self.chooseProfile)
     } catch {
-      Logger.log("Failed to import application support data: \(error.localizedDescription)", level: .error)
-      return false
+      let alert = NSAlert()
+      alert.messageText = "Some IINA data could not be imported"
+      alert.informativeText = error.localizedDescription
+      alert.addButton(withTitle: "Continue")
+      alert.runModal()
+    }
+  }
+
+  static func importOnFirstLaunch(defaults: UserDefaults, domain: String, supportURL: URL,
+                                  discover: () -> [IINAImportProfile],
+                                  choose: ([IINAImportProfile]) -> IINAImportProfile?) throws {
+    guard !defaults.bool(forKey: migrationFlag) else { return }
+    // Also record a deliberate skip or no installations, so later launches never scan again.
+    defer { defaults.set(true, forKey: migrationFlag) }
+    let profiles = discover()
+    let chosen = profiles.count > 1 ? choose(profiles) : profiles.first
+    if let chosen { try importProfile(chosen, into: defaults, domain: domain, supportURL: supportURL) }
+  }
+
+  private static func chooseProfile(_ profiles: [IINAImportProfile]) -> IINAImportProfile? {
+    let alert = NSAlert()
+    alert.messageText = "Import your IINA settings"
+    alert.informativeText = "Choose the IINA installation to import settings, history, and plugins from."
+    alert.addButton(withTitle: "Import")
+    alert.addButton(withTitle: "Skip")
+    let picker = NSPopUpButton(frame: NSRect(x: 0, y: 0, width: 420, height: 28))
+    profiles.forEach { picker.addItem(withTitle: $0.displayName) }
+    alert.accessoryView = picker
+    NSApp.activate(ignoringOtherApps: true)
+    return alert.runModal() == .alertFirstButtonReturn ? profiles[picker.indexOfSelectedItem] : nil
+  }
+
+  static func discoverProfiles(
+    applicationDirectories: [URL] = [URL(fileURLWithPath: "/Applications"),
+                                     FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Applications")],
+    libraryURL: URL = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first!
+  ) -> [IINAImportProfile] {
+    let fm = FileManager.default
+    let preferencesURL = libraryURL.appendingPathComponent("Preferences", isDirectory: true)
+    let supportRoot = libraryURL.appendingPathComponent("Application Support", isDirectory: true)
+    var names: [String: Set<String>] = [:]
+    for directory in applicationDirectories {
+      guard let enumerator = fm.enumerator(at: directory, includingPropertiesForKeys: nil,
+                                          options: [.skipsHiddenFiles]) else { continue }
+      for case let url as URL in enumerator {
+        guard url.pathExtension == "app" else { continue }
+        enumerator.skipDescendants()
+        guard let info = NSDictionary(contentsOf: url.appendingPathComponent("Contents/Info.plist")) as? [String: Any],
+              let domain = info["CFBundleIdentifier"] as? String,
+              domain != "tsmc.yina",
+              ((info["CFBundleExecutable"] as? String)?.lowercased() == "iina" ||
+                url.deletingPathExtension().lastPathComponent.lowercased().contains("iina")) else { continue }
+        names[domain, default: []].insert(url.deletingPathExtension().lastPathComponent)
+      }
+    }
+    // Include installed profiles even if their app was removed or renamed.
+    for url in (try? fm.contentsOfDirectory(at: preferencesURL, includingPropertiesForKeys: nil)) ?? [] {
+      let domain = url.deletingPathExtension().lastPathComponent
+      if url.pathExtension == "plist", domain.lowercased().contains("iina") {
+        names[domain, default: []].insert(domain)
+      }
+    }
+    for url in (try? fm.contentsOfDirectory(at: supportRoot, includingPropertiesForKeys: nil)) ?? [] {
+      let domain = url.lastPathComponent
+      if domain.lowercased().contains("iina") { names[domain, default: []].insert(domain) }
+    }
+    names["com.colliderli.iina", default: []].insert("IINA")
+    return names.keys.sorted().compactMap { domain in
+      let containerLibrary = libraryURL.appendingPathComponent("Containers/\(domain)/Data/Library")
+      let preferencePaths = [preferencesURL.appendingPathComponent("\(domain).plist"),
+                             containerLibrary.appendingPathComponent("Preferences/\(domain).plist")]
+      var preferences: [String: Any] = [:]
+      for url in preferencePaths {
+        if let data = try? Data(contentsOf: url),
+           let values = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any] {
+          preferences = values
+          break
+        }
+      }
+      let supportPaths = [supportRoot.appendingPathComponent(domain, isDirectory: true),
+                          containerLibrary.appendingPathComponent("Application Support/\(domain)", isDirectory: true)]
+      let support = supportPaths.first { fm.fileExists(atPath: $0.path) } ?? supportPaths[0]
+      guard !preferences.isEmpty || fm.fileExists(atPath: support.path) else { return nil }
+      let name = names[domain]!.filter { $0 != domain }.sorted().first ?? domain
+      return IINAImportProfile(bundleIdentifier: domain, displayName: "\(name) (\(domain))",
+                               preferences: preferences, supportURL: support)
+    }
+  }
+
+  static func importProfile(_ profile: IINAImportProfile, into defaults: UserDefaults,
+                            domain: String, supportURL: URL) throws {
+    // Check persisted overrides, never registered defaults: defaults must not block an import.
+    let existing = defaults.persistentDomain(forName: domain) ?? [:]
+    for (key, value) in profile.preferences where existing[key] == nil {
+      guard key != migrationFlag, key != "didMigrateFromLegacyBundleID",
+            !key.hasPrefix("NS"), !key.hasPrefix("SU"), !key.hasPrefix("firstLaunchAfter") else { continue }
+      defaults.set(relocate(value, from: profile.supportURL, to: supportURL), forKey: key)
+    }
+    let fm = FileManager.default
+    guard fm.fileExists(atPath: profile.supportURL.path) else { return }
+    try fm.createDirectory(at: supportURL, withIntermediateDirectories: true)
+    try mergeContents(from: profile.supportURL, to: supportURL)
+  }
+
+  private static func relocate(_ value: Any, from source: URL, to destination: URL) -> Any {
+    if let string = value as? String, string.hasPrefix(source.path + "/") {
+      return destination.path + string.dropFirst(source.path.count)
+    }
+    if let array = value as? [Any] { return array.map { relocate($0, from: source, to: destination) } }
+    if let dictionary = value as? [String: Any] {
+      return dictionary.mapValues { relocate($0, from: source, to: destination) }
+    }
+    return value
+  }
+
+  private static func mergeContents(from source: URL, to destination: URL) throws {
+    let fm = FileManager.default
+    for item in try fm.contentsOfDirectory(at: source, includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey]) {
+      // Startup markers and sockets do not belong to the new app identity.
+      guard !item.lastPathComponent.hasPrefix(".") else { continue }
+      let target = destination.appendingPathComponent(item.lastPathComponent)
+      if !fm.fileExists(atPath: target.path) {
+        try fm.copyItem(at: item, to: target)
+      } else {
+        let values = try item.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
+        var targetIsDirectory: ObjCBool = false
+        if values.isDirectory == true, values.isSymbolicLink != true,
+           fm.fileExists(atPath: target.path, isDirectory: &targetIsDirectory), targetIsDirectory.boolValue {
+          try mergeContents(from: item, to: target)
+        }
+      }
     }
   }
 }

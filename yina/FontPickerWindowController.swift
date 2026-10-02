@@ -300,7 +300,7 @@ class FontPickerWindowController: NSWindowController {
     )
     window.title = FontPickerLocalizedString.windowTitle
     window.isReleasedWhenClosed = false
-    window.setFrameAutosaveName("YINAFontPickerWindow")
+    if !AppEnvironment.isCleanStart { window.setFrameAutosaveName("YINAFontPickerWindow") }
 
     self.init(window: window)
     window.contentViewController = NSHostingController(rootView: FontPickerView(

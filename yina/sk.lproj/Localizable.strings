@@ -30,7 +30,7 @@
 "guide.faq" = "Často kladené otázky";
 
 // Initial Window
-"initial.announcement" = "Používate %@ beta verziu aplikácie YINA";
+"initial.announcement" = "Používate %@ beta verziu aplikácie yina";
 "initial.beta.desc" = "Odškrtnite \"Sťahovať beta aktualizácie\" v Nastavenia - Všeobecné a nainštalujte stabilnú verziu z našej <a href=\"https://iina.io\">oficiálnej stránky</a>.";
 "initial.nightly.desc" = "
 Nočné zostavy sa neodporúčajú používať ako denný ovládač. V súčasnosti nočné zostavy nepodporujú automatickú aktualizáciu. Nové zostavy si prosím stiahnite ručne z našej <a href=\"https://nightly.iina.io\">stránky s nočnými zostavami</a>.";
@@ -303,8 +303,8 @@ Nočné zostavy sa neodporúčajú používať ako denný ovládač. V súčasno
 "alert.sub.cannot_login" = "Nedá sa prihlásiť. Skontrolujte používateľské meno, heslo a stav siete. \n\n%@";
 "alert.sub.save_downloaded.title" = "Uložiť stiahnuté titulky";
 
-"alert.set_default.title" = "Nastaviť YINA ako predvolenú aplikáciu";
-"alert.set_default.message" = "YINA bude nastavená ako predvolená aplikácia pre všetky typy súborov, ktoré podporuje.";
+"alert.set_default.title" = "Nastaviť yina ako predvolenú aplikáciu";
+"alert.set_default.message" = "yina bude nastavená ako predvolená aplikácia pre všetky typy súborov, ktoré podporuje.";
 "alert.set_default.success" = "Dokončené s %d úspechom a %d chybami.";
 
 "alert.add_watch.title" = "Pridať položku pozerať";
@@ -478,7 +478,7 @@ Nočné zostavy sa neodporúčajú používať ako denný ovládač. V súčasno
 "plugin.install_error.file_not_found" = "Súbor balíčka sa nedá nájsť.";
 "plugin.install_error.cannot_download" = "Sťahovanie plug-inu zlyhalo.\n\nVýstup:%@\n";
 "plugin.install_error.cannot_unpackage" = "Rozbaľovanie plug-inu zlyhalo.\n\nVýstup:%@\n";
-"plugin.install_error.cannot_load" = "YINA nemôže načítať tento plugin. Môže byť v chybnom formáte.";
+"plugin.install_error.cannot_load" = "yina nemôže načítať tento plugin. Môže byť v chybnom formáte.";
 "plugin.check_for_updates" = "Skontrolovať aktualizácie";
 "plugin.updating" = "Sťahovanie aktualizácie…";
 
@@ -612,7 +612,7 @@ Nočné zostavy sa neodporúčajú používať ako denný ovládač. V súčasno
 "settings.pauseWhenOpen.label" = "Pozastaviť";
 "settings.pauseresumeWhen" = "Pozastaviť/spustiť ak";
 "settings.playWhenEnteringFullScreen.label" = "Spustiť pri zobrazení na celú obrazovku";
-"settings.playlistAutoAdd.desc" = "Vyžaduje sa reštartovať YINA, pre správne fungovanie.";
+"settings.playlistAutoAdd.desc" = "Vyžaduje sa reštartovať yina, pre správne fungovanie.";
 "settings.playlistAutoAdd.label" = "Automaticky pridať súbory z rovnakého adresára do playlistu";
 "settings.playlistAutoPlayNext.label" = "Prehrať ďalší súbor automaticky";
 "settings.playlistShowMetadata.label" = "Zobraziť umelca a názov stopy pre audio súbory, ak sú dostupné";
@@ -651,7 +651,7 @@ Nočné zostavy sa neodporúčajú používať ako denný ovládač. V súčasno
 "settings.loadIccProfile.desc" = "Načítať ICC profil pre aktuálny displej a použiť ho na transformáciu RGB videa na výstup obrazovky. (Len pre režim SDR)";
 "settings.loadIccProfile.label" = "Načítať ICC profil";
 "settings.toneMappingAlgorithm.label" = "Algoritmus";
-"settings.toneMappingTargetPeak.desc" = "Measured peak brightness of the display. By default YINA detects this value. If detection fails, target peak will be set to an appropriate value based on the transfer characteristics of the display. Enable this setting to manually specify the display's brightness.";
+"settings.toneMappingTargetPeak.desc" = "Measured peak brightness of the display. By default yina detects this value. If detection fails, target peak will be set to an appropriate value based on the transfer characteristics of the display. Enable this setting to manually specify the display's brightness.";
 "settings.toneMappingTargetPeak.label" = "Cieľová špička";
 "settings.videoThreads.desc" = "Predvolené: 0 (Automaticky)";
 "settings.videoThreads.label" = "Počet threadov";
@@ -754,7 +754,7 @@ Nočné zostavy sa neodporúčajú používať ako denný ovládač. V súčasno
 "settings.defaultCacheSize.desc" = "Default: 153,600";
 "settings.defaultCacheSize.label" = "Cache buffer size (KiB)";
 "settings.enableCache.label" = "Prefetch and buffer network data";
-"settings.httpProxy.desc" = "Vyžaduje sa reštart YINA pre správne fungovanie.";
+"settings.httpProxy.desc" = "Vyžaduje sa reštart yina pre správne fungovanie.";
 "settings.httpProxy.label" = "HTTP proxy";
 "settings.secPrefech.desc" = "Default: 36,000";
 "settings.secPrefech.label" = "Sekundy na predbežné načítanie";
@@ -766,11 +766,11 @@ Nočné zostavy sa neodporúčajú používať ako denný ovládač. V súčasno
 "settings.ytdlEnabled.label" = "Enable mpv's youtube-dl script";
 "settings.ytdlRawOptions.desc" = "Format <key>=<value>[,<key>=<value>[,…]]";
 "settings.ytdlRawOptions.label" = "Pokročilé nastavenia";
-"settings.ytdlSearchPath.desc" = "YINA prehľadá youtube-dl v tomto adresári. Vyžaduje sa reštart.";
+"settings.ytdlSearchPath.desc" = "yina prehľadá youtube-dl v tomto adresári. Vyžaduje sa reštart.";
 "settings.ytdlSearchPath.label" = "Vlastná youtube-dl path";
 
 // Settings - Subtitles
-"settings.autoSearchOnlineSub.desc" = "If enabled, YINA will automatically search online subtitles only for videos without loaded subtitles and longer than 20 minutes.";
+"settings.autoSearchOnlineSub.desc" = "If enabled, yina will automatically search online subtitles only for videos without loaded subtitles and longer than 20 minutes.";
 "settings.autoSearchOnlineSub.label" = "Automaticky vyhľadať titulky na internete";
 "settings.displayInLetterBox.label" = "Zobraziť titulky v čiernych pruhoch pri prehrávaní na celej obrazovke";
 "settings.subAlignX.items.0" = "Vľavo";
@@ -820,7 +820,7 @@ Nočné zostavy sa neodporúčajú používať ako denný ovládač. V súčasno
 "settings.arrowBtnAction.label" = "Použiť ľavé/pravé tlačítko na";
 "settings.controlBarAutoHideTimeout.label" = "Auto hide after";
 "settings.controlBarStickToCenter.label" = "Prichytiť do stredu pri ťahaní";
-"settings.disableAnimations.desc" = "Ak je funkcia obmedzenia pohybu povolená v možnostiach prístupnosti systému macOS, YINA obmedzí pohyblivé prvky používateľského rozhrania, o ktorých je známe, že spôsobujú problémy ľuďom s vestibulárnymi poruchami. Ak by to nebolo dostačujúce, toto nastavenie bude možné použiť na ďalšie obmedzenie pohybu odstránením animácií používateľského rozhrania.";
+"settings.disableAnimations.desc" = "Ak je funkcia obmedzenia pohybu povolená v možnostiach prístupnosti systému macOS, yina obmedzí pohyblivé prvky používateľského rozhrania, o ktorých je známe, že spôsobujú problémy ľuďom s vestibulárnymi poruchami. Ak by to nebolo dostačujúce, toto nastavenie bude možné použiť na ďalšie obmedzenie pohybu odstránením animácií používateľského rozhrania.";
 "settings.disableAnimations.label" = "Vypnúť animácie";
 "settings.disableOSDFileStartMsg.label" = "Otvorenie súboru";
 "settings.disableOSDPauseResumeMsgs.label" = "Pozastaviť / Spustiť";
@@ -864,7 +864,7 @@ Nočné zostavy sa neodporúčajú používať ako denný ovládač. V súčasno
 "settings.windowBehaviorWhenPip.label" = "Okno";
 
 // Settings - Advanced
-"settings.enableAdvancedSettings.desc" = "Nasledujúce nastavenia vyžadujú reštartovať YINA.";
+"settings.enableAdvancedSettings.desc" = "Nasledujúce nastavenia vyžadujú reštartovať yina.";
 "settings.enableAdvancedSettings.label" = "Povoliť pokročilé nastavenia";
 "settings.enableLogging.label" = "Povoliť logovanie";
 "settings.logLevel.desc" = "View logs by choosing Window - Log Viewer from the menu.";
@@ -878,7 +878,7 @@ Nočné zostavy sa neodporúčajú používať ako denný ovládač. V súčasno
 
 // Settings - Inline labels
 "settings.$ASSSubtitles" = "ASS titulky";
-"settings.$About" = "O aplikácii YINA";
+"settings.$About" = "O aplikácii yina";
 "settings.$Accessibility" = "Dostupnosť";
 "settings.$AdditionalMpvOptions" = "Ďalšie mpv nastavenia";
 "settings.$AdditionalMpvOptions.desc" = "Paste an option in the key=value format to fill in both fields automatically.";
@@ -920,7 +920,7 @@ Nočné zostavy sa neodporúčajú používať ako denný ovládač. V súčasno
 "settings.$FailedToLoadThePage" = "Stránku sa nepodarilo načítať.";
 "settings.$Firefox" = "Firefox";
 "settings.$Font" = "Font";
-"settings.$GetBrowserExtensionsForYINA" = "Získať YINA rozšírenie pre internetové prehliadače";
+"settings.$GetBrowserExtensionsForYINA" = "Získať yina rozšírenie pre internetové prehliadače";
 "settings.$GetPlugins" = "Get Plugins…";
 "settings.$Hardware" = "Hardware";
 "settings.$Height" = "Výška";
@@ -955,7 +955,7 @@ Nočné zostavy sa neodporúčajú používať ako denný ovládač. V súčasno
 "settings.$OnScreenController" = "Ovládač";
 "settings.$OnScreenDisplay" = "Oznam";
 "settings.$OnlineSubtitles" = "Titulky na internete";
-"settings.$OpenLinksOrCurrentWebpage" = "Otvor odkazy v YINA s jedným kliknutím. Webstránka musí byť podporovaná youtube-dl.";
+"settings.$OpenLinksOrCurrentWebpage" = "Otvor odkazy v yina s jedným kliknutím. Webstránka musí byť podporovaná youtube-dl.";
 "settings.$OpenLogDirectory" = "Otvoriť Log adresár";
 "settings.$OpenLogWindow" = "Open the log viewer";
 "settings.$OrSelectFrom" = "Or select from available plugins";
@@ -965,7 +965,7 @@ Nočné zostavy sa neodporúčajú používať ako denný ovládač. V súčasno
 "settings.$Percent" = "%";
 "settings.$PictureinnPicture" = "Picture-in-Picture";
 "settings.$Playlist" = "Zoznam";
-"settings.$PleaseSelectTheMediaTypes" = "Prosím, označte typy médií, pre ktoré chcete nastaviť YINA ako predvolenú aplikáciu.";
+"settings.$PleaseSelectTheMediaTypes" = "Prosím, označte typy médií, pre ktoré chcete nastaviť yina ako predvolenú aplikáciu.";
 "settings.$Position" = "Pozícia";
 "settings.$PreferredLanguage" = "Preferovaný jazyk";
 "settings.$RestoreAlerts" = "Obnoviť varovania";
@@ -975,7 +975,7 @@ Nočné zostavy sa neodporúčajú používať ako denný ovládač. V súčasno
 "settings.$SPDIFOutputWarning" = "List of codecs for which compressed audio passthrough should be used.\n\nWarning: There is not much reason to use this setting. HDMI supports uncompressed multichannel PCM, and lossless DTS-HD decoding is supported via FFmpeg's DCA decoder. Playback may not start if the output device does not support S/PDIF and this setting is enabled.";
 "settings.$Safari" = "Safari";
 "settings.$Screenshots" = "Screenshoty";
-"settings.$SetYINAAsTheDefault" = "Set YINA as the Default Application";
+"settings.$SetYINAAsTheDefault" = "Set yina as the Default Application";
 "settings.$Settings" = "Nastavenia";
 "settings.$Shadow" = "Tieň";
 "settings.$ShowInFinder" = "Zobraziť vo Finderi";
@@ -1018,4 +1018,4 @@ Nočné zostavy sa neodporúčajú používať ako denný ovládač. V súčasno
 "settings.$sideOfTheScreen" = "kraj obrazovky";
 "settings.$toThe" = "do";
 "settings.$top" = "hore";
-"settings.$ytdlWarning" = "The Online Media plugin has additional features such as switching quality and video downloading. YINA will use the plugin if it's installed and enabled. The settings below only work if the plugin is not available.";
+"settings.$ytdlWarning" = "The Online Media plugin has additional features such as switching quality and video downloading. yina will use the plugin if it's installed and enabled. The settings below only work if the plugin is not available.";

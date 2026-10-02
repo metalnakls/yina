@@ -82,7 +82,7 @@ class SettingsUIHelper: UIHelper {
       let button = NSButton(radioButtonWithTitle: localized(key), target: nil, action: nil)
       button.translatesAutoresizingMaskIntoConstraints = false
       button.controlSize = size
-      button.bind(.value, to: UserDefaults.standard, withKeyPath: prefKey.rawValue, options: [
+      button.bind(.value, to: AppEnvironment.defaults, withKeyPath: prefKey.rawValue, options: [
         .valueTransformer: RadioTagTransformer(tag: value)
       ])
       return button

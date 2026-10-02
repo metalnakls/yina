@@ -19,10 +19,10 @@ execURL.resolveSymlinksInPath()
 
 let processInfo = ProcessInfo.processInfo
 
-let yinaPath = execURL.deletingLastPathComponent().appendingPathComponent("YINA").path
+let yinaPath = execURL.deletingLastPathComponent().appendingPathComponent("yina").path
 
 guard FileManager.default.fileExists(atPath: yinaPath) else {
-  print("Cannot find YINA binary. This command line tool only works in yina.app bundle.")
+  print("Cannot find yina binary. This command line tool only works in yina.app bundle.")
   exit(1)
 }
 
@@ -51,8 +51,10 @@ if userArgs.contains(where: { $0 == "--help" || $0 == "-h" }) {
             stdin has file, but sometimes not. Therefore it's recommended to always
             supply --stdin when piping to yina, and --no-stdin when you are not intend
             to use stdin.
+    --clean-start:
+            Start a temporary profile without saved settings, history, plugins, or credentials.
     --keep-running:
-            Normally yina-cli launches YINA and quits immediately. Supply this option
+            Normally yina-cli launches yina and quits immediately. Supply this option
             if you would like to keep it running until the main application exits.
     --music-mode:
             Enter music mode after opening the media.

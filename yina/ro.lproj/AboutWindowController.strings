@@ -22,5 +22,5 @@
 /* Class = "NSButtonCell"; title = "Credits"; ObjectID = "zCH-uO-acx"; */
 "zCH-uO-acx.title" = "Mulțumiri";
 
-/* Class = "NSTextFieldCell"; title = "YINA localization is powered by Crowdin."; ObjectID = "HLj-vT-kNp"; */
-"HLj-vT-kNp.title" = "Localizarea YINA este făcută posibilă de Crowdin.";
+/* Class = "NSTextFieldCell"; title = "yina localization is powered by Crowdin."; ObjectID = "HLj-vT-kNp"; */
+"HLj-vT-kNp.title" = "Localizarea yina este făcută posibilă de Crowdin.";

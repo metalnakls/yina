@@ -106,7 +106,7 @@ fileprivate class SliderView: SettingsAccessory.Base {
     slider.minValue = 1
     slider.maxValue = 4
     slider.size(width: 100)
-    slider.bind(.value, to: UserDefaults.standard, withKeyPath: key.rawValue)
+    slider.bind(.value, to: AppEnvironment.defaults, withKeyPath: key.rawValue)
 
     view.addSubview(label)
     view.addSubview(slider)

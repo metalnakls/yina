@@ -1063,7 +1063,7 @@ struct Preference {
   }
 
   static var isLiveTextAvailable: Bool = {
-    let defaults = UserDefaults.standard
+    let defaults = AppEnvironment.defaults
     if defaults.object(forKey: "AppleLiveTextEnabled") == nil {
       return true
     }
@@ -1077,7 +1077,8 @@ struct Preference {
   
   // MARK: - Defaults
 
-  static let defaultPreference: [Preference.Key: Any] = [
+  static let defaultPreference: [Preference.Key: Any] = {
+    var values: [Preference.Key: Any] = [
     .receiveBetaUpdate: false,
     .actionAfterLaunch: ActionAfterLaunch.welcomeWindow.rawValue,
     .alwaysOpenInNewWindow: true,
@@ -1312,7 +1313,14 @@ struct Preference {
   ]
 
 
-  static private let ud = UserDefaults.standard
+    for (name, value) in AppEnvironment.bundledDefaults {
+      let key = Preference.Key(name)
+      if values[key] != nil { values[key] = value }
+    }
+    return values
+  }()
+
+  static private let ud = AppEnvironment.defaults
 
   static func object(for key: Key) -> Any? { ud.object(forKey: key.rawValue) }
 
@@ -1745,7 +1753,7 @@ extension Preference {
 
     func add(_ key: Key, runNow: Bool = false, block: @escaping (Key) -> Void) {
       if observedKeys[key] == nil {
-        UserDefaults.standard.addObserver(self, forKeyPath: key.rawValue, options: [.new], context: nil)
+        AppEnvironment.defaults.addObserver(self, forKeyPath: key.rawValue, options: [.new], context: nil)
       }
       if runNow {
         block(key)
@@ -1765,7 +1773,7 @@ extension Preference {
 
     deinit {
       observedKeys.keys.forEach {
-        UserDefaults.standard.removeObserver(self, forKeyPath: $0.rawValue)
+        AppEnvironment.defaults.removeObserver(self, forKeyPath: $0.rawValue)
         print("removed \($0.rawValue)")
       }
     }

@@ -553,7 +553,7 @@
 			<key>CFBundleTypeIconSystemGenerated</key>
 			<integer>0</integer>
 			<key>CFBundleTypeName</key>
-			<string>YINA Plugin</string>
+			<string>yina Plugin</string>
 			<key>CFBundleTypeRole</key>
 			<string>Viewer</string>
 			<key>LSHandlerRank</key>
@@ -575,7 +575,7 @@
 			<key>CFBundleTypeIconSystemGenerated</key>
 			<integer>0</integer>
 			<key>CFBundleTypeName</key>
-			<string>YINA Plugin Package</string>
+			<string>yina Plugin Package</string>
 			<key>CFBundleTypeRole</key>
 			<string>Viewer</string>
 			<key>LSHandlerRank</key>
@@ -594,7 +594,7 @@
 	<array>
 		<dict>
 			<key>CFBundleURLName</key>
-			<string>YINA wrapper</string>
+			<string>yina wrapper</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>iina</string>
@@ -626,7 +626,7 @@
 			<key>NSMenuItem</key>
 			<dict>
 				<key>default</key>
-				<string>YINA: Open URL</string>
+				<string>yina: Open URL</string>
 			</dict>
 			<key>NSMessage</key>
 			<string>droppedText</string>
@@ -650,7 +650,7 @@
 				<string>com.pkware.zip-archive</string>
 			</array>
 			<key>UTTypeDescription</key>
-			<string>YINA Plugin Package</string>
+			<string>yina Plugin Package</string>
 			<key>UTTypeIconFile</key>
 			<string>doc_plugin</string>
 			<key>UTTypeIcons</key>
@@ -672,7 +672,7 @@
 				<string>com.apple.package</string>
 			</array>
 			<key>UTTypeDescription</key>
-			<string>YINA Plugin</string>
+			<string>yina Plugin</string>
 			<key>UTTypeIconFile</key>
 			<string>doc_plugin</string>
 			<key>UTTypeIcons</key>

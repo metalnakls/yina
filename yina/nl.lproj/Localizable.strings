@@ -30,7 +30,7 @@
 "guide.faq" = "Veelgestelde vragen";
 
 // Initial Window
-"initial.announcement" = "U gebruikt een %@ versie van YINA";
+"initial.announcement" = "U gebruikt een %@ versie van yina";
 "initial.beta.desc" = "Als u wilt teruggaan naar een stabiele versie, vink \"beta updates ontvangen\" uit via Instellingen > Algemeen, en installeer een stabiele release van onze <a href=\"https://iina.io\">officiële website</a>.";
 "initial.nightly.desc" = "Nightly wordt niet aanbevolen voor dagelijks gebruik. Momenteel ondersteunen nightly builds geen automatische updates. Download handmatig nieuwere builds van onze <a href=\"https://nightly.iina.io\">nightly website</a>.";
 "initial.debug.desc" = "Debug builds zijn meestal niet geoptimaliseerd voor prestaties, dus deze zijn niet aangeraden voor dagelijks gebruik. Debug builds ondersteunen geen automatische updates.";
@@ -283,7 +283,7 @@
 "alert.add_filter.title" = "Nieuw filter";
 "alert.add_filter.message" = "Voer een filtertekst met de structuur van mpv's vf/af-commando's in.";
 
-"alert.keybinding_config.error" = "Fout bij het lezen van sneltoetsen-configuratiebestand \"%@\"! De YINA standaardinstellingen worden hersteld. Controleer je configuratie.";
+"alert.keybinding_config.error" = "Fout bij het lezen van sneltoetsen-configuratiebestand \"%@\"! De yina standaardinstellingen worden hersteld. Controleer je configuratie.";
 "alert.delete_keybindingset.title" = "Delete Key Binding Set";
 "alert.delete_keybindingset.message" = "Are you sure to delete this key binding set?";
 
@@ -302,8 +302,8 @@
 "alert.sub.cannot_login" = "Kan niet inloggen. Controleer je gebruikersnaam, wachtwoord en netwerkverbinding.\n\n%@";
 "alert.sub.save_downloaded.title" = "Sla gedownloade ondertiteling op";
 
-"alert.set_default.title" = "Stel YINA in als standaardprogramma";
-"alert.set_default.message" = "YINA wordt ingesteld als standaardprogramma voor alle ondersteunde bestandstypes.";
+"alert.set_default.title" = "Stel yina in als standaardprogramma";
+"alert.set_default.message" = "yina wordt ingesteld als standaardprogramma voor alle ondersteunde bestandstypes.";
 "alert.set_default.success" = "%d types succesvol ingesteld, %d types mislukt.";
 
 "alert.add_watch.title" = "Voeg waarde toe om te volgen";
@@ -415,9 +415,9 @@
 "filter.video_filters" = "Videofilters";
 "filter.audio_filters" = "Audiofilters";
 
-"hwdec.no" = "Zonder hardware-acceleratie heeft YINA meer energie nodig, en presteert het mogelijk minder optimaal.";
-"hwdec.auto" = "Met Automatisch maakt YINA automatisch gebruik van hardware-acceleratie. Dat levert een hoge prestatie op voor relatief weinig energie. Deze optie biedt geen ondersteuning voor software-gebaseerde videofilters.";
-"hwdec.auto-copy" = "Met Automatisch maakt YINA automatisch gebruik van hardware-acceleratie. Dat levert een hoge prestatie op voor relatief weinig energie. Om software-gebaseerde videofilters te ondersteunen wordt gebruik gemaakt van een voorgefilterde kopie van de video. Deze optie gebruikt daarom dubbel zoveel geheugen.";
+"hwdec.no" = "Zonder hardware-acceleratie heeft yina meer energie nodig, en presteert het mogelijk minder optimaal.";
+"hwdec.auto" = "Met Automatisch maakt yina automatisch gebruik van hardware-acceleratie. Dat levert een hoge prestatie op voor relatief weinig energie. Deze optie biedt geen ondersteuning voor software-gebaseerde videofilters.";
+"hwdec.auto-copy" = "Met Automatisch maakt yina automatisch gebruik van hardware-acceleratie. Dat levert een hoge prestatie op voor relatief weinig energie. Om software-gebaseerde videofilters te ondersteunen wordt gebruik gemaakt van een voorgefilterde kopie van de video. Deze optie gebruikt daarom dubbel zoveel geheugen.";
 
 "gaplessAudio.no" = "Afspelen van achtereenvolgende audiobestanden kan leiden tot stilte of verstoring wanneer het bestand verandert.";
 "gaplessAudio.weak" = "Als het audioformaat van de decoderoutput verandert, wordt het audioapparaat gesloten en opnieuw geopend, waardoor het afspelen wordt verstoord.";
@@ -477,7 +477,7 @@
 "plugin.install_error.file_not_found" = "Kan het pakketbestand niet vinden.";
 "plugin.install_error.cannot_download" = "Fout bij het downloaden van de plug-in.\n\nUitvoer:%@\n";
 "plugin.install_error.cannot_unpackage" = "Fout bij het uitpakken van de plug-in.\n\nuitvoer:%@\n";
-"plugin.install_error.cannot_load" = "YINA kan deze plug-in niet laden. Deze kan in het verkeerde formaat geleverd zijn.";
+"plugin.install_error.cannot_load" = "yina kan deze plug-in niet laden. Deze kan in het verkeerde formaat geleverd zijn.";
 "plugin.check_for_updates" = "Zoek naar updates";
 "plugin.updating" = "Update downloaden…";
 
@@ -611,13 +611,13 @@
 "settings.pauseWhenOpen.label" = "Begin gepauzeerd";
 "settings.pauseresumeWhen" = "Pauzeer/hervat automatisch";
 "settings.playWhenEnteringFullScreen.label" = "Hervat wanneer de schermvullende weergave ingeschakeld wordt";
-"settings.playlistAutoAdd.desc" = "YINA moet opnieuw opstarten voor deze optie.";
+"settings.playlistAutoAdd.desc" = "yina moet opnieuw opstarten voor deze optie.";
 "settings.playlistAutoAdd.label" = "Voeg bestanden in dezelfde map automatisch toe";
 "settings.playlistAutoPlayNext.label" = "Speel volgende bestand automatisch af";
 "settings.playlistShowMetadata.label" = "Toon artiest en titel voor audiobestanden wanneer beschikbaar";
 "settings.playlistShowMetadataInMusicMode.label" = "Alleen in \"muziek modus\"";
 "settings.preventScreenSaver.label" = "Voorkom dat de schermbeveiliging start tijdens het afspelen";
-"settings.quitWhenNoOpenedWindow.label" = "Stop YINA wanneer alle vensters gesloten zijn";
+"settings.quitWhenNoOpenedWindow.label" = "Stop yina wanneer alle vensters gesloten zijn";
 "settings.receiveBetaUpdate.label" = "Ontvang bètaversies";
 "settings.recordPlaybackHistory.label" = "Houd afspeelgeschiedenis bij";
 "settings.recordRecentFiles.label" = "Schakel \"Open recente bestanden\"-menu in";
@@ -641,16 +641,16 @@
 "settings.forceDedicatedGPU.desc" = "Gebruik altijd de toegewijde GPU voor het renderen (als deze bestaat). Dit kan de prestaties verbeteren, maar kan de levensduur van de batterij verminderen.";
 "settings.forceDedicatedGPU.label" = "Forceer toegewijde GPU";
 "settings.hardwareDecoder.items.0" = "Uitgeschakeld";
-"settings.hardwareDecoder.items.0.desc" = "Zonder hardware-acceleratie heeft YINA meer energie nodig, en presteert het mogelijk minder optimaal.";
+"settings.hardwareDecoder.items.0.desc" = "Zonder hardware-acceleratie heeft yina meer energie nodig, en presteert het mogelijk minder optimaal.";
 "settings.hardwareDecoder.items.1" = "Automatisch";
-"settings.hardwareDecoder.items.1.desc" = "Met Automatisch maakt YINA automatisch gebruik van hardware-acceleratie. Dat levert een hoge prestatie op voor relatief weinig energie. Deze optie biedt geen ondersteuning voor software-gebaseerde videofilters.";
+"settings.hardwareDecoder.items.1.desc" = "Met Automatisch maakt yina automatisch gebruik van hardware-acceleratie. Dat levert een hoge prestatie op voor relatief weinig energie. Deze optie biedt geen ondersteuning voor software-gebaseerde videofilters.";
 "settings.hardwareDecoder.items.2" = "Automatisch (via kopie)";
-"settings.hardwareDecoder.items.2.desc" = "Met Automatisch maakt YINA automatisch gebruik van hardware-acceleratie. Dat levert een hoge prestatie op voor relatief weinig energie. Om software-gebaseerde videofilters te ondersteunen wordt gebruik gemaakt van een voorgefilterde kopie van de video. Deze optie gebruikt daarom dubbel zoveel geheugen.";
+"settings.hardwareDecoder.items.2.desc" = "Met Automatisch maakt yina automatisch gebruik van hardware-acceleratie. Dat levert een hoge prestatie op voor relatief weinig energie. Om software-gebaseerde videofilters te ondersteunen wordt gebruik gemaakt van een voorgefilterde kopie van de video. Deze optie gebruikt daarom dubbel zoveel geheugen.";
 "settings.hardwareDecoder.label" = "Hardware-acceleratie";
 "settings.loadIccProfile.desc" = "Laad het ICC-profiel voor huidige weergave en gebruik het om video RGB om te zetten naar schermuitvoer. (Alleen voor SDR-modus)";
 "settings.loadIccProfile.label" = "ICC-profiel laden";
 "settings.toneMappingAlgorithm.label" = "Algoritme";
-"settings.toneMappingTargetPeak.desc" = "Measured peak brightness of the display. By default YINA detects this value. If detection fails, target peak will be set to an appropriate value based on the transfer characteristics of the display. Enable this setting to manually specify the display's brightness.";
+"settings.toneMappingTargetPeak.desc" = "Measured peak brightness of the display. By default yina detects this value. If detection fails, target peak will be set to an appropriate value based on the transfer characteristics of the display. Enable this setting to manually specify the display's brightness.";
 "settings.toneMappingTargetPeak.label" = "Doel piek";
 "settings.videoThreads.desc" = "Standaard: 0 (automatisch)";
 "settings.videoThreads.label" = "Aantal threads";
@@ -753,7 +753,7 @@
 "settings.defaultCacheSize.desc" = "Default: 153,600";
 "settings.defaultCacheSize.label" = "Cache buffer size (KiB)";
 "settings.enableCache.label" = "Prefetch and buffer network data";
-"settings.httpProxy.desc" = "YINA moet opnieuw opstarten voor deze optie.";
+"settings.httpProxy.desc" = "yina moet opnieuw opstarten voor deze optie.";
 "settings.httpProxy.label" = "HTTP-proxy";
 "settings.secPrefech.desc" = "Default: 36,000";
 "settings.secPrefech.label" = "Seconden inladen";
@@ -765,11 +765,11 @@
 "settings.ytdlEnabled.label" = "Enable mpv's youtube-dl script";
 "settings.ytdlRawOptions.desc" = "Format <key>=<value>[,<key>=<value>[,…]]";
 "settings.ytdlRawOptions.label" = "ytdl-raw-options";
-"settings.ytdlSearchPath.desc" = "YINA zoekt youtube-dl in deze map. Let op: YINA moet opnieuw opstarten voor deze instelling.";
+"settings.ytdlSearchPath.desc" = "yina zoekt youtube-dl in deze map. Let op: yina moet opnieuw opstarten voor deze instelling.";
 "settings.ytdlSearchPath.label" = "Aangepaste youtube-dl locatie";
 
 // Settings - Subtitles
-"settings.autoSearchOnlineSub.desc" = "If enabled, YINA will automatically search online subtitles only for videos without loaded subtitles and longer than 20 minutes.";
+"settings.autoSearchOnlineSub.desc" = "If enabled, yina will automatically search online subtitles only for videos without loaded subtitles and longer than 20 minutes.";
 "settings.autoSearchOnlineSub.label" = "Zoek automatisch online naar ondertiteling";
 "settings.displayInLetterBox.label" = "Toon ondertiteling in de zwarte balken van schermvullende weergave";
 "settings.subAlignX.items.0" = "Links";
@@ -819,7 +819,7 @@
 "settings.arrowBtnAction.label" = "Gebruik linker-/rechterknop voor";
 "settings.controlBarAutoHideTimeout.label" = "Auto hide after";
 "settings.controlBarStickToCenter.label" = "Spring naar het midden tijdens het slepen";
-"settings.disableAnimations.desc" = "Wanneer de macOS Verminder beweging toegankelijkheidsinstelling is ingeschakeld, zal YINA gebruikersinterface animaties verminderen die bekend staan om problemen veroorzaken voor mensen met evenwichtsstoornissen. Mocht dit onvoldoende zijn, dan kan deze instelling worden gebruikt om de beweging verder te verminderen door gebruikersinterface animaties te elimineren.";
+"settings.disableAnimations.desc" = "Wanneer de macOS Verminder beweging toegankelijkheidsinstelling is ingeschakeld, zal yina gebruikersinterface animaties verminderen die bekend staan om problemen veroorzaken voor mensen met evenwichtsstoornissen. Mocht dit onvoldoende zijn, dan kan deze instelling worden gebruikt om de beweging verder te verminderen door gebruikersinterface animaties te elimineren.";
 "settings.disableAnimations.label" = "Animaties uitschakelen";
 "settings.disableOSDFileStartMsg.label" = "Bestand start";
 "settings.disableOSDPauseResumeMsgs.label" = "Pauzeren/hervatten";
@@ -863,7 +863,7 @@
 "settings.windowBehaviorWhenPip.label" = "Venster";
 
 // Settings - Advanced
-"settings.enableAdvancedSettings.desc" = "Om de volgende instellingen toe te passen moet je YINA opnieuw opstarten.";
+"settings.enableAdvancedSettings.desc" = "Om de volgende instellingen toe te passen moet je yina opnieuw opstarten.";
 "settings.enableAdvancedSettings.label" = "Activeer geavanceerde instellingen";
 "settings.enableLogging.label" = "Schakel logboeken in";
 "settings.logLevel.desc" = "View logs by choosing Window - Log Viewer from the menu.";
@@ -919,7 +919,7 @@
 "settings.$FailedToLoadThePage" = "Fout bij het laden van de pagina.";
 "settings.$Firefox" = "Firefox";
 "settings.$Font" = "Lettertype";
-"settings.$GetBrowserExtensionsForYINA" = "Download browserextensies voor YINA";
+"settings.$GetBrowserExtensionsForYINA" = "Download browserextensies voor yina";
 "settings.$GetPlugins" = "Get Plugins…";
 "settings.$Hardware" = "Hardware";
 "settings.$Height" = "Hoogte";
@@ -954,7 +954,7 @@
 "settings.$OnScreenController" = "Afspeelregelaars";
 "settings.$OnScreenDisplay" = "On-Screen display";
 "settings.$OnlineSubtitles" = "Online ondertitelingen";
-"settings.$OpenLinksOrCurrentWebpage" = "Open links en webpagina's in YINA met één klik. De website moet door youtube-dl ondersteund worden.";
+"settings.$OpenLinksOrCurrentWebpage" = "Open links en webpagina's in yina met één klik. De website moet door youtube-dl ondersteund worden.";
 "settings.$OpenLogDirectory" = "Logboekmap openen";
 "settings.$OpenLogWindow" = "Open the log viewer";
 "settings.$OrSelectFrom" = "Or select from available plugins";
@@ -964,7 +964,7 @@
 "settings.$Percent" = "%";
 "settings.$PictureinnPicture" = "Beeld-in-beeld";
 "settings.$Playlist" = "Afspeellijst";
-"settings.$PleaseSelectTheMediaTypes" = "Stel YINA in als standaardprogramma voor de volgende bestandstypes.";
+"settings.$PleaseSelectTheMediaTypes" = "Stel yina in als standaardprogramma voor de volgende bestandstypes.";
 "settings.$Position" = "Positie";
 "settings.$PreferredLanguage" = "Voorkeurstaal";
 "settings.$RestoreAlerts" = "Waarschuwingen herstellen";
@@ -974,7 +974,7 @@
 "settings.$SPDIFOutputWarning" = "List of codecs for which compressed audio passthrough should be used.\n\nWarning: There is not much reason to use this setting. HDMI supports uncompressed multichannel PCM, and lossless DTS-HD decoding is supported via FFmpeg's DCA decoder. Playback may not start if the output device does not support S/PDIF and this setting is enabled.";
 "settings.$Safari" = "Safari";
 "settings.$Screenshots" = "Schermafbeeldingen";
-"settings.$SetYINAAsTheDefault" = "Set YINA as the Default Application";
+"settings.$SetYINAAsTheDefault" = "Set yina as the Default Application";
 "settings.$Settings" = "Instellingen";
 "settings.$Shadow" = "Schaduw";
 "settings.$ShowInFinder" = "Toon in Finder";
@@ -1017,4 +1017,4 @@
 "settings.$sideOfTheScreen" = "zijde van het scherm";
 "settings.$toThe" = "van de";
 "settings.$top" = "bovenkant";
-"settings.$ytdlWarning" = "The Online Media plugin has additional features such as switching quality and video downloading. YINA will use the plugin if it's installed and enabled. The settings below only work if the plugin is not available.";
+"settings.$ytdlWarning" = "The Online Media plugin has additional features such as switching quality and video downloading. yina will use the plugin if it's installed and enabled. The settings below only work if the plugin is not available.";

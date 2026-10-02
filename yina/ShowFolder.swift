@@ -208,15 +208,15 @@ enum ShowFolderSnapshotStore {
     }
   }
 
-  static func load(defaults: UserDefaults = .standard) -> Set<String> {
+  static func load(defaults: UserDefaults = AppEnvironment.defaults) -> Set<String> {
     Set(defaults.stringArray(forKey: key) ?? [])
   }
 
-  static func save(_ folderPaths: Set<String>, defaults: UserDefaults = .standard) {
+  static func save(_ folderPaths: Set<String>, defaults: UserDefaults = AppEnvironment.defaults) {
     defaults.set(folderPaths.sorted(), forKey: key)
   }
 
-  static func loadCards(now: Date = Date(), defaults: UserDefaults = .standard) -> [ShowFolder] {
+  static func loadCards(now: Date = Date(), defaults: UserDefaults = AppEnvironment.defaults) -> [ShowFolder] {
     guard let data = defaults.data(forKey: cardsKey),
           let cards = try? PropertyListDecoder().decode([Card].self, from: data) else { return [] }
     return cards.compactMap(\.show).filter {
@@ -224,7 +224,7 @@ enum ShowFolderSnapshotStore {
     }
   }
 
-  static func save(_ shows: [ShowFolder], defaults: UserDefaults = .standard) {
+  static func save(_ shows: [ShowFolder], defaults: UserDefaults = AppEnvironment.defaults) {
     let cards = shows.map(Card.init)
     if let data = try? PropertyListEncoder().encode(cards) {
       defaults.set(data, forKey: cardsKey)
@@ -243,14 +243,14 @@ enum WelcomeRecentSnapshotStore {
     let urls: [String]
   }
 
-  static func load(now: Date = Date(), defaults: UserDefaults = .standard) -> [URL] {
+  static func load(now: Date = Date(), defaults: UserDefaults = AppEnvironment.defaults) -> [URL] {
     guard let data = defaults.data(forKey: key),
           let snapshot = try? PropertyListDecoder().decode(Snapshot.self, from: data),
           now.timeIntervalSince(snapshot.savedAt) <= ShowFolder.inactivityInterval else { return [] }
     return snapshot.urls.compactMap(URL.init(string:))
   }
 
-  static func save(_ urls: [URL], defaults: UserDefaults = .standard) {
+  static func save(_ urls: [URL], defaults: UserDefaults = AppEnvironment.defaults) {
     let snapshot = Snapshot(savedAt: Date(), urls: urls.map(\.absoluteString))
     if let data = try? PropertyListEncoder().encode(snapshot) {
       defaults.set(data, forKey: key)
@@ -261,12 +261,12 @@ enum WelcomeRecentSnapshotStore {
 enum ShowFolderDismissalStore {
   private static let key = "YINADismissedShowFolders"
 
-  static func dismissedAtByFolder(defaults: UserDefaults = .standard) -> [String: Date] {
+  static func dismissedAtByFolder(defaults: UserDefaults = AppEnvironment.defaults) -> [String: Date] {
     guard let values = defaults.dictionary(forKey: key) as? [String: TimeInterval] else { return [:] }
     return values.mapValues(Date.init(timeIntervalSince1970:))
   }
 
-  static func dismiss(_ show: ShowFolder, at date: Date = Date(), defaults: UserDefaults = .standard) {
+  static func dismiss(_ show: ShowFolder, at date: Date = Date(), defaults: UserDefaults = AppEnvironment.defaults) {
     var values = defaults.dictionary(forKey: key) as? [String: TimeInterval] ?? [:]
     values[show.identityPath] = date.timeIntervalSince1970
     defaults.set(values, forKey: key)
@@ -727,7 +727,7 @@ private final class ShowFolderArtworkView: NSView {
     imageLayer.contents = artwork.image
     placeholderView.isHidden = true
     let reducedMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ||
-      UserDefaults.standard.bool(forKey: "disableAnimations")
+      AppEnvironment.defaults.bool(forKey: "disableAnimations")
     let fadeDuration = reducedMotion ? 0 : 1.8
     guard fadeDuration > 0, alphaValue < 0.99 else {
       alphaValue = 1
@@ -898,7 +898,7 @@ final class ShowFolderShelfView: NSView {
     }
 
     let motionDisabled = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ||
-      UserDefaults.standard.bool(forKey: "disableAnimations")
+      AppEnvironment.defaults.bool(forKey: "disableAnimations")
     let fadeDuration = motionDisabled ? 0 : 0.14
     let reflowDuration = motionDisabled ? 0 : 0.14
     NSAnimationContext.runAnimationGroup { context in

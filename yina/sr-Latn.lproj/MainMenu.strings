@@ -37,14 +37,14 @@
 /* Class = "NSMenuItem"; title = "Audio Delay + 0.5s"; ObjectID = "4ae-MT-2L1"; */
 "4ae-MT-2L1.title" = "Kašnjenje zvuka + 0,5 s";
 
-/* Class = "NSMenuItem"; title = "Quit YINA"; ObjectID = "4sb-4s-VLi"; */
-"4sb-4s-VLi.title" = "Napusti YINA-u";
+/* Class = "NSMenuItem"; title = "Quit yina"; ObjectID = "4sb-4s-VLi"; */
+"4sb-4s-VLi.title" = "Napusti yina-u";
 
 /* Class = "NSMenuItem"; title = "Reset Speed"; ObjectID = "5Gn-90-oDu"; */
 "5Gn-90-oDu.title" = "Poništi brzinu";
 
-/* Class = "NSMenuItem"; title = "About YINA"; ObjectID = "5kV-Vb-QxS"; */
-"5kV-Vb-QxS.title" = "O aplikaciji YINA";
+/* Class = "NSMenuItem"; title = "About yina"; ObjectID = "5kV-Vb-QxS"; */
+"5kV-Vb-QxS.title" = "O aplikaciji yina";
 
 /* Class = "NSMenu"; title = "Rotation"; ObjectID = "5xN-ZB-VLI"; */
 "5xN-ZB-VLI.title" = "Rotacija";
@@ -133,8 +133,8 @@
 /* Class = "NSMenuItem"; title = "Next Chapter"; ObjectID = "F6G-Ln-fqI"; */
 "F6G-Ln-fqI.title" = "Naredno poglavlje";
 
-/* Class = "NSMenuItem"; title = "YINA Help"; ObjectID = "FKE-Sm-Kum"; */
-"FKE-Sm-Kum.title" = "Pomoć za aplikaciju YINA";
+/* Class = "NSMenuItem"; title = "yina Help"; ObjectID = "FKE-Sm-Kum"; */
+"FKE-Sm-Kum.title" = "Pomoć za aplikaciju yina";
 
 /* Class = "NSMenu"; title = "Video Track"; ObjectID = "FTu-CF-O0R"; */
 "FTu-CF-O0R.title" = "Video-zapis";
@@ -223,8 +223,8 @@
 /* Class = "NSMenuItem"; title = "Minimize"; ObjectID = "OY7-WF-poV"; */
 "OY7-WF-poV.title" = "Umanji";
 
-/* Class = "NSMenuItem"; title = "Hide YINA"; ObjectID = "Olw-nP-bQN"; */
-"Olw-nP-bQN.title" = "Sakrij aplikaciju YINA";
+/* Class = "NSMenuItem"; title = "Hide yina"; ObjectID = "Olw-nP-bQN"; */
+"Olw-nP-bQN.title" = "Sakrij aplikaciju yina";
 
 /* Class = "NSMenuItem"; title = "Reset Subtitle Scale"; ObjectID = "P1a-ot-P31"; */
 "P1a-ot-P31.title" = "Poništi razmeru titla";

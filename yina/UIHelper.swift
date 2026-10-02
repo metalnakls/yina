@@ -49,7 +49,7 @@ class UIHelper {
     let input = fixedAlignmentRect ? TextFieldWithFixedAlignmentRect() : NSTextField()
     input.translatesAutoresizingMaskIntoConstraints = false
     input.bezelStyle = .roundedBezel
-    input.bind(.value, to: UserDefaults.standard, withKeyPath: key.rawValue)
+    input.bind(.value, to: AppEnvironment.defaults, withKeyPath: key.rawValue)
     if isFixedSize {
       input.size(width: 48, height: 25)
     }
@@ -105,7 +105,7 @@ class UIHelper {
     let opt: [NSBindingOption : Any] = inverted ? [
       .valueTransformerName: NSValueTransformerName(rawValue: "NSNegateBoolean")
     ] : [:]
-    btn.bind(.value, to: UserDefaults.standard, withKeyPath: key.rawValue, options: opt)
+    btn.bind(.value, to: AppEnvironment.defaults, withKeyPath: key.rawValue, options: opt)
     return btn
   }
 
@@ -114,7 +114,7 @@ class UIHelper {
     colorWell.translatesAutoresizingMaskIntoConstraints = false
     colorWell.colorWellStyle = .expanded
     colorWell.size(height: 24)
-    colorWell.bind(.value, to: UserDefaults.standard,
+    colorWell.bind(.value, to: AppEnvironment.defaults,
                    withKeyPath: key.rawValue,
                    options: [.valueTransformer: MPVColorStringTransformer()])
     return colorWell

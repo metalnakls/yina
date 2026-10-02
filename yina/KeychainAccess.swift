@@ -33,6 +33,7 @@ class KeychainAccess {
   }
 
   static func write(username: String, password: String, forService serviceName: ServiceName, server: String? = nil, port: Int? = nil) throws {
+    guard !AppEnvironment.isCleanStart else { return }
     let status: OSStatus
 
     if let _ = try? read(username: username, forService: serviceName, server: nil, port: nil) {
@@ -73,6 +74,7 @@ class KeychainAccess {
   }
 
   static func read(username: String?, forService serviceName: ServiceName, server: String? = nil, port: Int? = nil) throws -> (username: String, password: String) {
+    guard !AppEnvironment.isCleanStart else { throw KeychainError.noResult }
     var query: [String: Any] = [kSecAttrService as String: serviceName.rawValue,
                                 kSecMatchLimit as String: kSecMatchLimitOne,
                                 kSecReturnAttributes as String: true,

@@ -227,7 +227,7 @@ class SettingsWindow: CommonWindow {
   }
 
   func show() {
-    self.setFrameAutosaveName("YINAPreferenceWindowV2")
+    if !AppEnvironment.isCleanStart { self.setFrameAutosaveName("YINAPreferenceWindowV2") }
     self.makeKeyAndOrderFront(nil)
   }
 

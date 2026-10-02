@@ -43,7 +43,7 @@ class LiveTextController: NSObject {
     self.mainWindow = mainWindow
     super.init()
 
-    UserDefaults.standard.addObserver(self, forKeyPath: PK.compactUI.rawValue, context: nil)
+    AppEnvironment.defaults.addObserver(self, forKeyPath: PK.compactUI.rawValue, context: nil)
   }
 
   override func observeValue(forKeyPath keyPath: String?, of object: Any?, change: [NSKeyValueChangeKey : Any]?, context: UnsafeMutableRawPointer?) {
