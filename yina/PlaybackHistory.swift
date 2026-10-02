@@ -8,14 +8,14 @@
 
 import Cocoa
 
-fileprivate let KeyUrl = "YINAPHUrl"
-fileprivate let KeyName = "YINAPHNme"
-fileprivate let KeyMpvMd5 = "YINAPHMpvmd5"
-fileprivate let KeyPlayed = "YINAPHPlayed"
-fileprivate let KeyAddedDate = "YINAPHDate"
-fileprivate let KeyDuration = "YINAPHDuration"
-fileprivate let KeyTitle = "YINAPHTitle"
-fileprivate let KeyBookmark = "YINAPHBookmark"
+fileprivate let KeyUrl = "IINAPHUrl"
+fileprivate let KeyName = "IINAPHNme"
+fileprivate let KeyMpvMd5 = "IINAPHMpvmd5"
+fileprivate let KeyPlayed = "IINAPHPlayed"
+fileprivate let KeyAddedDate = "IINAPHDate"
+fileprivate let KeyDuration = "IINAPHDuration"
+fileprivate let KeyTitle = "IINAPHTitle"
+fileprivate let KeyBookmark = "IINAPHBookmark"
 
 /// An entry in the playback history file.
 /// - Important: This class conforms to [NSSecureCoding](https://developer.apple.com/documentation/foundation/nssecurecoding).
@@ -24,6 +24,16 @@ class PlaybackHistory: NSObject, NSSecureCoding {
 
   /// Indicate this class supports secure coding.
   static var supportsSecureCoding: Bool { true }
+
+  /// Write upstream IINA's archive identity and field keys; the app name is independent.
+  static func encodeArchive(_ entries: [PlaybackHistory]) throws -> Data {
+    let encoder = NSKeyedArchiver(requiringSecureCoding: true)
+    encoder.setClassName("IINA.PlaybackHistory", for: PlaybackHistory.self)
+    encoder.encode(entries, forKey: NSKeyedArchiveRootObjectKey)
+    encoder.finishEncoding()
+    if let error = encoder.error { throw error }
+    return encoder.encodedData
+  }
 
   /// Keep IINA and earlier yina archives readable after the Swift module rename.
   static func decodeArchive(_ data: Data) throws -> [PlaybackHistory]? {
@@ -75,7 +85,7 @@ class PlaybackHistory: NSObject, NSSecureCoding {
 
   required init?(coder aDecoder: NSCoder) {
     func archiveKey(_ current: String) -> String {
-      aDecoder.containsValue(forKey: current) ? current : current.replacingOccurrences(of: "YINAPH", with: "IINAPH")
+      aDecoder.containsValue(forKey: current) ? current : current.replacingOccurrences(of: "IINAPH", with: "YINAPH")
     }
     guard
       let url = aDecoder.decodeObject(of: NSURL.self, forKey: archiveKey(KeyUrl)),

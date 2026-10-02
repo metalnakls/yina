@@ -74,7 +74,7 @@ class HistoryController: NSObject {
     do {
       try $history.withLock { history in
         log("Saving \(history.count) playback history entries")
-        let data = try NSKeyedArchiver.archivedData(withRootObject: history, requiringSecureCoding: true)
+        let data = try PlaybackHistory.encodeArchive(history)
         try data.write(to: plistURL, options: [.atomic])
         log("Saved \(history.count) playback history entries")
       }
