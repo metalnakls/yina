@@ -198,7 +198,7 @@ class OpenURLWindowController: NSWindowController, NSWindowDelegate {
     window.contentView = hostingView
     window.contentMinSize = NSSize(width: 576, height: 257)
     window.collectionBehavior.insert(.fullScreenNone)
-    window.setFrameAutosaveName("YINAOpenURLWindow")
+    if !AppEnvironment.isCleanStart { window.setFrameAutosaveName("YINAOpenURLWindow") }
     window.isReleasedWhenClosed = false
     self.window = window
   }

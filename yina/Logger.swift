@@ -134,7 +134,8 @@ class Logger: NSObject {
 
   static let logDirectory: URL = {
     // get path
-    let libraryPaths = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask)
+    let libraryPaths = AppEnvironment.temporaryRoot.map { [$0] }
+      ?? FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask)
     guard let libraryPath = libraryPaths.first else {
       fatalDuringInit("Cannot get path to Logs directory: \(libraryPaths)")
     }

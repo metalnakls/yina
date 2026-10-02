@@ -22,5 +22,5 @@
 /* Class = "NSButtonCell"; title = "Credits"; ObjectID = "zCH-uO-acx"; */
 "zCH-uO-acx.title" = "Készítők";
 
-/* Class = "NSTextFieldCell"; title = "YINA localization is powered by Crowdin."; ObjectID = "HLj-vT-kNp"; */
-"HLj-vT-kNp.title" = "Az YINA lokalizálása a Crowdin segítségével történik.";
+/* Class = "NSTextFieldCell"; title = "yina localization is powered by Crowdin."; ObjectID = "HLj-vT-kNp"; */
+"HLj-vT-kNp.title" = "Az yina lokalizálása a Crowdin segítségével történik.";

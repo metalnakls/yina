@@ -247,6 +247,9 @@ class MPVController: NSObject {
   func mpvInit() {
     // Create a new mpv instance and an associated client API handle to control the mpv instance.
     mpv = mpv_create()
+    if AppEnvironment.isCleanStart {
+      chkErr(setOptionString("config", "no", level: .verbose))
+    }
 
     // User default settings
 
@@ -812,7 +815,7 @@ class MPVController: NSObject {
   private func removeOptionObservers() {
     ObjcUtils.silenced {
       self.optionObservers.forEach { (k, _) in
-        UserDefaults.standard.removeObserver(self, forKeyPath: k)
+        AppEnvironment.defaults.removeObserver(self, forKeyPath: k)
       }
     }
   }
@@ -1777,7 +1780,7 @@ class MPVController: NSObject {
     }
 
     if sync {
-      UserDefaults.standard.addObserver(self, forKeyPath: keyRawValue, options: [.new, .old], context: nil)
+      AppEnvironment.defaults.addObserver(self, forKeyPath: keyRawValue, options: [.new, .old], context: nil)
       if optionObservers[keyRawValue] == nil {
         optionObservers[keyRawValue] = []
       }

@@ -2,9 +2,9 @@
 <img height="256" src="https://github.com/iina/iina/raw/master/yina/Assets.xcassets/AppIcon.appiconset/icon_512x512.png">
 </p>
 
-<h1 align="center">YINA</h1>
+<h1 align="center">yina</h1>
 
-<p align="center">YINA is the <b>modern</b> video player for macOS.</p>
+<p align="center">yina is the <b>modern</b> video player for macOS.</p>
 
 <p align="center">
 <a href="https://iina.io/">Website</a> ·
@@ -129,3 +129,17 @@ YINA is always looking for contributions, whether it's through bug reports, code
 > 💡 **Want to build your own plugin?**
 >
 > Explore the existing plugins listed here to learn how they work. If you create a new plugin or improve an existing one, feel free to contribute back by adding it to this list via a pull request.
+
+### First launch and clean testing
+
+On its first normal launch, yina imports settings and application data from an existing IINA profile. If multiple profiles exist, choose one or skip the import. Later launches do not scan again. Existing yina settings and files take precedence.
+
+The bundled defaults reflect the preferred playback and appearance settings; they contain no accounts, servers, recent files, or local paths.
+
+To test with factory defaults and no saved data, launch a separate instance:
+
+```sh
+open -n /Applications/yina.app --args --clean-start
+```
+
+Each clean start uses a new temporary profile. It skips importing IINA, saved history, installed plugins, server credentials, and external mpv configuration. Changes in that session are discarded and never update your normal yina profile.

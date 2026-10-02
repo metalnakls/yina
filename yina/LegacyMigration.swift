@@ -42,10 +42,11 @@ class LegacyMigration {
    for these keys.
    */
   func migrateLegacyPreferences() {
+    guard !AppEnvironment.isCleanStart else { return }
     Logger.log("Looking for legacy color prefs to migrate")
 
     let appID = InfoDictionary.shared.bundleIdentifier
-    guard let persistedPrefKeys = UserDefaults.standard.persistentDomain(forName: appID)?.keys else {
+    guard let persistedPrefKeys = AppEnvironment.defaults.persistentDomain(forName: appID)?.keys else {
       Logger.log("Aborting legacy color prefs migration: failed to find prefs domain for \"\(appID)\"!", level: .error)
       return
     }
@@ -95,8 +96,9 @@ class LegacyMigration {
   /// If this function finds `enableToneMappingTargetPeakOverride` has not been set it will set the value of the new settings
   /// appropriately based on the value of the legacy `toneMappingTargetPeak` setting.
   func migrateToneMappingTargetPeak() {
+    guard !AppEnvironment.isCleanStart else { return }
     let appID = InfoDictionary.shared.bundleIdentifier
-    guard let persistedPrefKeys = UserDefaults.standard.persistentDomain(forName: appID)?.keys else {
+    guard let persistedPrefKeys = AppEnvironment.defaults.persistentDomain(forName: appID)?.keys else {
       // Internal error, should not occur.
       Logger.log("""
         Aborting legacy tone mapping target peak setting migration: failed to find settings domain \

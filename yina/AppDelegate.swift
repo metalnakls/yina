@@ -23,6 +23,11 @@ fileprivate let AlternativeMenuItemTag = 1
 @NSApplicationMain
 class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
 
+  override init() {
+    super.init()
+    AppEnvironment.prepareCleanStart()
+  }
+
   /// The `AppDelegate` singleton object.
   static var shared: AppDelegate { NSApp.delegate as! AppDelegate }
 
@@ -84,6 +89,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
 
   private func getReady() {
     menuController.bindMenuItems()
+    if AppEnvironment.isCleanStart {
+      NSApp.mainMenu?.items.forEach { $0.submenu?.item(withTag: 901)?.isHidden = true }
+    }
     PlayerCore.loadKeyBindings()
     isReady = true
   }
@@ -180,10 +188,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
 
   func applicationWillFinishLaunching(_ notification: Notification) {
     // Must setup preferences before logging so log level is set correctly.
+    IdentityMigration.shared.migrateLegacyIdentityIfNeeded()
     registerUserDefaultValues()
 
     observedPrefKeys.forEach { key in
-      UserDefaults.standard.addObserver(self, forKeyPath: key.rawValue, options: .new, context: nil)
+      AppEnvironment.defaults.addObserver(self, forKeyPath: key.rawValue, options: .new, context: nil)
     }
 
     // Start the log file by logging the version of YINA producing the log file.
@@ -224,7 +233,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
 
     // Workaround macOS Sonoma clearing the recent documents list when the YINA code is not signed
     // with YINA's certificate as is the case for developer and nightly builds.
-    restoreRecentDocuments()
+    if !AppEnvironment.isCleanStart { restoreRecentDocuments() }
 
     // register for url event
     NSAppleEventManager.shared().setEventHandler(self, andSelector: #selector(self.handleURLEvent(event:withReplyEvent:)), forEventClass: AEEventClass(kInternetEventClass), andEventID: AEEventID(kAEGetURL))
@@ -244,10 +253,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     }
 
     // Hide Window > "Enter Full Screen" menu item, because this is already present in the Video menu
-    UserDefaults.standard.set(false, forKey: "NSFullScreenMenuItemEverywhere")
+    AppEnvironment.defaults.set(false, forKey: "NSFullScreenMenuItemEverywhere")
 
     // Install plugins
-    if FirstRunManager.isFirstRun(for: .init("installedDefaultPlugins")) {
+    if !AppEnvironment.isCleanStart, FirstRunManager.isFirstRun(for: .init("installedDefaultPlugins")) {
       var hasError = false
       Logger.log("Installing default plugins")
       if let pluginPath = Bundle.main.resourcePath?.appending("/plugins"),
@@ -282,7 +291,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     }
 
     // handle arguments
-    let arguments = ProcessInfo.processInfo.arguments.dropFirst()
+    let arguments = ProcessInfo.processInfo.arguments.dropFirst().filter { $0 != "--clean-start" }
     guard arguments.count > 0 else { return }
 
     var yinaArgs: [String] = []
@@ -333,7 +342,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
   deinit {
     ObjcUtils.silenced {
       for key in self.observedPrefKeys {
-        UserDefaults.standard.removeObserver(self, forKeyPath: key.rawValue)
+        AppEnvironment.defaults.removeObserver(self, forKeyPath: key.rawValue)
       }
     }
   }
@@ -726,6 +735,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
   func applicationWillTerminate(_ notification: Notification) {
     Logger.log("App will terminate")
     Logger.closeLogFile()
+    AppEnvironment.finishCleanStart()
   }
 
   /**
@@ -1069,7 +1079,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
   }
 
   private func registerUserDefaultValues() {
-    UserDefaults.standard.register(defaults: [String: Any](uniqueKeysWithValues: Preference.defaultPreference.map { ($0.0.rawValue, $0.1) }))
+    AppEnvironment.defaults.register(defaults: [String: Any](uniqueKeysWithValues: Preference.defaultPreference.map { ($0.0.rawValue, $0.1) }))
   }
 
   // MARK: - FFmpeg version parsing
@@ -1125,6 +1135,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
   /// - Parameter sender: The object that initiated the clearing of the recent documents.
   @IBAction
   func clearRecentDocuments(_ sender: Any?) {
+    guard !AppEnvironment.isCleanStart else { return }
     NSDocumentController.shared.clearRecentDocuments(sender)
     saveRecentDocuments()
   }
@@ -1136,6 +1147,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
   /// information..
   /// - Parameter url: The URL to evaluate.
   func noteNewRecentDocumentURL(_ url: URL) {
+    guard !AppEnvironment.isCleanStart else { return }
     NSDocumentController.shared.noteNewRecentDocumentURL(url)
     saveRecentDocuments()
   }
@@ -1221,6 +1233,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
   /// `restoreRecentDocuments` and the issue [#4688](https://github.com/iina/iina/issues/4688) for more
   /// information..
   func saveRecentDocuments() {
+    guard !AppEnvironment.isCleanStart else { return }
     guard Preference.bool(for: .enableRecentDocumentsWorkaround) else { return }
     var recentDocuments: [Any] = []
     for document in NSDocumentController.shared.recentDocumentURLs {

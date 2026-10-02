@@ -298,19 +298,19 @@ fileprivate class SubtitlesFontView: SettingsAccessory.Base {
     let widthConstraint = fontButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 120)
     widthConstraint.priority = .defaultLow
     widthConstraint.isActive = true
-    fontButton.bind(.title, to: UserDefaults.standard, withKeyPath: Preference.Key.subTextFont.rawValue)
+    fontButton.bind(.title, to: AppEnvironment.defaults, withKeyPath: Preference.Key.subTextFont.rawValue)
     fontButton.size(height: 25)
 
     let boldButton = SButton(image: .sf("bold"))
     boldButton.translatesAutoresizingMaskIntoConstraints = false
     boldButton.setButtonType(.toggle)
-    boldButton.bind(.value, to: UserDefaults.standard, withKeyPath: Preference.Key.subBold.rawValue)
+    boldButton.bind(.value, to: AppEnvironment.defaults, withKeyPath: Preference.Key.subBold.rawValue)
     boldButton.size(width: 32, height: 25)
 
     let italicButton = SButton(image: .sf("italic"))
     italicButton.translatesAutoresizingMaskIntoConstraints = false
     italicButton.setButtonType(.toggle)
-    italicButton.bind(.value, to: UserDefaults.standard, withKeyPath: Preference.Key.subItalic.rawValue)
+    italicButton.bind(.value, to: AppEnvironment.defaults, withKeyPath: Preference.Key.subItalic.rawValue)
     italicButton.size(width: 32, height: 25)
 
     let stackView = ui.hStack(fontButton, boldButton, italicButton)
@@ -473,7 +473,7 @@ fileprivate class SubtitlesAlignView: SettingsAccessory.Base {
       popupButton.addItem(withTitle: title)
       popupButton.lastItem?.tag = tag
     }
-    popupButton.bind(.selectedTag, to: UserDefaults.standard, withKeyPath: key.rawValue)
+    popupButton.bind(.selectedTag, to: AppEnvironment.defaults, withKeyPath: key.rawValue)
     return popupButton
   }
 }
@@ -522,7 +522,7 @@ fileprivate class SubtitleSourceView: SettingsAccessory.Base {
   override init() {
     self.subSourcePopUpButton = NSPopUpButton()
     subSourcePopUpButton.translatesAutoresizingMaskIntoConstraints = false
-    subSourcePopUpButton.bind(.selectedObject, to: UserDefaults.standard, withKeyPath: Preference.Key.onlineSubProvider.rawValue)
+    subSourcePopUpButton.bind(.selectedObject, to: AppEnvironment.defaults, withKeyPath: Preference.Key.onlineSubProvider.rawValue)
     self.subSourceStackView = nil
     self.loginIndicator = NSProgressIndicator()
     loginIndicator.translatesAutoresizingMaskIntoConstraints = false

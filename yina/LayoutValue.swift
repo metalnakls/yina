@@ -26,12 +26,12 @@ struct LayoutValue {
 
     override init() {
       super.init()
-      UserDefaults.standard.addObserver(
+      AppEnvironment.defaults.addObserver(
         self, forKeyPath: Preference.Key.compactUI.rawValue, options: [.new], context: nil)
     }
 
     deinit {
-      UserDefaults.standard.removeObserver(self, forKeyPath: Preference.Key.compactUI.rawValue)
+      AppEnvironment.defaults.removeObserver(self, forKeyPath: Preference.Key.compactUI.rawValue)
     }
 
     override func observeValue(forKeyPath keyPath: String?, of object: Any?, change: [NSKeyValueChangeKey : Any]?, context: UnsafeMutableRawPointer?) {

@@ -30,7 +30,7 @@
 "guide.faq" = "سوالات متداول";
 
 // Initial Window
-"initial.announcement" = "شما در حال استفاده از نسخه %@ برنامه YINA میباشید";
+"initial.announcement" = "شما در حال استفاده از نسخه %@ برنامه yina میباشید";
 "initial.beta.desc" = "تیک گزینه‌ی “دریافت بروزرسانی‌های بتا” را از بخش تنظیمات - عمومی بردارید و یک نسخه‌ی پایدار را از <a href=\"https://iina.io\">سایت رسمی ما</a> نصب کنید.";
 "initial.nightly.desc" = "نسخه‌های «بیلد شبانه» برای استفاده روزمره پیشنهاد نمی‌شود. این نسخه‌ها درحال حاضر از بروزرسانی خودکار پشتیبانی نمی‌کنند. لطفا برای دریافت دستی جدیدترین بروزرسانی این نسخه‌ها، به <a href=\"https://nightly.iina.io\"> وبسایت ما</a> مراجعه فرمایید.";
 "initial.debug.desc" = "نسخه‌های دیباگ معمولا به‌طور کامل بهینه‌سازی نشده‌اند، پس برای استفاده روزمره پیشنهاد نمی‌شوند. نسخه‌های دیباگ از بروزرسانی خودکار نیز پیشتیبانی نمی‌کنند.";
@@ -304,8 +304,8 @@
 "alert.sub.cannot_login" = "Cannot login. Please check your username, password and network status.\n\n%@";
 "alert.sub.save_downloaded.title" = "ذخیره زیرنویس دانلود شده";
 
-"alert.set_default.title" = "ذخیره YINA به عنوان اپ پیشفرض";
-"alert.set_default.message" = "YINA will be set as the default app for all file types it supports.";
+"alert.set_default.title" = "ذخیره yina به عنوان اپ پیشفرض";
+"alert.set_default.message" = "yina will be set as the default app for all file types it supports.";
 "alert.set_default.success" = "اتمام با %d موفق و %d خطا.";
 
 "alert.add_watch.title" = "Add Watch Property";
@@ -479,7 +479,7 @@
 "plugin.install_error.file_not_found" = "Cannot find the package file.";
 "plugin.install_error.cannot_download" = "Failed to download the plugin.\n\nOutput:%@\n";
 "plugin.install_error.cannot_unpackage" = "Failed to unpackage the plugin.\n\nOutput:%@\n";
-"plugin.install_error.cannot_load" = "YINA cannot load this plugin. It might be in the wrong format.";
+"plugin.install_error.cannot_load" = "yina cannot load this plugin. It might be in the wrong format.";
 "plugin.check_for_updates" = "Check for Updates";
 "plugin.updating" = "Downloading update…";
 
@@ -613,7 +613,7 @@
 "settings.pauseWhenOpen.label" = "مکث";
 "settings.pauseresumeWhen" = "Pause/resume when";
 "settings.playWhenEnteringFullScreen.label" = "Play when entered full screen";
-"settings.playlistAutoAdd.desc" = "برای اعمال تغییرات باید YINA را بازاجرا کنید.";
+"settings.playlistAutoAdd.desc" = "برای اعمال تغییرات باید yina را بازاجرا کنید.";
 "settings.playlistAutoAdd.label" = "فایل ها را در همان فولدر اضافه کن";
 "settings.playlistAutoPlayNext.label" = "پخش آیتم بعدی به صورت خودکار";
 "settings.playlistShowMetadata.label" = "Show artist and track name for audio files when available";
@@ -653,7 +653,7 @@
 "settings.loadIccProfile.desc" = "Load the ICC profile for current display and use it to transform video RGB to screen output. (Only for SDR mode)";
 "settings.loadIccProfile.label" = "Load ICC profile";
 "settings.toneMappingAlgorithm.label" = "Algorithm";
-"settings.toneMappingTargetPeak.desc" = "Measured peak brightness of the display. By default YINA detects this value. If detection fails, target peak will be set to an appropriate value based on the transfer characteristics of the display. Enable this setting to manually specify the display's brightness.";
+"settings.toneMappingTargetPeak.desc" = "Measured peak brightness of the display. By default yina detects this value. If detection fails, target peak will be set to an appropriate value based on the transfer characteristics of the display. Enable this setting to manually specify the display's brightness.";
 "settings.toneMappingTargetPeak.label" = "Target peak";
 "settings.videoThreads.desc" = "پیشفرض: ۰ (خودکار)";
 "settings.videoThreads.label" = "تعداد پردازه ها";
@@ -768,11 +768,11 @@
 "settings.ytdlEnabled.label" = "Enable mpv's youtube-dl script";
 "settings.ytdlRawOptions.desc" = "Format <key>=<value>[,<key>=<value>[,…]]";
 "settings.ytdlRawOptions.label" = "تنظیمات خام";
-"settings.ytdlSearchPath.desc" = "YINA ٬ youtube-dl را در این پوشه جستجو خواهد کرد. نیازمند restart.";
+"settings.ytdlSearchPath.desc" = "yina ٬ youtube-dl را در این پوشه جستجو خواهد کرد. نیازمند restart.";
 "settings.ytdlSearchPath.label" = "مسیر سفارشی YouTube-dl";
 
 // Settings - Subtitles
-"settings.autoSearchOnlineSub.desc" = "If enabled, YINA will automatically search online subtitles only for videos without loaded subtitles and longer than 20 minutes.";
+"settings.autoSearchOnlineSub.desc" = "If enabled, yina will automatically search online subtitles only for videos without loaded subtitles and longer than 20 minutes.";
 "settings.autoSearchOnlineSub.label" = "جستجوی خودکار آنلاین زیرنویس ها";
 "settings.displayInLetterBox.label" = "در حالت تمام صفحه زیرنویس‌ها را در جعبه نامه نمایش دهد";
 "settings.subAlignX.items.0" = "چپ";
@@ -783,7 +783,7 @@
 "settings.subAlignY.items.2" = "پایین";
 "settings.subAutoLoadYINA.items.0" = "غیر‌فعال";
 "settings.subAutoLoadYINA.items.1" = "زیرنویس های شامل اسم فایل مدیا";
-"settings.subAutoLoadYINA.items.2" = "انتخاب توسط هوش مصنوعی YINA";
+"settings.subAutoLoadYINA.items.2" = "انتخاب توسط هوش مصنوعی yina";
 "settings.subAutoLoadYINA.label" = "Auto load";
 "settings.subAutoLoadPriorityString.desc" = "لطفا یک لیست جدا شده توسط دو نقطه را وارد کنید.";
 "settings.subAutoLoadPriorityString.label" = "زیرنویس ها اولویت دارند وقتی نام فایل شامل این بود";
@@ -822,7 +822,7 @@
 "settings.arrowBtnAction.label" = "استفاده از کلید راست/چپ برای";
 "settings.controlBarAutoHideTimeout.label" = "Auto hide after";
 "settings.controlBarStickToCenter.label" = "ضربه به مرکز هنگام کشیدن";
-"settings.disableAnimations.desc" = "هنگامی که تنظیمات کاهش حرکات دسترسی پذیری مک او اس فعال شده است، YINA انیمیشن های رابط کاربری را که برای کاربران دارای اختلالات دهلیزی مشکل زا شناخته شده اند را کاهش خواهد داد. در صورتی که کافی نبود، این تنظیمات برای حذف کامل انیمیشن های رابط کاربری قابل استفاده خواهد بود.";
+"settings.disableAnimations.desc" = "هنگامی که تنظیمات کاهش حرکات دسترسی پذیری مک او اس فعال شده است، yina انیمیشن های رابط کاربری را که برای کاربران دارای اختلالات دهلیزی مشکل زا شناخته شده اند را کاهش خواهد داد. در صورتی که کافی نبود، این تنظیمات برای حذف کامل انیمیشن های رابط کاربری قابل استفاده خواهد بود.";
 "settings.disableAnimations.label" = "غیرفعالسازی انیمیشن ها";
 "settings.disableOSDFileStartMsg.label" = "شروع فایل";
 "settings.disableOSDPauseResumeMsgs.label" = "مکث/ادامه";
@@ -866,7 +866,7 @@
 "settings.windowBehaviorWhenPip.label" = "پنجره";
 
 // Settings - Advanced
-"settings.enableAdvancedSettings.desc" = "برای اعمال این تغییرات در YINA برنامه باید دوباره اجرا شود.";
+"settings.enableAdvancedSettings.desc" = "برای اعمال این تغییرات در yina برنامه باید دوباره اجرا شود.";
 "settings.enableAdvancedSettings.label" = "فعال‌سازی تنظیمات پیشرفته";
 "settings.enableLogging.label" = "فعال کردن لاگ";
 "settings.logLevel.desc" = "View logs by choosing Window - Log Viewer from the menu.";
@@ -922,7 +922,7 @@
 "settings.$FailedToLoadThePage" = "Failed to load the page.";
 "settings.$Firefox" = "مرورگر Firefox";
 "settings.$Font" = "فونت";
-"settings.$GetBrowserExtensionsForYINA" = "دریافت افرونه مرورگر YINA";
+"settings.$GetBrowserExtensionsForYINA" = "دریافت افرونه مرورگر yina";
 "settings.$GetPlugins" = "Get Plugins…";
 "settings.$Hardware" = "Hardware";
 "settings.$Height" = "ارتفاع";
@@ -957,7 +957,7 @@
 "settings.$OnScreenController" = "نمایش کنترلر";
 "settings.$OnScreenDisplay" = "بر روی صفحه نمايش";
 "settings.$OnlineSubtitles" = "زیرنویس‌های آنلاین";
-"settings.$OpenLinksOrCurrentWebpage" = "بازکردن لینک ها یا صفحات وب جاري در YINA با یک کلیک. وبسایت باید از YouTube-dl پشتیبانی کند.";
+"settings.$OpenLinksOrCurrentWebpage" = "بازکردن لینک ها یا صفحات وب جاري در yina با یک کلیک. وبسایت باید از YouTube-dl پشتیبانی کند.";
 "settings.$OpenLogDirectory" = "Open Log Directory";
 "settings.$OpenLogWindow" = "Open the log viewer";
 "settings.$OrSelectFrom" = "Or select from available plugins";
@@ -967,7 +967,7 @@
 "settings.$Percent" = "%";
 "settings.$PictureinnPicture" = "تصویر در تصویر";
 "settings.$Playlist" = "فهرست پخش";
-"settings.$PleaseSelectTheMediaTypes" = "نوع رسانه‌ای که تمایل دارید به صورت پیش‌فرض توسط YINA باز شود را انتخاب کنید.";
+"settings.$PleaseSelectTheMediaTypes" = "نوع رسانه‌ای که تمایل دارید به صورت پیش‌فرض توسط yina باز شود را انتخاب کنید.";
 "settings.$Position" = "موقعیت";
 "settings.$PreferredLanguage" = "زبان‌ ترجیحی";
 "settings.$RestoreAlerts" = "بازیابی هشدار ها";
@@ -977,7 +977,7 @@
 "settings.$SPDIFOutputWarning" = "List of codecs for which compressed audio passthrough should be used.\n\nWarning: There is not much reason to use this setting. HDMI supports uncompressed multichannel PCM, and lossless DTS-HD decoding is supported via FFmpeg's DCA decoder. Playback may not start if the output device does not support S/PDIF and this setting is enabled.";
 "settings.$Safari" = "Safari";
 "settings.$Screenshots" = "عکس‌های صفحه";
-"settings.$SetYINAAsTheDefault" = "Set YINA as the Default Application";
+"settings.$SetYINAAsTheDefault" = "Set yina as the Default Application";
 "settings.$Settings" = "تنظیمات";
 "settings.$Shadow" = "سایه";
 "settings.$ShowInFinder" = "نشان دادن در Finder";
@@ -1020,4 +1020,4 @@
 "settings.$sideOfTheScreen" = "کنار صفحه نمایش";
 "settings.$toThe" = "به";
 "settings.$top" = "بالا";
-"settings.$ytdlWarning" = "The Online Media plugin has additional features such as switching quality and video downloading. YINA will use the plugin if it's installed and enabled. The settings below only work if the plugin is not available.";
+"settings.$ytdlWarning" = "The Online Media plugin has additional features such as switching quality and video downloading. yina will use the plugin if it's installed and enabled. The settings below only work if the plugin is not available.";

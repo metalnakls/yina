@@ -700,7 +700,7 @@ class MainWindowController: PlayerWindowController {
     // add user default observers
     observedPrefKeys.append(contentsOf: localObservedPrefKeys)
     localObservedPrefKeys.forEach { key in
-      UserDefaults.standard.addObserver(self, forKeyPath: key.rawValue, options: .new, context: nil)
+      AppEnvironment.defaults.addObserver(self, forKeyPath: key.rawValue, options: .new, context: nil)
     }
 
     // add notification observers
@@ -1223,7 +1223,7 @@ class MainWindowController: PlayerWindowController {
       // sidebar handled it (resize finish or click-outside-to-dismiss)
     } else {
       if event.clickCount == 2 && event.inAnyOf([titleBarView]) {
-        let userDefault = UserDefaults.standard.string(forKey: "AppleActionOnDoubleClick")
+        let userDefault = AppEnvironment.defaults.string(forKey: "AppleActionOnDoubleClick")
         if userDefault == "Minimize" {
           window?.performMiniaturize(nil)
         } else if userDefault == "Maximize" {
@@ -1481,7 +1481,7 @@ class MainWindowController: PlayerWindowController {
     guard let w = self.window, let cv = w.contentView else { return }
     cv.trackingAreas.forEach(cv.removeTrackingArea)
     playSlider.trackingAreas.forEach(playSlider.removeTrackingArea)
-    UserDefaults.standard.set(NSStringFromRect(window!.frame), forKey: "MainWindowLastPosition")
+    AppEnvironment.defaults.set(NSStringFromRect(window!.frame), forKey: "MainWindowLastPosition")
     // Reset default visibilities
     thumbnailPeekView.isHidden = true
     timePreviewView.isHidden = true
@@ -2326,7 +2326,7 @@ class MainWindowController: PlayerWindowController {
       NSScreen.log("Window is currently showing on screen", currentScreen, subsystem: subsystem)
       return currentScreen
     }
-    guard let rectString = UserDefaults.standard.value(forKey: "MainWindowLastPosition") as? String else {
+    guard let rectString = AppEnvironment.defaults.value(forKey: "MainWindowLastPosition") as? String else {
       let selected = window.selectDefaultScreen()
       NSScreen.log("MainWindowLastPosition not found, using default screen", selected,
                    subsystem: subsystem)
@@ -2939,7 +2939,7 @@ class MainWindowController: PlayerWindowController {
       let (videoWidth, videoHeight) = player.videoSizeForDisplay
       let displayAspectRatio = CGFloat(videoWidth) / CGFloat(videoHeight)
 
-      let width = CGFloat(UserDefaults.standard.integer(forKey: "thumbnailWidth"))
+      let width = CGFloat(AppEnvironment.defaults.integer(forKey: "thumbnailWidth"))
       let height = round(width / displayAspectRatio)
       let showAbove = canShowThumbnailAbove(timePreviewYPos: timePreviewView.frame.origin.y, thumbnailHeight: height)
       let yPos = if showAbove {

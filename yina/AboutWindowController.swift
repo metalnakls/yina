@@ -26,7 +26,7 @@ private enum AboutLocalizedString {
   static let contributors = value("XWg-VQ-fRV.title", fallback: "Contributors")
   static let credits = value("zCH-uO-acx.title", fallback: "Credits")
   static let translators = value("JlJ-V6-PVY.title", fallback: "Translators:")
-  static let localizationCredit = value("HLj-vT-kNp.title", fallback: "YINA localization is powered by Crowdin.")
+  static let localizationCredit = value("HLj-vT-kNp.title", fallback: "yina localization is powered by Crowdin.")
 
   private static func value(_ key: String, fallback: String) -> String {
     NSLocalizedString(key, tableName: "AboutWindowController", bundle: .main, value: fallback, comment: "")
@@ -176,7 +176,7 @@ private struct AboutWindowView: View {
         .frame(width: 80, height: 80)
         .padding(.top, 40)
 
-      Text("YINA")
+      Text("yina")
         .font(.system(size: 24, weight: .light))
         .padding(.top, 8)
 

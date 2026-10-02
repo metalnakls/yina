@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+        A1B2C3D40000000000000001 /* AppEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000002 /* AppEnvironment.swift */; };
+        A1B2C3D40000000000000003 /* DefaultPreferences.plist in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000004 /* DefaultPreferences.plist */; };
 		B4E1C40EA8EE02AB20CD9D59 /* libSvtAv1Enc.4.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = AA11E2A8DC729CC0CD27F6A4 /* libSvtAv1Enc.4.dylib */; };
 		0DB2A81284756BAAE95643A7 /* libSvtAv1Enc.4.dylib in Copy Dylibs */ = {isa = PBXBuildFile; fileRef = AA11E2A8DC729CC0CD27F6A4 /* libSvtAv1Enc.4.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		446EC6E3A0CB1C191E3013B7 /* libarchive.13.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 7B4D5752C79E27560260C162 /* libarchive.13.dylib */; };
@@ -524,6 +526,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+        A1B2C3D40000000000000002 /* AppEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppEnvironment.swift; sourceTree = "<group>"; };
+        A1B2C3D40000000000000004 /* DefaultPreferences.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = DefaultPreferences.plist; sourceTree = "<group>"; };
 		AA11E2A8DC729CC0CD27F6A4 /* libSvtAv1Enc.4.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = "libSvtAv1Enc.4.dylib"; path = "deps/lib/libSvtAv1Enc.4.dylib"; sourceTree = "<group>"; };
 		7B4D5752C79E27560260C162 /* libarchive.13.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = "libarchive.13.dylib"; path = "deps/lib/libarchive.13.dylib"; sourceTree = "<group>"; };
 		6E8F0295BA3C410B2F1C0A16 /* libass.9.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = "libass.9.dylib"; path = "deps/lib/libass.9.dylib"; sourceTree = "<group>"; };
@@ -1807,6 +1811,8 @@
 				8450403F1E0ACADD0079C194 /* MPVNode.swift */,
 				842F55A41EA17E7E0081D475 /* YINACommand.swift */,
 				ID0A00000000000000000002 /* IdentityMigration.swift */,
+                A1B2C3D40000000000000002 /* AppEnvironment.swift */,
+                A1B2C3D40000000000000004 /* DefaultPreferences.plist */,
 				3412DB8D2C2FC64800BBC142 /* Equalizations.swift */,
 				51CA83E12E35AD6300A44B22 /* MPVAudioDevice.swift */,
 			);
@@ -2377,6 +2383,7 @@
 				1326717E20852D0D000FA7E2 /* SubChooseViewController.xib in Resources */,
 				84C3AB8B1E7BF22300FEFB7A /* MPVCommandFormat.strings in Resources */,
 				84EB1EDC1D2F51D3004FA5A1 /* Assets.xcassets in Resources */,
+                A1B2C3D40000000000000003 /* DefaultPreferences.plist in Resources */,
 				A1C0DEC0A1C0DEC0A1C0DE02 /* AppIcon.icon in Resources */,
 				A1C0DEC0A1C0DEC0A1C0DE04 /* AppIconBeta.icon in Resources */,
 				A1C0DEC0A1C0DEC0A1C0DE06 /* AppIconDebug.icon in Resources */,
@@ -2689,6 +2696,7 @@
 				847557161F406D360006B0FF /* MiniPlayerWindowMenuActions.swift in Sources */,
 				842F55A51EA17E7E0081D475 /* YINACommand.swift in Sources */,
 				ID0A00000000000000000001 /* IdentityMigration.swift in Sources */,
+                A1B2C3D40000000000000001 /* AppEnvironment.swift in Sources */,
 				840D47981DFEEE6A000D9A64 /* KeyMapping.swift in Sources */,
 				84BEEC3F1DFEDE2F00F945CA /* KeyBindingConfiguration.swift in Sources */,
 			);

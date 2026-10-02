@@ -234,7 +234,7 @@ fileprivate class MPVOptionsEditor: SettingsAccessory.Base, NSTableViewDelegate,
 
   private func saveToUserDefaults() {
     Preference.set(options, for: .userOptions)
-    UserDefaults.standard.synchronize()
+    AppEnvironment.defaults.synchronize()
   }
 
   private static func parsePastedOption(_ string: String) -> [String]? {

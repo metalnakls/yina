@@ -30,7 +30,7 @@
 "guide.faq" = "よくある質問";
 
 // Initial Window
-"initial.announcement" = "YINAバージョン%@を使用しています";
+"initial.announcement" = "yinaバージョン%@を使用しています";
 "initial.beta.desc" = "リリースバージョンにロールバックする場合は、設定 > 一般 の \"ベータ版のアップデート通知を受け取る\" のチェックを外し、<a href=\"https://iina.io\">公式Webサイト</a> から安定版リリースをインストールしてください。";
 "initial.nightly.desc" = "Nightlyを常用することは推奨されません。Nightlyビルドは、現在自動アップデートに対応していません。新しいビルドは<a href=\"https://nightly.iina.io\">Nightly Webサイト</a>から手動でダウンロードしてください。";
 "initial.debug.desc" = "デバッグビルドは通常パフォーマンスが最適化されていないので、常用することは推奨されません。デバッグビルドは自動アップデートに対応していません。";
@@ -303,8 +303,8 @@
 "alert.sub.cannot_login" = "ログインできません。ユーザ名とパスワード、ネットワークの状況を確認してください。\n\n%@";
 "alert.sub.save_downloaded.title" = "ダウンロードした字幕を保存";
 
-"alert.set_default.title" = "YINAをデフォルトのアプリに設定";
-"alert.set_default.message" = "対応するすべてのファイル形式に、YINAをデフォルトのアプリとして設定します。";
+"alert.set_default.title" = "yinaをデフォルトのアプリに設定";
+"alert.set_default.message" = "対応するすべてのファイル形式に、yinaをデフォルトのアプリとして設定します。";
 "alert.set_default.success" = "完了しました（成功: %d件、失敗: %d件）。";
 
 "alert.add_watch.title" = "視聴プロパティを追加";
@@ -478,7 +478,7 @@
 "plugin.install_error.file_not_found" = "パッケージファイルが見つかりません。";
 "plugin.install_error.cannot_download" = "プラグインをダウンロードできませんでした。\n\n出力:%@\n";
 "plugin.install_error.cannot_unpackage" = "プラグインパッケージを展開できませんでした。\n\n出力:%@\n";
-"plugin.install_error.cannot_load" = "YINAはこのプラグインを読み込めません。フォーマットが正しくない可能性があります。";
+"plugin.install_error.cannot_load" = "yinaはこのプラグインを読み込めません。フォーマットが正しくない可能性があります。";
 "plugin.check_for_updates" = "アップデートを確認";
 "plugin.updating" = "アップデートをダウンロード中…";
 
@@ -612,7 +612,7 @@
 "settings.pauseWhenOpen.label" = "一時停止";
 "settings.pauseresumeWhen" = "次のとき再生を一時停止/再開";
 "settings.playWhenEnteringFullScreen.label" = "フルスクリーンにしたとき再生";
-"settings.playlistAutoAdd.desc" = "変更を有効にするにはYINAの再起動が必要です。";
+"settings.playlistAutoAdd.desc" = "変更を有効にするにはyinaの再起動が必要です。";
 "settings.playlistAutoAdd.label" = "同じフォルダに自動的にファイルを追加";
 "settings.playlistAutoPlayNext.label" = "次の項目を自動的に再生";
 "settings.playlistShowMetadata.label" = "利用可能なときはオーディオファイルのアーティスト名とトラック名を表示";
@@ -651,7 +651,7 @@
 "settings.loadIccProfile.desc" = "現在のディスプレイ用ICCプロファイルを読み込み、ビデオRGBを画面出力に変換するために使用します。（SDRモードに対してだけ）";
 "settings.loadIccProfile.label" = "ICCプロファイルを読み込む";
 "settings.toneMappingAlgorithm.label" = "アルゴリズム";
-"settings.toneMappingTargetPeak.desc" = "Measured peak brightness of the display. By default YINA detects this value. If detection fails, target peak will be set to an appropriate value based on the transfer characteristics of the display. Enable this setting to manually specify the display's brightness.";
+"settings.toneMappingTargetPeak.desc" = "Measured peak brightness of the display. By default yina detects this value. If detection fails, target peak will be set to an appropriate value based on the transfer characteristics of the display. Enable this setting to manually specify the display's brightness.";
 "settings.toneMappingTargetPeak.label" = "ターゲットピーク値";
 "settings.videoThreads.desc" = "デフォルト: 0 （自動）";
 "settings.videoThreads.label" = "スレッド数";
@@ -754,7 +754,7 @@
 "settings.defaultCacheSize.desc" = "デフォルト: 153,600";
 "settings.defaultCacheSize.label" = "キャッシュバッファのサイズ（KiB）";
 "settings.enableCache.label" = "ネットワークデータのプリフェッチとバッファリング";
-"settings.httpProxy.desc" = "有効にするにはYINAを再起動する必要があります。";
+"settings.httpProxy.desc" = "有効にするにはyinaを再起動する必要があります。";
 "settings.httpProxy.label" = "HTTPプロキシ";
 "settings.secPrefech.desc" = "デフォルト: 36,000";
 "settings.secPrefech.label" = "プリフェッチ秒数";
@@ -781,7 +781,7 @@
 "settings.subAlignY.items.2" = "下";
 "settings.subAutoLoadYINA.items.0" = "無効";
 "settings.subAutoLoadYINA.items.1" = "メディアのファイル名を含む字幕";
-"settings.subAutoLoadYINA.items.2" = "YINAによりインテリジェントに検出";
+"settings.subAutoLoadYINA.items.2" = "yinaによりインテリジェントに検出";
 "settings.subAutoLoadYINA.label" = "自動読み込み";
 "settings.subAutoLoadPriorityString.desc" = "文字列リストをカンマ区切りで入力してください。";
 "settings.subAutoLoadPriorityString.label" = "次の文字列をファイル名に含む字幕を優先";
@@ -864,7 +864,7 @@
 "settings.windowBehaviorWhenPip.label" = "ウインドウ";
 
 // Settings - Advanced
-"settings.enableAdvancedSettings.desc" = "以下の設定を有効にするには、YINAを再起動する必要があります。";
+"settings.enableAdvancedSettings.desc" = "以下の設定を有効にするには、yinaを再起動する必要があります。";
 "settings.enableAdvancedSettings.label" = "詳細設定を有効にする";
 "settings.enableLogging.label" = "ファイルへのログ記録を有効にする";
 "settings.logLevel.desc" = "メニューから ウインドウ > ログビューア を選択してログを表示します。";
@@ -878,7 +878,7 @@
 
 // Settings - Inline labels
 "settings.$ASSSubtitles" = "ASS字幕";
-"settings.$About" = "YINAについて";
+"settings.$About" = "yinaについて";
 "settings.$Accessibility" = "アクセシビリティ";
 "settings.$AdditionalMpvOptions" = "mpvの追加オプション";
 "settings.$AdditionalMpvOptions.desc" = "key=valueフォーマットのオプションをペーストすると、両方のフィールドに自動的に入力されます。";
@@ -920,7 +920,7 @@
 "settings.$FailedToLoadThePage" = "ページを読み込みできませんでした。";
 "settings.$Firefox" = "Firefox";
 "settings.$Font" = "フォント";
-"settings.$GetBrowserExtensionsForYINA" = "YINAのブラウザ拡張機能を使う";
+"settings.$GetBrowserExtensionsForYINA" = "yinaのブラウザ拡張機能を使う";
 "settings.$GetPlugins" = "プラグインを取得…";
 "settings.$Hardware" = "ハードウェア";
 "settings.$Height" = "高さ";
@@ -955,7 +955,7 @@
 "settings.$OnScreenController" = "オンスクリーンコントローラ";
 "settings.$OnScreenDisplay" = "オンスクリーンディスプレイ（OSD）";
 "settings.$OnlineSubtitles" = "オンライン字幕";
-"settings.$OpenLinksOrCurrentWebpage" = "ワンクリックで、リンク先や今開いているWebページをYINAで開くことができます。youtube-dlに対応したWebサイトでのみ動作します。";
+"settings.$OpenLinksOrCurrentWebpage" = "ワンクリックで、リンク先や今開いているWebページをyinaで開くことができます。youtube-dlに対応したWebサイトでのみ動作します。";
 "settings.$OpenLogDirectory" = "ログディレクトリを開く";
 "settings.$OpenLogWindow" = "ログビューアを開く";
 "settings.$OrSelectFrom" = "または利用可能なプラグインから選択";
@@ -965,7 +965,7 @@
 "settings.$Percent" = "%";
 "settings.$PictureinnPicture" = "ピクチャインピクチャ";
 "settings.$Playlist" = "プレイリスト";
-"settings.$PleaseSelectTheMediaTypes" = "YINAをデフォルトの再生アプリケーションに設定したいメディアの種類を選択してください。";
+"settings.$PleaseSelectTheMediaTypes" = "yinaをデフォルトの再生アプリケーションに設定したいメディアの種類を選択してください。";
 "settings.$Position" = "配置";
 "settings.$PreferredLanguage" = "優先言語";
 "settings.$RestoreAlerts" = "通知を復元";
@@ -977,7 +977,7 @@
 警告: この設定を使用する理由はあまりありません。HDMIは非圧縮マルチチャンネルPCMに対応しており、またロスレスDTS-HDもFFmpegのDCAデコーダでデコードすることができます。出力デバイスがS/PDIFに未対応の場合、この設定を有効にしていると、再生が始まらない可能性があります。";
 "settings.$Safari" = "Safari";
 "settings.$Screenshots" = "スクリーンショット";
-"settings.$SetYINAAsTheDefault" = "YINAをデフォルトのアプリケーションに設定";
+"settings.$SetYINAAsTheDefault" = "yinaをデフォルトのアプリケーションに設定";
 "settings.$Settings" = "設定";
 "settings.$Shadow" = "シャドウ";
 "settings.$ShowInFinder" = "Finderに表示";

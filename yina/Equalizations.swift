@@ -21,13 +21,13 @@ class EQProfile: Codable {
     didSet {
       let encoder = JSONEncoder()
       if let encoded = try? encoder.encode(userEQs) {
-        UserDefaults.standard.set(encoded, forKey: Preference.Key.userEQPresets.rawValue)
+        AppEnvironment.defaults.set(encoded, forKey: Preference.Key.userEQPresets.rawValue)
       }
     }
   }
 
   static func loadUserEQs() -> Dictionary<String, EQProfile> {
-    if let data = UserDefaults.standard.data(forKey: Preference.Key.userEQPresets.rawValue),
+    if let data = AppEnvironment.defaults.data(forKey: Preference.Key.userEQPresets.rawValue),
        let dict = try? JSONDecoder().decode(Dictionary<String, EQProfile>.self, from: data) {
       return dict
     }

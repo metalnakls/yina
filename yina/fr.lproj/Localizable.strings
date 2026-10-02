@@ -30,7 +30,7 @@
 "guide.faq" = "Questions fréquemment posées";
 
 // Initial Window
-"initial.announcement" = "Vous utilisez la version %@ d'YINA";
+"initial.announcement" = "Vous utilisez la version %@ d'yina";
 "initial.beta.desc" = "Si vous voulez revenir à une version officielle, décochez la case \"recevoir les versions bêta\" depuis Réglages > Général, et installez une version stable depuis <a href=\"https://iina.io\">notre site officiel</a>.";
 "initial.nightly.desc" = "Les versions de développement quotidiennes ne sont pas recommandées pour être utilisées en production. Les versions quotidiennes ne prennent pas actuellement en charge les mises à jour automatiques. Veuillez télécharger manuellement les dernières versions de notre site <a href=\"https://nightly.iina.io\">versions de développement quotidiennes</a>.";
 "initial.debug.desc" = "Les versions de débogage ne sont généralement pas optimisées pour les performances, donc il n'est pas recommandé d'être utilisé comme lecteur en production. Les versions de débogage ne prennent pas en charge la mise à jour automatique.";
@@ -283,7 +283,7 @@
 "alert.add_filter.title" = "Nouveau filtre";
 "alert.add_filter.message" = "Veuillez renseigner une chaîne de caractères au format de la commande vf ou af de mpv.";
 
-"alert.keybinding_config.error" = "Une erreur est survenue lors de la lecture du fichier de configuration des touches \"%@\" ! Utilisation de la configuration des touches par défaut d'YINA. Veuillez vérifier votre fichier configuration.";
+"alert.keybinding_config.error" = "Une erreur est survenue lors de la lecture du fichier de configuration des touches \"%@\" ! Utilisation de la configuration des touches par défaut d'yina. Veuillez vérifier votre fichier configuration.";
 "alert.delete_keybindingset.title" = "Supprimer l'ensemble de raccourcis clavier";
 "alert.delete_keybindingset.message" = "Êtes-vous sûr de vouloir supprimer cet ensemble de raccourcis clavier ?";
 
@@ -302,8 +302,8 @@
 "alert.sub.cannot_login" = "Impossible de se connecter. Veuillez vérifier votre nom d'utilisateur, votre mot de passe et votre connexion Internet.\n\n%@";
 "alert.sub.save_downloaded.title" = "Sauvegarder le sous-titre téléchargé";
 
-"alert.set_default.title" = "Définir YINA comme application par défaut";
-"alert.set_default.message" = "Tous les fichiers supportés par YINA seront dorénavant ouverts par défaut avec YINA.";
+"alert.set_default.title" = "Définir yina comme application par défaut";
+"alert.set_default.message" = "Tous les fichiers supportés par yina seront dorénavant ouverts par défaut avec yina.";
 "alert.set_default.success" = "Terminé avec %d succès et %d erreurs.";
 
 "alert.add_watch.title" = "Nouvelle propriété à observer";
@@ -477,7 +477,7 @@
 "plugin.install_error.file_not_found" = "Impossible de trouver le fichier du paquet.";
 "plugin.install_error.cannot_download" = "Impossible de télécharger le module externe.\n\nRésultat : %@\n";
 "plugin.install_error.cannot_unpackage" = "Impossible de décompresser le module externe.\n\nRésultat : %@\n";
-"plugin.install_error.cannot_load" = "YINA ne parvient pas à charger ce module externe. Il est peut-être dans un mauvais format.";
+"plugin.install_error.cannot_load" = "yina ne parvient pas à charger ce module externe. Il est peut-être dans un mauvais format.";
 "plugin.check_for_updates" = "Rechercher des mises à jour";
 "plugin.updating" = "Téléchargement de la mise à jour…";
 
@@ -611,7 +611,7 @@
 "settings.pauseWhenOpen.label" = "Mettre en pause";
 "settings.pauseresumeWhen" = "Pause/lecture quand";
 "settings.playWhenEnteringFullScreen.label" = "Lancer la lecture quand le mode plein écran est activé";
-"settings.playlistAutoAdd.desc" = "Requiert un redémarrage de YINA.";
+"settings.playlistAutoAdd.desc" = "Requiert un redémarrage de yina.";
 "settings.playlistAutoAdd.label" = "Ajouter les fichiers du même dossier automatiquement";
 "settings.playlistAutoPlayNext.label" = "Jouer le fichier suivant automatiquement";
 "settings.playlistShowMetadata.label" = "Afficher le nom de l'artiste et de la piste pour les fichiers audio lorsque disponibles";
@@ -650,7 +650,7 @@
 "settings.loadIccProfile.desc" = "Charger le profil ICC pour l'affichage actuel et l'utiliser pour transformer le RVB vidéo en sortie d'écran. (Uniquement pour le mode SDR)";
 "settings.loadIccProfile.label" = "Charger un profil ICC";
 "settings.toneMappingAlgorithm.label" = "Algorithme";
-"settings.toneMappingTargetPeak.desc" = "Measured peak brightness of the display. By default YINA detects this value. If detection fails, target peak will be set to an appropriate value based on the transfer characteristics of the display. Enable this setting to manually specify the display's brightness.";
+"settings.toneMappingTargetPeak.desc" = "Measured peak brightness of the display. By default yina detects this value. If detection fails, target peak will be set to an appropriate value based on the transfer characteristics of the display. Enable this setting to manually specify the display's brightness.";
 "settings.toneMappingTargetPeak.label" = "Pic cible";
 "settings.videoThreads.desc" = "Défaut : 0 (auto)";
 "settings.videoThreads.label" = "Nombre de processus";
@@ -753,7 +753,7 @@
 "settings.defaultCacheSize.desc" = "Default: 153,600";
 "settings.defaultCacheSize.label" = "Cache buffer size (KiB)";
 "settings.enableCache.label" = "Prefetch and buffer network data";
-"settings.httpProxy.desc" = "Requiert un redémarrage de YINA.";
+"settings.httpProxy.desc" = "Requiert un redémarrage de yina.";
 "settings.httpProxy.label" = "Proxy HTTP";
 "settings.secPrefech.desc" = "Default: 36,000";
 "settings.secPrefech.label" = "Secondes à pré-charger";
@@ -765,11 +765,11 @@
 "settings.ytdlEnabled.label" = "Activer le script youtube-dl de mpv";
 "settings.ytdlRawOptions.desc" = "Format : <clé>=<valeur>[,<clé>=<valeur>[,…]]";
 "settings.ytdlRawOptions.label" = "Options brutes";
-"settings.ytdlSearchPath.desc" = "YINA va rechercher youtube-dl dans ce dossier. Redémarrage nécessaire.";
+"settings.ytdlSearchPath.desc" = "yina va rechercher youtube-dl dans ce dossier. Redémarrage nécessaire.";
 "settings.ytdlSearchPath.label" = "Chemin personnalisé vers youtube-dl";
 
 // Settings - Subtitles
-"settings.autoSearchOnlineSub.desc" = "Si cette option est activée, YINA cherchera automatiquement des sous-titres en ligne pour les vidéos sans sous-titres de plus de 20 minutes.";
+"settings.autoSearchOnlineSub.desc" = "Si cette option est activée, yina cherchera automatiquement des sous-titres en ligne pour les vidéos sans sous-titres de plus de 20 minutes.";
 "settings.autoSearchOnlineSub.label" = "Chercher des sous-titres en ligne automatiquement";
 "settings.displayInLetterBox.label" = "Afficher les sous-titres au format cinéma en plein écran";
 "settings.subAlignX.items.0" = "À gauche";
@@ -780,7 +780,7 @@
 "settings.subAlignY.items.2" = "En bas";
 "settings.subAutoLoadYINA.items.0" = "Désactivé";
 "settings.subAutoLoadYINA.items.1" = "Le sous-titre qui contient le nom du fichier";
-"settings.subAutoLoadYINA.items.2" = "Détection intelligente par YINA";
+"settings.subAutoLoadYINA.items.2" = "Détection intelligente par yina";
 "settings.subAutoLoadYINA.label" = "Chargement auto";
 "settings.subAutoLoadPriorityString.desc" = "Merci de renseigner des chaînes de caractères séparées par des virgules.";
 "settings.subAutoLoadPriorityString.label" = "Précharger automatiquement les fichiers avec ce nom";
@@ -819,7 +819,7 @@
 "settings.arrowBtnAction.label" = "Boutons gauche/droite pour";
 "settings.controlBarAutoHideTimeout.label" = "Masquer automatiquement après";
 "settings.controlBarStickToCenter.label" = "Attirer au centre lors du déplacement";
-"settings.disableAnimations.desc" = "Lorsque le paramètre d'accessibilité pour réduire les mouvements de macOS est activé, YINA réduira les animations de l'interface utilisateur qui sont connues pour causer des problèmes à ceux qui ont des troubles de l'oreille interne. Si cela est insuffisant, ce paramètre peut être utilisé pour réduire davantage le mouvement en éliminant les animations de l'interface utilisateur.";
+"settings.disableAnimations.desc" = "Lorsque le paramètre d'accessibilité pour réduire les mouvements de macOS est activé, yina réduira les animations de l'interface utilisateur qui sont connues pour causer des problèmes à ceux qui ont des troubles de l'oreille interne. Si cela est insuffisant, ce paramètre peut être utilisé pour réduire davantage le mouvement en éliminant les animations de l'interface utilisateur.";
 "settings.disableAnimations.label" = "Désactiver les animations";
 "settings.disableOSDFileStartMsg.label" = "Début du fichier";
 "settings.disableOSDPauseResumeMsgs.label" = "Pause / Lecture";
@@ -863,7 +863,7 @@
 "settings.windowBehaviorWhenPip.label" = "Fenêtre";
 
 // Settings - Advanced
-"settings.enableAdvancedSettings.desc" = "Les paramètres suivants nécessitent le redémarrage d’YINA.";
+"settings.enableAdvancedSettings.desc" = "Les paramètres suivants nécessitent le redémarrage d’yina.";
 "settings.enableAdvancedSettings.label" = "Activer les paramètres avancés";
 "settings.enableLogging.label" = "Activer la journalisation vers un fichier";
 "settings.logLevel.desc" = "Voir les journaux en choisissant Fenêtre - Affichage des journaux dans le menu.";
@@ -919,7 +919,7 @@
 "settings.$FailedToLoadThePage" = "Échec du chargement de la page.";
 "settings.$Firefox" = "Firefox";
 "settings.$Font" = "Police de caractères";
-"settings.$GetBrowserExtensionsForYINA" = "Téléchargez les extensions navigateur pour YINA";
+"settings.$GetBrowserExtensionsForYINA" = "Téléchargez les extensions navigateur pour yina";
 "settings.$GetPlugins" = "Obtenir les plugins…";
 "settings.$Hardware" = "Matériel";
 "settings.$Height" = "Hauteur";
@@ -954,7 +954,7 @@
 "settings.$OnScreenController" = "Contrôleur à l'écran (OSC)";
 "settings.$OnScreenDisplay" = "Informations à l'écran";
 "settings.$OnlineSubtitles" = "Sous-titres en ligne";
-"settings.$OpenLinksOrCurrentWebpage" = "Ouvrez des liens (ou la page courante) avec YINA en un clic. Le site internet doit être supporté par youtube-dl.";
+"settings.$OpenLinksOrCurrentWebpage" = "Ouvrez des liens (ou la page courante) avec yina en un clic. Le site internet doit être supporté par youtube-dl.";
 "settings.$OpenLogDirectory" = "Ouvrir le répertoire des journaux";
 "settings.$OpenLogWindow" = "Ouvrir l’affichage des journaux";
 "settings.$OrSelectFrom" = "Ou sélectionnez à partir des plugins disponibles";
@@ -964,7 +964,7 @@
 "settings.$Percent" = "%";
 "settings.$PictureinnPicture" = "Image dans l'image";
 "settings.$Playlist" = "Liste de lecture";
-"settings.$PleaseSelectTheMediaTypes" = "Veuillez sélectionner le type de fichiers qui s'ouvriront par défaut avec YINA.";
+"settings.$PleaseSelectTheMediaTypes" = "Veuillez sélectionner le type de fichiers qui s'ouvriront par défaut avec yina.";
 "settings.$Position" = "Position";
 "settings.$PreferredLanguage" = "Langue préférée";
 "settings.$RestoreAlerts" = "Rétablir les alertes";
@@ -974,7 +974,7 @@
 "settings.$SPDIFOutputWarning" = "List of codecs for which compressed audio passthrough should be used.\n\nWarning: There is not much reason to use this setting. HDMI supports uncompressed multichannel PCM, and lossless DTS-HD decoding is supported via FFmpeg's DCA decoder. Playback may not start if the output device does not support S/PDIF and this setting is enabled.";
 "settings.$Safari" = "Safari";
 "settings.$Screenshots" = "Captures d'écran";
-"settings.$SetYINAAsTheDefault" = "Définir YINA comme application par défaut";
+"settings.$SetYINAAsTheDefault" = "Définir yina comme application par défaut";
 "settings.$Settings" = "Paramètres";
 "settings.$Shadow" = "Ombre";
 "settings.$ShowInFinder" = "Afficher dans le Finder";
@@ -1017,4 +1017,4 @@
 "settings.$sideOfTheScreen" = "de l'écran";
 "settings.$toThe" = "du";
 "settings.$top" = "haut";
-"settings.$ytdlWarning" = "Le plugin Online Media possède des fonctionnalités supplémentaires telles que le changement de qualité et le téléchargement de vidéos. YINA utilisera le plugin s'il est installé et activé. Les paramètres ci-dessous ne fonctionnent que si le plugin n'est pas disponible.";
+"settings.$ytdlWarning" = "Le plugin Online Media possède des fonctionnalités supplémentaires telles que le changement de qualité et le téléchargement de vidéos. yina utilisera le plugin s'il est installé et activé. Les paramètres ci-dessous ne fonctionnent que si le plugin n'est pas disponible.";

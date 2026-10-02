@@ -28,6 +28,7 @@ class InitialWindowController: NSWindowController {
   private let recentScrollView = NSScrollView()
   private let visualEffectView = NSVisualEffectView()
   private let mainView = InitialWindowContentView()
+  private let emptyStateView = NSStackView()
 
   private let observedPrefKeys: [Preference.Key] = [.themeMaterial]
   private let availabilityQueue = DispatchQueue(label: "YINAInitialWindowAvailability", qos: .utility)
@@ -164,6 +165,7 @@ class InitialWindowController: NSWindowController {
     configureWindowAppearance()
     configureCenteredLayout()
     configureShelfAccessory()
+    configureEmptyState()
 
     recentFilesTableView.addTableColumn(NSTableColumn(identifier: NSUserInterfaceItemIdentifier("recent")))
     recentFilesTableView.columnAutoresizingStyle = .lastColumnOnlyAutoresizingStyle
@@ -181,7 +183,7 @@ class InitialWindowController: NSWindowController {
     setMaterial(Preference.enum(for: .themeMaterial))
 
     observedPrefKeys.forEach { key in
-      UserDefaults.standard.addObserver(self, forKeyPath: key.rawValue, options: .new, context: nil)
+      AppEnvironment.defaults.addObserver(self, forKeyPath: key.rawValue, options: .new, context: nil)
     }
     NotificationCenter.default.addObserver(self, selector: #selector(historyDidUpdate),
                                            name: .yinaHistoryUpdated, object: nil)
@@ -204,7 +206,7 @@ class InitialWindowController: NSWindowController {
     window.titleVisibility = .hidden
     window.isMovableByWindowBackground = true
     window.isReleasedWhenClosed = false
-    window.setFrameAutosaveName("YINAWelcomeWindow")
+    if !AppEnvironment.isCleanStart { window.setFrameAutosaveName("YINAWelcomeWindow") }
     window.autorecalculatesKeyViewLoop = true
     window.contentMinSize = NSSize(width: 760, height: 560)
     window.contentView?.registerForDraggedTypes([.nsFilenames, .nsURL, .string])
@@ -271,6 +273,41 @@ class InitialWindowController: NSWindowController {
     ])
     mainView.layoutSubtreeIfNeeded()
     updateRecentLayout(resetScrollPosition: true)
+  }
+
+  private func configureEmptyState() {
+    let icon = NSImageView(image: NSImage(systemSymbolName: "play.circle", accessibilityDescription: nil)
+      ?? NSImage(named: NSImage.applicationIconName)!)
+    icon.contentTintColor = .secondaryLabelColor
+    icon.imageScaling = .scaleProportionallyUpOrDown
+    icon.translatesAutoresizingMaskIntoConstraints = false
+    icon.setAccessibilityElement(false)
+    let title = NSTextField(labelWithString: NSLocalizedString("welcome.play_something", value: "play something", comment: "Empty welcome window"))
+    title.font = .systemFont(ofSize: 22, weight: .medium)
+    title.textColor = .secondaryLabelColor
+    title.alignment = .center
+    emptyStateView.orientation = .vertical
+    emptyStateView.alignment = .centerX
+    emptyStateView.spacing = 16
+    emptyStateView.translatesAutoresizingMaskIntoConstraints = false
+    emptyStateView.addArrangedSubview(icon)
+    emptyStateView.addArrangedSubview(title)
+    mainView.addSubview(emptyStateView)
+    NSLayoutConstraint.activate([
+      icon.widthAnchor.constraint(equalToConstant: 64),
+      icon.heightAnchor.constraint(equalToConstant: 64),
+      emptyStateView.centerXAnchor.constraint(equalTo: mainView.centerXAnchor),
+      emptyStateView.centerYAnchor.constraint(equalTo: mainView.centerYAnchor),
+    ])
+    updateEmptyState()
+  }
+
+  private func updateEmptyState() {
+    let isEmpty = showFolders.isEmpty && recentDocuments.isEmpty
+    emptyStateView.isHidden = !isEmpty
+    recentScrollView.isHidden = recentDocuments.isEmpty
+    recentFilesHeader.isHidden = recentDocuments.isEmpty
+    shelfAccessoryController.view.isHidden = isEmpty
   }
 
   private func configureShelfAccessory() {
@@ -364,6 +401,7 @@ class InitialWindowController: NSWindowController {
           self.recentFilesTableView.deselectAll(nil)
         }
         self.selectFirstRecentDocumentIfNeeded()
+        self.updateEmptyState()
       }
     }
   }
@@ -609,6 +647,7 @@ class InitialWindowController: NSWindowController {
     recentFilesHeader.isHidden = false
     recentFilesTableView.reloadData()
     selectFirstRecentDocumentIfNeeded()
+    updateEmptyState()
   }
 
   private func displayShowFolders(_ cards: [ShowFolder], saveSnapshot: Bool) {
@@ -632,6 +671,7 @@ class InitialWindowController: NSWindowController {
       mainView.layoutSubtreeIfNeeded()
     }
     updateRecentLayout(resetScrollPosition: previousCardIdentities != cardIdentities)
+    updateEmptyState()
   }
 
   private func reloadRecents() {
@@ -642,7 +682,7 @@ class InitialWindowController: NSWindowController {
     let collapsedDocumentIdentities = Set(showFolders.compactMap {
       $0.kind == .file ? documentIdentity($0.resumeURL) : nil
     })
-    let appKitRecents = NSDocumentController.shared.recentDocumentURLs
+    let appKitRecents = AppEnvironment.isCleanStart ? [] : NSDocumentController.shared.recentDocumentURLs
     let previousAvailability = Dictionary(uniqueKeysWithValues: recentDocuments.map {
       (documentIdentity($0.url), $0.isAvailable)
     })

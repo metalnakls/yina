@@ -53,7 +53,7 @@ class JavascriptPlugin: NSObject {
 
   @objc var enabled: Bool {
     didSet {
-      UserDefaults.standard.set(enabled, forKey: "PluginEnabled." + identifier)
+      AppEnvironment.defaults.set(enabled, forKey: "PluginEnabled." + identifier)
       if enabled {
         registerSubProviders()
       } else {
@@ -111,7 +111,7 @@ class JavascriptPlugin: NSObject {
   }
 
   static private func loadPlugins() -> [JavascriptPlugin] {
-    guard IINA_ENABLE_PLUGIN_SYSTEM else { return [] }
+    guard IINA_ENABLE_PLUGIN_SYSTEM, !AppEnvironment.isCleanStart else { return [] }
 
     guard let contents = try?
       FileManager.default.contentsOfDirectory(at: Utility.pluginsURL,
@@ -122,7 +122,7 @@ class JavascriptPlugin: NSObject {
       return []
     }
 
-    let orderArray = UserDefaults.standard.array(forKey: "PluginOrder") as? [String] ?? []
+    let orderArray = AppEnvironment.defaults.array(forKey: "PluginOrder") as? [String] ?? []
     let order = Array(NSOrderedSet(array: orderArray)) as! [String]
     let orderDict = [String: Int](uniqueKeysWithValues: zip(order, 0...order.count))
     var identifiers = Set<String>()
@@ -178,7 +178,7 @@ class JavascriptPlugin: NSObject {
   }
 
   static func savePluginOrder(_ values: [JavascriptPlugin]? = nil) {
-    UserDefaults.standard.set((values ?? plugins).map({ $0.identifier }), forKey: "PluginOrder")
+    AppEnvironment.defaults.set((values ?? plugins).map({ $0.identifier }), forKey: "PluginOrder")
   }
 
   @discardableResult
@@ -400,7 +400,7 @@ class JavascriptPlugin: NSObject {
       self.sidebarTabName = nil
     }
 
-    self.enabled = UserDefaults.standard.bool(forKey: "PluginEnabled." + identifier)
+    self.enabled = AppEnvironment.defaults.bool(forKey: "PluginEnabled." + identifier)
 
     if let ghRepo = jsonDict["ghRepo"] as? String {
       if githubRepoRegex.matches(ghRepo) {

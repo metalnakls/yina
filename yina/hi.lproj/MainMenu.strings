@@ -37,14 +37,14 @@
 /* Class = "NSMenuItem"; title = "Audio Delay + 0.5s"; ObjectID = "4ae-MT-2L1"; */
 "4ae-MT-2L1.title" = "ऑडियो विलंब + 0.5s";
 
-/* Class = "NSMenuItem"; title = "Quit YINA"; ObjectID = "4sb-4s-VLi"; */
-"4sb-4s-VLi.title" = "YINA छोड़ दें";
+/* Class = "NSMenuItem"; title = "Quit yina"; ObjectID = "4sb-4s-VLi"; */
+"4sb-4s-VLi.title" = "yina छोड़ दें";
 
 /* Class = "NSMenuItem"; title = "Reset Speed"; ObjectID = "5Gn-90-oDu"; */
 "5Gn-90-oDu.title" = "गति रीसेट करें";
 
-/* Class = "NSMenuItem"; title = "About YINA"; ObjectID = "5kV-Vb-QxS"; */
-"5kV-Vb-QxS.title" = "YINA के बारे में";
+/* Class = "NSMenuItem"; title = "About yina"; ObjectID = "5kV-Vb-QxS"; */
+"5kV-Vb-QxS.title" = "yina के बारे में";
 
 /* Class = "NSMenu"; title = "Rotation"; ObjectID = "5xN-ZB-VLI"; */
 "5xN-ZB-VLI.title" = "घुमाना";
@@ -133,8 +133,8 @@
 /* Class = "NSMenuItem"; title = "Next Chapter"; ObjectID = "F6G-Ln-fqI"; */
 "F6G-Ln-fqI.title" = "अगला अध्याय";
 
-/* Class = "NSMenuItem"; title = "YINA Help"; ObjectID = "FKE-Sm-Kum"; */
-"FKE-Sm-Kum.title" = "YINA सहायता";
+/* Class = "NSMenuItem"; title = "yina Help"; ObjectID = "FKE-Sm-Kum"; */
+"FKE-Sm-Kum.title" = "yina सहायता";
 
 /* Class = "NSMenu"; title = "Video Track"; ObjectID = "FTu-CF-O0R"; */
 "FTu-CF-O0R.title" = "वीडियो ट्रैक";
@@ -223,8 +223,8 @@
 /* Class = "NSMenuItem"; title = "Minimize"; ObjectID = "OY7-WF-poV"; */
 "OY7-WF-poV.title" = "छोटा करना";
 
-/* Class = "NSMenuItem"; title = "Hide YINA"; ObjectID = "Olw-nP-bQN"; */
-"Olw-nP-bQN.title" = "YINA छुपाएं";
+/* Class = "NSMenuItem"; title = "Hide yina"; ObjectID = "Olw-nP-bQN"; */
+"Olw-nP-bQN.title" = "yina छुपाएं";
 
 /* Class = "NSMenuItem"; title = "Reset Subtitle Scale"; ObjectID = "P1a-ot-P31"; */
 "P1a-ot-P31.title" = "उपशीर्षक स्केल को रीसेट करें";

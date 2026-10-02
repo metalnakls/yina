@@ -232,7 +232,7 @@ class PlayerWindowController: NSWindowController, NSWindowDelegate {
     updateVolume()
 
     observedPrefKeys.forEach { key in
-      UserDefaults.standard.addObserver(self, forKeyPath: key.rawValue, options: .new, context: nil)
+      AppEnvironment.defaults.addObserver(self, forKeyPath: key.rawValue, options: .new, context: nil)
     }
 
     addObserver(to: .default, forName: .yinaFileLoaded, object: player) { [unowned self] _ in
@@ -253,7 +253,7 @@ class PlayerWindowController: NSWindowController, NSWindowDelegate {
   deinit {
     ObjcUtils.silenced {
       for key in self.observedPrefKeys {
-        UserDefaults.standard.removeObserver(self, forKeyPath: key.rawValue)
+        AppEnvironment.defaults.removeObserver(self, forKeyPath: key.rawValue)
       }
     }
   }
