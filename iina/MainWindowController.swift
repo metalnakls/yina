@@ -719,6 +719,9 @@ class MainWindowController: PlayerWindowController {
       updateOSCExtendedDynamicRange()
       // This observer handles a situation that the user connected a new screen or removed a screen
       let screens = NSScreen.screens
+      // HDR can be disabled on an existing display without changing its ID or frame.
+      // VideoView caches capability so brightness ramp notifications remain inexpensive.
+      videoView.updateDisplayLink()
 
       // Activating extended dynamic range will cause notifications to be posted at a high rate
       // because the screen's maximumExtendedDynamicRangeColorComponentValue property keeps changing

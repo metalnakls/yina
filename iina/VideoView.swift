@@ -37,6 +37,7 @@ class VideoView: NSView {
 
   // cached indicator to prevent unnecessary updates of DisplayLink
   var currentDisplay: CGDirectDisplayID?
+  private var currentDisplaySupportsEDR: Bool?
 
   var isIdle = true
   private var displayIdleTimer: Timer?
@@ -221,8 +222,10 @@ class VideoView: NSView {
 
   func updateDisplayLink() {
     guard let screen = window?.screen, let displayId = screen.displayId else { return }
-    guard currentDisplay != displayId else { return }
+    let supportsEDR = screen.maximumPotentialExtendedDynamicRangeColorComponentValue > 1
+    guard currentDisplay != displayId || currentDisplaySupportsEDR != supportsEDR else { return }
     currentDisplay = displayId
+    currentDisplaySupportsEDR = supportsEDR
     player.mpv.setDouble(MPVOption.Video.displayFpsOverride,
                          Double(screen.maximumFramesPerSecond))
     refreshEdrMode()
@@ -270,14 +273,15 @@ class VideoView: NSView {
     log("Display link stopped", level: .verbose)
   }
 
-  // This should only be called if the window has changed displays
+  // Refresh when the window changes displays or the display changes EDR capability.
   func updateDisplayLink() {
     guard let window, let link, let screen = window.screen,
           let displayId = screen.displayId else { return }
 
-    // Do nothing if on the same display
-    if (currentDisplay == displayId) { return }
+    let supportsEDR = screen.maximumPotentialExtendedDynamicRangeColorComponentValue > 1
+    guard currentDisplay != displayId || currentDisplaySupportsEDR != supportsEDR else { return }
     currentDisplay = displayId
+    currentDisplaySupportsEDR = supportsEDR
 
     checkResult(CVDisplayLinkSetCurrentCGDisplay(link, displayId), "CVDisplayLinkSetCurrentCGDisplay")
     let actualData = CVDisplayLinkGetActualOutputVideoRefreshPeriod(link)
@@ -418,6 +422,9 @@ class VideoView: NSView {
 #if IINA_ENABLE_METAL_RENDERER
     // libplacebo owns the CAMetalLayer format, color space, and EDR state.
     // IINA continues to own display detection and mpv's output policy.
+    // Clear the HDR hint as well as PQ output when falling back to an SDR display.
+    player.mpv.setFlag(MPVOption.GPURendererOptions.targetColorspaceHint, false)
+    player.mpv.setFlag(MPVOption.GPURendererOptions.inverseToneMapping, false)
     player.mpv.setString(MPVOption.GPURendererOptions.targetTrc, "auto")
     player.mpv.setString(MPVOption.GPURendererOptions.targetPrim, "auto")
     player.mpv.setFlag(MPVOption.Screenshot.screenshotTagColorspace, false)
@@ -708,7 +715,7 @@ extension VideoView {
     guard let mpv = player.mpv else { return }
     guard Preference.bool(for: .enableToneMapping), usingEDR else {
       // Reset options to their defaults.
-      mpv.setStringToDefault(MPVOption.GPURendererOptions.inverseToneMapping)
+      mpv.setFlag(MPVOption.GPURendererOptions.inverseToneMapping, false)
       mpv.setStringToDefault(MPVOption.GPURendererOptions.targetPeak)
       mpv.setStringToDefault(MPVOption.GPURendererOptions.toneMapping)
       return
