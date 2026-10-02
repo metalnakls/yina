@@ -1,5 +1,5 @@
-// xcrun swiftc iina/ShowFolder.swift other/tests/show-folder-smoke.swift -o /tmp/iina-show-folder-smoke
-// /tmp/iina-show-folder-smoke
+// xcrun swiftc yina/ShowFolder.swift other/tests/show-folder-smoke.swift -o /tmp/yina-show-folder-smoke
+// /tmp/yina-show-folder-smoke
 import Foundation
 
 @main struct ShowFolderSmoke {

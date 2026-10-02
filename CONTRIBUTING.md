@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for your interest in contributing to IINA!
+Thanks for your interest in contributing to YINA!
 
 ## Before You Start
 
@@ -12,10 +12,10 @@ Thanks for your interest in contributing to IINA!
 3. **Link your design proposal** in your pull request description. PRs without one (when required) may be closed without review.
 
 By submitting a pull request,
-- You give the IINA team permission to take over and modify your code at any time,
-  for the sole purpose of merging it into IINA.
+- You give the YINA team permission to take over and modify your code at any time,
+  for the sole purpose of merging it into YINA.
 - You agree that your contributions are licensed under the GPLv3 license.
-  In the case of a future IINA release in the App Store,
+  In the case of a future YINA release in the App Store,
   you agree that you will not pursue any license violations that results
   solely from the conflict between the GPLv3 license and the App Store's terms of service.
 
@@ -41,7 +41,7 @@ Do not include translations for languages other than English.
 
 AI tools are permitted, but low-quality AI-generated code will likely be rejected. If you use AI:
 
-- You must be responsible for confirming that the code complies with IINA's GPLv3 license.
+- You must be responsible for confirming that the code complies with YINA's GPLv3 license.
 - Disclose the AI usage in the PR description.
   Failure to do while submitting obviously AI-generated code may result in your PR being closed without review.
 - Keep the PR description concise and justify your design choices.

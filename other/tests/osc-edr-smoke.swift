@@ -1,5 +1,5 @@
-// xcrun swiftc iina/OSCExtendedDynamicRange.swift other/tests/osc-edr-smoke.swift -o /tmp/iina-osc-edr-smoke
-// /tmp/iina-osc-edr-smoke
+// xcrun swiftc yina/OSCExtendedDynamicRange.swift other/tests/osc-edr-smoke.swift -o /tmp/yina-osc-edr-smoke
+// /tmp/yina-osc-edr-smoke
 import Foundation
 
 @main struct OSCEDRSmoke {
@@ -32,13 +32,13 @@ import Foundation
     precondition(OSCExtendedDynamicRange.luminance(intensity: 0.5, headroom: 4) == 2.5)
     precondition(OSCExtendedDynamicRange.luminance(intensity: 1, headroom: 4) == 4)
 
-    let translucent = try String(contentsOfFile: "iina/TranslucentView.swift", encoding: .utf8)
+    let translucent = try String(contentsOfFile: "yina/TranslucentView.swift", encoding: .utf8)
     precondition(translucent.contains("case aboveMaterial"))
     precondition(translucent.contains("if contentPlacement == .insideMaterial"))
     precondition(translucent.contains("addSubview(wrapper, positioned: .above, relativeTo: container)"))
     precondition(translucent.contains("container?.setOwnExtendedDynamicRange(enabled, headroom: headroom)"))
 
-    let floatingOSC = try String(contentsOfFile: "iina/OSCFloatingView.swift", encoding: .utf8)
+    let floatingOSC = try String(contentsOfFile: "yina/OSCFloatingView.swift", encoding: .utf8)
     precondition(floatingOSC.contains("contentPlacement: .aboveMaterial"))
     precondition(floatingOSC.contains("prefersUnfilteredVisibleAppearance"))
     precondition(floatingOSC.contains("ensureDissolveFilterAttached()"))
@@ -47,11 +47,11 @@ import Foundation
     precondition(floatingOSC.contains("drawExtendedDynamicRangeImage"))
     precondition(floatingOSC.contains("imageRect.fill(using: .sourceAtop)"))
 
-    let playSlider = try String(contentsOfFile: "iina/PlaySlider.swift", encoding: .utf8)
+    let playSlider = try String(contentsOfFile: "yina/PlaySlider.swift", encoding: .utf8)
     precondition(playSlider.contains("FloatingPlaySliderCell"))
     precondition(playSlider.contains("floatingCell.extendedDynamicRangeHeadroom = newValue"))
 
-    let mainWindow = try String(contentsOfFile: "iina/MainWindowController.swift", encoding: .utf8)
+    let mainWindow = try String(contentsOfFile: "yina/MainWindowController.swift", encoding: .utf8)
     precondition(mainWindow.contains("let enabled = player.info.hdrEnabled"))
     precondition(!mainWindow.contains("player.info.hdrAvailable && player.info.hdrEnabled"))
     precondition(mainWindow.contains("setContentExtendedDynamicRange(enabled, headroom: headroom)"))

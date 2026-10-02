@@ -2,7 +2,7 @@
 
 This directory pins the experimental libmpv gpu-next/Metal API and its matching
 libplacebo Metal backend. It deliberately keeps mpv's OpenGL libmpv backend in
-the same build until IINA passes the full playback parity gate.
+the same build until YINA passes the full playback parity gate.
 
 Run `other/metal-deps/build.sh` on Apple Silicon with Xcode 27. The script:
 
@@ -34,5 +34,5 @@ ruby other/metal-deps/update-xcode-libraries.rb
 ```
 
 Build the temporary Metal renderer by adding `IINA_ENABLE_METAL_RENDERER` to
-`SWIFT_ACTIVE_COMPILATION_CONDITIONS`. Without that internal condition, IINA
+`SWIFT_ACTIVE_COMPILATION_CONDITIONS`. Without that internal condition, YINA
 continues to compile its OpenGL fallback.

@@ -1,18 +1,18 @@
-// xcrun swiftc -parse-as-library other/tests/welcome-window-architecture-smoke.swift -o /tmp/iina-welcome-architecture-smoke
-// /tmp/iina-welcome-architecture-smoke
+// xcrun swiftc -parse-as-library other/tests/welcome-window-architecture-smoke.swift -o /tmp/yina-welcome-architecture-smoke
+// /tmp/yina-welcome-architecture-smoke
 import Foundation
 
 @main struct WelcomeWindowArchitectureSmoke {
   static func main() throws {
-    let welcome = try String(contentsOfFile: "iina/InitialWindowController.swift", encoding: .utf8)
-    let playbackHistory = try String(contentsOfFile: "iina/PlaybackHistory.swift", encoding: .utf8)
-    let thumbnailCache = try String(contentsOfFile: "iina/ThumbnailCache.swift", encoding: .utf8)
-    let ffmpeg = try String(contentsOfFile: "iina/FFmpegController.m", encoding: .utf8)
-    let project = try String(contentsOfFile: "iina.xcodeproj/project.pbxproj", encoding: .utf8)
+    let welcome = try String(contentsOfFile: "yina/InitialWindowController.swift", encoding: .utf8)
+    let playbackHistory = try String(contentsOfFile: "yina/PlaybackHistory.swift", encoding: .utf8)
+    let thumbnailCache = try String(contentsOfFile: "yina/ThumbnailCache.swift", encoding: .utf8)
+    let ffmpeg = try String(contentsOfFile: "yina/FFmpegController.m", encoding: .utf8)
+    let project = try String(contentsOfFile: "yina.xcodeproj/project.pbxproj", encoding: .utf8)
 
     precondition(!welcome.contains("windowNibName"))
     precondition(!welcome.contains("Timer.scheduledTimer"))
-    precondition(welcome.contains("IINAWelcomeWindow"))
+    precondition(welcome.contains("YINAWelcomeWindow"))
     precondition(welcome.contains("headerView = nil"))
     precondition(welcome.contains("lastColumnOnlyAutoresizingStyle"))
     precondition(welcome.contains("InitialWindowRecentHostingCell"))

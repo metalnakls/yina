@@ -1,11 +1,11 @@
 # Swift and UI modernization roadmap
 
-This document maps IINA's current UI implementation and identifies sensible
+This document maps YINA's current UI implementation and identifies sensible
 refactoring boundaries. It is intentionally incremental: SwiftUI should own
 state-driven presentation where it helps, while AppKit remains the authority
 for macOS windowing, menus, media rendering, WebKit, and system integration.
 
-This is a roadmap, not a proposal to rewrite IINA wholesale.
+This is a roadmap, not a proposal to rewrite YINA wholesale.
 
 ## Implementation status
 
@@ -61,7 +61,7 @@ After the first migration wave, the application still contains these app-owned X
 - Key recording: `Base.lproj/KeyRecordViewController.xib`.
 - Application menu: `Base.lproj/MainMenu.xib`.
 
-IINA's contribution rules already say not to introduce new XIBs and to use
+YINA's contribution rules already say not to introduce new XIBs and to use
 programmatic views and existing helpers for new UI. Migration work should
 therefore remove XIB ownership as a surface is deliberately reworked; it
 should not churn every XIB as a standalone cleanup.
@@ -81,7 +81,7 @@ surface is a good SwiftUI candidate.
 Completed on `swift`: Subtitle chooser, Open URL, Plugin permission view, and
 Screenshot OSD. Their localized string tables remain in place.
 
-These are good pilots for establishing an IINA SwiftUI window pattern:
+These are good pilots for establishing a YINA SwiftUI window pattern:
 
 1. **Subtitle chooser** — `SubChooseViewController.swift` and
    `SubChooseViewController.xib`.
@@ -228,7 +228,7 @@ These are not necessarily XIB migrations, but they increase maintenance cost:
 - `NSWindowController`/`windowNibName` ownership in the remaining XIB-backed
   controllers.
 - Objective-C boundaries in `FFmpegController.m`, `FixedFontManager.m`, and
-  `iina-Bridging-Header.h`. These are lower priority unless a related feature
+  `yina-Bridging-Header.h`. These are lower priority unless a related feature
   already needs the boundary changed.
 
 ## Recommended architecture

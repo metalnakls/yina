@@ -1,5 +1,5 @@
-// xcrun swiftc iina/OSCFloatingTopView.swift other/tests/floating-osc-layout-smoke.swift -o /tmp/iina-osc-layout-smoke
-// /tmp/iina-osc-layout-smoke
+// xcrun swiftc yina/OSCFloatingTopView.swift other/tests/floating-osc-layout-smoke.swift -o /tmp/yina-osc-layout-smoke
+// /tmp/yina-osc-layout-smoke
 import Cocoa
 
 @main struct FloatingOSCLayoutSmoke {

@@ -1,10 +1,10 @@
-// xcrun swiftc -parse-as-library other/tests/now-playing-remote-artwork-smoke.swift -o /tmp/iina-now-playing-remote-artwork-smoke
-// /tmp/iina-now-playing-remote-artwork-smoke
+// xcrun swiftc -parse-as-library other/tests/now-playing-remote-artwork-smoke.swift -o /tmp/yina-now-playing-remote-artwork-smoke
+// /tmp/yina-now-playing-remote-artwork-smoke
 import Foundation
 
 @main struct NowPlayingRemoteArtworkSmoke {
   static func main() throws {
-    let source = try String(contentsOfFile: "iina/NowPlayingInfoManager.swift", encoding: .utf8)
+    let source = try String(contentsOfFile: "yina/NowPlayingInfoManager.swift", encoding: .utf8)
 
     precondition(source.contains("url.resourceValues(forKeys: [.volumeIsLocalKey]).volumeIsLocal"),
                  "Now Playing artwork must identify mounted remote volumes")

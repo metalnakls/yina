@@ -1,5 +1,5 @@
-// xcrun swiftc iina/MPVFilter.swift iina/FilterPresets.swift other/tests/filter-preset-smoke.swift -o /tmp/iina-filter-preset-smoke
-// /tmp/iina-filter-preset-smoke
+// xcrun swiftc yina/MPVFilter.swift yina/FilterPresets.swift other/tests/filter-preset-smoke.swift -o /tmp/yina-filter-preset-smoke
+// /tmp/yina-filter-preset-smoke
 import Foundation
 
 enum Logger {

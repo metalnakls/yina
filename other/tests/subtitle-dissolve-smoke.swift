@@ -1,7 +1,7 @@
 // Standalone smoke test; compiles the production animation against an in-memory mpv stub.
 // Run from the repository root:
-// xcrun swiftc iina/SubtitleDissolve.swift other/tests/subtitle-dissolve-smoke.swift -o /tmp/iina-subfade-smoke
-// /tmp/iina-subfade-smoke
+// xcrun swiftc yina/SubtitleDissolve.swift other/tests/subtitle-dissolve-smoke.swift -o /tmp/yina-subfade-smoke
+// /tmp/yina-subfade-smoke
 import Cocoa
 
 enum Preference {

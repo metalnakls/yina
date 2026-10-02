@@ -1,0 +1,118 @@
+/*
+  KeyBinding.strings
+  yina
+
+  Created by lhc on 4/2/2017.
+  Copyright © 2017 lhc. All rights reserved.
+*/
+
+"cmd.ignore" = "Ignorera";
+"cmd.seek" = "Spola";
+"cmd.revert-seek" = "Återgå från spolning";
+"cmd.set" = "Ange";
+"cmd.cycle" = "Cykla";
+"cmd.cycle-values" = "Cykla inom";
+"cmd.add" = "Ändra";
+"cmd.multiply" = "Multiplicera";
+"cmd.frame-step" = "Nästa bildruta";
+"cmd.frame-back-step" = "Föregående bildruta";
+"cmd.ab-loop" = "A–B-loop";
+"cmd.sub-seek" = "Spola i undertext";
+"cmd.playlist-next" = "Nästa media";
+"cmd.playlist-prev" = "Föregående media";
+"cmd.playlist-move" = "Flytta spellisteobjekt";
+"cmd.playlist-clear" = "Rensa spellista";
+"cmd.playlist-remove" = "Ta bort nuvarande";
+"cmd.playlist-shuffle" = "Blanda";
+"cmd.write-watch-later-config" = "Spara spelhistorik";
+"cmd.stop" = "Stoppa";
+"cmd.quit" = "Avsluta";
+"cmd.quit-watch-later" = "Avsluta (spara position)";
+"cmd.screenshot" = "Skärmdump";
+"cmd.screenshot-to-file" = "Skärmdumpa till fil";
+"cmd.loadfile" = "Läs in fil";
+"cmd.loadlist" = "Läs in spellista";
+"cmd.run" = "Kör";
+
+"yina.flip" = "Vänd";
+"yina.mirror" = "Spegla";
+
+"yina.toggle-pip" = "Växla bild-i-bild";
+"yina.toggle-music-mode" = "Växla musikläge";
+"yina.open-file" = "Öppna fil";
+"yina.open-url" = "Öppna URL";
+"yina.video-panel" = "Videopanel";
+"yina.audio-panel" = "Ljudpanel";
+"yina.sub-panel" = "Undertextpanel";
+"yina.playlist-panel" = "Spellistepanel";
+"yina.chapter-panel" = "Kapitelpanel";
+"yina.bigger-window" = "Större fönster";
+"yina.smaller-window" = "Mindre fönster";
+"yina.fit-to-screen" = "Passa till skärm";
+"yina.toggle-flip" = "Växla vänd";
+"yina.toggle-mirror" = "Växla spegla";
+"yina.save-playlist" = "Spara nuvarande spellista";
+"yina.show-current-file-in-finder" = "Visa aktuell fil i Finder";
+"yina.delete-current-file" = "Radera nuvarande fil";
+"yina.delete-current-file-hard" = "Radera nuvarande katalog omedelbart utan att flytta till papperskorgen";
+"yina.find-online-subs" = "Hitta undertexter online";
+"yina.save-downloaded-sub" = "Spara nedladdad undertext";
+
+"yes" = "Ja";
+"no" = "Nej";
+"to" = "till";
+"by" = "med";
+"in" = "i";
+"add" = "öka";
+"minus" = "minska";
+"forward" = "framåt";
+"backward" = "bakåt";
+"seek-to" = "till";
+
+"relative" = "sek";
+"absolute" = "sek";
+"absolute-percent" = "%";
+"relative-percent" = "%";
+"relative+exact" = "s (exakt)";
+"relative-percent+exact" = "% (exakt)";
+"absolute+keyframe" = "s (nyckelbild)";
+"absolute-percent+keyframe" = "% (nyckelbild)";
+
+"opt.pause" = "Pausa";
+"opt.speed" = "Hastighet";
+
+"opt.window-scale" = "Fönsterskalning";
+
+"opt.video" = "Videospår";
+"opt.video-aspect-override" = "Videoförhållande";
+"opt.contrast" = "Kontrast";
+"opt.brightness" = "Ljusstyrka";
+"opt.gamma" = "Gammakorrigering";
+"opt.saturation" = "Mättnad";
+"opt.deinterlace" = "Avfläta";
+
+"opt.audio" = "Ljudspår";
+"opt.volume" = "Volym";
+"opt.mute" = "Tysta";
+"opt.audio-delay" = "Ljudfördröjning";
+
+"opt.sub" = "Undertextspår";
+"opt.sub-delay" = "Undertextfördröjning";
+"opt.sub-pos" = "Undertextposition";
+"opt.sub-scale" = "Undertextskala";
+"opt.sub-visibility" = "Undertextsynlighet";
+"opt.secondary-sub-visibility" = "Sekundär undertextssynlighet";
+"opt.sub-ass-style-override" = "Åsidosätt ASS-stil";
+
+"opt.fullscreen" = "Fullskärm";
+"opt.ontop" = "Flyt överst";
+
+"opt.chapter" = "Kapitel";
+
+"read.set" = "Ställ {{property}} till {{value}}";
+"read.add" = "{{property}} {{value}}";
+"read.multiply" = "Multiplicera {{property}} med {{factor}}x";
+"read.cycle" = "Cykla {{property}}{{#dir_down}} nedåt{{/dir_down}}";
+"read.cycle-values" = "Cykla {{property}} i ({{{values}}})";
+"read.seek" = "Spola {{#fwd}}framåt{{/fwd}}{{#bwd}}bakåt{{/bwd}}{{#abs}}till{{/abs}} {{value}}{{#sec}}s{{/sec}}{{#per}}%{{/per}} {{#exact}}(exact){{/exact}}{{#kf}}(keyframe){{/kf}}";
+"read.sub-seek" = "Spola till {{#skip_1}}nästa{{/skip_1}}{{#skip_-1}}föregående{{/skip_-1}} undertext";

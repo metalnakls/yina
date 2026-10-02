@@ -4,16 +4,16 @@ set -euo pipefail
 
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-readonly INSTALL_APP="/Applications/Utilities/IINA.app"
+readonly INSTALL_APP="/Applications/yina.app"
 readonly BACKUP_DIR="$(cd "$REPO_DIR/.." && pwd)/.build-backups"
-readonly BACKUP_APP="$BACKUP_DIR/IINA.app"
-readonly DERIVED_DATA="${1:-/tmp/iina-nightly-final}"
-readonly BUILD_APP="$DERIVED_DATA/Build/Products/Nightly/IINA.app"
+readonly BACKUP_APP="$BACKUP_DIR/yina.app"
+readonly DERIVED_DATA="${1:-/tmp/yina-nightly-final}"
+readonly BUILD_APP="$DERIVED_DATA/Build/Products/Nightly/yina.app"
 readonly MODULE_CACHE_DIR="$DERIVED_DATA/ModuleCache.noindex"
 readonly SWIFTPM_CACHE_DIR="$DERIVED_DATA/SwiftPMCache"
 readonly DEFAULT_SOURCE_PACKAGES_DIR="$REPO_DIR/SourcePackages"
-readonly IINA_ENTITLEMENTS="$REPO_DIR/iina/IINA.entitlements"
-readonly OPEN_IN_IINA_ENTITLEMENTS="$REPO_DIR/OpenInIINA/OpenInIINA.entitlements"
+readonly IINA_ENTITLEMENTS="$REPO_DIR/yina/yina.entitlements"
+readonly OPEN_IN_IINA_ENTITLEMENTS="$REPO_DIR/OpenInYINA/OpenInYINA.entitlements"
 readonly DEFAULT_SIGN_IDENTITY="919F9538E1E91B7C10FD2556CC9030B76ED39E58"
 
 SIGN_IDENTITY="${IINA_CODESIGN_IDENTITY:-$DEFAULT_SIGN_IDENTITY}"
@@ -47,8 +47,8 @@ export SWIFT_MODULE_CACHE_PATH="$MODULE_CACHE_DIR"
 export SWIFTPM_MODULECACHE_OVERRIDE="$MODULE_CACHE_DIR"
 
 xcodebuild \
-  -project iina.xcodeproj \
-  -scheme iina \
+  -project yina.xcodeproj \
+  -scheme yina \
   -configuration Nightly \
   -derivedDataPath "$DERIVED_DATA" \
   -clonedSourcePackagesDirPath "$SOURCE_PACKAGES_DIR" \
@@ -76,7 +76,7 @@ done < <(find "$BUILD_APP" -type f -print0)
 while IFS= read -r -d '' path; do
   case "$path" in
     "$BUILD_APP") ;;
-    */OpenInIINA.appex)
+    */OpenInYINA.appex)
       codesign --force --sign "$SIGN_IDENTITY" --options runtime \
         --entitlements "$OPEN_IN_IINA_ENTITLEMENTS" "$path"
       ;;
@@ -92,7 +92,7 @@ codesign --verify --deep --strict --verbose=2 "$BUILD_APP"
 
 # Preserve the last known installed build before updating the stable wrapper.
 # The wrapper stays in place; only its contents are refreshed.
-if test -x "$INSTALL_APP/Contents/MacOS/IINA"; then
+if test -x "$INSTALL_APP/Contents/MacOS/yina"; then
   mkdir -p "$BACKUP_APP"
   find "$BACKUP_APP" -mindepth 1 -delete
   ditto "$INSTALL_APP" "$BACKUP_APP"
@@ -101,7 +101,7 @@ fi
 
 # This script owns one exact install destination. Preserve the app bundle itself
 # and replace only its contents.
-test "$INSTALL_APP" = "/Applications/Utilities/IINA.app"
+test "$INSTALL_APP" = "/Applications/yina.app"
 mkdir -p "$INSTALL_APP"
 find "$INSTALL_APP" -mindepth 1 -delete
 ditto "$BUILD_APP" "$INSTALL_APP"
@@ -116,7 +116,7 @@ if [[ -d "$BACKUP_DIR" ]]; then
     if [[ "$path" != "$BACKUP_APP" ]]; then
       rm -rf -- "$path"
     fi
-  done < <(find "$BACKUP_DIR" -maxdepth 1 -type d -name 'IINA*.app' -print0)
+  done < <(find "$BACKUP_DIR" -maxdepth 1 -type d -name 'yina*.app' -print0)
 fi
 
 echo "Installed $INSTALL_APP"

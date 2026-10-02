@@ -104,8 +104,8 @@ temp/
 # FileMerge backup
 *.orig
 
-browser/Firefox_Open_In_IINA/*
-!browser/Firefox_Open_In_IINA/manifest.json
+browser/Firefox_Open_In_YINA/*
+!browser/Firefox_Open_In_YINA/manifest.json
 
 *.dylib
 *.so
