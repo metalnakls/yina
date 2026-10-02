@@ -41,8 +41,7 @@ class HistoryController: NSObject {
     do {
       MemoryUsage.shared.logUsage("before reading history")
       let data = try Data(contentsOf: plistURL)
-      let object = try NSKeyedUnarchiver.unarchivedObject(ofClasses: [NSArray.self, PlaybackHistory.self],
-                                                          from: data)
+      let object = try PlaybackHistory.decodeArchive(data)
       guard let history = object as? [PlaybackHistory] else {
         // Secure coding should ensure that this never occurs.
         log("Unable to convert object read from playback history file to [PlaybackHistory]", level: .error)

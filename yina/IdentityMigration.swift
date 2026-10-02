@@ -75,7 +75,7 @@ final class IdentityMigration {
               domain != "tsmc.yina",
               ((info["CFBundleExecutable"] as? String)?.lowercased() == "iina" ||
                 url.deletingPathExtension().lastPathComponent.lowercased().contains("iina")) else { continue }
-        names[domain, default: []].insert(url.deletingPathExtension().lastPathComponent)
+        names[domain, default: []].insert(url.path)
       }
     }
     // Include installed profiles even if their app was removed or renamed.
@@ -90,7 +90,7 @@ final class IdentityMigration {
       if domain.lowercased().contains("iina") { names[domain, default: []].insert(domain) }
     }
     names["com.colliderli.iina", default: []].insert("IINA")
-    return names.keys.sorted().compactMap { domain in
+    return names.keys.sorted().flatMap { domain -> [IINAImportProfile] in
       let containerLibrary = libraryURL.appendingPathComponent("Containers/\(domain)/Data/Library")
       let preferencePaths = [preferencesURL.appendingPathComponent("\(domain).plist"),
                              containerLibrary.appendingPathComponent("Preferences/\(domain).plist")]
@@ -105,10 +105,22 @@ final class IdentityMigration {
       let supportPaths = [supportRoot.appendingPathComponent(domain, isDirectory: true),
                           containerLibrary.appendingPathComponent("Application Support/\(domain)", isDirectory: true)]
       let support = supportPaths.first { fm.fileExists(atPath: $0.path) } ?? supportPaths[0]
-      guard !preferences.isEmpty || fm.fileExists(atPath: support.path) else { return nil }
-      let name = names[domain]!.filter { $0 != domain }.sorted().first ?? domain
-      return IINAImportProfile(bundleIdentifier: domain, displayName: "\(name) (\(domain))",
-                               preferences: preferences, supportURL: support)
+      guard !preferences.isEmpty || fm.fileExists(atPath: support.path) else { return [] }
+      let installations = names[domain]!.filter { $0.hasSuffix(".app") }.sorted()
+      let labels: [String]
+      if installations.isEmpty {
+        let name = names[domain]!.filter { $0 != domain }.sorted().first ?? domain
+        labels = ["\(name) (\(domain))"]
+      } else {
+        labels = installations.map { path in
+          let name = URL(fileURLWithPath: path).deletingPathExtension().lastPathComponent
+          return "\(name) (\(domain)) — \(path)"
+        }
+      }
+      return labels.map {
+        IINAImportProfile(bundleIdentifier: domain, displayName: $0,
+                          preferences: preferences, supportURL: support)
+      }
     }
   }
 

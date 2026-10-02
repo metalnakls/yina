@@ -37,6 +37,9 @@ enum Utility { static let appSupportDirUrl = FileManager.default.temporaryDirect
     try seed("test.iina.nightly", "IINA Nightly")
     profiles = IdentityMigration.discoverProfiles(applicationDirectories: [applications], libraryURL: library)
     precondition(profiles.count == 2)
+    try seed("com.colliderli.iina", "IINA Copy")
+    profiles = IdentityMigration.discoverProfiles(applicationDirectories: [applications], libraryURL: library)
+    precondition(profiles.count == 3) // Distinguish app copies even when they share a settings domain.
     let domain = "test.yina.import.\(UUID().uuidString)"
     let defaults = UserDefaults(suiteName: domain)!
     defer { defaults.removePersistentDomain(forName: domain) }
