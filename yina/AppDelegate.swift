@@ -355,7 +355,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     }
 
     // see https://sparkle-project.org/documentation/api-reference/Classes/SPUUpdater.html#/c:objc(cs)SPUUpdater(im)clearFeedURLFromUserDefaults
-    updaterController.updater.clearFeedURLFromUserDefaults()
+    if !AppEnvironment.isCleanStart { updaterController.updater.clearFeedURLFromUserDefaults() }
 
     // show alpha in color panels
     NSColorPanel.shared.showsAlpha = true
