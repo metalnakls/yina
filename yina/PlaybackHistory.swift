@@ -25,6 +25,20 @@ class PlaybackHistory: NSObject, NSSecureCoding {
   /// Indicate this class supports secure coding.
   static var supportsSecureCoding: Bool { true }
 
+  /// Keep IINA and earlier yina archives readable after the Swift module rename.
+  static func decodeArchive(_ data: Data) throws -> [PlaybackHistory]? {
+    let decoder = try NSKeyedUnarchiver(forReadingFrom: data)
+    decoder.requiresSecureCoding = true
+    for name in ["IINA.PlaybackHistory", "iina.PlaybackHistory", "YINA.PlaybackHistory"] {
+      decoder.setClass(PlaybackHistory.self, forClassName: name)
+    }
+    let entries = decoder.decodeObject(of: [NSArray.self, PlaybackHistory.self],
+                                       forKey: NSKeyedArchiveRootObjectKey) as? [PlaybackHistory]
+    decoder.finishDecoding()
+    if let error = decoder.error { throw error }
+    return entries
+  }
+
   private static let dateFormatter: DateFormatter = {
     let dateFormatter = DateFormatter()
     dateFormatter.dateFormat = "MM/dd/yyyy HH:mm:ss"
@@ -60,19 +74,24 @@ class PlaybackHistory: NSObject, NSSecureCoding {
   }
 
   required init?(coder aDecoder: NSCoder) {
+    func archiveKey(_ current: String) -> String {
+      aDecoder.containsValue(forKey: current) ? current : current.replacingOccurrences(of: "YINAPH", with: "IINAPH")
+    }
     guard
-      let url = aDecoder.decodeObject(of: NSURL.self, forKey: KeyUrl),
-      let name = aDecoder.decodeObject(of: NSString.self, forKey: KeyName),
-      let md5 = aDecoder.decodeObject(of: NSString.self, forKey: KeyMpvMd5),
-      let date = aDecoder.decodeObject(of: NSDate.self, forKey: KeyAddedDate)
+      let url = aDecoder.decodeObject(of: NSURL.self, forKey: archiveKey(KeyUrl)),
+      let name = aDecoder.decodeObject(of: NSString.self, forKey: archiveKey(KeyName)),
+      let md5 = aDecoder.decodeObject(of: NSString.self, forKey: archiveKey(KeyMpvMd5)),
+      let date = aDecoder.decodeObject(of: NSDate.self, forKey: archiveKey(KeyAddedDate))
     else {
       return nil
     }
 
-    let played = aDecoder.decodeBool(forKey: KeyPlayed)
-    let duration = aDecoder.decodeDouble(forKey: KeyDuration)
-    let title = aDecoder.decodeObject(of: NSString.self, forKey: KeyTitle)
-    let bookmarkData = aDecoder.decodeObject(of: NSData.self, forKey: KeyBookmark) as Data?
+    let played = aDecoder.decodeBool(forKey: archiveKey(KeyPlayed))
+    let duration = aDecoder.decodeDouble(forKey: archiveKey(KeyDuration))
+    let title = aDecoder.containsValue(forKey: archiveKey(KeyTitle))
+      ? aDecoder.decodeObject(of: NSString.self, forKey: archiveKey(KeyTitle)) : nil
+    let bookmarkData = aDecoder.containsValue(forKey: archiveKey(KeyBookmark))
+      ? aDecoder.decodeObject(of: NSData.self, forKey: archiveKey(KeyBookmark)) as Data? : nil
 
     self.url = url as URL
     self.name = name as String
