@@ -5,11 +5,11 @@ require "digest"
 require "pathname"
 
 ROOT = Pathname.new(__dir__).join("../..").realpath
-PROJECT = ROOT.join("iina.xcodeproj/project.pbxproj")
+PROJECT = ROOT.join("yina.xcodeproj/project.pbxproj")
 LIB_DIR = ROOT.join("deps/lib")
 
 def stable_id(kind, name)
-  Digest::SHA256.hexdigest("iina-metal-deps:#{kind}:#{name}")[0, 24].upcase
+  Digest::SHA256.hexdigest("yina-metal-deps:#{kind}:#{name}")[0, 24].upcase
 end
 
 def insert_list(text, object_id, field, entries)

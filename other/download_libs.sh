@@ -1,7 +1,7 @@
 #!/bin/bash
 
 ARCH="arm64"
-# github | iina (use iina to get the binary included in the latest release)
+# github | yina (use yina to get the binary included in the latest release)
 YT_DLP_SOURCE="github"
 PARALLEL_DOWNLOADS=5
 SKIP_PLUGINS=false
@@ -20,7 +20,7 @@ printUsageHelp() {
   echo
   echo -e "${BLUE}Usage:${NC}"
   echo -e "    ${GREEN}$0 [-h|--help]:${NC}           Displays this help message"
-  echo -e "    ${GREEN}$0 [--yt-dlp-src] <SRC>:${NC}  Source to download youtube-dl from: github | iina"
+  echo -e "    ${GREEN}$0 [--yt-dlp-src] <SRC>:${NC}  Source to download youtube-dl from: github | yina"
   echo -e "    ${GREEN}$0 [--parallel] <N>:${NC}      Number of parallel downloads (default: 5)"
   echo -e "    ${GREEN}$0 [--skip-plugins]:${NC}      Skip downloading official plugins"
   echo
@@ -111,7 +111,7 @@ case $YT_DLP_SOURCE in
 github)
   YT_DLP_DOWNLOAD_PATH="https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos"
   ;;
-iina)
+yina)
   YT_DLP_DOWNLOAD_PATH="https://iina.io/dylibs/youtube-dl"
   ;;
 *)
@@ -317,8 +317,8 @@ download_plugin() {
   echo -e "${GREEN}Downloaded ${asset_name}${NC}"
 }
 
-download_plugin "iina/plugin-online-media" "iina-plugin-ytdl" || exit 1
-download_plugin "iina/plugin-userscript" "iina-plugin-userscript" || exit 1
-download_plugin "iina/plugin-opensub" "iina-plugin-opensub" || exit 1
+download_plugin "yina/plugin-online-media" "yina-plugin-ytdl" || exit 1
+download_plugin "yina/plugin-userscript" "yina-plugin-userscript" || exit 1
+download_plugin "yina/plugin-opensub" "yina-plugin-opensub" || exit 1
 
 echo -e "${GREEN}All downloads completed.${NC}"

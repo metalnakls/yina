@@ -22,22 +22,22 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build
-        run: xcodebuild -project iina.xcodeproj -scheme iina -configuration Nightly -derivedDataPath "$RUNNER_TEMP/iina-derived" ARCHS=arm64 ONLY_ACTIVE_ARCH=NO MACOSX_DEPLOYMENT_TARGET=27.0
+        run: xcodebuild -project yina.xcodeproj -scheme yina -configuration Nightly -derivedDataPath "$RUNNER_TEMP/yina-derived" ARCHS=arm64 ONLY_ACTIVE_ARCH=NO MACOSX_DEPLOYMENT_TARGET=27.0
         env:
           DEVELOPER_DIR: /Applications/Xcode_27.0.app/Contents/Developer
 
       - name: Normalize binary dependencies
-        run: ./other/modernize_arm64_bundle.sh "$RUNNER_TEMP/iina-derived/Build/Products/Nightly/IINA.app"
+        run: ./other/modernize_arm64_bundle.sh "$RUNNER_TEMP/yina-derived/Build/Products/Nightly/yina.app"
 
       - name: Verify Apple Silicon bundle
-        run: ./other/verify_arm64_bundle.sh "$RUNNER_TEMP/iina-derived/Build/Products/Nightly/IINA.app"
+        run: ./other/verify_arm64_bundle.sh "$RUNNER_TEMP/yina-derived/Build/Products/Nightly/yina.app"
 
       - name: Create DMG
-        run: hdiutil create -volname "IINA Nightly" -srcfolder "$RUNNER_TEMP/iina-derived/Build/Products/Nightly/IINA.app" -ov -format UDZO "$RUNNER_TEMP/IINA.dmg"
+        run: hdiutil create -volname "YINA Nightly" -srcfolder "$RUNNER_TEMP/yina-derived/Build/Products/Nightly/yina.app" -ov -format UDZO "$RUNNER_TEMP/YINA.dmg"
 
       - name: Save artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: IINA
-          path: ${{ runner.temp }}/IINA.dmg
+          name: YINA
+          path: ${{ runner.temp }}/YINA.dmg
           archive: false

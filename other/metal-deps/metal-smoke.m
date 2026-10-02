@@ -115,7 +115,7 @@ int main(int argc, const char **argv)
         }
 
         NSString *screenshotPath = [NSTemporaryDirectory()
-            stringByAppendingPathComponent:@"iina-metal-smoke.png"];
+            stringByAppendingPathComponent:@"yina-metal-smoke.png"];
         unlink(screenshotPath.fileSystemRepresentation);
         const char *screenshotCommand[] = {
             "screenshot-to-file", screenshotPath.fileSystemRepresentation, "subtitles", NULL

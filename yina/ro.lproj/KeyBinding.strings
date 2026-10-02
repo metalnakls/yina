@@ -1,0 +1,118 @@
+/*
+  KeyBinding.strings
+  yina
+
+  Created by lhc on 4/2/2017.
+  Copyright © 2017 lhc. All rights reserved.
+*/
+
+"cmd.ignore" = "Ignoră";
+"cmd.seek" = "Căutare";
+"cmd.revert-seek" = "Inversează căutarea";
+"cmd.set" = "Setează";
+"cmd.cycle" = "Comutare ciclică";
+"cmd.cycle-values" = "Comutare ciclică în";
+"cmd.add" = "Schimbă";
+"cmd.multiply" = "Multiplică";
+"cmd.frame-step" = "Cadrul următor";
+"cmd.frame-back-step" = "Cadrul precedent";
+"cmd.ab-loop" = "Buclă A-B";
+"cmd.sub-seek" = "Cauă în subtitrare";
+"cmd.playlist-next" = "Următorul element media";
+"cmd.playlist-prev" = "Precedentul element media";
+"cmd.playlist-move" = "Mută elementul din lista de redare";
+"cmd.playlist-clear" = "Șterge lista de redare";
+"cmd.playlist-remove" = "Șterge elementul curent";
+"cmd.playlist-shuffle" = "Amestecă";
+"cmd.write-watch-later-config" = "Înregistrează istoricul de redare";
+"cmd.stop" = "Oprire";
+"cmd.quit" = "Termină";
+"cmd.quit-watch-later" = "Termină (salvează progresul)";
+"cmd.screenshot" = "Captură de ecran";
+"cmd.screenshot-to-file" = "Fișier cu captură de ecran";
+"cmd.loadfile" = "Încarcă fișier";
+"cmd.loadlist" = "Încarcă listă de redare";
+"cmd.run" = "Rulează";
+
+"yina.flip" = "Răstoarnă";
+"yina.mirror" = "Oglindește";
+
+"yina.toggle-pip" = "Activează Picture-in-Picture";
+"yina.toggle-music-mode" = "Activează modul Muzică";
+"yina.open-file" = "Deschide fișier";
+"yina.open-url" = "Deschide URL";
+"yina.video-panel" = "Panou video";
+"yina.audio-panel" = "Panou audio";
+"yina.sub-panel" = "Panou Subtitrări";
+"yina.playlist-panel" = "Panou Listă de redare";
+"yina.chapter-panel" = "Panou Capitole";
+"yina.bigger-window" = "Fereastră mai mare";
+"yina.smaller-window" = "Fereastră mai mică";
+"yina.fit-to-screen" = "Potrivește la ecran";
+"yina.toggle-flip" = "Activează răsturnare";
+"yina.toggle-mirror" = "Activează oglindire";
+"yina.save-playlist" = "Salvează lista de redare curentă";
+"yina.show-current-file-in-finder" = "Deschide în Finder";
+"yina.delete-current-file" = "Șterge fișierul curent";
+"yina.delete-current-file-hard" = "Șterge fișierul curent fără a-l muta în Coș";
+"yina.find-online-subs" = "Găsește subtitrări online";
+"yina.save-downloaded-sub" = "Salvează subtitrările descărcate";
+
+"yes" = "Da";
+"no" = "Nu";
+"to" = "la";
+"by" = "de";
+"in" = "în";
+"add" = "crește";
+"minus" = "micșorează";
+"forward" = "înainte";
+"backward" = "înapoi";
+"seek-to" = "la";
+
+"relative" = "s";
+"absolute" = "s";
+"absolute-percent" = "%";
+"relative-percent" = "%";
+"relative+exact" = "s (exact)";
+"relative-percent+exact" = "% (exact)";
+"absolute+keyframe" = "s (cadru cheie)";
+"absolute-percent+keyframe" = "% (cadru cheie)";
+
+"opt.pause" = "Pauză";
+"opt.speed" = "Viteză";
+
+"opt.window-scale" = "Scală fereastră";
+
+"opt.video" = "Pistă video";
+"opt.video-aspect-override" = "Raport de aspect video";
+"opt.contrast" = "Contrast";
+"opt.brightness" = "Luminozitate";
+"opt.gamma" = "Gamma";
+"opt.saturation" = "Saturație";
+"opt.deinterlace" = "Deîntrețesere";
+
+"opt.audio" = "Pistă audio";
+"opt.volume" = "Volum";
+"opt.mute" = "Mut";
+"opt.audio-delay" = "Întârziere audio";
+
+"opt.sub" = "Pistă subtitrare";
+"opt.sub-delay" = "Întârziere subtitrare";
+"opt.sub-pos" = "Poziție subtitrare";
+"opt.sub-scale" = "Scală subtitrare";
+"opt.sub-visibility" = "Vizibilitate subtitrare";
+"opt.secondary-sub-visibility" = "Vizibilitate subtitrare secundară";
+"opt.sub-ass-style-override" = "Înlocuire stil ASS";
+
+"opt.fullscreen" = "Ecran complet";
+"opt.ontop" = "Deasupra";
+
+"opt.chapter" = "Capitol";
+
+"read.set" = "Setează {{property}} la {{value}}";
+"read.add" = "{{property}} {{value}}";
+"read.multiply" = "Multiplică {{property}} de {{factor}}x";
+"read.cycle" = "Ciclic {{property}}{{#dir_down}} în jos{{/dir_down}}";
+"read.cycle-values" = "Ciclic {{property}} în ({{{values}}})";
+"read.seek" = "Caută {{#fwd}}înainte{{/fwd}}{{#bwd}}înapoi{{/bwd}}{{#abs}}to{{/abs}} {{value}}{{#sec}}s{{/sec}}{{#per}}%{{/per}} {{#exact}}(exact){{/exact}}{{#kf}}(keyframe){{/kf}}";
+"read.sub-seek" = "Sari la {{#skip_1}}următoarea{{/skip_1}}{{#skip_-1}}precedenta{{/skip_-1}} subtitrare";

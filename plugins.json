@@ -90,7 +90,7 @@
     "id": "com.recorder.iina-plugin"
   },
   {
-    "name": "PiP Toggle for IINA",
+    "name": "PiP Toggle for YINA",
     "url": "https://github.com/nastarandarjani/iina-pip-toggle",
     "desc": "Simple plugin to toggle Picture-in-Picture (PiP) to fullscreen.",
     "id": "com.user.piptoggle"

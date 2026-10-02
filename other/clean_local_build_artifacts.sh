@@ -23,9 +23,9 @@ declare -a candidates=()
 for path in \
   "$REPO_DIR"/DerivedData-* \
   "$REPO_DIR"/.scratch \
-  "$BACKUP_DIR"/IINA-before-*.app \
-  /private/tmp/iina-* \
-  /private/tmp/IINA-before-*.app; do
+  "$BACKUP_DIR"/YINA-before-*.app \
+  /private/tmp/yina-* \
+  /private/tmp/YINA-before-*.app; do
   [[ -e "$path" ]] || continue
   git_root="$(/usr/bin/git -C "$path" rev-parse --show-toplevel 2>/dev/null || true)"
   if [[ "$git_root" == "$path" ]]; then
@@ -35,11 +35,11 @@ for path in \
 done
 
 if (( ${#candidates[@]} == 0 )); then
-  echo "No disposable IINA build artifacts found."
+  echo "No disposable YINA build artifacts found."
   exit 0
 fi
 
-printf '%s\n' "Disposable IINA build artifacts:"
+printf '%s\n' "Disposable YINA build artifacts:"
 printf '  %s\n' "${candidates[@]}"
 
 if [[ "$apply" != true ]]; then
@@ -51,4 +51,4 @@ for path in "${candidates[@]}"; do
   rm -rf -- "$path"
 done
 
-echo "Removed ${#candidates[@]} disposable IINA build artifact(s)."
+echo "Removed ${#candidates[@]} disposable YINA build artifact(s)."

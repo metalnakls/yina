@@ -1,0 +1,118 @@
+/*
+  KeyBinding.strings
+  yina
+
+  Created by lhc on 4/2/2017.
+  Copyright © 2017 lhc. All rights reserved.
+*/
+
+"cmd.ignore" = "Negeren";
+"cmd.seek" = "Spoel vooruit of terug";
+"cmd.revert-seek" = "Herstel vooruit- of terugspoelen";
+"cmd.set" = "Stel in";
+"cmd.cycle" = "Schakel:";
+"cmd.cycle-values" = "Schakel:";
+"cmd.add" = "Wijzigen";
+"cmd.multiply" = "Vermenigvuldigen";
+"cmd.frame-step" = "Volgend frame";
+"cmd.frame-back-step" = "Vorig frame";
+"cmd.ab-loop" = "Herhaal gedeelte";
+"cmd.sub-seek" = "Zoek ondertiteling";
+"cmd.playlist-next" = "Open volgende bestand";
+"cmd.playlist-prev" = "Open vorige bestand";
+"cmd.playlist-move" = "Verplaats afspeellijstbestand";
+"cmd.playlist-clear" = "Wis afspeellijst";
+"cmd.playlist-remove" = "Verwijder huidige";
+"cmd.playlist-shuffle" = "Shuffle";
+"cmd.write-watch-later-config" = "Onthoud geschiedenis";
+"cmd.stop" = "Stop";
+"cmd.quit" = "Stop YINA";
+"cmd.quit-watch-later" = "Stop YINA (bewaar afspeelpositie)";
+"cmd.screenshot" = "Schermafbeelding";
+"cmd.screenshot-to-file" = "Schermafbeelding naar bestand";
+"cmd.loadfile" = "Laad bestand";
+"cmd.loadlist" = "Laad afspeellijst";
+"cmd.run" = "Voer uit";
+
+"yina.flip" = "Spiegel verticaal";
+"yina.mirror" = "Spiegel horizontaal";
+
+"yina.toggle-pip" = "Schakel Beeld-in-beeld in/uit";
+"yina.toggle-music-mode" = "Schakel muziekmodus in/uit";
+"yina.open-file" = "Open bestand";
+"yina.open-url" = "Open URL";
+"yina.video-panel" = "Videopaneel";
+"yina.audio-panel" = "Geluidspaneel";
+"yina.sub-panel" = "Ondertitelingspaneel";
+"yina.playlist-panel" = "Afspeellijstpaneel";
+"yina.chapter-panel" = "Hoofdstukkenpaneel";
+"yina.bigger-window" = "Groter venster";
+"yina.smaller-window" = "Kleiner venster";
+"yina.fit-to-screen" = "Pas aan schermformaat aan";
+"yina.toggle-flip" = "Schakel verticaal spiegelen in/uit";
+"yina.toggle-mirror" = "Schakel horizontaal spiegelen in/uit";
+"yina.save-playlist" = "Bewaar huidige afspeellijst";
+"yina.show-current-file-in-finder" = "Huidige bestand weergeven in Finder";
+"yina.delete-current-file" = "Verwijder huidige bestand";
+"yina.delete-current-file-hard" = "Verwijder huidige bestand permanent";
+"yina.find-online-subs" = "Haal online ondertiteling op";
+"yina.save-downloaded-sub" = "Bewaar gedownloade ondertiteling";
+
+"yes" = "Ja";
+"no" = "Nee";
+"to" = "op";
+"by" = "met";
+"in" = "in";
+"add" = "toenemen";
+"minus" = "afnemen";
+"forward" = "vooruit";
+"backward" = "terug";
+"seek-to" = "naar";
+
+"relative" = "sec";
+"absolute" = "sec";
+"absolute-percent" = "%";
+"relative-percent" = "%";
+"relative+exact" = "s (exact)";
+"relative-percent+exact" = "% (exact)";
+"absolute+keyframe" = "s (keyframe)";
+"absolute-percent+keyframe" = "% (keyframe)";
+
+"opt.pause" = "Pauzeer";
+"opt.speed" = "Snelheid";
+
+"opt.window-scale" = "Vensterschaal";
+
+"opt.video" = "Videospoor";
+"opt.video-aspect-override" = "Beeldverhouding";
+"opt.contrast" = "Contrast";
+"opt.brightness" = "Helderheid";
+"opt.gamma" = "Gamma";
+"opt.saturation" = "Verzadiging";
+"opt.deinterlace" = "Deinterlace";
+
+"opt.audio" = "Audiospoor";
+"opt.volume" = "Volume";
+"opt.mute" = "Geluid uit";
+"opt.audio-delay" = "Audiovertraging";
+
+"opt.sub" = "Ondertitelingspoor";
+"opt.sub-delay" = "Ondertitelingsvertraging";
+"opt.sub-pos" = "Ondertitelingspositie";
+"opt.sub-scale" = "Ondertitelingsschaal";
+"opt.sub-visibility" = "Ondertitelingszichtbaarheid";
+"opt.secondary-sub-visibility" = "Secundaire ondertitel zichtbaarheid";
+"opt.sub-ass-style-override" = "ASS-stijl negeren";
+
+"opt.fullscreen" = "Schermvullende weergave";
+"opt.ontop" = "Altijd op voorgrond";
+
+"opt.chapter" = "Hoofdstuk";
+
+"read.set" = "Stel {{property}} in op {{value}}";
+"read.add" = "{{property}} {{value}}";
+"read.multiply" = "Vermenigvuldig {{property}} met {{factor}}x";
+"read.cycle" = "Schakel: {{property}}{{#dir_down}} naar beneden{{/dir_down}}";
+"read.cycle-values" = "Schakel: {{property}} in ({{{values}}})";
+"read.seek" = "Ga{{#abs}} naar{{/abs}} {{value}}{{#sec}}s{{/sec}}{{#per}}%{{/per}} {{#fwd}}vooruit{{/fwd}}{{#bwd}}terug{{/bwd}} {{#exact}}(exact){{/exact}}{{#kf}}(keyframe){{/kf}}";
+"read.sub-seek" = "Ga naar {{#skip_1}}volgende{{/skip_1}}{{#skip_-1}}vorige{{/skip_-1}} ondertitel";
