@@ -1,5 +1,5 @@
 //
-//  ScreenshootOSDView.swift
+//  ScreenshotOSDView.swift
 //  yina
 //
 //  Created by Collider LI on 17/8/2020.
@@ -9,25 +9,25 @@
 import Cocoa
 import SwiftUI
 
-private enum ScreenshootOSDActionLabels {
+private enum ScreenshotOSDActionLabels {
   static let delete = NSLocalizedString(
     "JGi-s6-8NZ.title",
-    tableName: "ScreenshootOSDView",
+    tableName: "ScreenshotOSDView",
     value: "DELETE",
     comment: "Delete screenshot")
   static let edit = NSLocalizedString(
     "H12-rV-dHF.title",
-    tableName: "ScreenshootOSDView",
+    tableName: "ScreenshotOSDView",
     value: "EDIT",
     comment: "Edit screenshot")
   static let reveal = NSLocalizedString(
     "5fX-iV-Qu2.title",
-    tableName: "ScreenshootOSDView",
+    tableName: "ScreenshotOSDView",
     value: "REVEAL",
     comment: "Reveal screenshot in Finder")
 }
 
-private struct ScreenshootOSDContent: View {
+private struct ScreenshotOSDContent: View {
   let image: NSImage
   let imageSize: NSSize
   let showsFileActions: Bool
@@ -50,32 +50,32 @@ private struct ScreenshootOSDContent: View {
       if showsFileActions {
         HStack(spacing: 12) {
           Button(action: deleteAction) {
-            Text(ScreenshootOSDActionLabels.delete)
+            Text(ScreenshotOSDActionLabels.delete)
               .lineLimit(1)
               .truncationMode(.tail)
           }
             .buttonStyle(.borderless)
             .font(.system(size: 11, weight: .bold))
             .frame(width: 54, height: 16)
-            .accessibilityLabel(Text(ScreenshootOSDActionLabels.delete))
+            .accessibilityLabel(Text(ScreenshotOSDActionLabels.delete))
           Button(action: editAction) {
-            Text(ScreenshootOSDActionLabels.edit)
+            Text(ScreenshotOSDActionLabels.edit)
               .lineLimit(1)
               .truncationMode(.tail)
           }
             .buttonStyle(.borderless)
             .font(.system(size: 11, weight: .bold))
             .frame(width: 35, height: 16)
-            .accessibilityLabel(Text(ScreenshootOSDActionLabels.edit))
+            .accessibilityLabel(Text(ScreenshotOSDActionLabels.edit))
           Button(action: revealAction) {
-            Text(ScreenshootOSDActionLabels.reveal)
+            Text(ScreenshotOSDActionLabels.reveal)
               .lineLimit(1)
               .truncationMode(.tail)
           }
             .buttonStyle(.borderless)
             .font(.system(size: 11, weight: .bold))
             .frame(width: 56, height: 16)
-            .accessibilityLabel(Text(ScreenshootOSDActionLabels.reveal))
+            .accessibilityLabel(Text(ScreenshotOSDActionLabels.reveal))
         }
       }
     }
@@ -84,12 +84,12 @@ private struct ScreenshootOSDContent: View {
   }
 }
 
-class ScreenshootOSDView: NSViewController {
+class ScreenshotOSDView: NSViewController {
 
   private var image: NSImage?
   private var size: NSSize?
   private var fileURL: URL?
-  private var hostingView: NSHostingView<ScreenshootOSDContent>?
+  private var hostingView: NSHostingView<ScreenshotOSDContent>?
 
   func setImage(_ image: NSImage, size: NSSize, fileURL: URL?) {
     self.image = image
@@ -107,12 +107,12 @@ class ScreenshootOSDView: NSViewController {
     view = hostingView
   }
 
-  private func makeContent() -> ScreenshootOSDContent {
+  private func makeContent() -> ScreenshotOSDContent {
     guard let image, let size else {
-      fatalError("ScreenshootOSDView requires setImage(_:size:fileURL:) before loading its view")
+      fatalError("ScreenshotOSDView requires setImage(_:size:fileURL:) before loading its view")
     }
 
-    return ScreenshootOSDContent(
+    return ScreenshotOSDContent(
       image: image,
       imageSize: size,
       showsFileActions: fileURL != nil,

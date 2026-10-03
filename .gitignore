@@ -114,6 +114,8 @@ browser/Firefox_Open_In_YINA/*
 /.vscode
 
 deps/executable/youtube-dl
+# SwiftPM checkouts and resolved artifacts are local build state, never committed.
+SourcePackages/
 deps/plugins
 
 

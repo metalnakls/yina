@@ -98,8 +98,8 @@ These are good pilots for establishing a YINA SwiftUI window pattern:
    This is mostly static content and permission selection. Keep the plugin
    manager boundary in AppKit, but make the view state-driven.
 
-4. **Screenshot OSD** — `ScreenshootOSDView.swift` and
-   `ScreenshootOSDView.xib`.
+4. **Screenshot OSD** — `ScreenshotOSDView.swift` and
+   `ScreenshotOSDView.xib`.
    A small SwiftUI view is appropriate if its image/lifetime contract remains
    owned by the existing OSD controller.
 
