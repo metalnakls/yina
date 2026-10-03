@@ -253,7 +253,7 @@ class MPVController: NSObject {
 
     // User default settings
 
-    let volume = Preference.double(for: .softVolume)
+    let volume = Preference.double(for: Preference.bool(for: .enableInitialVolume) ? .initialVolume : .softVolume)
       .clamped(to: PlayerCore.minimumVolume...PlayerCore.maximumVolume)
     chkErr(setOptionInt(MPVOption.Audio.volume, Int(volume), level: .verbose))
 

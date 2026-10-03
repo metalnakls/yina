@@ -19,10 +19,7 @@
 	<key>controlBarPositionVertical</key>
 	<real>0.3039918664383562</real>
 	<key>controlBarToolbarButtons</key>
-	<array>
-		<integer>1</integer>
-		<integer>0</integer>
-	</array>
+	<array/>
 	<key>defaultCacheSize</key>
 	<integer>1804800</integer>
 	<key>disablePlaySliderScrolling</key>
@@ -39,6 +36,8 @@
 	<false/>
 	<key>enableHdrSupport</key>
 	<integer>1</integer>
+	<key>enableInitialVolume</key>
+	<true/>
 	<key>enableLiveText</key>
 	<false/>
 	<key>enableOSD</key>
@@ -59,6 +58,8 @@
 	<integer>2</integer>
 	<key>initialWindowSizePosition</key>
 	<string></string>
+	<key>initialVolume</key>
+	<integer>100</integer>
 	<key>musicModeShowPlaylist</key>
 	<true/>
 	<key>oscDissolveAppearDuration</key>
@@ -90,13 +91,13 @@
 	<key>showChapterPos</key>
 	<true/>
 	<key>showOSCVolumeControls</key>
-	<true/>
+	<false/>
 	<key>showRemainingTime</key>
 	<true/>
 	<key>sidebarSettingsDisplayAtLeading</key>
 	<false/>
 	<key>softVolume</key>
-	<real>105.0</real>
+	<real>100.0</real>
 	<key>subBlur</key>
 	<real>0.42</real>
 	<key>subBorderColorString</key>
