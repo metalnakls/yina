@@ -2,9 +2,9 @@ name: Spelling
 
 on:
   push:
-      branches: [develop]
+      branches: [swift]
   pull_request:
-      branches: [develop]
+      branches: [swift]
 
 jobs:
   typos:
