@@ -116,3 +116,11 @@ browser/Firefox_Open_In_YINA/*
 deps/executable/youtube-dl
 deps/plugins
 
+
+# Sparkle update signing. The EdDSA private key must never enter the repository;
+# it lives in the macOS Keychain or a CI secret.
+*.pem
+!yina/dsa_pub.pem
+appcast.xml
+appcast-beta.xml
+.github-release/

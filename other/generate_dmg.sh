@@ -225,4 +225,31 @@ if ! create-dmg $QUITE --volname YINA --volicon "$VOL_ICON_PATH" --background "$
 fi
 
 echo -e "${GREEN}Generated disk image: ${DISK_IMAGE_PATH}${NC}"
+
+# Sparkle needs a zip that carries the same signature as the app bundle, and an
+# appcast that points at it. The EdDSA private key lives in the login keychain,
+# never in the repository. Skipped unless a signing key is available so a local
+# DMG build still works on a machine without it.
+SPARKLE_BIN="$(cd "$SCRIPT_DIR/.." && pwd)/SourcePackages/artifacts/sparkle/Sparkle/bin"
+UPDATE_ZIP="$TARGET_BUILD_DIR/YINA.v$MARKETING_VERSION.zip"
+
+if [ -x "$SPARKLE_BIN/sign_update" ] && "$SPARKLE_BIN/generate_keys" -p >/dev/null 2>&1; then
+  echo -e "${YELLOW}Creating Sparkle update archive…${NC}"
+  if ditto -c -k --keepParent "$APP_PATH" "$UPDATE_ZIP"; then
+    if SIGNATURE=$("$SPARKLE_BIN/sign_update" "$UPDATE_ZIP" 2>&1); then
+      echo "$SIGNATURE" > "$TARGET_BUILD_DIR/appcast-signature.txt"
+      echo -e "${GREEN}Signed update archive: ${UPDATE_ZIP}${NC}"
+      echo -e "${GREEN}Signature: ${SIGNATURE}${NC}"
+    else
+      echo -e "${RED}Failed to sign update archive: ${SIGNATURE}${NC}" >&2
+      exit 1
+    fi
+  else
+    echo -e "${RED}Failed to create update archive.${NC}" >&2
+    exit 1
+  fi
+else
+  echo -e "${YELLOW}No Sparkle signing key in the keychain; skipping update archive.${NC}"
+fi
+
 echo -e "${GREEN}Successfully generated DMG file.${NC}"

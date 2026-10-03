@@ -50,7 +50,7 @@ import Foundation
     precondition(fargo[0].primaryTitle == "Fargo")
     precondition(fargo[0].secondaryTitle == "S02E01")
 
-    let moviesRoot = URL(fileURLWithPath: "/Users/wsb/Movies/Actual Movies", isDirectory: true)
+    let moviesRoot = URL(fileURLWithPath: NSHomeDirectory() + "/Movies/Actual Movies", isDirectory: true)
     let movieItems = [
       ShowFolderHistoryItem(url: moviesRoot.appendingPathComponent("Another Movie.mkv"),
                             lastPlayedAt: now.addingTimeInterval(-1), position: 0, duration: 100,

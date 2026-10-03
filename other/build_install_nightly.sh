@@ -39,6 +39,17 @@ fi
 
 mkdir -p "$MODULE_CACHE_DIR" "$SWIFTPM_CACHE_DIR"
 
+# yina uses one version number for both CFBundleVersion and CFBundleShortVersionString.
+# Sparkle compares CFBundleVersion, so it must rise for every release. Local builds
+# derive a date-based version so debugging never dirties the tree; releases set
+# YINA_VERSION explicitly from the VERSION file at the repository root.
+# See AGENTS.md for the bump rule.
+if [ -n "${YINA_VERSION:-}" ]; then
+  BUILD_VERSION="$YINA_VERSION"
+else
+  BUILD_VERSION="$(date -u +%Y%m%d%H%M)"
+fi
+
 # Keep compiler and SwiftPM caches with the build products. The host cache locations
 # are not guaranteed to be writable, and using the checked-out package graph keeps
 # this install build deterministic and offline.
@@ -55,6 +66,7 @@ xcodebuild \
   -packageCachePath "$SWIFTPM_CACHE_DIR" \
   -disableAutomaticPackageResolution \
   -onlyUsePackageVersionsFromResolvedFile \
+  YINA_VERSION="$BUILD_VERSION" \
   ARCHS=arm64 \
   ONLY_ACTIVE_ARCH=YES \
   MACOSX_DEPLOYMENT_TARGET=27.0 \
