@@ -142,13 +142,16 @@ done < <(find "$APP" -type f -print0)
 while IFS= read -r -d '' path; do
   case "$path" in
     "$APP") ;;
+    */OpenInYINA.appex)
+      codesign --force --sign - --entitlements "$REPO_DIR/OpenInYINA/OpenInYINA.entitlements" "$path"
+      ;;
     *.app|*.appex|*.framework|*.xpc|*.bundle)
       codesign --force --sign - "$path"
       ;;
   esac
 done < <(find "$APP" -depth -type d -print0)
 
-codesign --force --sign - "$APP"
+codesign --force --sign - --entitlements "$REPO_DIR/yina/yina.entitlements" "$APP"
 codesign --verify --deep --strict --verbose=2 "$APP"
 
 for key in CFBundleVersion CFBundleShortVersionString; do
