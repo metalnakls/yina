@@ -2,6 +2,10 @@
 <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
   <channel>
     <title>yina</title>
-    <description>Update feed for yina. Populated by the release workflow.</description>
+    <item>
+      <title>yina 1.1</title>
+      <sparkle:minimumSystemVersion>27.0</sparkle:minimumSystemVersion>
+      <enclosure url="https://github.com/metalnakls/yina/releases/download/v1.1/yina.zip" sparkle:version="1.1" sparkle:shortVersionString="1.1" sparkle:edSignature="QsHSjYhBU1DMWqOgwEBEGbYfrbzRWmMegNvcCyh1PntHo++XU//8ugUWek1LaD2mhoZis5DW3N19HxA1hmosBg==" length="82338898" type="application/octet-stream"/>
+    </item>
   </channel>
 </rss>

@@ -1,5 +1,46 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><meta charset="utf-8"><title>yina</title></head>
-<body><p>yina update feed. See <a href="appcast.xml">appcast.xml</a>.</p></body>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>yina</title>
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: grid;
+    grid-template-rows: 1fr auto 1fr;
+    justify-items: center;
+    align-content: center;
+    row-gap: 1.25rem;
+    background: #fff;
+  }
+  .button { grid-row: 2; align-self: end; }
+  pre { grid-row: 3; align-self: start; }
+  @media (prefers-color-scheme: dark) { body { background: #000; } }
+  .button {
+    display: inline-block;
+    padding: .7rem 1.6rem;
+    border-radius: 8px;
+    background: #000;
+    color: #fff;
+    text-decoration: none;
+    font: 500 16px/1 -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    .button { background: #fff; color: #000; }
+  }
+  pre {
+    margin: 0;
+    font: 13px ui-monospace, SFMono-Regular, Menlo, monospace;
+    color: #888;
+  }
+  @media (prefers-color-scheme: dark) { pre { color: #666; } }
+</style>
+</head>
+<body>
+  <a class="button" href="https://github.com/metalnakls/yina/releases/latest/download/yina.zip">download</a>
+  <pre>xattr -cr /Applications/yina.app</pre>
+</body>
 </html>
