@@ -18,7 +18,7 @@ The release version lives in the `VERSION` file at the repository root. Local bu
 
 Bump `VERSION` in the same commit as the change you want to ship. This is yina's own scheme: it does not track upstream IINA's version numbers. Keep upstream's history and provenance intact, but do not adopt its versioning.
 
-Cut releases from the `swift` branch only: `git tag v<VERSION> && git push yina v<VERSION>`. The repository also carries 66 upstream IINA release tags, and some of them sit on the `swift` line, so the `Appcast` workflow refuses to publish any tag that is not an ancestor of `origin/swift`. Pushing an upstream tag here fails instead of publishing upstream code as yina.
+Cut releases from the `meh` branch only: `git tag v<VERSION> && git push yina v<VERSION>`. The repository also carries 66 upstream IINA release tags, and some of them sit on the `meh` line, so the `Appcast` workflow refuses to publish any tag that is not an ancestor of `origin/meh`. Pushing an upstream tag here fails instead of publishing upstream code as yina.
 
 # Signing
 
