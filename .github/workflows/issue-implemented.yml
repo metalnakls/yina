@@ -56,10 +56,10 @@ jobs:
             const body = [
               "**This issue has been closed as completed.**",
               "",
-              "The changes that address it have been merged into the **`swift`** branch, which holds the sources for the development version of YINA. They might **not yet in a stable release**. To try them now you can:",
+              "The changes that address it have been merged into the **`meh`** branch, which holds the sources for the development version of YINA. They might **not yet in a stable release**. To try them now you can:",
               "",
               "- Download an [YINA Nightly build][nightly] (see [What is an YINA Nightly build?][nightly-faq]), or",
-              "- [Build YINA yourself][build] from the `swift` branch.",
+              "- [Build YINA yourself][build] from the `meh` branch.",
               "",
               "These changes will be included in a future release of YINA. Further tweaks related to this issue are still expected.",
               "",

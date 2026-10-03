@@ -5,9 +5,9 @@ permissions:
 
 on:
   push:
-      branches: [swift]
+      branches: [meh]
   pull_request:
-      branches: [swift]
+      branches: [meh]
 
 jobs:
   build:
