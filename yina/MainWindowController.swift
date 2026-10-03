@@ -942,6 +942,7 @@ class MainWindowController: PlayerWindowController {
     guard force || enabled != oscEDREnabled || abs(headroom - oscEDRHeadroom) >= 0.05 else { return }
     oscEDREnabled = enabled
     oscEDRHeadroom = headroom
+    thumbnailPeekView.setHDRPlaybackEnabled(enabled)
     oscFloatingView.setPrefersUnfilteredVisibleAppearance(enabled)
     oscFloatingView.setContentExtendedDynamicRange(enabled, headroom: headroom)
 
@@ -2930,7 +2931,7 @@ class MainWindowController: PlayerWindowController {
     let sliderFrameInWindow = playSlider.convert(playSlider.frame, to: nil)
 
     if player.info.thumbnailsReady, let image = player.info.getThumbnail(forSecond: previewTime.second)?.image {
-      thumbnailPeekView.imageView.image = image.rotate(rotation)
+      thumbnailPeekView.setImage(image, rotation: rotation, hdrEnabled: player.info.hdrEnabled)
       thumbnailPeekView.isHidden = false
 
       // In some formats (like most of Japanese TV video formats), display aspect ratios (DAR) are different from the

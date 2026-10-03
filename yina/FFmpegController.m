@@ -193,7 +193,10 @@ return -1;\
 
   pFrameRGB->width = thumbWidth;
   pFrameRGB->height = thumbHeight;
-  pFrameRGB->format = AV_PIX_FMT_RGBA;
+  BOOL isHDR = pCodecCtx->color_trc == AVCOL_TRC_SMPTE2084 || pCodecCtx->color_trc == AVCOL_TRC_ARIB_STD_B67;
+  pFrameRGB->format = isHDR ? AV_PIX_FMT_RGBA64LE : AV_PIX_FMT_RGBA;
+  pFrameRGB->color_trc = pCodecCtx->color_trc;
+  pFrameRGB->color_primaries = pCodecCtx->color_primaries;
 
   // Determine required buffer size and allocate buffer
   int size = av_image_get_buffer_size(pFrameRGB->format, thumbWidth, thumbHeight, 1);
@@ -274,11 +277,38 @@ return -1;\
           }
 
           // Convert the frame to RGBA
+          enum AVColorTransferCharacteristic transfer = pFrame->color_trc != AVCOL_TRC_UNSPECIFIED ? pFrame->color_trc : pCodecCtx->color_trc;
+          BOOL frameIsHDR = transfer == AVCOL_TRC_SMPTE2084 || transfer == AVCOL_TRC_ARIB_STD_B67;
+          enum AVPixelFormat outputFormat = frameIsHDR ? AV_PIX_FMT_RGBA64LE : AV_PIX_FMT_RGBA;
+          if (pFrameRGB->format != outputFormat) {
+            av_free(pFrameRGBBuffer);
+            pFrameRGB->format = outputFormat;
+            size = av_image_get_buffer_size(outputFormat, thumbWidth, thumbHeight, 1);
+            pFrameRGBBuffer = av_malloc(size);
+            CHECK_NOTNULL(pFrameRGBBuffer, @"Cannot alloc HDR frame buffer")
+            ret = av_image_fill_arrays(pFrameRGB->data, pFrameRGB->linesize, pFrameRGBBuffer,
+                                       outputFormat, thumbWidth, thumbHeight, 1);
+            CHECK_SUCCESS(ret, @"Cannot fill HDR frame buffer")
+          }
+          pFrameRGB->color_trc = transfer;
+          pFrameRGB->color_primaries = pFrame->color_primaries != AVCOL_PRI_UNSPECIFIED ? pFrame->color_primaries : pCodecCtx->color_primaries;
+          sws_ctx = sws_getCachedContext(sws_ctx, pFrame->width, pFrame->height, pFrame->format,
+                                        thumbWidth, thumbHeight, outputFormat, SWS_BILINEAR, NULL, NULL, NULL);
+          CHECK_NOTNULL(sws_ctx, @"Cannot create thumbnail scaler")
+          // swscale preserves the transfer function; select the source YUV matrix and
+          // range explicitly so BT.2020 video does not use the default BT.601 matrix.
+          enum AVColorSpace matrix = pFrame->colorspace != AVCOL_SPC_UNSPECIFIED ? pFrame->colorspace : pCodecCtx->colorspace;
+          int coefficients = matrix == AVCOL_SPC_BT2020_NCL || matrix == AVCOL_SPC_BT2020_CL ? SWS_CS_BT2020 :
+                             matrix == AVCOL_SPC_BT709 ? SWS_CS_ITU709 :
+                             matrix == AVCOL_SPC_SMPTE240M ? SWS_CS_SMPTE240M : SWS_CS_DEFAULT;
+          enum AVColorRange range = pFrame->color_range != AVCOL_RANGE_UNSPECIFIED ? pFrame->color_range : pCodecCtx->color_range;
+          const int *table = sws_getCoefficients(coefficients);
+          sws_setColorspaceDetails(sws_ctx, table, range == AVCOL_RANGE_JPEG, table, 1, 0, 1 << 16, 1 << 16);
           ret = sws_scale(sws_ctx,
                           (const uint8_t* const *)pFrame->data,
                           pFrame->linesize,
                           0,
-                          pCodecCtx->height,
+                          pFrame->height,
                           pFrameRGB->data,
                           pFrameRGB->linesize);
           CHECK_SUCCESS(ret, @"Cannot convert frame")
@@ -325,22 +355,41 @@ return -1;\
                      :(NSString *)file
 {
   // Create CGImage
-  CGColorSpaceRef rgb = CGColorSpaceCreateDeviceRGB();
-
-  CGContextRef cgContext = CGBitmapContextCreate(pFrame->data[0],  // it's converted to RGBA so could be used directly
-                                                 width, height,
-                                                 8,  // 8 bit per component
-                                                 width * 4,  // 4 bytes(rgba) per pixel
-                                                 rgb,
-                                                 (CGBitmapInfo)kCGImageAlphaPremultipliedLast);
-  CGImageRef cgImage = CGBitmapContextCreateImage(cgContext);
+  BOOL isHDR = pFrame->format == AV_PIX_FMT_RGBA64LE;
+  CFStringRef colorSpaceName = kCGColorSpaceSRGB;
+  if (isHDR) {
+    BOOL isPQ = pFrame->color_trc == AVCOL_TRC_SMPTE2084;
+    BOOL isP3 = pFrame->color_primaries == AVCOL_PRI_SMPTE432;
+    colorSpaceName = isP3 ? (isPQ ? kCGColorSpaceDisplayP3_PQ : kCGColorSpaceDisplayP3_HLG) :
+                           (isPQ ? kCGColorSpaceITUR_2100_PQ : kCGColorSpaceITUR_2100_HLG);
+  }
+  CGColorSpaceRef rgb = CGColorSpaceCreateWithName(colorSpaceName);
+  // Copy the pixels: the decoder reuses its buffer for subsequent thumbnails.
+  CFDataRef pixels = CFDataCreate(NULL, pFrame->data[0], pFrame->linesize[0] * height);
+  CGDataProviderRef provider = CGDataProviderCreateWithCFData(pixels);
+  CGBitmapInfo bitmapInfo = kCGImageAlphaLast | (isHDR ? kCGBitmapByteOrder16Little : kCGBitmapByteOrderDefault);
+  CGImageRef cgImage = CGImageCreate(width, height, isHDR ? 16 : 8, isHDR ? 64 : 32,
+                                   pFrame->linesize[0], rgb, bitmapInfo, provider, NULL, true,
+                                   kCGRenderingIntentDefault);
+  if (isHDR && cgImage) {
+    CGImageRef taggedImage = CGImageCreateCopyWithCalculatedHDRStats(cgImage);
+    if (taggedImage) {
+      CGImageRelease(cgImage);
+      cgImage = taggedImage;
+    }
+  }
+  CGDataProviderRelease(provider);
+  CFRelease(pixels);
+  CGColorSpaceRelease(rgb);
+  if (!cgImage) {
+    LOG_ERROR(@"Cannot create thumbnail image");
+    return;
+  }
 
   // Create NSImage
   NSImage *image = [[NSImage alloc] initWithCGImage:cgImage size: NSZeroSize];
 
   // Free resources
-  CFRelease(rgb);
-  CFRelease(cgContext);
   CFRelease(cgImage);
 
   // Add to list

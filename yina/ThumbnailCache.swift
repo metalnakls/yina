@@ -7,6 +7,8 @@
 //
 
 import Cocoa
+import ImageIO
+import UniformTypeIdentifiers
 
 fileprivate let subsystem = Logger.makeSubsystem("thumbcache", ["photo.stack"])
 
@@ -15,7 +17,7 @@ class ThumbnailCache {
   private typealias FileSize = UInt64
   private typealias FileTimestamp = Int64
 
-  private static let version: CacheVersion = 2
+  private static let version: CacheVersion = 3
   
   private static let sizeofMetadata = MemoryLayout<CacheVersion>.size + MemoryLayout<FileSize>.size + MemoryLayout<FileTimestamp>.size
 
@@ -32,7 +34,12 @@ class ThumbnailCache {
   }
 
   static func fileIsCached(forName name: String, forVideo videoPath: URL?,
-                           allowUnavailableVideo: Bool = false) -> Bool {
+                           allowUnavailableVideo: Bool = false, requireCurrentFormat: Bool = false) -> Bool {
+    if requireCurrentFormat {
+      guard let file = try? FileHandle(forReadingFrom: urlFor(name)) else { return false }
+      defer { file.closeFile() }
+      guard file.read(type: CacheVersion.self) == version else { return false }
+    }
     guard let videoPath, let cached = cachedMetadata(forName: name) else { return false }
     guard let videoMetadata = metadata(forVideo: videoPath) else {
       // Welcome snapshots remain useful when their network volume is disconnected.
@@ -111,7 +118,7 @@ class ThumbnailCache {
   private static func cachedMetadata(at url: URL) -> Metadata? {
     guard let file = try? FileHandle(forReadingFrom: url) else { return nil }
     defer { file.closeFile() }
-    guard file.read(type: CacheVersion.self) == version,
+    guard let cacheVersion = file.read(type: CacheVersion.self), [2, version].contains(cacheVersion),
           let size = file.read(type: FileSize.self),
           let timestamp = file.read(type: FileTimestamp.self) else { return nil }
     return Metadata(size: size, timestamp: timestamp)
@@ -170,18 +177,32 @@ class ThumbnailCache {
     // data blocks
     for tb in thumbnails {
       let timestampData = Data(bytesOf: tb.realTime)
-      guard let tiffData = tb.image?.tiffRepresentation else {
-        log("Cannot generate tiff data.", level: .error)
+      guard let cgImage = tb.image?.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+        log("Cannot resolve thumbnail image.", level: .error)
         return
       }
-      guard let jpegData = NSBitmapImageRep(data: tiffData)?.representation(using: .jpeg, properties: imageProperties) else {
-        log("Cannot generate jpeg data.", level: .error)
+      let isHDR = cgImage.contentHeadroom > 1 || cgImage.colorSpace.map { CGColorSpaceUsesITUR_2100TF($0) } == true
+      let headroom = max(1, cgImage.contentHeadroom)
+      let imageData: Data
+      if isHDR {
+        // PNG retains 16-bit samples and the PQ/HLG ICC profile; JPEG flattens HDR.
+        let data = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(data, UTType.png.identifier as CFString, 1, nil) else { return }
+        CGImageDestinationAddImage(destination, cgImage, nil)
+        guard CGImageDestinationFinalize(destination) else { return }
+        imageData = data as Data
+      } else if let data = NSBitmapImageRep(cgImage: cgImage).representation(using: .jpeg, properties: imageProperties) {
+        imageData = data
+      } else {
+        log("Cannot encode thumbnail image.", level: .error)
         return
       }
-      let blockLength = Int64(timestampData.count + jpegData.count)
+      let headroomData = Data(bytesOf: headroom)
+      let blockLength = Int64(timestampData.count + headroomData.count + imageData.count)
       outputData.append(Data(bytesOf: blockLength))
       outputData.append(timestampData)
-      outputData.append(jpegData)
+      outputData.append(headroomData)
+      outputData.append(imageData)
     }
 
     file.write(outputData)
@@ -208,6 +229,11 @@ class ThumbnailCache {
     file.seekToEndOfFile()
     let eof = file.offsetInFile
 
+    file.seek(toFileOffset: 0)
+    guard let cacheVersion = file.read(type: CacheVersion.self), [2, version].contains(cacheVersion) else {
+      file.closeFile()
+      return nil
+    }
     // skip metadata
     file.seek(toFileOffset: UInt64(sizeofMetadata))
 
@@ -221,14 +247,35 @@ class ThumbnailCache {
         deleteCacheFile(at: pathURL)
         return nil
       }
-      // jpeg
-      let jpegData = file.readData(ofLength: Int(blockLength) - MemoryLayout.size(ofValue: timestamp))
-      guard let image = NSImage(data: jpegData) else {
+      let headroom: Float
+      if cacheVersion >= 3 {
+        guard let value = file.read(type: Float.self), value.isFinite, value >= 1 else {
+          file.closeFile()
+          deleteCacheFile(at: pathURL)
+          return nil
+        }
+        headroom = value
+      } else {
+        headroom = 1
+      }
+      let headerSize = MemoryLayout<Double>.size + (cacheVersion >= 3 ? MemoryLayout<Float>.size : 0)
+      guard blockLength > Int64(headerSize), UInt64(blockLength - Int64(headerSize)) <= eof - file.offsetInFile else {
+        file.closeFile()
+        deleteCacheFile(at: pathURL)
+        return nil
+      }
+      let imageData = file.readData(ofLength: Int(blockLength) - headerSize)
+      let options = [kCGImageSourceShouldAllowFloat: true,
+                     kCGImageSourceDecodeRequest: kCGImageSourceDecodeToHDR] as CFDictionary
+      guard let source = CGImageSourceCreateWithData(imageData as CFData, nil),
+            let decoded = CGImageSourceCreateImageAtIndex(source, 0, options) else {
         log("Cannot read image. Cache file will be deleted.", level: .warning)
         file.closeFile()
         deleteCacheFile(at: pathURL)
         return nil
       }
+      let tagged = headroom > 1 ? CGImageCreateCopyWithContentHeadroom(headroom, decoded) ?? decoded : decoded
+      let image = NSImage(cgImage: tagged, size: .zero)
       // construct
       let tb = FFThumbnail()
       tb.realTime = timestamp
