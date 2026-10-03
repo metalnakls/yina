@@ -505,6 +505,8 @@ class InitialWindowController: NSWindowController {
         artworkByPath[show.identityPath] = artwork
         continue
       }
+      ThumbnailCache.importLegacyPreview(forName: cacheKey, forVideo: show.resumeURL)
+      ThumbnailCache.importLegacyPreview(forName: show.thumbnailCacheName, forVideo: show.resumeURL)
       let highResolutionThumbnail = ThumbnailCache.fileIsCached(forName: cacheKey, forVideo: show.resumeURL)
         ? ThumbnailCache.read(forName: cacheKey)?.first?.image
         : nil
@@ -515,10 +517,14 @@ class InitialWindowController: NSWindowController {
         })?.image
         : nil
       if let thumbnail = highResolutionThumbnail ?? cachedFrame,
-         Self.isBackingScaleSufficient(thumbnail),
          let artwork = ShowFolderCardArtwork.make(from: thumbnail) {
-        showFolderArtworkCache[cacheKey] = artwork
         artworkByPath[show.identityPath] = artwork
+        if Self.isBackingScaleSufficient(thumbnail) {
+          showFolderArtworkCache[cacheKey] = artwork
+        } else {
+          // Show the available preview now and upgrade it without leaving the card blank.
+          artworkRequests.append(show)
+        }
       } else {
         artworkRequests.append(show)
       }

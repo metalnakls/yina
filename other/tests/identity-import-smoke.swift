@@ -49,6 +49,7 @@ enum Utility { static let appSupportDirUrl = FileManager.default.temporaryDirect
     try fm.createDirectory(at: destination.appendingPathComponent("input_conf"), withIntermediateDirectories: true)
     try Data("keep destination".utf8).write(to: destination.appendingPathComponent("input_conf/keep.conf"))
     try IdentityMigration.importProfile(profiles[0], into: defaults, domain: domain, supportURL: destination)
+    precondition(defaults.string(forKey: AppEnvironment.importedPreviewDirectoryKey) == profiles[0].thumbnailCacheURL.path)
     precondition(defaults.integer(forKey: "volume") == 85) // Registered defaults must not block import.
     precondition(defaults.integer(forKey: "themeMaterial") == 2) // Existing user choices win.
     precondition(defaults.stringArray(forKey: "savedServers") == ["fixture-server"])

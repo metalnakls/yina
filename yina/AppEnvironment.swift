@@ -9,6 +9,19 @@ enum AppEnvironment {
   static let temporaryRoot: URL? = isCleanStart
     ? FileManager.default.temporaryDirectory.appendingPathComponent("yina-clean-\(sessionID)", isDirectory: true) : nil
 
+  static let importedPreviewDirectoryKey = "iinaImportedPreviewDirectory"
+
+  static var legacyThumbnailCacheURL: URL? {
+    guard !isCleanStart else { return nil }
+    if let path = defaults.string(forKey: importedPreviewDirectoryKey) {
+      return URL(fileURLWithPath: path, isDirectory: true)
+    }
+    // Compatibility for profiles imported before preview migration existed.
+    // This is a known cache location, not another installation scan.
+    return FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first?
+      .appendingPathComponent("com.colliderli.iina/thumb_cache", isDirectory: true)
+  }
+
   static var bundledDefaults: [String: Any] {
     guard !isCleanStart else { return [:] }
     guard let url = Bundle.main.url(forResource: "DefaultPreferences", withExtension: "plist"),

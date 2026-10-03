@@ -40,6 +40,32 @@ class ThumbnailCache {
     return cachedMetadata(forName: name) == videoMetadata
   }
 
+  /// Copy only a requested welcome preview, preserving existing yina cache entries.
+  /// Call on the artwork queue: checking video metadata may touch a network volume.
+  @discardableResult
+  static func importLegacyPreview(forName name: String, forVideo videoURL: URL?,
+                                  sourceDirectory: URL? = AppEnvironment.legacyThumbnailCacheURL,
+                                  destinationDirectory: URL = Utility.thumbnailCacheURL) -> Bool {
+    guard !AppEnvironment.isCleanStart, let sourceDirectory,
+          !name.isEmpty, name != ".", name != "..", !name.contains("/"),
+          let videoURL else { return false }
+    let fm = FileManager.default
+    let destination = destinationDirectory.appendingPathComponent(name)
+    guard !fm.fileExists(atPath: destination.path) else { return false }
+    let source = sourceDirectory.appendingPathComponent(name)
+    guard let cached = cachedMetadata(at: source),
+          let expected = metadata(forVideo: videoURL), cached == expected else { return false }
+    do {
+      try fm.createDirectory(at: destinationDirectory, withIntermediateDirectories: true)
+      try fm.copyItem(at: source, to: destination)
+      CacheManager.shared.needsRefresh = true
+      return true
+    } catch {
+      log("Could not import a cached IINA preview: \(error.localizedDescription)", level: .warning)
+      return false
+    }
+  }
+
   /// Recovers a pre-bookmark history entry after a Finder rename. Requiring one
   /// exact metadata match avoids redirecting a stale card to an unrelated file.
   static func uniquelyRenamedVideo(forName name: String, originalURL: URL) -> URL? {
@@ -76,7 +102,11 @@ class ThumbnailCache {
   }
 
   private static func cachedMetadata(forName name: String) -> Metadata? {
-    guard let file = try? FileHandle(forReadingFrom: urlFor(name)) else { return nil }
+    cachedMetadata(at: urlFor(name))
+  }
+
+  private static func cachedMetadata(at url: URL) -> Metadata? {
+    guard let file = try? FileHandle(forReadingFrom: url) else { return nil }
     defer { file.closeFile() }
     guard file.read(type: CacheVersion.self) == version,
           let size = file.read(type: FileSize.self),
