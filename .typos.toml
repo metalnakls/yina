@@ -16,10 +16,21 @@ extend-ignore-re = [
     "V\\[alue\\]",
     "ba!",
     # Ignore the token declaration in AssrtSubtitle.
-    "5IzWrb.*"
+    "5IzWrb.*",
 ]
 
+# Crowdin-generated localization keys embed arbitrary substrings that collide
+# with the spell checker (for example "3T9-gp-4UE" and "y68-ot-NOl"). These
+# identifiers are keys, not prose, and must never be rewritten.
 [default.extend-words]
+# typos splits hyphenated keys, so whitelist the fragments themselves.
+# typos lowercases before matching, so the fragment is spelled lowercase here.
+"ue" = "ue"
+"gp" = "gp"
+"3T9" = "3T9"
+"ot" = "ot"
+"y68" = "y68"
+"NOl" = "NOl"
 "abitrate" = "abitrate"
 "splitted" = "splitted"
 "writeable" = "writeable"
@@ -30,7 +41,6 @@ extend-ignore-re = [
 "customObjectInstantitationMethod" = "customObjectInstantitationMethod"
 "iy" = "iy"
 "reloadSavedYINAfilters" = "reloadSavedYINAfilters"
-"ScreenshootOSDView" = "ScreenshootOSDView"
 "tak" = "tak"
 "videoParamsMaxCll" = "videoParamsMaxCll"
 "CPSProcessSerNum" = "CPSProcessSerNum"
