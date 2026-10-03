@@ -5,6 +5,11 @@ struct IINAImportProfile {
   let displayName: String
   let preferences: [String: Any]
   let supportURL: URL
+
+  var thumbnailCacheURL: URL {
+    supportURL.deletingLastPathComponent().deletingLastPathComponent()
+      .appendingPathComponent("Caches/\(bundleIdentifier)/thumb_cache", isDirectory: true)
+  }
 }
 
 /// Detect and import an IINA profile once, before registering YINA's defaults.
@@ -130,9 +135,11 @@ final class IdentityMigration {
     let existing = defaults.persistentDomain(forName: domain) ?? [:]
     for (key, value) in profile.preferences where existing[key] == nil {
       guard key != migrationFlag, key != "didMigrateFromLegacyBundleID",
+            key != AppEnvironment.importedPreviewDirectoryKey,
             !key.hasPrefix("NS"), !key.hasPrefix("SU"), !key.hasPrefix("firstLaunchAfter") else { continue }
       defaults.set(relocate(value, from: profile.supportURL, to: supportURL), forKey: key)
     }
+    defaults.set(profile.thumbnailCacheURL.path, forKey: AppEnvironment.importedPreviewDirectoryKey)
     let fm = FileManager.default
     guard fm.fileExists(atPath: profile.supportURL.path) else { return }
     try fm.createDirectory(at: supportURL, withIntermediateDirectories: true)
