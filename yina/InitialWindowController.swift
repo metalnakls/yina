@@ -507,11 +507,11 @@ class InitialWindowController: NSWindowController {
       }
       ThumbnailCache.importLegacyPreview(forName: cacheKey, forVideo: show.resumeURL)
       ThumbnailCache.importLegacyPreview(forName: show.thumbnailCacheName, forVideo: show.resumeURL)
-      let highResolutionThumbnail = ThumbnailCache.fileIsCached(forName: cacheKey, forVideo: show.resumeURL)
+      let highResolutionThumbnail = ThumbnailCache.fileIsCached(forName: cacheKey, forVideo: show.resumeURL, allowUnavailableVideo: true)
         ? ThumbnailCache.read(forName: cacheKey)?.first?.image
         : nil
       let targetTime = show.position
-      let cachedFrame = ThumbnailCache.fileIsCached(forName: show.thumbnailCacheName, forVideo: show.resumeURL)
+      let cachedFrame = ThumbnailCache.fileIsCached(forName: show.thumbnailCacheName, forVideo: show.resumeURL, allowUnavailableVideo: true)
         ? ThumbnailCache.read(forName: show.thumbnailCacheName)?.min(by: {
           abs($0.realTime - targetTime) < abs($1.realTime - targetTime)
         })?.image
