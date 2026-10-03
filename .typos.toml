@@ -10,6 +10,8 @@ ignore-hidden = false
 
 [default]
 extend-ignore-re = [
+    # Git patch index lines contain hexadecimal object IDs, not prose.
+    '(?m)^index [0-9a-f]+\.\.[0-9a-f]+(?: [0-7]{6})?$',
     "\\bBig Sur\\b",
     '(firstItem|secondItem|id|destination|headerView)="[0-9A-Za-z]+-[0-9A-Za-z]+-[0-9A-Za-z]+"',
     'apiKey = "[^"]+"',
