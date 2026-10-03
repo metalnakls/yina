@@ -1186,7 +1186,7 @@ struct Preference {
     .forceDedicatedGPU: false,
     .loadIccProfile: true,
     .enableHdrSupport: true,
-    .enableToneMapping: false,
+    .enableToneMapping: true,
     .toneMappingTargetPeak: 0,
     .enableToneMappingTargetPeakOverride: false,
     .toneMappingTargetPeakOverride: 400,
