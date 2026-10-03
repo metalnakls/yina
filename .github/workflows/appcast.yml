@@ -48,6 +48,20 @@ jobs:
           SourcePackages/artifacts/sparkle/Sparkle/bin/generate_keys -f "$KEY_FILE"
           rm -f "$KEY_FILE"
 
+      - name: Verify the tag belongs to yina
+        run: |
+          set -euo pipefail
+          # This repo carries 66 upstream IINA tags, and some of them (for example
+          # v1.5.0-beta1) sit on the swift line. A tag pushed here would otherwise
+          # build and publish upstream code as a yina release. Only tags that are on
+          # the swift branch may publish.
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/swift; then
+            echo "Tag $GITHUB_REF_NAME is not on the swift branch; refusing to publish." >&2
+            echo "yina versions are cut from swift. See AGENTS.md." >&2
+            exit 1
+          fi
+          echo "Tag $GITHUB_REF_NAME is on swift."
+
       - name: Build release
         run: |
           set -euo pipefail
