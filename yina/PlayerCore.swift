@@ -1257,9 +1257,11 @@ class PlayerCore: NSObject {
   }
 
   func setVolume(_ volume: Double) {
-    let constrainedVolume = volume.clamped(to: Self.minimumVolume...Self.maximumVolume)
+    let isLocked = Preference.bool(for: .lockVolumeAt100)
+    let constrainedVolume = isLocked ? 100 : volume.clamped(to: Self.minimumVolume...Self.maximumVolume)
+    guard !isLocked || info.volume != constrainedVolume else { return }
     let shouldSendConstrainedVolumeOSD =
-      volume != constrainedVolume && info.volume == constrainedVolume
+      !isLocked && volume != constrainedVolume && info.volume == constrainedVolume
     info.volume = constrainedVolume
     mpv.setDouble(MPVOption.Audio.volume, constrainedVolume, level: .verbose)
     Preference.set(constrainedVolume, for: .softVolume)

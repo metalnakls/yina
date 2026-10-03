@@ -86,6 +86,10 @@ class SettingsPageAudio: SettingsPage {
   private func sectionVolume() -> SettingsSection {
     return section {
       SettingsList(title: .text_Volume) {
+        SettingsItem.Switch()
+          .image(name: "lock.fill")
+          .bindTo(.lockVolumeAt100)
+          .hasDescription()
         SettingsItem.PopupButton()
           .image(name: "speaker.plus")
           .bindTo(.replayGain, ofType: Preference.ReplayGainOption.self)

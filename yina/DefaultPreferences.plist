@@ -60,6 +60,8 @@
 	<string></string>
 	<key>initialVolume</key>
 	<integer>100</integer>
+	<key>lockVolumeAt100</key>
+	<true/>
 	<key>musicModeShowPlaylist</key>
 	<true/>
 	<key>oscDissolveAppearDuration</key>

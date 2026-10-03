@@ -72,6 +72,7 @@ struct Preference {
 
     /** Soft volume (int, 0 - 100)*/
     static let softVolume = Key("softVolume")
+    static let lockVolumeAt100 = Key("lockVolumeAt100")
 
     /** Pause st first (pause) (bool) */
     static let pauseWhenOpen = Key("pauseWhenOpen")
@@ -1123,6 +1124,7 @@ struct Preference {
     .osdAutoHideTimeout: Float(1),
     .osdTextSize: Float(20),
     .softVolume: 100,
+    .lockVolumeAt100: true,
     .arrowButtonAction: ArrowButtonAction.speed.rawValue,
     .pauseWhenOpen: false,
     .fullScreenWhenOpen: false,
@@ -1500,6 +1502,7 @@ struct Preference {
            .enableHdrSupport,
            .enableHdrWorkaround,
            .enableInitialVolume,
+           .lockVolumeAt100,
            .enableLiveText,
            .enableLogging,
            .enableNowPlayingArtwork,

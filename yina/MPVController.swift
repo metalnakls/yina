@@ -256,6 +256,11 @@ class MPVController: NSObject {
     let volume = Preference.double(for: Preference.bool(for: .enableInitialVolume) ? .initialVolume : .softVolume)
       .clamped(to: PlayerCore.minimumVolume...PlayerCore.maximumVolume)
     chkErr(setOptionInt(MPVOption.Audio.volume, Int(volume), level: .verbose))
+    // Observe the lock using the same lifecycle as other live mpv preferences.
+    setUserOption(.lockVolumeAt100, type: .other, forName: MPVOption.Audio.volume,
+                  level: .verbose) { key in
+      Preference.bool(for: key) ? "100" : nil
+    }
 
     // - Advanced
 
@@ -1432,6 +1437,14 @@ class MPVController: NSObject {
         break
       }
       DispatchQueue.main.async { [self] in
+        guard player.info.state != .shuttingDown, player.info.state != .shutDown else { return }
+        if Preference.bool(for: .lockVolumeAt100), data != 100 {
+          // Catch commands from plugins, IPC, and compound custom key bindings as well.
+          if getDouble(MPVOption.Audio.volume) != 100 {
+            setDouble(MPVOption.Audio.volume, 100, level: .verbose)
+          }
+          return
+        }
         guard data >= PlayerCore.minimumVolume else {
           player.setVolume(PlayerCore.minimumVolume)
           return

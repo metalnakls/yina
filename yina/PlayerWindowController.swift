@@ -288,6 +288,11 @@ class PlayerWindowController: NSWindowController, NSWindowDelegate {
       // Intercept only standalone visibility commands. Compound/custom mpv commands retain
       // their original semantics; menus and Quick Settings use the same PlayerCore entry point.
       let action = keyBinding.action
+      if Preference.bool(for: .lockVolumeAt100), action.count >= 2,
+         ["add", "set", "multiply", "cycle", "cycle-values"].contains(action[0]),
+         action[1] == MPVOption.Audio.volume {
+        return true
+      }
       if action == ["cycle", MPVOption.Subtitles.subVisibility] {
         player.toggleSubVisibility()
         return true
@@ -549,7 +554,7 @@ class PlayerWindowController: NSWindowController, NSWindowDelegate {
       // don't use precised delta for mouse
       let newVolume = player.info.volume + (isMouse ? delta : AppData.volumeMap[volumeScrollAmount] * delta)
       player.setVolume(newVolume)
-      volumeSlider.doubleValue = newVolume
+      volumeSlider.doubleValue = player.info.volume
     case .playbackSpeed:
       let min = 0.05
       let max = 4.0
@@ -694,6 +699,7 @@ class PlayerWindowController: NSWindowController, NSWindowDelegate {
       NSHapticFeedbackManager.defaultPerformer.perform(.generic, performanceTime: .default)
     }
     player.setVolume(value)
+    sender.doubleValue = player.info.volume
   }
 
   @IBAction func playButtonAction(_ sender: NSButton) {

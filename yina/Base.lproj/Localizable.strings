@@ -662,6 +662,8 @@
 "settings.audioDriverEnableAVFoundation.items.1.desc" = "AVFoundation is a new, experimental audio driver offering Spatial Audio support. However, you may encounter some issues when using AVFoundation, such as audio delays.";
 "settings.audioDriverEnableAVFoundation.label" = "Audio driver";
 "settings.enableInitialVolume.label" = "Initial volume";
+"settings.lockVolumeAt100.label" = "Lock volume at 100%";
+"settings.lockVolumeAt100.desc" = "Keep playback volume at 100% and prevent accidental volume changes. Turn this off to adjust volume.";
 "settings.gaplessAudio.desc" = "Gapless audio";
 "settings.gaplessAudio.items.0" = "Disabled";
 "settings.gaplessAudio.items.0.desc" = "Playback of consecutive audio files may result in silence or disruption at the point of file change.";
