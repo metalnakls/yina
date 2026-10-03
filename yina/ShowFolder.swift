@@ -678,9 +678,34 @@ private final class ShowFolderCardProgressView: NSView {
   }
 }
 
+private final class ShowFolderPastelBlobView: NSView {
+  // Choose once per card so ordinary redraws do not change its color.
+  private let hue = CGFloat.random(in: 0...1)
+
+  override func draw(_ dirtyRect: NSRect) {
+    guard let context = NSGraphicsContext.current?.cgContext else { return }
+    let color = NSColor(calibratedHue: hue, saturation: 0.34, brightness: 0.96, alpha: 1)
+    let colors = [color.withAlphaComponent(0.62).cgColor,
+                  color.withAlphaComponent(0.38).cgColor,
+                  color.withAlphaComponent(0.10).cgColor,
+                  color.withAlphaComponent(0).cgColor]
+    guard let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(),
+                                     colors: colors as CFArray,
+                                     locations: [0, 0.25, 0.62, 1]) else { return }
+    // An elliptical, feathered cloud leaves the glass exposed around its perimeter.
+    context.saveGState()
+    context.translateBy(x: bounds.width * 0.62, y: bounds.height * 0.58)
+    context.scaleBy(x: 1, y: bounds.height / bounds.width * 0.82)
+    context.drawRadialGradient(gradient, startCenter: .zero, startRadius: 0,
+                               endCenter: .zero, endRadius: bounds.width * 0.52,
+                               options: [])
+    context.restoreGState()
+  }
+}
+
 private final class ShowFolderArtworkView: NSView {
   private let imageLayer = CALayer()
-  private let placeholderView = NSImageView()
+  private let placeholderView = ShowFolderPastelBlobView()
 
   var artwork: ShowFolderCardArtwork? {
     didSet { updateImage() }
@@ -693,50 +718,52 @@ private final class ShowFolderArtworkView: NSView {
     layer?.cornerCurve = .continuous
     layer?.masksToBounds = true
 
-    imageLayer.contentsGravity = .resizeAspectFill
-    imageLayer.masksToBounds = true
-    imageLayer.opacity = 1
-    layer?.addSublayer(imageLayer)
-    alphaValue = 0
-
     placeholderView.translatesAutoresizingMaskIntoConstraints = false
-    // The empty glass surface is the loading state. Do not add a guessed icon
-    // or change the card's dimensions while artwork is being decoded.
-    placeholderView.isHidden = true
     addSubview(placeholderView)
     NSLayoutConstraint.activate([
-      placeholderView.centerXAnchor.constraint(equalTo: centerXAnchor),
-      placeholderView.centerYAnchor.constraint(equalTo: centerYAnchor),
+      placeholderView.leadingAnchor.constraint(equalTo: leadingAnchor),
+      placeholderView.trailingAnchor.constraint(equalTo: trailingAnchor),
+      placeholderView.topAnchor.constraint(equalTo: topAnchor),
+      placeholderView.bottomAnchor.constraint(equalTo: bottomAnchor),
     ])
+    imageLayer.contentsGravity = .resizeAspectFill
+    imageLayer.masksToBounds = true
+    imageLayer.opacity = 0
+    layer?.addSublayer(imageLayer)
   }
 
   override func layout() {
     super.layout()
     let scale = window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
     imageLayer.frame = bounds
     imageLayer.contentsScale = scale
+    CATransaction.commit()
+    placeholderView.needsDisplay = true
   }
 
   private func updateImage() {
+    imageLayer.removeAnimation(forKey: "previewFade")
     guard let artwork else {
       imageLayer.contents = nil
-      alphaValue = 0
+      imageLayer.opacity = 0
       placeholderView.isHidden = false
       return
     }
+    let wasEmpty = imageLayer.contents == nil
     imageLayer.contents = artwork.image
+    imageLayer.opacity = 1
     placeholderView.isHidden = true
     let reducedMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ||
       AppEnvironment.defaults.bool(forKey: "disableAnimations")
-    let fadeDuration = reducedMotion ? 0 : 1.8
-    guard fadeDuration > 0, alphaValue < 0.99 else {
-      alphaValue = 1
-      return
-    }
-    NSAnimationContext.runAnimationGroup { context in
-      context.duration = fadeDuration
-      context.timingFunction = CAMediaTimingFunction(name: .easeOut)
-      animator().alphaValue = 1
+    if wasEmpty && !reducedMotion {
+      let fade = CABasicAnimation(keyPath: "opacity")
+      fade.fromValue = 0
+      fade.toValue = 1
+      fade.duration = 1.8
+      fade.timingFunction = CAMediaTimingFunction(name: .easeOut)
+      imageLayer.add(fade, forKey: "previewFade")
     }
   }
 

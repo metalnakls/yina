@@ -31,13 +31,14 @@ class ThumbnailCache {
     return FileManager.default.fileExists(atPath: urlFor(name).path)
   }
 
-  static func fileIsCached(forName name: String, forVideo videoPath: URL?) -> Bool {
-    guard let videoPath,
-          let videoMetadata = metadata(forVideo: videoPath) else {
-      log("Cannot get video file attributes", level: .error)
-      return false
+  static func fileIsCached(forName name: String, forVideo videoPath: URL?,
+                           allowUnavailableVideo: Bool = false) -> Bool {
+    guard let videoPath, let cached = cachedMetadata(forName: name) else { return false }
+    guard let videoMetadata = metadata(forVideo: videoPath) else {
+      // Welcome snapshots remain useful when their network volume is disconnected.
+      return allowUnavailableVideo
     }
-    return cachedMetadata(forName: name) == videoMetadata
+    return cached == videoMetadata
   }
 
   /// Copy only a requested welcome preview, preserving existing yina cache entries.
@@ -53,8 +54,10 @@ class ThumbnailCache {
     let destination = destinationDirectory.appendingPathComponent(name)
     guard !fm.fileExists(atPath: destination.path) else { return false }
     let source = sourceDirectory.appendingPathComponent(name)
-    guard let cached = cachedMetadata(at: source),
-          let expected = metadata(forVideo: videoURL), cached == expected else { return false }
+    guard let cached = cachedMetadata(at: source) else { return false }
+    if let expected = metadata(forVideo: videoURL), cached != expected { return false }
+    // The cache key comes from the saved card. Offline media cannot be restatted,
+    // but its previously generated preview can still represent that same card.
     do {
       try fm.createDirectory(at: destinationDirectory, withIntermediateDirectories: true)
       try fm.copyItem(at: source, to: destination)

@@ -60,7 +60,10 @@ enum PreviewCacheImportSmoke {
     let root = FileManager.default.temporaryDirectory
       .appendingPathComponent("yina-preview-cache-import-smoke-\(UUID().uuidString)", isDirectory: true)
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-    defer { try? FileManager.default.removeItem(at: root) }
+    defer {
+      try? FileManager.default.removeItem(at: root)
+      try? FileManager.default.removeItem(at: Utility.thumbnailCacheURL)
+    }
 
     let source = root.appendingPathComponent("legacy", isDirectory: true)
     let destination = root.appendingPathComponent("yina", isDirectory: true)
@@ -121,6 +124,20 @@ enum PreviewCacheImportSmoke {
     check(!ThumbnailCache.importLegacyPreview(forName: "stale", forVideo: video,
       sourceDirectory: source, destinationDirectory: destination), "stale metadata must be rejected")
 
+    let unavailableVideo = root.appendingPathComponent("offline-video.mp4")
+    try writeSource("offline", cache(payload: [9, 8, 7]))
+    let fixtureCacheDirectory = Utility.thumbnailCacheURL
+    try FileManager.default.createDirectory(at: fixtureCacheDirectory, withIntermediateDirectories: true)
+    check(ThumbnailCache.importLegacyPreview(forName: "offline", forVideo: unavailableVideo,
+      sourceDirectory: source, destinationDirectory: fixtureCacheDirectory),
+      "valid v2 cache should import when video metadata is unavailable")
+    check(try contents(fixtureCacheDirectory.appendingPathComponent("offline")) == cache(payload: [9, 8, 7]),
+      "offline cache should be copied intact")
+    check(!ThumbnailCache.fileIsCached(forName: "offline", forVideo: unavailableVideo),
+      "default cache validation must reject unavailable video metadata")
+    check(ThumbnailCache.fileIsCached(forName: "offline", forVideo: unavailableVideo, allowUnavailableVideo: true),
+      "opt-in cache validation should accept a valid header for unavailable video")
+
     try writeSource("wrong-version", cache(3))
     check(!ThumbnailCache.importLegacyPreview(forName: "wrong-version", forVideo: video,
       sourceDirectory: source, destinationDirectory: destination), "incompatible version must be rejected")
@@ -133,6 +150,6 @@ enum PreviewCacheImportSmoke {
     check(!ThumbnailCache.importLegacyPreview(forName: "../escape", forVideo: video,
       sourceDirectory: source, destinationDirectory: destination), "traversal name must be rejected")
 
-    print("PASS: requested-only copy, preserved existing cache, metadata/header rejection, absent source, traversal")
+    print("PASS: requested-only copy, unavailable-video import and opt-in cache validation, preserved existing cache, metadata/header rejection, absent source, traversal")
   }
 }
