@@ -25,12 +25,12 @@ cleanup() {
 }
 trap cleanup EXIT
 git worktree add --detach "$PAGES_DIR" "$REMOTE/gh-pages"
-cp "$REPO_DIR/site/index.html" "$PAGES_DIR/index.html"
+cp "$REPO_DIR/site/"* "$PAGES_DIR/"
 cp "$APPCAST" "$PAGES_DIR/appcast.xml"
 mkdir -p "$PAGES_DIR/.github/workflows"
 cp "$REPO_DIR/.github/workflows/pages.yml" "$PAGES_DIR/.github/workflows/pages.yml"
 touch "$PAGES_DIR/.nojekyll"
-git -C "$PAGES_DIR" add index.html appcast.xml .nojekyll .github/workflows/pages.yml
+git -C "$PAGES_DIR" add index.html favicon.png appcast.xml .nojekyll .github/workflows/pages.yml
 if ! git -C "$PAGES_DIR" diff --cached --quiet; then
   git -C "$PAGES_DIR" commit -m pages
   git -C "$PAGES_DIR" push "$REMOTE" HEAD:refs/heads/gh-pages
