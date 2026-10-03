@@ -39,6 +39,8 @@ cat > "$APPCAST_OUT" <<XML
   <channel>
     <title>yina</title>
     <item>
+      <title>yina $VERSION</title>
+      <sparkle:minimumSystemVersion>27.0</sparkle:minimumSystemVersion>
       <enclosure url="$ENCLOSURE_URL" sparkle:version="$VERSION" sparkle:shortVersionString="$VERSION" sparkle:edSignature="$ED_SIGNATURE" length="$ARCHIVE_LENGTH" type="application/octet-stream"/>
     </item>
   </channel>

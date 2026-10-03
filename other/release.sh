@@ -20,6 +20,7 @@ set -euo pipefail
 
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+readonly REPO="metalnakls/yina"
 readonly REMOTE="${YINA_RELEASE_REMOTE:-yina}"
 readonly DERIVED_DATA="${YINA_RELEASE_DERIVED:-/tmp/yina-release}"
 readonly SPARKLE_BIN="$REPO_DIR/SourcePackages/artifacts/sparkle/Sparkle/bin"
@@ -61,13 +62,12 @@ fi
 
 # Only the meh line may be released. The repository also carries upstream IINA
 # tags, and releasing one of those would publish upstream code as yina.
-if ! git merge-base --is-ancestor HEAD "origin/meh" 2>/dev/null; then
-  echo "HEAD is not on origin/meh; refusing to release." >&2
-  echo "Fetch first: git fetch $REMOTE meh" >&2
+if [ "$(git branch --show-current)" != meh ]; then
+  echo "Releases must be built from the meh branch; refusing to release." >&2
   exit 65
 fi
 
-if [ -n "$(git status --porcelain)" ]; then
+if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
   echo "Working tree is dirty; refusing to release a moving target." >&2
   git status --short >&2
   exit 65
@@ -85,7 +85,25 @@ if ! "$SPARKLE_BIN/generate_keys" -p >/dev/null 2>&1; then
   echo "Generate one with: $SPARKLE_BIN/generate_keys" >&2
   exit 65
 fi
-echo "==> Sparkle signing key found"
+KEYCHAIN_PUBLIC_KEY="$("$SPARKLE_BIN/generate_keys" -p)"
+BUNDLE_PUBLIC_KEY="$(/usr/libexec/PlistBuddy -c 'Print :SUPublicEDKey' "$REPO_DIR/yina/Info.plist")"
+if [ "$KEYCHAIN_PUBLIC_KEY" != "$BUNDLE_PUBLIC_KEY" ]; then
+  echo "Sparkle signing key does not match the app public key; refusing to release." >&2
+  exit 65
+fi
+echo "==> Sparkle signing key matches the app"
+
+if [ "$DRY_RUN" -eq 0 ]; then
+  git fetch "$REMOTE" meh
+  if [ "$(git rev-parse HEAD)" != "$(git rev-parse "$REMOTE/meh")" ]; then
+    echo "Push the reviewed meh commit before publishing a release." >&2
+    exit 65
+  fi
+  if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
+    echo "Release $TAG already exists; bump VERSION." >&2
+    exit 65
+  fi
+fi
 
 mkdir -p "$RELEASE_OUT"
 
@@ -133,20 +151,31 @@ done < <(find "$APP" -depth -type d -print0)
 codesign --force --sign - "$APP"
 codesign --verify --deep --strict --verbose=2 "$APP"
 
+for key in CFBundleVersion CFBundleShortVersionString; do
+  if [ "$(/usr/libexec/PlistBuddy -c "Print :$key" "$APP/Contents/Info.plist")" != "$VERSION" ]; then
+    echo "Built app $key does not match VERSION; refusing to release." >&2
+    exit 65
+  fi
+done
+
 echo "==> Creating Sparkle update archive"
-ARCHIVE="$RELEASE_OUT/yina-$VERSION.zip"
+ARCHIVE="$RELEASE_OUT/yina.zip"
 rm -f "$ARCHIVE"
 ditto -c -k --keepParent "$APP" "$ARCHIVE"
 
-SIGNATURE="$("$SPARKLE_BIN/sign_update" "$ARCHIVE" | tail -1)"
+SIGNATURE_LINE="$("$SPARKLE_BIN/sign_update" "$ARCHIVE")"
+SIGNATURE="$(sed -n 's/.*sparkle:edSignature="\([^"]*\)".*/\1/p' <<< "$SIGNATURE_LINE")"
 if [ -z "$SIGNATURE" ]; then
   echo "sign_update produced no signature; refusing to publish." >&2
   exit 1
 fi
-echo "==> Signature: $SIGNATURE"
+"$SPARKLE_BIN/sign_update" --verify "$ARCHIVE" "$SIGNATURE"
 
-ENCLOSURE_URL="https://github.com/$(git config --get remote.$REMOTE.url | sed -E 's|.*[:/]([^/]+)/([^/.]+)(\.git)?$|\1/\2|')/releases/download/$TAG/yina-$VERSION.zip"
+ENCLOSURE_URL="https://github.com/$REPO/releases/download/$TAG/yina.zip"
 echo "==> Enclosure URL: $ENCLOSURE_URL"
+
+APPCAST="$RELEASE_OUT/appcast.xml"
+"$SCRIPT_DIR/write_appcast.sh" "$APPCAST" "$ENCLOSURE_URL" "$VERSION" "$SIGNATURE" "$ARCHIVE"
 
 if [ "$DRY_RUN" -eq 1 ]; then
   echo
@@ -158,21 +187,18 @@ if [ "$DRY_RUN" -eq 1 ]; then
   exit 0
 fi
 
-APPCAST="$RELEASE_OUT/appcast.xml"
-"$SCRIPT_DIR/write_appcast.sh" "$APPCAST" "$ENCLOSURE_URL" "$VERSION" "$SIGNATURE" "$ARCHIVE"
-
 echo "==> Tagging $TAG"
 git tag -a "$TAG" -m "yina $VERSION"
 
-echo "==> Publishing release"
-gh release create "$TAG" \
-  --repo "$(git config --get remote.$REMOTE.url)" \
-  --title "yina $VERSION" \
-  --notes "yina $VERSION" \
-  "$ARCHIVE"
-
 echo "==> Pushing tag"
 git push "$REMOTE" "$TAG"
+
+echo "==> Publishing release"
+gh release create "$TAG" \
+  --repo "$REPO" --verify-tag \
+  --title "yina $VERSION" \
+  --notes "yina $VERSION" \
+  "$ARCHIVE" "$APPCAST"
 
 echo "==> Publishing appcast to gh-pages"
 "$SCRIPT_DIR/publish_appcast.sh" "$APPCAST" "$RELEASE_OUT" "$REMOTE"
