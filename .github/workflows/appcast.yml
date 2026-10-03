@@ -91,7 +91,7 @@ jobs:
           set -euo pipefail
           VERSION="$(cat VERSION)"
           ZIP="$RUNNER_TEMP/yina-$VERSION.zip"
-          URL="https://github.com/swagless/yina/releases/download/v$VERSION/yina-$VERSION.zip"
+          URL="https://github.com/metalnakls/yina/releases/download/v$VERSION/yina-$VERSION.zip"
           SIGNATURE="$(tail -1 "$RUNNER_TEMP/signature.txt")"
 
           git config user.name  "github-actions[bot]"

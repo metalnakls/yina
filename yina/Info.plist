@@ -637,7 +637,7 @@
 		</dict>
 	</array>
 	<key>SUFeedURL</key>
-	<string>https://swagless.github.io/yina/appcast.xml</string>
+	<string>https://metalnakls.github.io/yina/appcast.xml</string>
 	<key>SUPublicDSAKeyFile</key>
 	<string>dsa_pub.pem</string>
 	<key>SUPublicEDKey</key>
