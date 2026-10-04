@@ -10,27 +10,33 @@ import JavaScriptCore
 
 class JavascriptPolyfill {
   weak var plugin: JavascriptPluginInstance!
-  var timers = [String: Timer]()
+  private let timerLock = NSLock()
+  private var timers = [String: Timer]()
+  private var pendingTimers = Set<String>()
 
   init(pluginInstance: JavascriptPluginInstance) {
     self.plugin = pluginInstance
   }
 
   deinit {
-    for timer in timers.values {
-      timer.invalidate()
-    }
+    removeAllTimers()
   }
 
   func removeAllTimers() {
-    for timer in timers.values {
-      timer.invalidate()
+    let removed = timerLock.withLock { () -> [Timer] in
+      let removed = Array(timers.values)
+      timers.removeAll()
+      pendingTimers.removeAll()
+      return removed
     }
-    timers.removeAll()
+    removed.forEach { $0.invalidate() }
   }
 
   func removeTimer(identifier: String) {
-    let timer = self.timers.removeValue(forKey: identifier)
+    let timer = timerLock.withLock {
+      pendingTimers.remove(identifier)
+      return timers.removeValue(forKey: identifier)
+    }
     timer?.invalidate()
   }
 
@@ -38,23 +44,25 @@ class JavascriptPolyfill {
     let clampedMs = repeats ? max(ms, 16.0) : ms
     let timeInterval  = clampedMs/1000.0
     let uuid = NSUUID().uuidString
+    timerLock.withLock { _ = pendingTimers.insert(uuid) }
 
-    DispatchQueue.main.async(execute: {
-      let timer = Timer.scheduledTimer(timeInterval: timeInterval,
-                                       target: self,
-                                       selector: #selector(self.callJSCallback),
-                                       userInfo: callback,
-                                       repeats: repeats)
+    DispatchQueue.main.async { [weak self] in
+      guard let self else { return }
+      let timer = Timer(timeInterval: timeInterval, repeats: repeats) { [weak self] timer in
+        guard let self else { timer.invalidate(); return }
+        guard self.timerLock.withLock({ self.timers[uuid] === timer }) else { return }
+        if !repeats { self.removeTimer(identifier: uuid) }
+        callback.call(withArguments: nil)
+      }
       timer.tolerance = timeInterval * 0.1
-      self.timers[uuid] = timer
-    })
+      let shouldSchedule = self.timerLock.withLock {
+        guard self.pendingTimers.remove(uuid) != nil else { return false }
+        self.timers[uuid] = timer
+        return true
+      }
+      if shouldSchedule { RunLoop.main.add(timer, forMode: .default) }
+    }
     return uuid
-  }
-
-  @objc func callJSCallback(_ timer: Timer) {
-    guard timer.isValid else { return }
-    let callback = (timer.userInfo as! JSValue)
-    callback.call(withArguments: nil)
   }
 
   func register(inContext context: JSContext) {

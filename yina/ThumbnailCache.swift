@@ -129,43 +129,11 @@ class ThumbnailCache {
   static func write(_ thumbnails: [FFThumbnail], forName name: String, forVideo videoPath: URL?) {
     log("Writing thumbnail cache...")
 
-    let maxCacheSize = Preference.integer(for: .maxThumbnailPreviewCacheSize) * FloatingPointByteCountFormatter.PrefixFactor.mi.rawValue
-    if maxCacheSize == 0 {
-      return
-    } else if CacheManager.shared.getCacheSize() > maxCacheSize {
-      CacheManager.shared.clearOldCache()
-    }
-
-    let pathURL = urlFor(name)
-    guard FileManager.default.createFile(atPath: pathURL.path, contents: nil, attributes: nil) else {
-      log("Cannot create file.", level: .error)
-      return
-    }
-    guard let file = try? FileHandle(forWritingTo: pathURL) else {
-      log("Cannot write to file.", level: .error)
-      return
-    }
-    // Close on every exit path. This function has several early returns, and a
-    // leaked descriptor per thumbnail write accumulates over a long session.
-    defer { try? file.close() }
-
-    guard let fileAttr = try? FileManager.default.attributesOfItem(atPath: videoPath!.path) else {
+    guard Preference.integer(for: .maxThumbnailPreviewCacheSize) > 0 else { return }
+    guard let videoPath, let metadata = metadata(forVideo: videoPath) else {
       log("Cannot get video file attributes", level: .error)
       return
     }
-
-    // file size
-    guard let fileSize = fileAttr[.size] as? FileSize else {
-      log("Cannot get video file size", level: .error)
-      return
-    }
-
-    // modified date
-    guard let fileModifiedDate = fileAttr[.modificationDate] as? Date else {
-      log("Cannot get video file modification date", level: .error)
-      return
-    }
-    let fileTimestamp = FileTimestamp(fileModifiedDate.timeIntervalSince1970)
 
     // Coalesce all data into a single write to reduce I/O syscalls
     var outputData = Data()
@@ -173,9 +141,9 @@ class ThumbnailCache {
     // version
     outputData.append(Data(bytesOf: version))
     // file size
-    outputData.append(Data(bytesOf: fileSize))
+    outputData.append(Data(bytesOf: metadata.size))
     // modified date
-    outputData.append(Data(bytesOf: fileTimestamp))
+    outputData.append(Data(bytesOf: metadata.timestamp))
 
     // data blocks
     for tb in thumbnails {
@@ -204,10 +172,12 @@ class ThumbnailCache {
       outputData.append(imageData)
     }
 
-    file.write(outputData)
-
-    CacheManager.shared.needsRefresh = true
-    log("Finished writing thumbnail cache.")
+    do {
+      try CacheManager.shared.write(outputData, to: urlFor(name))
+      log("Finished writing thumbnail cache.")
+    } catch {
+      log("Cannot write thumbnail cache: \(error.localizedDescription)", level: .error)
+    }
   }
 
   /// Read a single preview from the cache without keeping the whole catalog.
@@ -220,9 +190,69 @@ class ThumbnailCache {
   /// - Parameter targetTime: when set, return the frame nearest this time.
   /// - Returns: the requested preview, or `nil` when the file cannot be read.
   static func readOne(forName name: String, nearest targetTime: Double? = nil) -> NSImage? {
-    guard let thumbnails = read(forName: name), !thumbnails.isEmpty else { return nil }
-    guard let targetTime else { return thumbnails.first?.image }
-    return thumbnails.min { abs($0.realTime - targetTime) < abs($1.realTime - targetTime) }?.image
+    guard targetTime?.isFinite != false else { return nil }
+    let pathURL = urlFor(name)
+    guard let file = try? FileHandle(forReadingFrom: pathURL) else { return nil }
+    defer { file.closeFile() }
+    let eof = file.seekToEndOfFile()
+    file.seek(toFileOffset: 0)
+    guard eof >= UInt64(sizeofMetadata),
+          let cacheVersion = file.read(type: CacheVersion.self), [2, version].contains(cacheVersion) else { return nil }
+    file.seek(toFileOffset: UInt64(sizeofMetadata))
+
+    var selected: FrameHeader?
+    while file.offsetInFile < eof {
+      guard let header = readFrameHeader(from: file, version: cacheVersion, eof: eof) else {
+        deleteCacheFile(at: pathURL)
+        return nil
+      }
+      if selected == nil || (targetTime.map { abs(header.timestamp - $0) < abs(selected!.timestamp - $0) } ?? false) {
+        selected = header
+      }
+      // Image payloads are skipped, so only the chosen frame is decoded.
+      file.seek(toFileOffset: header.dataOffset + UInt64(header.dataLength))
+    }
+    guard let selected else { return nil }
+    file.seek(toFileOffset: selected.dataOffset)
+    guard let image = decodeImage(file.readData(ofLength: selected.dataLength), headroom: selected.headroom) else {
+      deleteCacheFile(at: pathURL)
+      return nil
+    }
+    return image
+  }
+
+  private struct FrameHeader {
+    let timestamp: Double
+    let headroom: Float
+    let dataOffset: UInt64
+    let dataLength: Int
+  }
+
+  private static func readFrameHeader(from file: FileHandle, version: CacheVersion, eof: UInt64) -> FrameHeader? {
+    guard let length = file.read(type: Int64.self),
+          let timestamp = file.read(type: Double.self), timestamp.isFinite else { return nil }
+    let headroom: Float
+    if version >= 3 {
+      guard let value = file.read(type: Float.self), value.isFinite, value >= 1 else { return nil }
+      headroom = value
+    } else {
+      headroom = 1
+    }
+    let headerSize = MemoryLayout<Double>.size + (version >= 3 ? MemoryLayout<Float>.size : 0)
+    let offset = file.offsetInFile
+    guard length > Int64(headerSize), offset <= eof,
+          UInt64(length - Int64(headerSize)) <= eof - offset else { return nil }
+    return FrameHeader(timestamp: timestamp, headroom: headroom,
+                       dataOffset: offset, dataLength: Int(length) - headerSize)
+  }
+
+  private static func decodeImage(_ data: Data, headroom: Float) -> NSImage? {
+    let options = [kCGImageSourceShouldAllowFloat: true,
+                   kCGImageSourceDecodeRequest: kCGImageSourceDecodeToHDR] as CFDictionary
+    guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+          let decoded = CGImageSourceCreateImageAtIndex(source, 0, options) else { return nil }
+    let tagged = headroom > 1 ? CGImageCreateCopyWithContentHeadroom(headroom, decoded) ?? decoded : decoded
+    return NSImage(cgImage: tagged, size: .zero)
   }
 
   /// Read thumbnail cache to file.
@@ -244,7 +274,8 @@ class ThumbnailCache {
     let eof = file.offsetInFile
 
     file.seek(toFileOffset: 0)
-    guard let cacheVersion = file.read(type: CacheVersion.self), [2, version].contains(cacheVersion) else {
+    guard eof >= UInt64(sizeofMetadata),
+          let cacheVersion = file.read(type: CacheVersion.self), [2, version].contains(cacheVersion) else {
       file.closeFile()
       return nil
     }
@@ -252,47 +283,22 @@ class ThumbnailCache {
     file.seek(toFileOffset: UInt64(sizeofMetadata))
 
     // data blocks
-    while file.offsetInFile != eof {
-      // length and timestamp
-      guard let blockLength = file.read(type: Int64.self),
-            let timestamp = file.read(type: Double.self) else {
+    while file.offsetInFile < eof {
+      guard let header = readFrameHeader(from: file, version: cacheVersion, eof: eof) else {
         log("Cannot read image header. Cache file will be deleted.", level: .warning)
         file.closeFile()
         deleteCacheFile(at: pathURL)
         return nil
       }
-      let headroom: Float
-      if cacheVersion >= 3 {
-        guard let value = file.read(type: Float.self), value.isFinite, value >= 1 else {
-          file.closeFile()
-          deleteCacheFile(at: pathURL)
-          return nil
-        }
-        headroom = value
-      } else {
-        headroom = 1
-      }
-      let headerSize = MemoryLayout<Double>.size + (cacheVersion >= 3 ? MemoryLayout<Float>.size : 0)
-      guard blockLength > Int64(headerSize), UInt64(blockLength - Int64(headerSize)) <= eof - file.offsetInFile else {
-        file.closeFile()
-        deleteCacheFile(at: pathURL)
-        return nil
-      }
-      let imageData = file.readData(ofLength: Int(blockLength) - headerSize)
-      let options = [kCGImageSourceShouldAllowFloat: true,
-                     kCGImageSourceDecodeRequest: kCGImageSourceDecodeToHDR] as CFDictionary
-      guard let source = CGImageSourceCreateWithData(imageData as CFData, nil),
-            let decoded = CGImageSourceCreateImageAtIndex(source, 0, options) else {
+      guard let image = decodeImage(file.readData(ofLength: header.dataLength), headroom: header.headroom) else {
         log("Cannot read image. Cache file will be deleted.", level: .warning)
         file.closeFile()
         deleteCacheFile(at: pathURL)
         return nil
       }
-      let tagged = headroom > 1 ? CGImageCreateCopyWithContentHeadroom(headroom, decoded) ?? decoded : decoded
-      let image = NSImage(cgImage: tagged, size: .zero)
       // construct
       let tb = FFThumbnail()
-      tb.realTime = timestamp
+      tb.realTime = header.timestamp
       tb.image = image
       result.append(tb)
     }
@@ -305,12 +311,14 @@ class ThumbnailCache {
   static func clearThumbnailCache() {
     try? FileManager.default.removeItem(atPath: Utility.thumbnailCacheURL.path)
     Utility.createDirIfNotExist(url: Utility.thumbnailCacheURL)
+    CacheManager.shared.needsRefresh = true
   }
 
   private static func deleteCacheFile(at pathURL: URL) {
     // try deleting corrupted cache
     do {
       try FileManager.default.removeItem(at: pathURL)
+      CacheManager.shared.needsRefresh = true
     } catch {
       log("Cannot delete corrupted cache.", level: .error)
     }

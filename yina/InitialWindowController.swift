@@ -513,7 +513,7 @@ class InitialWindowController: NSWindowController {
         ? ThumbnailCache.readOne(forName: cacheKey)
         : nil
       let targetTime = show.position
-      let cachedFrame = ThumbnailCache.fileIsCached(forName: show.thumbnailCacheName, forVideo: show.resumeURL, allowUnavailableVideo: true)
+      let cachedFrame = highResolutionThumbnail == nil && ThumbnailCache.fileIsCached(forName: show.thumbnailCacheName, forVideo: show.resumeURL, allowUnavailableVideo: true)
         ? ThumbnailCache.readOne(forName: show.thumbnailCacheName, nearest: targetTime)
         : nil
       if let thumbnail = highResolutionThumbnail ?? cachedFrame,

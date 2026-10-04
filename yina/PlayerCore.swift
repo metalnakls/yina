@@ -2975,28 +2975,24 @@ class PlayerCore: NSObject {
   }
 
   func getPlaylist() {
-    info.$playlist.withLock { playlist in
-      playlist.removeAll()
-      let playlistCount = mpv.getInt(MPVProperty.playlistCount)
-      for index in 0..<playlistCount {
-        let playlistItem = MPVPlaylistItem(filename: mpv.getString(MPVProperty.playlistNFilename(index))!,
-                                           isCurrent: mpv.getFlag(MPVProperty.playlistNCurrent(index)),
-                                           isPlaying: mpv.getFlag(MPVProperty.playlistNPlaying(index)),
-                                           title: mpv.getString(MPVProperty.playlistNTitle(index)))
-        playlist.append(playlistItem)
-      }
+    // Take one coherent mpv snapshot before acquiring the app's playlist lock.
+    let entries = mpv.getNode(MPVProperty.playlist) as? [[String: Any]] ?? []
+    let playlist = entries.compactMap { entry -> MPVPlaylistItem? in
+      guard let filename = entry["filename"] as? String else { return nil }
+      return MPVPlaylistItem(filename: filename,
+                             isCurrent: entry["current"] as? Bool ?? false,
+                             isPlaying: entry["playing"] as? Bool ?? false,
+                             title: entry["title"] as? String)
     }
+    info.$playlist.withLock { $0 = playlist }
   }
 
   func getChapters() {
     log("Reloading chapter list", level: .verbose)
-    var chapters: [MPVChapter] = []
-    let chapterCount = mpv.getInt(MPVProperty.chapterListCount)
-    for index in 0..<chapterCount {
-      let chapter = MPVChapter(title:     mpv.getString(MPVProperty.chapterListNTitle(index)),
-                               startTime: mpv.getDouble(MPVProperty.chapterListNTime(index)),
-                               index:     index)
-      chapters.append(chapter)
+    let entries = mpv.getNode(MPVProperty.chapterList) as? [[String: Any]] ?? []
+    let chapters = entries.enumerated().compactMap { index, entry -> MPVChapter? in
+      guard let time = entry["time"] as? Double else { return nil }
+      return MPVChapter(title: entry["title"] as? String, startTime: time, index: index)
     }
     // Instead of modifying existing list, overwrite reference to prev list.
     // This will avoid concurrent modification crashes

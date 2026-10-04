@@ -44,9 +44,7 @@ class LogWindowController: NSWindowController, NSMenuDelegate, NSToolbarDelegate
       guard let button = toolbarItem(withID: .followButton) else { return }
       let symbolName = following ? "arrow.up.left.circle.fill" : "arrow.up.left.circle"
       button.image = .sf(symbolName)
-      if #available(macOS 26, *) {
-        button.style = following ? .prominent : .plain
-      }
+      button.style = following ? .prominent : .plain
     }
   }
   private var filteredLogLevel = Logger.Level.preferred {
@@ -57,14 +55,12 @@ class LogWindowController: NSWindowController, NSMenuDelegate, NSToolbarDelegate
   private var filteredSubsystems = Set<String>() {
     didSet {
       updatePredicate()
-      if #available(macOS 26, *) {
-        let item = toolbarItem(withID: .subsystemButton)!
-        let filteredCount = filteredSubsystems.count
-        if filteredCount != 0 {
-          item.badge = .count(filteredCount)
-        } else {
-          item.badge = nil
-        }
+      let item = toolbarItem(withID: .subsystemButton)!
+      let filteredCount = filteredSubsystems.count
+      if filteredCount != 0 {
+        item.badge = .count(filteredCount)
+      } else {
+        item.badge = nil
       }
     }
   }
@@ -392,10 +388,14 @@ class LogWindowController: NSWindowController, NSMenuDelegate, NSToolbarDelegate
     let saveAll = sender is NSToolbarItem
     let filename = saveAll ? "iina.log" : (window?.subtitle ?? "filtered") + " yina.log"
     Utility.quickSavePanel(title: "Log", filename: filename, sheetWindow: window) { url in
-      let content: Any? = saveAll ? self.arrayController.content : self.arrayController.arrangedObjects
-      let logs = (content as! [Logger.Log]).map { $0.logString }.joined()
       do {
-        try logs.write(to: url, atomically: true, encoding: .utf8)
+        if saveAll && Logger.enabled {
+          try Logger.exportLog(to: url)
+        } else {
+          let content: Any? = saveAll ? self.arrayController.content : self.arrayController.arrangedObjects
+          let logs = (content as! [Logger.Log]).map { $0.logString }.joined()
+          try logs.write(to: url, atomically: true, encoding: .utf8)
+        }
       } catch let error {
         Utility.showAlert("error_saving_file", arguments: [NSLocalizedString("logwindow.logs", comment: "logs"), error.localizedDescription])
       }
@@ -425,6 +425,9 @@ class LogWindowController: NSWindowController, NSMenuDelegate, NSToolbarDelegate
     if !toFlush.isEmpty {
       checkIfAtBottom()
       logs.append(contentsOf: toFlush)
+      if logs.count > Logger.maximumLogCount {
+        logs.removeFirst(logs.count - Logger.maximumLogCount)
+      }
       if following {
         scrollToBottom()
       }
@@ -435,6 +438,7 @@ class LogWindowController: NSWindowController, NSMenuDelegate, NSToolbarDelegate
     if isWindowVisible {
       flushBuffer()
     } else {
+      flushTimer?.invalidate()
       flushTimer = nil
     }
   }

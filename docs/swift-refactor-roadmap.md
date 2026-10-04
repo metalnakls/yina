@@ -9,7 +9,7 @@ This is a roadmap, not a proposal to rewrite YINA wholesale.
 
 ## Implementation status
 
-The first migration wave is now implemented on the `swift` branch:
+The first migration wave is now implemented on the `meh` branch:
 
 - Open URL uses SwiftUI content inside an AppKit-owned window.
 - Subtitle chooser uses a SwiftUI multi-selection list inside the existing OSD flow.
@@ -67,7 +67,7 @@ therefore remove XIB ownership as a surface is deliberately reworked; it
 should not churn every XIB as a standalone cleanup.
 
 The obsolete `Base.lproj/InitialWindowController.xib` and its localized
-`.strings` siblings were removed from the project on `swift`. The welcome
+`.strings` siblings were removed from the project on `meh`. The welcome
 window is constructed programmatically and is not part of the XIB inventory
 above; it remains the active home for the Recents implementation.
 
@@ -76,32 +76,13 @@ above; it remains the active home for the Recents implementation.
 Priority is based on user-facing value, dependency risk, and whether the
 surface is a good SwiftUI candidate.
 
-### Priority 1: small, low-risk XIB migrations
+### Completed reference migrations
 
-Completed on `swift`: Subtitle chooser, Open URL, Plugin permission view, and
-Screenshot OSD. Their localized string tables remain in place.
-
-These are good pilots for establishing a YINA SwiftUI window pattern:
-
-1. **Subtitle chooser** — `SubChooseViewController.swift` and
-   `SubChooseViewController.xib`.
-   Replace the simple table and selection callbacks with a SwiftUI list,
-   retaining an AppKit sheet/window adapter if needed.
-
-2. **Open URL** — `OpenURLWindowController.swift` and
-   `OpenURLWindowController.xib`.
-   Keep the existing validation and text-field behavior in a small adapter;
-   move form layout and button state to SwiftUI.
-
-3. **Plugin permission view** — `PluginPermissionView.swift` and
-   `PluginPermissionView.xib`.
-   This is mostly static content and permission selection. Keep the plugin
-   manager boundary in AppKit, but make the view state-driven.
-
-4. **Screenshot OSD** — `ScreenshotOSDView.swift` and
-   `ScreenshotOSDView.xib`.
-   A small SwiftUI view is appropriate if its image/lifetime contract remains
-   owned by the existing OSD controller.
+Subtitle chooser, Open URL, Plugin permission view, and Screenshot OSD are
+implemented on `meh` with SwiftUI content and AppKit lifecycle adapters. Their
+obsolete XIBs are removed; localized string tables remain bundled. Use these
+controllers as reference implementations rather than scheduling another
+migration of the same surfaces.
 
 ### Priority 2: substantial AppKit UI migrations
 
@@ -118,13 +99,9 @@ These are good pilots for establishing a YINA SwiftUI window pattern:
    keyboard navigation, and scrolling while the controller retains custom
    window behavior, availability checks, drag handling, and open routing.
 
-7. **About window** — `AboutWindowController.swift`,
-   `AboutWindowContributorAvatarItem.swift`, and their XIBs.
-   The contributor collection can become a SwiftUI `LazyVGrid` or list. The
-   window lifecycle and external-link actions can remain AppKit-owned.
-
-   Completed on `swift`; AppKit continues to own the window lifecycle and an
-   `NSTextView` wrapper renders the existing rich-text resources.
+7. **About window** — completed on `meh`.
+   `AboutWindowController.swift` hosts SwiftUI contributor content. AppKit owns
+   the window lifecycle and an `NSTextView` wrapper renders rich-text resources.
 
 8. **Log and history windows** — `LogWindowController.swift` and
    `HistoryWindowController.swift`.
@@ -132,7 +109,7 @@ These are good pilots for establishing a YINA SwiftUI window pattern:
    SwiftUI is viable, but preserve keyboard navigation, column sizing,
    contextual menus, copy/export behavior, and large-data performance.
 
-The font picker is also completed on `swift`: SwiftUI owns its search, family
+The font picker is also completed on `meh`: SwiftUI owns its search, family
 and typeface selection, preview, manual entry, and actions. AppKit continues to
 own font enumeration and sheet/window lifecycle, and the existing localized
 string tables remain bundled.
@@ -157,7 +134,7 @@ string tables remain bundled.
     new rule editor, not mechanically translating the XIB. Keep the key event
     recorder and key-binding model independent from the replacement view.
 
-12. **OSC toolbar customization** — completed on `swift`.
+12. **OSC toolbar customization** — completed on `meh`.
     `OSCToolbarSettingsSheetController.swift` and its related OSC views now
     construct the sheet programmatically. AppKit deliberately remains the
     owner of pasteboard writing, drag/drop, toolbar-item identity, precise
@@ -252,46 +229,25 @@ letting SwiftUI views reach directly into mpv or window internals.
 
 ## Migration sequence
 
-1. Establish one reusable AppKit-to-SwiftUI window/content adapter.
-2. Migrate `SubChooseViewController` or `OpenURLWindowController` as the
-   reference implementation.
-3. Add behavior tests or focused smoke tests before migrating table-heavy
-   surfaces.
-4. Migrate simple static/content views: plugin permission, screenshot OSD,
-   About, and recent files.
-5. Migrate settings pages in independent slices; keep the settings window
-   AppKit-owned initially.
-6. Migrate inspector, filters, history, and logs only after preserving dense
-   table behavior and keyboard workflows.
-7. Treat `NSRuleEditor`, OSC drag/drop, menus, WebKit, PiP, and rendering as
-   dedicated projects, not incidental parts of a XIB cleanup.
-8. Remove each XIB only after the replacement has equivalent localization,
-   accessibility, keyboard, resizing, and state-restoration behavior.
+1. Migrate additional static settings groups using the existing hosting adapters.
+2. Establish large-data behavior coverage before changing log/history tables.
+3. Move log/history presentation in slices while preserving export, filtering,
+   selection, and keyboard navigation.
+4. Treat Inspector, Filters, and key recording as separate replacement projects.
+5. Keep player windows, rendering, menus, PiP, and WebKit behind their existing
+   system adapters.
 
-## Definition of done for each surface
+## Suggested next projects
 
-- No new XIB is introduced.
-- The replacement has an explicit state/model boundary.
-- Window lifecycle remains correct across reopen, close, and app termination.
-- Keyboard navigation, focus, accessibility, localization, and Reduce Motion
-  behavior are preserved.
-- Dense tables retain selection, sorting/sizing, context menus, copy/export,
-  and drag/drop behavior where applicable.
-- mpv access remains through the existing `PlayerCore`/`MPVController`
-  architecture.
-- The relevant live surface is manually exercised in the installed build,
-  not only compiled or snapshot-tested.
+1. **Remaining settings slices** — migrate independent preference groups while
+   retaining the established AppKit window and binding adapters.
+2. **Log and history presentation** — preserve bounded storage, large-data
+   performance, filtering, keyboard navigation, and full file export.
+3. **Inspector content** — begin with a narrow hosted content view after its
+   dynamic controls and update lifecycle have behavior coverage.
 
-## Suggested first three projects
-
-1. **Open URL → SwiftUI content with AppKit window adapter** — small scope,
-   clear validation behavior, and a reusable pattern.
-2. **Subtitle chooser → SwiftUI list/sheet** — simple table migration with
-   immediate user-visible value.
-3. **Settings page slice → SwiftUI page inside existing settings window** —
-   establishes how preference binding, navigation, and AppKit presentation
-   should coexist.
-
-Do not begin with PIP, the main window, OpenGL removal, or the JavaScriptCore
-bridge. They are important modernization targets, but they are framework or
-runtime projects rather than ordinary SwiftUI migrations.
+The first-wave Open URL, subtitle chooser, About, and welcome migrations are
+complete. PiP, player windows, dynamic menus, and the JavaScript runtime remain
+system adapters. All standard host configurations now enable the Metal path;
+OpenGL source remains isolated behind the renderer compilation condition until
+live renderer parity has been verified across playback, PiP, and displays.

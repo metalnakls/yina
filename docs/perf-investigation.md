@@ -18,7 +18,10 @@ machine-specific):
 | `cpu-sample.txt` | 10 min after launch, idle | 658 MB | fully idle, no busy frames |
 | `cpu-sample2.txt` | 1 h after launch, video playing | 939 MB | threads still mostly blocked |
 
-### What the traces rule OUT
+### What was inactive during these samples
+
+These samples did not capture the reported CPU spike and cannot rule out an
+intermittent fault in the paths below.
 
 - **No runaway loop or spin.** Every thread is parked in a blocking primitive
   (`__psynch_cvwait`, `__workq_kernreturn`, `__select`, `mach_msg2_trap`).
@@ -56,19 +59,33 @@ machine-specific):
    was not reproduced in any sample so far, so it may be a distinct,
    intermittent condition.
 
-## Known latent bug (not the current issue, found while looking)
+## Retention fixes
 
-`Logger.$buffer` is appended to on every log call and is only drained by
-`LogWindowController.flushBuffer`, which is reached through `scheduleFlush`:
+The logger's pending buffer and visible log list now retain at most 10,000
+entries. Pending entries are trimmed in batches, and append notifications are
+coalesced before reaching the main queue. The full session still goes to disk;
+Save All exports that file when logging is enabled.
 
-```swift
-guard flushTimer == nil && isWindowVisible else { return }
-```
+Completed JavaScript timeouts now release their timers and callbacks. Pending
+timer creation can be cancelled before it reaches the main run loop, and timer
+ownership is synchronized across plugin queues.
 
-With the Log window closed the buffer is never drained, so if logging is ever
-enabled the buffer grows without bound for the lifetime of the process. This
-is dormant today because logging is off by default. A cap of roughly 10k
-entries inside the existing lock would close it.
+Thumbnail error paths release their FFmpeg contexts and file descriptors. HDR
+preview images own their pixels after conversion. Welcome artwork reads only
+the selected cache frame, and cache eviction can run repeatedly under one
+serialized budget check. These changes address concrete retention and repeated
+work; they do not establish the cause of the intermittent 100% CPU report.
+
+Focused regressions run with `bash other/tests/optimization-smoke.sh`. Recheck
+the long-running symptom with hot CPU samples and before/after VM summaries.
+
+Validation on 2026-10-04 passed cache v2/v4 compatibility, malformed-cache
+rejection, concurrent cache budgeting, bounded logs with full file export,
+plugin timer cancellation and callback release, and FFmpeg error cleanup/HDR
+pixel ownership under Address Sanitizer. A synthetic 101-frame cache took
+0.485 seconds for 50 single-preview reads before the change and 0.094 seconds
+afterward. This benchmark measures the cache reader, not full welcome-window
+latency or the reported long-running CPU/memory symptom.
 
 ## Deliberately not changed
 

@@ -38,58 +38,37 @@ enum DefaultApplicationSetter {
       return
     }
 
-    if #available(macOS 12.0, *) {
-      let appURL = Bundle.main.bundleURL
-      let group = DispatchGroup()
-      let lock = NSLock()
-      var successCount = 0
-      var failedCount = 0
+    let appURL = Bundle.main.bundleURL
+    let group = DispatchGroup()
+    let lock = NSLock()
+    var successCount = 0
+    var failedCount = 0
 
-      for identifier in sortedIdentifiers {
-        guard let contentType = UTType(identifier) else {
-          Logger.log("Unknown UTI: \(identifier.quoted)", level: .error)
-          lock.lock()
+    for identifier in sortedIdentifiers {
+      guard let contentType = UTType(identifier) else {
+        Logger.log("Unknown UTI: \(identifier.quoted)", level: .error)
+        lock.lock()
+        failedCount += 1
+        lock.unlock()
+        continue
+      }
+
+      Logger.log("Setting default for UTI: \(identifier.quoted)", level: .verbose)
+      group.enter()
+      NSWorkspace.shared.setDefaultApplication(at: appURL, toOpen: contentType) { error in
+        lock.lock()
+        if let error {
+          Logger.log("Failed for \(identifier.quoted): \(error.localizedDescription)", level: .error)
           failedCount += 1
-          lock.unlock()
-          continue
-        }
-
-        Logger.log("Setting default for UTI: \(identifier.quoted)", level: .verbose)
-        group.enter()
-        NSWorkspace.shared.setDefaultApplication(at: appURL, toOpen: contentType) { error in
-          lock.lock()
-          if let error {
-            Logger.log("Failed for \(identifier.quoted): \(error.localizedDescription)", level: .error)
-            failedCount += 1
-          } else {
-            successCount += 1
-          }
-          lock.unlock()
-          group.leave()
-        }
-      }
-
-      group.notify(queue: .main) {
-        completion(successCount, failedCount)
-      }
-    } else {
-      guard let bundleIdentifier = Bundle.main.bundleIdentifier as CFString? else {
-        completion(0, sortedIdentifiers.count)
-        return
-      }
-
-      var successCount = 0
-      var failedCount = 0
-      for identifier in sortedIdentifiers {
-        Logger.log("Setting default for UTI: \(identifier.quoted)", level: .verbose)
-        let status = LSSetDefaultRoleHandlerForContentType(identifier as CFString, .all, bundleIdentifier)
-        if status == kOSReturnSuccess {
-          successCount += 1
         } else {
-          Logger.log("Failed for \(identifier.quoted): return value \(status)", level: .error)
-          failedCount += 1
+          successCount += 1
         }
+        lock.unlock()
+        group.leave()
       }
+    }
+
+    group.notify(queue: .main) {
       completion(successCount, failedCount)
     }
   }

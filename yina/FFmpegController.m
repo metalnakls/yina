@@ -119,231 +119,234 @@ return -1;\
              operation:(NSOperation *)operation
 {
   int i, ret;
-
-  char *cFilename = strdup(file.fileSystemRepresentation);
-  [_thumbnails removeAllObjects];
-  [_thumbnailPartialResult removeAllObjects];
-  [_addedTimestamps removeAllObjects];
-
-  // Register all formats and codecs. mpv should have already called it.
-  // av_register_all();
-
-  // Open video file
   AVFormatContext *pFormatCtx = NULL;
-  ret = avformat_open_input(&pFormatCtx, cFilename, NULL, NULL);
-  free(cFilename);
-  CHECK_SUCCESS(ret, @"Cannot open video")
-
-  // Find stream information
-  ret = avformat_find_stream_info(pFormatCtx, NULL);
-  CHECK_SUCCESS(ret, @"Cannot get stream info")
-
-  // Find the first video stream
-  int videoStream = -1;
-  for (i = 0; i < pFormatCtx->nb_streams; i++)
-    if (pFormatCtx->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
-      videoStream = i;
-      break;
-    }
-  CHECK_SUCCESS(videoStream, @"No video stream")
-
-  // Get the codec context for the video stream
-  AVStream *pVideoStream = pFormatCtx->streams[videoStream];
-
-  AVRational videoAvgFrameRate = pVideoStream->avg_frame_rate;
-
-  // Check whether the denominator (AVRational.den) is zero to prevent division-by-zero
-  if (videoAvgFrameRate.den == 0 || av_q2d(videoAvgFrameRate) == 0) {
-    LOG_DEBUG(@"Avg frame rate = 0, ignore");
-    return -1;
-  }
-
-  // Find the decoder for the video stream
-  const AVCodec *pCodec = avcodec_find_decoder(pVideoStream->codecpar->codec_id);
-  CHECK_NOTNULL(pCodec, @"Unsupported codec")
-
-  // Open codec
-  AVCodecContext *pCodecCtx = avcodec_alloc_context3(pCodec);
+  AVCodecContext *pCodecCtx = NULL;
   AVDictionary *optionsDict = NULL;
+  AVFrame *pFrame = NULL;
+  AVFrame *pFrameRGB = NULL;
+  uint8_t *pFrameRGBBuffer = NULL;
+  struct SwsContext *sws_ctx = NULL;
 
-  avcodec_parameters_to_context(pCodecCtx, pVideoStream->codecpar);
-  pCodecCtx->time_base = pVideoStream->time_base;
+  @try {
+    [_thumbnails removeAllObjects];
+    [_thumbnailPartialResult removeAllObjects];
+    [_addedTimestamps removeAllObjects];
 
-  if (pCodecCtx->pix_fmt < 0 || pCodecCtx->pix_fmt >= AV_PIX_FMT_NB) {
-    avcodec_free_context(&pCodecCtx);
-    avformat_close_input(&pFormatCtx);
-    LOG_ERROR(@"Error when getting thumbnails: Pixel format is null");
-    return -1;
-  }
+    // Open video file
+    ret = avformat_open_input(&pFormatCtx, file.fileSystemRepresentation, NULL, NULL);
+    CHECK_SUCCESS(ret, @"Cannot open video")
 
-  ret = avcodec_open2(pCodecCtx, pCodec, &optionsDict);
-  CHECK_SUCCESS(ret, @"Cannot open codec")
+    // Find stream information
+    ret = avformat_find_stream_info(pFormatCtx, NULL);
+    CHECK_SUCCESS(ret, @"Cannot get stream info")
 
-  // Allocate video frame
-  AVFrame *pFrame = av_frame_alloc();
-  CHECK_NOTNULL(pFrame, @"Cannot alloc video frame")
+    // Find the first video stream
+    int videoStream = -1;
+    for (i = 0; i < pFormatCtx->nb_streams; i++)
+      if (pFormatCtx->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
+        videoStream = i;
+        break;
+      }
+    CHECK_SUCCESS(videoStream, @"No video stream")
 
-  // Allocate the output frame
-  // We need to convert the video frame to RGBA to satisfy CGImage's data format
-  int thumbWidth = thumbnailsWidth;
-  int thumbHeight = (float)thumbWidth / ((float)pCodecCtx->width / pCodecCtx->height);
+    // Get the codec context for the video stream
+    AVStream *pVideoStream = pFormatCtx->streams[videoStream];
 
-  AVFrame *pFrameRGB = av_frame_alloc();
-  CHECK_NOTNULL(pFrameRGB, @"Cannot alloc RGBA frame")
+    AVRational videoAvgFrameRate = pVideoStream->avg_frame_rate;
 
-  pFrameRGB->width = thumbWidth;
-  pFrameRGB->height = thumbHeight;
-  BOOL isHDR = pCodecCtx->color_trc == AVCOL_TRC_SMPTE2084 || pCodecCtx->color_trc == AVCOL_TRC_ARIB_STD_B67;
-  pFrameRGB->format = isHDR ? AV_PIX_FMT_RGBA64LE : AV_PIX_FMT_RGBA;
-  pFrameRGB->color_trc = pCodecCtx->color_trc;
-  pFrameRGB->color_primaries = pCodecCtx->color_primaries;
+    // Check whether the denominator (AVRational.den) is zero to prevent division-by-zero
+    if (videoAvgFrameRate.den == 0 || av_q2d(videoAvgFrameRate) == 0) {
+      LOG_DEBUG(@"Avg frame rate = 0, ignore");
+      return -1;
+    }
 
-  // Determine required buffer size and allocate buffer
-  int size = av_image_get_buffer_size(pFrameRGB->format, thumbWidth, thumbHeight, 1);
-  uint8_t *pFrameRGBBuffer = (uint8_t *)av_malloc(size);
+    // Find the decoder for the video stream
+    const AVCodec *pCodec = avcodec_find_decoder(pVideoStream->codecpar->codec_id);
+    CHECK_NOTNULL(pCodec, @"Unsupported codec")
 
-  // Assign appropriate parts of buffer to image planes in pFrameRGB
-  ret = av_image_fill_arrays(pFrameRGB->data,
-                             pFrameRGB->linesize,
-                             pFrameRGBBuffer,
-                             pFrameRGB->format,
-                             pFrameRGB->width,
-                             pFrameRGB->height, 1);
-  CHECK_SUCCESS(ret, @"Cannot fill data for RGBA frame")
+    // Open codec
+    pCodecCtx = avcodec_alloc_context3(pCodec);
+    CHECK_NOTNULL(pCodecCtx, @"Cannot alloc codec context")
 
-  // Create a sws context for converting color space and resizing
-  CHECK(pCodecCtx->pix_fmt != AV_PIX_FMT_NONE, @"Pixel format is none")
-  struct SwsContext *sws_ctx = sws_getContext(pCodecCtx->width, pCodecCtx->height, pCodecCtx->pix_fmt,
-                                              pFrameRGB->width, pFrameRGB->height, pFrameRGB->format,
-                                              SWS_BILINEAR,
-                                              NULL, NULL, NULL);
+    ret = avcodec_parameters_to_context(pCodecCtx, pVideoStream->codecpar);
+    CHECK_SUCCESS(ret, @"Cannot copy codec parameters")
+    pCodecCtx->time_base = pVideoStream->time_base;
 
-  // Get duration and interval. A welcome card asks for a single saved-position
-  // frame; timeline peeks retain their established evenly-spaced behaviour.
-  int64_t duration = av_rescale_q(pFormatCtx->duration, AV_TIME_BASE_Q, pVideoStream->time_base);
-  double interval = duration / (double)self.thumbnailCount;
-  double timebaseDouble = av_q2d(pVideoStream->time_base);
-  AVPacket packet;
-  BOOL hasRequestedTime = isfinite(requestedTime);
-  int lastThumbnailIndex = hasRequestedTime ? 0 : self.thumbnailCount;
+    if (pCodecCtx->pix_fmt < 0 || pCodecCtx->pix_fmt >= AV_PIX_FMT_NB) {
+      LOG_ERROR(@"Error when getting thumbnails: Pixel format is null");
+      return -1;
+    }
 
-  // For each preview point
-  for (i = 0; i <= lastThumbnailIndex; i++) {
-    int64_t seek_pos = hasRequestedTime
-      ? av_rescale_q((int64_t)MAX(0, requestedTime * AV_TIME_BASE),
-                     AV_TIME_BASE_Q, pVideoStream->time_base) + pVideoStream->start_time
-      : interval * i + pVideoStream->start_time;
+    ret = avcodec_open2(pCodecCtx, pCodec, &optionsDict);
+    CHECK_SUCCESS(ret, @"Cannot open codec")
 
-    avcodec_flush_buffers(pCodecCtx);
+    // Allocate video frame
+    pFrame = av_frame_alloc();
+    CHECK_NOTNULL(pFrame, @"Cannot alloc video frame")
 
-    // Seek to time point
-    // avformat_seek_file(pFormatCtx, videoStream, seek_pos-interval, seek_pos, seek_pos+interval, 0);
-    ret = av_seek_frame(pFormatCtx, videoStream, seek_pos, AVSEEK_FLAG_BACKWARD);
-    CHECK_SUCCESS(ret, @"Cannot seek")
+    // Allocate the output frame
+    // We need to convert the video frame to RGBA to satisfy CGImage's data format
+    int thumbWidth = thumbnailsWidth;
+    CHECK(thumbWidth > 0 && pCodecCtx->width > 0 && pCodecCtx->height > 0 && self.thumbnailCount > 0,
+          @"Invalid thumbnail dimensions or count")
+    int thumbHeight = (float)thumbWidth / ((float)pCodecCtx->width / pCodecCtx->height);
 
-    avcodec_flush_buffers(pCodecCtx);
+    pFrameRGB = av_frame_alloc();
+    CHECK_NOTNULL(pFrameRGB, @"Cannot alloc RGBA frame")
 
-    // Read and decode frame
-    while(!operation.isCancelled && av_read_frame(pFormatCtx, &packet) >= 0) {
-      @try {
-        // Make sure it's video stream
-        if (packet.stream_index == videoStream) {
+    pFrameRGB->width = thumbWidth;
+    pFrameRGB->height = thumbHeight;
+    BOOL isHDR = pCodecCtx->color_trc == AVCOL_TRC_SMPTE2084 || pCodecCtx->color_trc == AVCOL_TRC_ARIB_STD_B67;
+    pFrameRGB->format = isHDR ? AV_PIX_FMT_RGBA64LE : AV_PIX_FMT_RGBA;
+    pFrameRGB->color_trc = pCodecCtx->color_trc;
+    pFrameRGB->color_primaries = pCodecCtx->color_primaries;
 
-          // Decode video frame
-          if (avcodec_send_packet(pCodecCtx, &packet) < 0)
-            break;
+    // Determine required buffer size and allocate buffer
+    int size = av_image_get_buffer_size(pFrameRGB->format, thumbWidth, thumbHeight, 1);
+    CHECK(size > 0, @"Invalid RGBA frame size")
+    pFrameRGBBuffer = (uint8_t *)av_malloc(size);
+    CHECK_NOTNULL(pFrameRGBBuffer, @"Cannot alloc RGBA frame buffer")
 
-          ret = avcodec_receive_frame(pCodecCtx, pFrame);
-          if (ret < 0) {  // something happened
-            if (ret == AVERROR(EAGAIN))  // input not ready, retry
-              continue;
-            else
+    // Assign appropriate parts of buffer to image planes in pFrameRGB
+    ret = av_image_fill_arrays(pFrameRGB->data,
+                               pFrameRGB->linesize,
+                               pFrameRGBBuffer,
+                               pFrameRGB->format,
+                               pFrameRGB->width,
+                               pFrameRGB->height, 1);
+    CHECK_SUCCESS(ret, @"Cannot fill data for RGBA frame")
+
+    // Create a sws context for converting color space and resizing
+    CHECK(pCodecCtx->pix_fmt != AV_PIX_FMT_NONE, @"Pixel format is none")
+    sws_ctx = sws_getContext(pCodecCtx->width, pCodecCtx->height, pCodecCtx->pix_fmt,
+                                                pFrameRGB->width, pFrameRGB->height, pFrameRGB->format,
+                                                SWS_BILINEAR,
+                                                NULL, NULL, NULL);
+    CHECK_NOTNULL(sws_ctx, @"Cannot create thumbnail scaler")
+
+    // Get duration and interval. A welcome card asks for a single saved-position
+    // frame; timeline peeks retain their established evenly-spaced behaviour.
+    int64_t duration = av_rescale_q(pFormatCtx->duration, AV_TIME_BASE_Q, pVideoStream->time_base);
+    double interval = duration / (double)self.thumbnailCount;
+    double timebaseDouble = av_q2d(pVideoStream->time_base);
+    AVPacket packet;
+    BOOL hasRequestedTime = isfinite(requestedTime);
+    int lastThumbnailIndex = hasRequestedTime ? 0 : self.thumbnailCount;
+
+    // For each preview point
+    for (i = 0; i <= lastThumbnailIndex; i++) {
+      if (operation.isCancelled) { return -1; }
+      int64_t seek_pos = hasRequestedTime
+        ? av_rescale_q((int64_t)MAX(0, requestedTime * AV_TIME_BASE),
+                       AV_TIME_BASE_Q, pVideoStream->time_base) + pVideoStream->start_time
+        : interval * i + pVideoStream->start_time;
+
+      avcodec_flush_buffers(pCodecCtx);
+
+      // Seek to time point
+      // avformat_seek_file(pFormatCtx, videoStream, seek_pos-interval, seek_pos, seek_pos+interval, 0);
+      ret = av_seek_frame(pFormatCtx, videoStream, seek_pos, AVSEEK_FLAG_BACKWARD);
+      CHECK_SUCCESS(ret, @"Cannot seek")
+
+      avcodec_flush_buffers(pCodecCtx);
+
+      // Read and decode frame
+      while(!operation.isCancelled && av_read_frame(pFormatCtx, &packet) >= 0) {
+        @try {
+          // Make sure it's video stream
+          if (packet.stream_index == videoStream) {
+
+            // Decode video frame
+            if (avcodec_send_packet(pCodecCtx, &packet) < 0)
               break;
-          }
 
-          // Check if duplicated
-          NSNumber *currentTimeStamp = @(pFrame->best_effort_timestamp);
-          if ([_addedTimestamps containsObject:currentTimeStamp]) {
-            double currentTime = CACurrentMediaTime();
-            if (currentTime - _timestamp > 1) {
-              if (self.delegate) {
-                [self.delegate didUpdateThumbnails:NULL forFile: file withProgress: i];
-                _timestamp = currentTime;
-              }
+            ret = avcodec_receive_frame(pCodecCtx, pFrame);
+            if (ret < 0) {  // something happened
+              if (ret == AVERROR(EAGAIN))  // input not ready, retry
+                continue;
+              else
+                break;
             }
+
+            // Check if duplicated
+            NSNumber *currentTimeStamp = @(pFrame->best_effort_timestamp);
+            if ([_addedTimestamps containsObject:currentTimeStamp]) {
+              double currentTime = CACurrentMediaTime();
+              if (currentTime - _timestamp > 1) {
+                if (self.delegate) {
+                  [self.delegate didUpdateThumbnails:NULL forFile: file withProgress: i];
+                  _timestamp = currentTime;
+                }
+              }
+              break;
+            } else {
+              [_addedTimestamps addObject:currentTimeStamp];
+            }
+
+            // Convert the frame to RGBA
+            enum AVColorTransferCharacteristic transfer = pFrame->color_trc != AVCOL_TRC_UNSPECIFIED ? pFrame->color_trc : pCodecCtx->color_trc;
+            BOOL frameIsHDR = transfer == AVCOL_TRC_SMPTE2084 || transfer == AVCOL_TRC_ARIB_STD_B67;
+            enum AVPixelFormat outputFormat = frameIsHDR ? AV_PIX_FMT_RGBA64LE : AV_PIX_FMT_RGBA;
+            if (pFrameRGB->format != outputFormat) {
+              av_freep(&pFrameRGBBuffer);
+              pFrameRGB->format = outputFormat;
+              size = av_image_get_buffer_size(outputFormat, thumbWidth, thumbHeight, 1);
+              CHECK(size > 0, @"Invalid HDR frame size")
+              pFrameRGBBuffer = av_malloc(size);
+              CHECK_NOTNULL(pFrameRGBBuffer, @"Cannot alloc HDR frame buffer")
+              ret = av_image_fill_arrays(pFrameRGB->data, pFrameRGB->linesize, pFrameRGBBuffer,
+                                         outputFormat, thumbWidth, thumbHeight, 1);
+              CHECK_SUCCESS(ret, @"Cannot fill HDR frame buffer")
+            }
+            pFrameRGB->color_trc = transfer;
+            pFrameRGB->color_primaries = pFrame->color_primaries != AVCOL_PRI_UNSPECIFIED ? pFrame->color_primaries : pCodecCtx->color_primaries;
+            sws_ctx = sws_getCachedContext(sws_ctx, pFrame->width, pFrame->height, pFrame->format,
+                                          thumbWidth, thumbHeight, outputFormat, SWS_BILINEAR, NULL, NULL, NULL);
+            CHECK_NOTNULL(sws_ctx, @"Cannot create thumbnail scaler")
+            // swscale preserves the transfer function; select the source YUV matrix and
+            // range explicitly so BT.2020 video does not use the default BT.601 matrix.
+            enum AVColorSpace matrix = pFrame->colorspace != AVCOL_SPC_UNSPECIFIED ? pFrame->colorspace : pCodecCtx->colorspace;
+            int coefficients = matrix == AVCOL_SPC_BT2020_NCL || matrix == AVCOL_SPC_BT2020_CL ? SWS_CS_BT2020 :
+                               matrix == AVCOL_SPC_BT709 ? SWS_CS_ITU709 :
+                               matrix == AVCOL_SPC_SMPTE240M ? SWS_CS_SMPTE240M : SWS_CS_DEFAULT;
+            enum AVColorRange range = pFrame->color_range != AVCOL_RANGE_UNSPECIFIED ? pFrame->color_range : pCodecCtx->color_range;
+            const int *table = sws_getCoefficients(coefficients);
+            sws_setColorspaceDetails(sws_ctx, table, range == AVCOL_RANGE_JPEG, table, 1, 0, 1 << 16, 1 << 16);
+            ret = sws_scale(sws_ctx,
+                            (const uint8_t* const *)pFrame->data,
+                            pFrame->linesize,
+                            0,
+                            pFrame->height,
+                            pFrameRGB->data,
+                            pFrameRGB->linesize);
+            CHECK_SUCCESS(ret, @"Cannot convert frame")
+
+            // Save the frame to disk
+            [self saveThumbnail:pFrameRGB
+                          width:pFrameRGB->width
+                         height:pFrameRGB->height
+                          index:i
+                       realTime:(pFrame->best_effort_timestamp * timebaseDouble)
+                        forFile:file];
             break;
-          } else {
-            [_addedTimestamps addObject:currentTimeStamp];
           }
-
-          // Convert the frame to RGBA
-          enum AVColorTransferCharacteristic transfer = pFrame->color_trc != AVCOL_TRC_UNSPECIFIED ? pFrame->color_trc : pCodecCtx->color_trc;
-          BOOL frameIsHDR = transfer == AVCOL_TRC_SMPTE2084 || transfer == AVCOL_TRC_ARIB_STD_B67;
-          enum AVPixelFormat outputFormat = frameIsHDR ? AV_PIX_FMT_RGBA64LE : AV_PIX_FMT_RGBA;
-          if (pFrameRGB->format != outputFormat) {
-            av_free(pFrameRGBBuffer);
-            pFrameRGB->format = outputFormat;
-            size = av_image_get_buffer_size(outputFormat, thumbWidth, thumbHeight, 1);
-            pFrameRGBBuffer = av_malloc(size);
-            CHECK_NOTNULL(pFrameRGBBuffer, @"Cannot alloc HDR frame buffer")
-            ret = av_image_fill_arrays(pFrameRGB->data, pFrameRGB->linesize, pFrameRGBBuffer,
-                                       outputFormat, thumbWidth, thumbHeight, 1);
-            CHECK_SUCCESS(ret, @"Cannot fill HDR frame buffer")
-          }
-          pFrameRGB->color_trc = transfer;
-          pFrameRGB->color_primaries = pFrame->color_primaries != AVCOL_PRI_UNSPECIFIED ? pFrame->color_primaries : pCodecCtx->color_primaries;
-          sws_ctx = sws_getCachedContext(sws_ctx, pFrame->width, pFrame->height, pFrame->format,
-                                        thumbWidth, thumbHeight, outputFormat, SWS_BILINEAR, NULL, NULL, NULL);
-          CHECK_NOTNULL(sws_ctx, @"Cannot create thumbnail scaler")
-          // swscale preserves the transfer function; select the source YUV matrix and
-          // range explicitly so BT.2020 video does not use the default BT.601 matrix.
-          enum AVColorSpace matrix = pFrame->colorspace != AVCOL_SPC_UNSPECIFIED ? pFrame->colorspace : pCodecCtx->colorspace;
-          int coefficients = matrix == AVCOL_SPC_BT2020_NCL || matrix == AVCOL_SPC_BT2020_CL ? SWS_CS_BT2020 :
-                             matrix == AVCOL_SPC_BT709 ? SWS_CS_ITU709 :
-                             matrix == AVCOL_SPC_SMPTE240M ? SWS_CS_SMPTE240M : SWS_CS_DEFAULT;
-          enum AVColorRange range = pFrame->color_range != AVCOL_RANGE_UNSPECIFIED ? pFrame->color_range : pCodecCtx->color_range;
-          const int *table = sws_getCoefficients(coefficients);
-          sws_setColorspaceDetails(sws_ctx, table, range == AVCOL_RANGE_JPEG, table, 1, 0, 1 << 16, 1 << 16);
-          ret = sws_scale(sws_ctx,
-                          (const uint8_t* const *)pFrame->data,
-                          pFrame->linesize,
-                          0,
-                          pFrame->height,
-                          pFrameRGB->data,
-                          pFrameRGB->linesize);
-          CHECK_SUCCESS(ret, @"Cannot convert frame")
-
-          // Save the frame to disk
-          [self saveThumbnail:pFrameRGB
-                        width:pFrameRGB->width
-                       height:pFrameRGB->height
-                        index:i
-                     realTime:(pFrame->best_effort_timestamp * timebaseDouble)
-                      forFile:file];
-          break;
+        } @finally {
+          // Free the packet
+          av_packet_unref(&packet);
         }
-      } @finally {
-        // Free the packet
-        av_packet_unref(&packet);
       }
     }
+    return operation.isCancelled ? -1 : 0;
+  } @finally {
+    // CHECK macros return early on failure; every exit must release the decoder.
+    sws_freeContext(sws_ctx);
+    av_free(pFrameRGBBuffer);
+    av_frame_free(&pFrameRGB);
+    av_frame_free(&pFrame);
+    av_dict_free(&optionsDict);
+    avcodec_free_context(&pCodecCtx);
+    avformat_close_input(&pFormatCtx);
   }
-  // Free the scaler
-  sws_freeContext(sws_ctx);
-
-  // Free the RGB image
-  av_free(pFrameRGBBuffer);
-  av_frame_free(&pFrameRGB);
-  // Free the YUV frame
-  av_frame_free(&pFrame);
-
-  // Free the codec
-  avcodec_free_context(&pCodecCtx);
-  // Close the video file
-  avformat_close_input(&pFormatCtx);
-
-  // LOG_DEBUG(@"Thumbnails generated.");
-  return 0;
 }
 
 
@@ -455,12 +458,16 @@ static inline uint8_t YINAToneMapHDRToSRGB(uint16_t V, bool isPQ) {
         dstRow[x * 4 + 3] = (uint8_t)(px[3] > 65535 ? 255 : (px[3] >> 8));
       }
     }
-    CGDataProviderRef provider = CGDataProviderCreateWithData(NULL, dst, dstStride * (size_t)height, NULL);
+    // The image retains its provider after this function returns. Copy the
+    // pixels into owned data before releasing the temporary conversion buffer.
+    CFDataRef pixels = CFDataCreate(NULL, dst, dstStride * (size_t)height);
+    CGDataProviderRef provider = pixels ? CGDataProviderCreateWithCFData(pixels) : NULL;
     if (provider) {
       cgImage = CGImageCreate(width, height, 8, 32, (size_t)dstStride, rgb,
                               kCGImageAlphaLast, provider, NULL, true, kCGRenderingIntentDefault);
       CGDataProviderRelease(provider);
     }
+    if (pixels) { CFRelease(pixels); }
     free(dst);
     if (!cgImage) {
       CGColorSpaceRelease(rgb);

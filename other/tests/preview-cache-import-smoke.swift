@@ -32,6 +32,7 @@ final class CacheManager {
   var needsRefresh = false
   func getCacheSize() -> Int { 0 }
   func clearOldCache() {}
+  func write(_ data: Data, to url: URL) throws { try data.write(to: url, options: .atomic) }
 }
 
 final class FFThumbnail {

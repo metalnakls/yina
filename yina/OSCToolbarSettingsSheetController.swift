@@ -66,9 +66,7 @@ class OSCToolbarSettingsSheetController: NSWindowController, OSCToolbarCurrentIt
   private func configureWindow(_ window: NSWindow) {
     window.title = "Toolbar Settings"
     window.isReleasedWhenClosed = false
-    if #available(macOS 11.0, *) {
-      window.titlebarSeparatorStyle = .none
-    }
+    window.titlebarSeparatorStyle = .none
 
     let contentView = NSView()
     contentView.wantsLayer = true

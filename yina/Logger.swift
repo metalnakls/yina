@@ -43,6 +43,9 @@ class Logger: NSObject {
   }
 
   @Atomic static var buffer: [Logger.Log] = []
+  static let maximumLogCount = 10_000
+  // Protected by the buffer lock, together with the messages being announced.
+  private static var notificationScheduled = false
 
   class Subsystem: RawRepresentable {
     let rawValue: String
@@ -205,6 +208,13 @@ class Logger: NSObject {
     }
   }
 
+  /// Export the complete on-disk session even when the UI retains only recent logs.
+  static func exportLog(to url: URL) throws {
+    try lock.withLock {
+      try Data(contentsOf: logFile, options: .mappedIfSafe).write(to: url, options: .atomic)
+    }
+  }
+
   /// Creates a directory at the specified URL along with any nonexistent parent directories.
   ///
   /// If the directory cannot be created then this method will treat the failure as a fatal error. The user will be shown an alert and when
@@ -282,11 +292,21 @@ class Logger: NSObject {
     let string = formatMessage(message, level, subsystem, true, date)
     let log = Log(subsystem: subsystem.rawValue, level: level, message: message, date: dateFormatter.string(from: date), logString: string)
 
-    $buffer.withLock {
-      $0.append(log)
+    let shouldNotify = $buffer.withLock { buffer in
+      // Trim in batches instead of shifting ten thousand entries on every log.
+      if buffer.count >= maximumLogCount {
+        buffer.removeFirst(maximumLogCount / 10)
+      }
+      buffer.append(log)
+      guard !notificationScheduled else { return false }
+      notificationScheduled = true
+      return true
     }
-    Task { @MainActor in
-      NotificationCenter.default.post(name: .yinaLogAppended, object: nil)
+    if shouldNotify {
+      DispatchQueue.main.async {
+        $buffer.withLock { _ in notificationScheduled = false }
+        NotificationCenter.default.post(name: .yinaLogAppended, object: nil)
+      }
     }
 
     print(string, terminator: "")
