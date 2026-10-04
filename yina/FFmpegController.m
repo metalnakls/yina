@@ -347,6 +347,71 @@ return -1;\
 }
 
 
+
+// MARK: - HDR preview tone mapping
+
+/// Convert a PQ (SMPTE ST 2084) code value to linear light, normalised so that
+/// 1.0 corresponds to 10000 cd/m2. Implements the inverse EOTF from the standard.
+static inline float YINAPQToLinear(float V) {
+  const float m1 = 0.1593017578125f;
+  const float m2 = 78.84375f;
+  const float c1 = 0.8359375f;
+  const float c2 = 18.8515625f;
+  const float c3 = 18.6875f;
+  if (V <= 0.0f) { return 0.0f; }
+  float Vp = powf(V, 1.0f / m2);
+  if (Vp <= c1) { return 0.0f; }
+  float den = c2 - c3 * Vp;
+  if (den <= 0.0f) { return 0.0f; }
+  return powf((Vp - c1) / den, 1.0f / m1);
+}
+
+/// Convert an HLG (ARIB STD-B67) signal to scene-linear light, normalised so
+/// that 1.0 corresponds to the nominal 1000 cd/m2 peak.
+static inline float YINAHLGToLinear(float E) {
+  const float a = 0.17883277f;
+  const float b = 0.28466892f;
+  const float c = 0.55991073f;
+  if (E <= 0.0f) { return 0.0f; }
+  if (E >= 1.0f) { return 1.0f; }
+  // Inverse of the HLG OETF. The 1/12 break used by the forward curve does not
+  // apply here: the decode branch is at signal 0.5 (scene 1/12).
+  if (E <= 0.5f) { return (E * E) / 3.0f; }
+  return (expf((E - c) / a) + b) / 12.0f;
+}
+
+/// Tone map one HDR component to an 8-bit sRGB code.
+///
+/// The preview is meant to look like the picture on screen, not to carry HDR
+/// precision. Displaying PQ-coded values directly lifts the midtones and looks
+/// washed out, so decode the transfer function, scale against the BT.2408
+/// reference white, and roll highlights off gently before applying the sRGB
+/// transfer function.
+///
+/// - Parameter V:     the 16-bit PQ or HLG code value.
+/// - Parameter isPQ:  YES for PQ (SMPTE ST 2084), NO for HLG (ARIB STD-B67).
+static inline uint8_t YINAToneMapHDRToSRGB(uint16_t V, bool isPQ) {
+  const float kReferenceWhiteNits = 203.0f;  // ITU-R BT.2408 HDR reference white
+  const float kPeakNits = isPQ ? 10000.0f : 1000.0f;
+  float code = (float)V / 65535.0f;
+  float linear = isPQ ? YINAPQToLinear(code) : YINAHLGToLinear(code);
+  float nits = linear * kPeakNits;
+
+  // Linear up to reference white so midtones keep their contrast, then a gentle
+  // logarithmic shoulder so highlights separate instead of clipping as one block.
+  float L = nits / kReferenceWhiteNits;
+  float y = L <= 1.0f ? L : 1.0f + log1pf(L) * 0.15f;
+  if (y < 0.0f) { y = 0.0f; }
+  if (y > 1.0f) { y = 1.0f; }
+
+  // Apply the sRGB transfer function; the output is a non-linear 8-bit code.
+  float srgb = y <= 0.0031308f ? y * 12.92f : 1.055f * powf(y, 1.0f / 2.4f) - 0.055f;
+  int v = (int)(srgb * 255.0f + 0.5f);
+  if (v < 0) { v = 0; }
+  if (v > 255) { v = 255; }
+  return (uint8_t)v;
+}
+
 - (void)saveThumbnail:(AVFrame *)pFrame width
                      :(int)width height
                      :(int)height index
@@ -355,42 +420,77 @@ return -1;\
                      :(NSString *)file
 {
   // Create CGImage
+  //
+  // A preview is shown on screen next to the video, so it must read like the
+  // video. Carrying the HDR transfer function through to an 8-bit sRGB image
+  // lifts the midtones and looks washed out, so HDR frames are tone mapped into
+  // sRGB here instead. That also lets every preview use the same 8-bit format,
+  // which keeps the thumbnail cache an order of magnitude smaller.
   BOOL isHDR = pFrame->format == AV_PIX_FMT_RGBA64LE;
-  CFStringRef colorSpaceName = kCGColorSpaceSRGB;
+  CGColorSpaceRef rgb = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
+  CGImageRef cgImage = NULL;
+
   if (isHDR) {
+    // Tone map into an 8-bit sRGB buffer. This keeps the preview consistent with
+    // what is on screen and avoids storing 16-bit samples for every frame.
     BOOL isPQ = pFrame->color_trc == AVCOL_TRC_SMPTE2084;
-    BOOL isP3 = pFrame->color_primaries == AVCOL_PRI_SMPTE432;
-    colorSpaceName = isP3 ? (isPQ ? kCGColorSpaceDisplayP3_PQ : kCGColorSpaceDisplayP3_HLG) :
-                           (isPQ ? kCGColorSpaceITUR_2100_PQ : kCGColorSpaceITUR_2100_HLG);
-  }
-  CGColorSpaceRef rgb = CGColorSpaceCreateWithName(colorSpaceName);
-  // Copy the pixels: the decoder reuses its buffer for subsequent thumbnails.
-  CFDataRef pixels = CFDataCreate(NULL, pFrame->data[0], pFrame->linesize[0] * height);
-  CGDataProviderRef provider = CGDataProviderCreateWithCFData(pixels);
-  CGBitmapInfo bitmapInfo = kCGImageAlphaLast | (isHDR ? kCGBitmapByteOrder16Little : kCGBitmapByteOrderDefault);
-  CGImageRef cgImage = CGImageCreate(width, height, isHDR ? 16 : 8, isHDR ? 64 : 32,
-                                   pFrame->linesize[0], rgb, bitmapInfo, provider, NULL, true,
-                                   kCGRenderingIntentDefault);
-  if (isHDR && cgImage) {
-    CGImageRef taggedImage = CGImageCreateCopyWithCalculatedHDRStats(cgImage);
-    if (taggedImage) {
-      CGImageRelease(cgImage);
-      cgImage = taggedImage;
+    const uint16_t *src = (const uint16_t *)pFrame->data[0];
+    const int srcStride = pFrame->linesize[0] / (int)sizeof(uint16_t);
+    const size_t dstStride = (size_t)width * 4;
+    uint8_t *dst = (uint8_t *)malloc(dstStride * (size_t)height);
+    if (!dst) {
+      CGColorSpaceRelease(rgb);
+      LOG_ERROR(@"Cannot alloc tone mapped thumbnail buffer");
+      return;
     }
+    for (int y = 0; y < height; y++) {
+      const uint16_t *srcRow = src + (size_t)y * srcStride;
+      uint8_t *dstRow = dst + (size_t)y * dstStride;
+      for (int x = 0; x < width; x++) {
+        // RGBA64LE stores each component as a little-endian 16-bit value.
+        const uint16_t *px = srcRow + (size_t)x * 4;
+        dstRow[x * 4 + 0] = YINAToneMapHDRToSRGB(px[0], isPQ);
+        dstRow[x * 4 + 1] = YINAToneMapHDRToSRGB(px[1], isPQ);
+        dstRow[x * 4 + 2] = YINAToneMapHDRToSRGB(px[2], isPQ);
+        dstRow[x * 4 + 3] = (uint8_t)(px[3] > 65535 ? 255 : (px[3] >> 8));
+      }
+    }
+    CGDataProviderRef provider = CGDataProviderCreateWithData(NULL, dst, dstStride * (size_t)height, NULL);
+    if (provider) {
+      cgImage = CGImageCreate(width, height, 8, 32, (size_t)dstStride, rgb,
+                              kCGImageAlphaLast, provider, NULL, true, kCGRenderingIntentDefault);
+      CGDataProviderRelease(provider);
+    }
+    free(dst);
+    if (!cgImage) {
+      CGColorSpaceRelease(rgb);
+      LOG_ERROR(@"Cannot create tone mapped thumbnail image");
+      return;
+    }
+  } else {
+    // Copy the pixels: the decoder reuses its buffer for subsequent thumbnails.
+    CFDataRef pixels = CFDataCreate(NULL, pFrame->data[0], pFrame->linesize[0] * height);
+    CGDataProviderRef provider = CGDataProviderCreateWithCFData(pixels);
+    CGImageRef created = CGImageCreate(width, height, 8, 32,
+                                      pFrame->linesize[0], rgb, kCGImageAlphaLast,
+                                      provider, NULL, true, kCGRenderingIntentDefault);
+    CGDataProviderRelease(provider);
+    CFRelease(pixels);
+    if (!created) {
+      CGColorSpaceRelease(rgb);
+      LOG_ERROR(@"Cannot create thumbnail image");
+      return;
+    }
+    cgImage = created;
   }
-  CGDataProviderRelease(provider);
-  CFRelease(pixels);
+
   CGColorSpaceRelease(rgb);
-  if (!cgImage) {
-    LOG_ERROR(@"Cannot create thumbnail image");
-    return;
-  }
 
   // Create NSImage
   NSImage *image = [[NSImage alloc] initWithCGImage:cgImage size: NSZeroSize];
 
   // Free resources
-  CFRelease(cgImage);
+  CGImageRelease(cgImage);
 
   // Add to list
   FFThumbnail *tb = [[FFThumbnail alloc] init];
@@ -400,8 +500,8 @@ return -1;\
   [_thumbnailPartialResult addObject:tb];
   // Post update notification
   double currentTime = CACurrentMediaTime();
-  if (currentTime - _timestamp >= 0.2) {  // min notification interval: 0.2s
-    if (_thumbnailPartialResult.count >= 10 || (currentTime - _timestamp >= 1 && _thumbnailPartialResult.count > 0)) {
+  if (_thumbnails.count == 1 || currentTime - _timestamp >= 0.2) {  // Send the first frame immediately.
+    if (_thumbnails.count == 1 || _thumbnailPartialResult.count >= 10 || (currentTime - _timestamp >= 1 && _thumbnailPartialResult.count > 0)) {
       if (self.delegate) {
         [self.delegate didUpdateThumbnails:[NSArray arrayWithArray:_thumbnailPartialResult]
                                    forFile: file

@@ -3160,6 +3160,7 @@ extension PlayerCore: FFmpegControllerDelegate {
     log("Got new thumbnails, progress \(progress)")
     if let thumbnails {
       info.$thumbnails.withLock { $0.append(contentsOf: thumbnails) }
+      if !thumbnails.isEmpty { info.thumbnailsReady = true }
     }
     info.thumbnailsProgress = Double(progress) / Double(ffmpegController.thumbnailCount)
   }

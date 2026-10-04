@@ -507,14 +507,14 @@ class InitialWindowController: NSWindowController {
       }
       ThumbnailCache.importLegacyPreview(forName: cacheKey, forVideo: show.resumeURL)
       ThumbnailCache.importLegacyPreview(forName: show.thumbnailCacheName, forVideo: show.resumeURL)
+      // Only one frame is needed here. Decoding the whole catalog and keeping a
+      // single image costs megabytes per card and is repeated on every rescan.
       let highResolutionThumbnail = ThumbnailCache.fileIsCached(forName: cacheKey, forVideo: show.resumeURL, allowUnavailableVideo: true)
-        ? ThumbnailCache.read(forName: cacheKey)?.first?.image
+        ? ThumbnailCache.readOne(forName: cacheKey)
         : nil
       let targetTime = show.position
       let cachedFrame = ThumbnailCache.fileIsCached(forName: show.thumbnailCacheName, forVideo: show.resumeURL, allowUnavailableVideo: true)
-        ? ThumbnailCache.read(forName: show.thumbnailCacheName)?.min(by: {
-          abs($0.realTime - targetTime) < abs($1.realTime - targetTime)
-        })?.image
+        ? ThumbnailCache.readOne(forName: show.thumbnailCacheName, nearest: targetTime)
         : nil
       if let thumbnail = highResolutionThumbnail ?? cachedFrame,
          let artwork = ShowFolderCardArtwork.make(from: thumbnail) {

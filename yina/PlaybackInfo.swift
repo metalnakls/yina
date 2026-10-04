@@ -343,6 +343,9 @@ class PlaybackInfo {
   func getThumbnail(forSecond sec: Double) -> FFThumbnail? {
     $thumbnails.withLock {
       guard !$0.isEmpty else { return nil }
+      // During generation, later timeline positions do not have a preview yet.
+      // Do not substitute the last decoded frame for an unrelated later scene.
+      guard thumbnailsProgress >= 1 || sec <= $0.last!.realTime else { return nil }
       var tb = $0.last!
       for i in 0..<$0.count {
         if $0[i].realTime >= sec {

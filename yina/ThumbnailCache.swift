@@ -17,7 +17,7 @@ class ThumbnailCache {
   private typealias FileSize = UInt64
   private typealias FileTimestamp = Int64
 
-  private static let version: CacheVersion = 3
+  private static let version: CacheVersion = 4
   
   private static let sizeofMetadata = MemoryLayout<CacheVersion>.size + MemoryLayout<FileSize>.size + MemoryLayout<FileTimestamp>.size
 
@@ -145,6 +145,9 @@ class ThumbnailCache {
       log("Cannot write to file.", level: .error)
       return
     }
+    // Close on every exit path. This function has several early returns, and a
+    // leaked descriptor per thumbnail write accumulates over a long session.
+    defer { try? file.close() }
 
     guard let fileAttr = try? FileManager.default.attributesOfItem(atPath: videoPath!.path) else {
       log("Cannot get video file attributes", level: .error)
@@ -181,22 +184,18 @@ class ThumbnailCache {
         log("Cannot resolve thumbnail image.", level: .error)
         return
       }
-      let isHDR = cgImage.contentHeadroom > 1 || cgImage.colorSpace.map { CGColorSpaceUsesITUR_2100TF($0) } == true
-      let headroom = max(1, cgImage.contentHeadroom)
+      // Previews are generated tone mapped into 8-bit sRGB, so they are ordinary
+      // images and JPEG is the right encoding. Carrying 16-bit samples and an HDR
+      // ICC profile made a preview cache roughly thirteen times larger for a
+      // 240x99 image that nobody sees at that fidelity.
       let imageData: Data
-      if isHDR {
-        // PNG retains 16-bit samples and the PQ/HLG ICC profile; JPEG flattens HDR.
-        let data = NSMutableData()
-        guard let destination = CGImageDestinationCreateWithData(data, UTType.png.identifier as CFString, 1, nil) else { return }
-        CGImageDestinationAddImage(destination, cgImage, nil)
-        guard CGImageDestinationFinalize(destination) else { return }
-        imageData = data as Data
-      } else if let data = NSBitmapImageRep(cgImage: cgImage).representation(using: .jpeg, properties: imageProperties) {
+      if let data = NSBitmapImageRep(cgImage: cgImage).representation(using: .jpeg, properties: imageProperties) {
         imageData = data
       } else {
         log("Cannot encode thumbnail image.", level: .error)
         return
       }
+      let headroom: Float = max(1, cgImage.contentHeadroom)
       let headroomData = Data(bytesOf: headroom)
       let blockLength = Int64(timestampData.count + headroomData.count + imageData.count)
       outputData.append(Data(bytesOf: blockLength))
@@ -209,6 +208,21 @@ class ThumbnailCache {
 
     CacheManager.shared.needsRefresh = true
     log("Finished writing thumbnail cache.")
+  }
+
+  /// Read a single preview from the cache without keeping the whole catalog.
+  ///
+  /// `read(forName:)` decodes every thumbnail in the file and returns them all.
+  /// A 101-frame cache costs megabytes once decoded, so a caller that only needs
+  /// one frame must not hold the rest.
+  ///
+  /// - Parameter name:       cache file name.
+  /// - Parameter targetTime: when set, return the frame nearest this time.
+  /// - Returns: the requested preview, or `nil` when the file cannot be read.
+  static func readOne(forName name: String, nearest targetTime: Double? = nil) -> NSImage? {
+    guard let thumbnails = read(forName: name), !thumbnails.isEmpty else { return nil }
+    guard let targetTime else { return thumbnails.first?.image }
+    return thumbnails.min { abs($0.realTime - targetTime) < abs($1.realTime - targetTime) }?.image
   }
 
   /// Read thumbnail cache to file.
