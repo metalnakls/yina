@@ -38,6 +38,10 @@ The first migration wave is now implemented on the `meh` branch:
 - Key recording now builds its existing AppKit content programmatically. Key
   capture, `NSRuleEditor`, command entry, and sheet ownership remain unchanged.
   The recorder delegate is weak so closing the sheet releases the controller.
+- Filter Save/Edit sheets now use shared programmatic AppKit content. The
+  existing controller owns save/edit/cancel, validation, persistence, and filter
+  application. The two filter tables and New Filter preset sheet remain in the
+  reduced Filters XIB for the next migration slice.
 
 The next practical wave is additional settings-page slices, logs, and history.
 Inspector, Filters, and key recording remain dedicated higher-risk projects. The player window, rendering,
@@ -128,7 +132,9 @@ string tables remain bundled.
 
 10. **Filters** — `FilterWindowController.swift` and
     `FilterWindowController.xib`.
-    The filter lists and new-filter sheet can move to SwiftUI, but editing,
+    Save/Edit sheets are now programmatic AppKit (`FilterShortcutSheet.swift`).
+    The filter lists and New Filter preset sheet still use the XIB. They can
+    move to SwiftUI, but editing,
     drag/drop, validation, and mpv filter application should stay behind a
     testable model/controller boundary.
 

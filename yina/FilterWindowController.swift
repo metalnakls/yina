@@ -24,15 +24,15 @@ class FilterWindowController: NSWindowController, NSWindowDelegate {
   @IBOutlet weak var currentFiltersTableView: NSTableView!
   @IBOutlet weak var savedFiltersTableView: NSTableView!
   @IBOutlet var newFilterSheet: NSWindow!
-  @IBOutlet var saveFilterSheet: NSWindow!
-  @IBOutlet var editFilterSheet: NSWindow!
-  @IBOutlet weak var saveFilterNameTextField: NSTextField!
-  @IBOutlet weak var keyRecordView: KeyRecordView!
-  @IBOutlet weak var keyRecordViewLabel: NSTextField!
-  @IBOutlet weak var editFilterNameTextField: NSTextField!
-  @IBOutlet weak var editFilterStringTextField: NSTextField!
-  @IBOutlet weak var editFilterKeyRecordView: KeyRecordView!
-  @IBOutlet weak var editFilterKeyRecordViewLabel: NSTextField!
+  private(set) var saveFilterSheet: FilterShortcutSheet!
+  private(set) var editFilterSheet: FilterShortcutSheet!
+  private var saveFilterNameTextField: NSTextField!
+  private var keyRecordView: KeyRecordView!
+  private var keyRecordViewLabel: NSTextField!
+  private var editFilterNameTextField: NSTextField!
+  private var editFilterStringTextField: NSTextField!
+  private var editFilterKeyRecordView: KeyRecordView!
+  private var editFilterKeyRecordViewLabel: NSTextField!
   @IBOutlet weak var removeButton: NSButton!
 
   var loaded = false
@@ -74,6 +74,18 @@ class FilterWindowController: NSWindowController, NSWindowDelegate {
     filters = PlayerCore.lastActive.mpv.getFilters(filterType)
     currentFiltersTableView.reloadData()
     savedFiltersTableView.reloadData()
+
+    saveFilterSheet = FilterShortcutSheet(editing: false, target: self,
+      submitAction: #selector(addSavedFilterAction(_:)), cancelAction: #selector(cancelSavingFilterAction(_:)))
+    saveFilterNameTextField = saveFilterSheet.nameTextField
+    keyRecordView = saveFilterSheet.keyRecordView
+    keyRecordViewLabel = saveFilterSheet.keyLabel
+    editFilterSheet = FilterShortcutSheet(editing: true, target: self,
+      submitAction: #selector(saveEditedFilterAction(_:)), cancelAction: #selector(cancelEditingFilterAction(_:)))
+    editFilterNameTextField = editFilterSheet.nameTextField
+    editFilterStringTextField = editFilterSheet.filterStringTextField
+    editFilterKeyRecordView = editFilterSheet.keyRecordView
+    editFilterKeyRecordViewLabel = editFilterSheet.keyLabel
 
     keyRecordView.delegate = self
     editFilterKeyRecordView.delegate = self

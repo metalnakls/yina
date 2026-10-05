@@ -28,6 +28,7 @@ Verification for this pass means **inspecting the built bundle**, not trusting t
 |---|---|---|
 | Programmatic main and mini-player windows | `f3b55c49`, `33b2a500` | Both XIBs removed. First window access explicitly runs `loadWindow` and `windowDidLoad`; without that, mpv callbacks crashed on uninitialized video/speed-label views. User confirms video opens without crashing, but slowly. Fullscreen, PiP, and music-mode switching still need a user check. |
 | Programmatic key recorder | This pass | XIB removed; existing key capture, `NSRuleEditor`, command field, and 480×155 layout retained. Isolated AppKit checks cover pending values, recording, readiness, rule selection, and controller/observer cleanup. Check the real Settings sheet. |
+| Filter Save/Edit sheets | This pass | Both sheets now share programmatic AppKit content. Existing save/edit/cancel actions and persistence remain in `FilterWindowController`; name, filter string, shortcut recording, and keyboard button equivalents are preserved. Isolated checks cover layout, focus, input, button targets, and resizing. The Filters tables and preset sheet still use the reduced XIB. |
 | Opening stage timings | This pass | System log category `MediaOpening` records durations through options, renderer/window setup, load submission, file-loaded callback, and window display. Records no media paths or URLs. Slow opening remains under investigation. |
 | Suspend video decode/render when not visible | `b8f7314c` | Switching apps or covering the window sets `vid=no` and stops the display link; **audio keeps playing**. Restores the track id and restarts the link on return. `stop()` clears the state so the next file is never loaded video-disabled; `setTrack` keeps the remembered id current if you switch video tracks while suspended. |
 | Coalesce the `.time` UI sync | `b8f7314c` | The 25 Hz timer now skips the label/formatting/view pass when the rounded position has not moved. All five seek paths invalidate the cache so labels cannot go stale. Network cache state still refreshes because it moves while paused. |
@@ -41,7 +42,7 @@ Verification for this pass means **inspecting the built bundle**, not trusting t
 | Item | Status | Notes |
 |---|---|---|
 | `InspectorWindowController.xib` (1380 lines, 51 outlets) | TODO | Large but mechanical: tab view, ~50 text fields, 2 table views. |
-| `FilterWindowController.xib` (881 lines, 23 outlets) | TODO | Split view, 2 tables, 3 embedded sheets. |
+| `FilterWindowController.xib` | TODO | Save/Edit sheets moved to code. Split view, 2 tables with cell bindings, and New Filter preset sheet remain. |
 | `MainMenu.xib` (847 lines, 193 items) | TODO | Highest risk. Still `INFOPLIST_KEY_NSMainNibFile`. Localization removal cut the risk a lot. |
 | Identify the 658 -> 939 MB growth | NEEDS DECISION | **No unbounded accumulator found.** Checked `info.thumbnails`, the Logger buffer, mpv observers, `CacheManager`, `NSCache`; all bounded. Leading theory is IOSurface / Metal residency from decode, not a Swift leak. Needs a `vmmap -summary` diff while idle vs after an hour. No code change will answer this. |
 | Strip Sparkle's own `.lproj` (1.4 MB) | TODO | Small. yina's sources ship `Base` only; the rest comes from the Sparkle framework. Needs a build step, not a project edit. |
@@ -124,6 +125,15 @@ as a raw key like `general.ok` instead of "OK".
 - [ ] Open the subtitle chooser (search online for a track): real titles, no crash
 - [ ] Cancel the chooser
 - [ ] Download a subtitle: succeeds, and a malformed/unavailable response does not crash
+
+### Filter sheets
+
+- [ ] In both Video Filters and Audio Filters, save an active filter with a name and shortcut
+- [ ] Edit a saved filter's name, command, and shortcut; saved values and menu shortcuts update
+- [ ] Cancel Save/Edit without changing the saved filter
+- [ ] Return submits and Escape cancels; Tab moves through the editable fields and shortcut recorder
+- [ ] Resize both sheets; fields remain readable and buttons stay visible
+- [ ] Enable/disable the saved filter; filter application is unchanged
 
 ### 7. Bundle and icons
 
