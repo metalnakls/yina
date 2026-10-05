@@ -154,3 +154,15 @@ default was aligned to `true` to match upstream `2b2f3c8c`.
 - Added selection snapshots after mpv initialization, plugin setup, window setup,
   and load stages, plus explicit app video-track requests. These record only
   option values and counts, to locate when video selection becomes disabled.
+
+### Verified outcome
+
+The user selected the video track and confirmed the picture appeared, then quit,
+reopened, and confirmed the same video opened normally without selecting a track
+again. Fresh logs show `vid=1`, `option_vid=1`, H.264 decoding, and 1916 x 1076 media
+dimensions. The blank view was caused by video selection being None, rather than
+an incorrectly sized or hidden video view. The exact origin of the earlier disabled
+selection is not proven; background suspension previously changed `vid` to `no`,
+but no current app track request was logged during the failed openings. That
+suspension path remains removed. The separate early VO initialization error is
+fixed. No user preferences or watch-later files were edited by the investigation.
