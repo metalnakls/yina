@@ -89,18 +89,21 @@ private struct SubtitleChooserView: View {
   private var selectionPrompt: String {
     NSLocalizedString("vAl-Km-bkf.title",
                       tableName: "SubChooseViewController",
+                      value: "Please click to select subtitles to download:",
                       comment: "Subtitle chooser selection prompt")
   }
 
   private var downloadTitle: String {
     NSLocalizedString("y68-ot-NOl.title",
                       tableName: "SubChooseViewController",
+                      value: "DOWNLOAD",
                       comment: "Subtitle chooser download button")
   }
 
   private var cancelTitle: String {
     NSLocalizedString("pPz-om-Xit.title",
                       tableName: "SubChooseViewController",
+                      value: "CANCEL",
                       comment: "Subtitle chooser cancel button")
   }
 

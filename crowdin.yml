@@ -1,7 +1,0 @@
-api_token_env: CROWDIN_TOKEN
-project_id: 383539
-branch: develop
-preserve_hierarchy: true
-files:
-  - source: /yina/en.lproj/*.strings
-    translation: /yina/%osx_code%/%original_file_name%
