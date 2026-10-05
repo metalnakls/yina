@@ -9,6 +9,7 @@
 import Cocoa
 import JavaScriptCore
 import VideoToolbox
+import os.log
 
 fileprivate let yes_str = "yes"
 fileprivate let no_str = "no"
@@ -33,6 +34,7 @@ fileprivate let no_str = "no"
 ///     messages at a rate that exceeds YINA's ability to empty the event queue before it overflows. For this reason YINA intentionally
 ///     limits the mpv log level to `warn`. If you change the level to debug a problem be aware that the event queue could overflow
 ///     and drop events resulting in odd behavior.
+fileprivate let playbackFailureLog = OSLog(subsystem: "tsmc.yina", category: "PlaybackFailure")
 fileprivate let MPVLogLevel = "warn"
 fileprivate let logLevelMap: [String: Logger.Level] = ["fatal": .error,
                                                        "error": .error,
@@ -1191,6 +1193,10 @@ class MPVController: NSObject {
       let level = String(cString: (msg?.pointee.level)!)
       let text = String(cString: (msg?.pointee.text)!).trimmingCharacters(in: .newlines)
       log("[\(prefix)] \(level): \(text)", level: logLevelMap[level] ?? .verbose)
+      // Decoder/renderer failures must remain diagnosable when file logging is disabled.
+      // Message text stays private because mpv can include media paths or URLs.
+      os_log("mpv prefix=%{public}@ level=%{public}@ message=%{private}@",
+             log: playbackFailureLog, type: .error, prefix, level, text)
 
     case MPV_EVENT_HOOK:
       let userData = event.pointee.reply_userdata

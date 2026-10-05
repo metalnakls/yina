@@ -2213,6 +2213,14 @@ class PlayerCore: NSObject {
   func fileLoaded() {
     guard info.state.active else { return }
     recordMediaOpeningStage("file loaded")
+    os_log("player=%{public}d vid=%{public}@ aid=%{public}@ video_codec=%{public}@ audio_codec=%{public}@ width=%{public}d height=%{public}d paused=%{public}d",
+           log: Self.mediaOpeningLog, type: .default, playerNumber,
+           mpv.getString(MPVOption.TrackSelection.vid) ?? "unavailable",
+           mpv.getString(MPVOption.TrackSelection.aid) ?? "unavailable",
+           mpv.getString("video-codec") ?? "unavailable",
+           mpv.getString("audio-codec-name") ?? "unavailable",
+           mpv.getInt(MPVProperty.width), mpv.getInt(MPVProperty.height),
+           mpv.getFlag(MPVOption.PlaybackControl.pause) ? 1 : 0)
     log("File loaded")
 
     info.state = .loaded
@@ -2791,6 +2799,11 @@ class PlayerCore: NSObject {
       currentController.pendingShow = false
       currentController.showWindow(self)
       recordMediaOpeningStage("window shown")
+      let view = mainWindow.videoView
+      os_log("player=%{public}d video_width=%{public}.1f video_height=%{public}.1f layer_width=%{public}.1f layer_height=%{public}.1f attached=%{public}d hidden=%{public}d",
+             log: Self.mediaOpeningLog, type: .default, playerNumber,
+             view.bounds.width, view.bounds.height, view.videoLayer.bounds.width, view.videoLayer.bounds.height,
+             view.window == nil ? 0 : 1, view.isHiddenOrHasHiddenAncestor ? 1 : 0)
       mediaOpeningStartedAt = nil
       AppDelegate.shared.openURLWindow.close()
     }

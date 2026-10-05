@@ -117,3 +117,25 @@ Tone mapping stays enabled. An earlier hypothesis that HDR tone mapping was the
 cause of the lag was investigated and rejected: the display is HDR-only, so
 this is the normal colour path, and upstream enables it by default. The code
 default was aligned to `true` to match upstream `2b2f3c8c`.
+
+## Black playback investigation (2026-10-05)
+
+- Removing background track suspension did not resolve the user's black-screen report.
+- Two stack samples of the user's running playback process showed the mpv play loop,
+  Matroska reads, and subtitle processing, with the VO thread waiting. They did not
+  capture video rendering or drawable acquisition; this alone does not establish
+  why rendering is absent.
+- Opening stage logs reached renderer initialization, file loaded, and window shown
+  within 186 ms for the traced opening.
+- The media contains H.264 video and AC-3 audio. An isolated probe using the installed
+  libraries selected video/audio track 1 and obtained 1916 x 1076 video dimensions,
+  both with null output and with a Metal render context. It used no window or sound
+  and disabled configuration and watch-later persistence.
+- macOS denied debugger attachment to the installed app, so live view and track
+  state could not be read through the debugger.
+- Added system-log snapshots at file loaded and window shown: selected tracks,
+  codecs, pause state, video/layer bounds, attachment, and hidden state. mpv warnings
+  and errors now reach `PlaybackFailure` even when file logging is disabled; message
+  text is private because it can contain media paths or URLs. No preferences changed.
+- Black playback remains unresolved pending a fresh opening with these diagnostics.
+  Stack samples and temporary probes are outside the repository.
