@@ -31,6 +31,10 @@ The first migration wave is now implemented on the `meh` branch:
   selection, keyboard navigation, availability checks, and open routing.
 - The obsolete Base XIBs for these surfaces, plus their nonlocalized helper XIBs,
   have been removed. Existing localized `.strings` tables remain bundled.
+- Main and mini-player windows are now constructed in AppKit code, including
+  the main window's PiP overlay. Their shared controller explicitly loads and
+  initializes the window on first access, preserving the old lazy lifecycle.
+  The XIBs are removed; playback/fullscreen/PiP/music-mode runtime checks remain.
 
 The next practical wave is additional settings-page slices, logs, and history.
 Inspector, Filters, and key recording remain dedicated higher-risk projects. The player window, rendering,
@@ -54,8 +58,6 @@ existing application model.
 
 After the first migration wave, the application still contains these app-owned XIBs:
 
-- Main window: `Base.lproj/MainWindowController.xib`.
-- Mini player: `Base.lproj/MiniPlayerWindowController.xib`.
 - Inspector: `Base.lproj/InspectorWindowController.xib`.
 - Filters: `Base.lproj/FilterWindowController.xib`.
 - Key recording: `Base.lproj/KeyRecordViewController.xib`.
@@ -130,9 +132,10 @@ string tables remain bundled.
 
 11. **Key recording** — `KeyRecordViewController.swift` and
     `KeyRecordViewController.xib`.
-    `NSRuleEditor` has no direct SwiftUI equivalent. This requires designing a
-    new rule editor, not mechanically translating the XIB. Keep the key event
-    recorder and key-binding model independent from the replacement view.
+    Removing the XIB can preserve `NSRuleEditor` in programmatic AppKit first.
+    A later SwiftUI replacement needs a designed rule editor because there is
+    no direct SwiftUI equivalent. Keep the key event recorder and key-binding
+    model independent from that replacement view.
 
 12. **OSC toolbar customization** — completed on `meh`.
     `OSCToolbarSettingsSheetController.swift` and its related OSC views now

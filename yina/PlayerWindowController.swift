@@ -36,6 +36,21 @@ class PlayerWindowController: NSWindowController, NSWindowDelegate {
   required init?(coder: NSCoder) {
     fatalError("init(coder:) has not been implemented")
   }
+
+  // init(window: nil) has no nib to trigger AppKit's lazy window loading. Keep the
+  // same first-access lifecycle for the programmatic main and mini-player windows.
+  override var window: NSWindow? {
+    get {
+      if super.window == nil {
+        loadWindow()
+        windowDidLoad()
+      }
+      return super.window
+    }
+    set {
+      super.window = newValue
+    }
+  }
   
   // Cached user defaults values
   internal lazy var followGlobalSeekTypeWhenAdjustSlider: Bool = Preference.bool(for: .followGlobalSeekTypeWhenAdjustSlider)
