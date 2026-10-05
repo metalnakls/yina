@@ -12,6 +12,8 @@ Status legend: `TODO` / `WIP` / `DONE` / `DECLINED`
 | 1 | Drop all localizations except `Base` | `5ce37849` | 1092 files, 124582 lines deleted. `yina/` 30 MB -> 21 MB. Fixed three latent regressions: empty `InfoPlist.strings`, 10 subtitle-dissolve keys that only existed in `en.lproj`, 3 `SubChooseViewController` calls with no `value:` fallback. |
 | 2 | Notification observer leaks / unowned-self crashes | `22e4cd6e` | `KeyRecordViewController` use-after-free on every key-binding dialog. `PlayerWindowController.addObserver(to:...)` discarded all 8 tokens. `HistoryWindowController` 3 untracked. 6 `fadeableViews` unowned closures. |
 
+| 3 | Decouple video decode from backgrounding, coalesce `syncUITimer`, long-lived mpv event consumer, allocation cleanups, `as!` removal | `b8f7314c`, `01842aae` | |
+
 ## Progress
 
 `yina/` source tree: **30 MB -> 6.1 MB** across three commits. All committed
@@ -26,27 +28,27 @@ work is local; nothing has been pushed.
 | 5 | `DocIcons` -> native macOS document icons | DONE | 13 MB, 22 iconsets, no `Contents.json` so `actool` never compiled them and `CFBundleTypeIconFile` cannot resolve them. Committed `86942910`. All 26 entries now use `CFBundleTypeIconSystemGenerated = 1`; `CFBundleTypeIconFile` removed. `doc_plugin.iconset` kept (no system equivalent for a yina plugin package). 13 MB -> 476 KB. |
 | 6 | Strip Sparkle / upstream `.lproj` from bundle | TODO | Agent measured 32 `.lproj` dirs, ~6.4 MB, inside the built bundle. yina's own sources now ship `Base` only. Needs a build-time strip step. |
 | 7 | Audit remaining `Icons` / `Symbols` assets for SF Symbol replacements | TODO | `Icons` 1.3 MB, `Symbols` 844 KB. Replace bitmap toolbar icons with SF Symbols where an equivalent exists. |
-| 8 | Release build settings (strip, LTO, `ONLY_ACTIVE_ARCH`) | TODO | Unverified. Agent could not run a Release build. |
+| 8 | Release build settings (strip, LTO) | DONE | `COPY_PHASE_STRIP = YES` and `ENABLE_LTO = YES` for Release/Nightly/Beta. `ARCHS = arm64` and `ONLY_ACTIVE_ARCH = NO` were already correct. Debug keeps symbols. |
 
 ## CPU / RAM
 
 | # | Item | Status | Notes |
 |---|---|---|---|
-| 9 | Decouple video decode/render from backgrounding | TODO | Agent's top finding. `pauseWhenInactive` defaults to `false`, so a backgrounded window keeps decoding HEVC and keeps the CADisplayLink at 60-120 Hz. User chose: keep background audio, pause only video decode/render. |
-| 10 | Stop display link on occlusion | TODO | `windowDidChangeOcclusionState` early-returns unless the window became visible; it never stops the link. Pairs with #9. |
-| 11 | Coalesce `syncUITimer` | TODO | Runs at 25 Hz doing ~4 mpv reads + a UserDefaults read + a main-queue hop per tick, serialized on mpv's dispatch lock. Only re-render when the displayed value actually changes. |
-| 12 | `readEvents()` re-dispatch churn | TODO | `MPVController` re-enters `queue.async` on every mpv wakeup instead of using one long-lived consumer. |
-| 13 | Cache `NumberFormatter` in `FloatingPointByteCountFormatter` | TODO | Allocated per call. Cold path, low impact. |
-| 14 | Throttle `AdditionalInfoView.update()` | TODO | `PowerSource.getList()` does IOKit round-trips from the 25 Hz timer. Cold path, low impact. |
-| 15 | Reduce `SubtitleDissolve` per-frame cost | TODO | 60 fps timer rebuilds `mpvColorString` per style colour per frame. |
-| 16 | Remove stray `print()` in `Preference.Observer.deinit` | TODO | Ships in release builds. |
+| 9 | Decouple video decode/render from backgrounding | DONE | Agent's top finding. `pauseWhenInactive` defaults to `false`, so a backgrounded window keeps decoding HEVC and keeps the CADisplayLink at 60-120 Hz. User chose: keep background audio, pause only video decode/render. |
+| 10 | Stop display link on occlusion | DONE | `windowDidChangeOcclusionState` early-returns unless the window became visible; it never stops the link. Pairs with #9. |
+| 11 | Coalesce `syncUITimer` | DONE | Runs at 25 Hz doing ~4 mpv reads + a UserDefaults read + a main-queue hop per tick, serialized on mpv's dispatch lock. Only re-render when the displayed value actually changes. |
+| 12 | `readEvents()` re-dispatch churn | DONE | `MPVController` re-enters `queue.async` on every mpv wakeup instead of using one long-lived consumer. |
+| 13 | Cache `NumberFormatter` in `FloatingPointByteCountFormatter` | DONE | Allocated per call. Cold path, low impact. |
+| 14 | Throttle `AdditionalInfoView.update()` | DONE | `PowerSource.getList()` does IOKit round-trips from the 25 Hz timer. Cold path, low impact. |
+| 15 | Reduce `SubtitleDissolve` per-frame cost | DONE | 60 fps timer rebuilds `mpvColorString` per style colour per frame. |
+| 16 | Remove stray `print()` in `Preference.Observer.deinit` | DONE | Ships in release builds. |
 | 17 | Identify the 658 -> 939 MB growth | TODO | No unbounded accumulator found. Leading theory is IOSurface / Metal residency from decode, not a Swift leak. Needs a runtime `vmmap -summary` diff. |
 
 ## Robustness
 
 | # | Item | Status | Notes |
 |---|---|---|---|
-| 18 | Replace 8 `as!` casts on remote subtitle JSON | TODO | `AssrtSubtitle.swift` 221-278. Malformed API response crashes the app. |
+| 18 | Replace 8 `as!` casts on remote subtitle JSON | DONE | `AssrtSubtitle.swift` 221-278. Malformed API response crashes the app. |
 | 19 | Resolve stale `TODO` / `FIXME` markers | TODO | `MainMenuActions.swift:92` "handle stop" may be a no-op button. `WebSocketServer.swift:34` no TLS. `MPVFilter.swift:42,47` vflip/hflip. `KeyMapping.swift:16,35,47` UI logic in a model. |
 | 20 | Decide on `LegacyMigration.swift` | TODO | Deprecated `NSUnarchiver` path. Keep with a documented cutoff, or remove. |
 
