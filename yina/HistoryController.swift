@@ -22,6 +22,8 @@ class HistoryController: NSObject {
   ///
   /// This is accessed by both the main thread and a background thread and must be referenced under a lock.
   @Atomic var history: [PlaybackHistory] = []
+  // Protected by the history lock; invalidates additions queued before a clear.
+  private var historyGeneration = 0
 
   /// Number of tasks currently in the queue.
   @Atomic var tasksOutstanding = 0
@@ -93,10 +95,12 @@ class HistoryController: NSObject {
   ///   - ignorePath: When `true`, only the URL's filename will be used for the sum if the URL does not contain a scheme.
   func add(_ url: URL, duration: Double, title: String?, _ ignorePath: Bool) {
     guard Preference.bool(for: .recordPlaybackHistory) else { return }
+    let generation = $history.withLock { _ in historyGeneration }
     $tasksOutstanding.withLock { $0 += 1 }
     queue.async { [self] in
       let mpvMd5 = Utility.mpvWatchLaterMd5(url, ignorePath)
-      $history.withLock { history in
+      let added = $history.withLock { history in
+        guard generation == historyGeneration else { return false }
         if let existingItem = history.first(where: { $0.mpvMd5 == mpvMd5 }),
            let index = history.firstIndex(of: existingItem) {
           history.remove(at: index)
@@ -104,8 +108,9 @@ class HistoryController: NSObject {
         let entry = PlaybackHistory(url: url, duration: duration, title: title, mpvMd5: mpvMd5)
         history.insert(entry, at: 0)
         log("Adding to history: \(String(describing: entry))", level: .verbose)
+        return true
       }
-      save()
+      if added { save() }
       $tasksOutstanding.withLock { tasksOutstanding in
         tasksOutstanding -= 1
         if tasksOutstanding != 0 {
@@ -132,6 +137,7 @@ class HistoryController: NSObject {
   func removeAll() {
     $history.withLock { history in
       log("Removing all playback history entries")
+      historyGeneration += 1
       history = []
     }
     save()

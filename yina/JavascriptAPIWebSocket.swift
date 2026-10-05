@@ -29,7 +29,7 @@ class JavascriptAPIWebSocketController: JavascriptAPI, JavascriptAPIWebSocketCon
 
   func createServer(_ options: [String : Any]) {
     if let previousServer = server {
-      previousServer.listener.cancel()
+      previousServer.stop()
       self.server = nil
     }
     guard let port = options["port"] as? UInt16 else {
@@ -76,20 +76,33 @@ class JavascriptAPIWebSocketController: JavascriptAPI, JavascriptAPIWebSocketCon
   }
 
   private func setHandler(_ handler: JSValue, field: ReferenceWritableKeyPath<JavascriptAPIWebSocketController, JSManagedValue?>) {
-    func removePreviousHandler() {
-      self[keyPath: field] = nil
-      JSContext.current()!.virtualMachine.removeManagedReference(self[keyPath: field], withOwner: self)
-    }
-    if handler.isNull || handler.isUndefined || self[keyPath: field] != nil {
-      removePreviousHandler()
+    if handler.isNull || handler.isUndefined {
+      removeHandler(field)
       return
     }
     guard handler.isObject else {
       throwError(withMessage: "ws.on: the handler is not an object")
       return
     }
+    removeHandler(field)
     self[keyPath: field] = JSManagedValue(value: handler)
-    JSContext.current()!.virtualMachine.addManagedReference(self[keyPath: field], withOwner: self)
+    context.virtualMachine.addManagedReference(self[keyPath: field], withOwner: self)
+  }
+
+  private func removeHandler(_ field: ReferenceWritableKeyPath<JavascriptAPIWebSocketController, JSManagedValue?>) {
+    if let previous = self[keyPath: field] {
+      context?.virtualMachine.removeManagedReference(previous, withOwner: self)
+    }
+    self[keyPath: field] = nil
+  }
+
+  override func cleanUp(_ instance: JavascriptPluginInstance) {
+    server?.stop()
+    server = nil
+    removeHandler(\Self.stateHandler)
+    removeHandler(\Self.messageHandler)
+    removeHandler(\Self.newConnHandler)
+    removeHandler(\Self.connStateHandler)
   }
 
   func sendText(_ conn: String, _ string: String) -> JSValue {
@@ -107,7 +120,8 @@ class JavascriptAPIWebSocketController: JavascriptAPI, JavascriptAPIWebSocketCon
         return
       }
       do {
-        try server.send(data: data, to: connEntry, callback: { error in
+        try server.send(data: data, to: connEntry, callback: { [weak self, weak server] error in
+          guard let self, let server, self.server === server, self.context != nil else { return }
           if let error {
             reject.call(withArguments: [error.toDict()])
           } else {
