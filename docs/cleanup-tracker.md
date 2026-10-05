@@ -14,6 +14,15 @@ Status legend: `TODO` / `WIP` / `DONE` / `DECLINED`
 
 | 3 | Decouple video decode from backgrounding, coalesce `syncUITimer`, long-lived mpv event consumer, allocation cleanups, `as!` removal | `b8f7314c`, `01842aae` | |
 
+| 4 | Restore `Base.lproj` resource build files broken by the localization cleanup | `82aac451` | The localization script also deleted the PBXBuildFile entries for the XIBs and strings, so `Base.lproj` shipped empty and the app exited at launch. Xcode did not error. |
+
+## Build verification note
+
+`xcodebuild` reported `** BUILD SUCCEEDED **` while the bundle was missing every nib and
+strings table, because the Resources phase still listed orphaned entries whose PBXBuildFile
+declarations had been deleted. Always confirm a build by inspecting the produced bundle, not the
+exit status. The 2026-10-05 crash was found this way after the build appeared green.
+
 ## Progress
 
 `yina/` source tree: **30 MB -> 6.1 MB** across three commits. All committed
