@@ -28,7 +28,7 @@ Verification for this pass means **inspecting the built bundle**, not trusting t
 |---|---|---|
 | Programmatic main and mini-player windows | `f3b55c49`, `33b2a500` | Both XIBs removed. First window access explicitly runs `loadWindow` and `windowDidLoad`; without that, mpv callbacks crashed on uninitialized video/speed-label views. User confirms video opens without crashing, but slowly. Fullscreen, PiP, and music-mode switching still need a user check. |
 | Programmatic key recorder | This pass | XIB removed; existing key capture, `NSRuleEditor`, command field, and 480×155 layout retained. Isolated AppKit checks cover pending values, recording, readiness, rule selection, and controller/observer cleanup. Check the real Settings sheet. |
-| Filter Save/Edit sheets | This pass | Both sheets now share programmatic AppKit content. Existing save/edit/cancel actions and persistence remain in `FilterWindowController`; name, filter string, shortcut recording, and keyboard button equivalents are preserved. Isolated checks cover layout, focus, input, button targets, and resizing. The Filters tables and preset sheet still use the reduced XIB. |
+| Filter Save/Edit sheets | This pass | Both sheets now share programmatic AppKit content. Existing save/edit/cancel actions and persistence remain in `FilterWindowController`; name, filter string, shortcut recording, and keyboard button equivalents are preserved. Isolated checks cover layout, focus, input, button targets, and resizing. The remaining tables and preset sheet are now programmatic too (see below). |
 | Opening diagnostics and video-output ordering | This pass | `MediaOpening` logs opening stages, selected tracks, codecs, and view/layer geometry. Black-screen diagnostics showed `vid=no` and a fatal VO error before renderer creation despite a visible, correctly sized view. Force-window now activates after window/render-context initialization; the ordering check passes and the early fatal error is gone. User selected the video track, then confirmed picture and normal reopening. Fresh logs show selected video 1 and 1916×1076 H.264 decoding. The original disabled selection is not conclusively attributed. |
 | Preserve video while switching apps/windows | This pass | Removed the `b8f7314c` background video suspension after a black-playback report. Losing focus does not mean the video is invisible; setting `vid=no` also survived paused restores and stop/new-file transitions. Focus and occlusion callbacks no longer change track selection. CPU reduction from disabling decoding is withdrawn. |
 | Coalesce the `.time` UI sync | `b8f7314c` | The 25 Hz timer now skips the label/formatting/view pass when the rounded position has not moved. All five seek paths invalidate the cache so labels cannot go stale. Network cache state still refreshes because it moves while paused. |
@@ -42,7 +42,7 @@ Verification for this pass means **inspecting the built bundle**, not trusting t
 | Item | Status | Notes |
 |---|---|---|
 | `InspectorWindowController.xib` (1380 lines, 51 outlets) | TODO | Large but mechanical: tab view, ~50 text fields, 2 table views. |
-| `FilterWindowController.xib` | TODO | Save/Edit sheets moved to code. Split view, 2 tables with cell bindings, and New Filter preset sheet remain. |
+| `FilterWindowController.xib` | Removed | Split view, active/saved tables, row bindings, and New Filter preset sheet are programmatic AppKit. Preset logic is extracted into `NewFilterSheetViewController`. Isolated checks exercise editing, checkbox writes, cell reuse, resizing, and every audio/video preset. Manual application checks remain below. |
 | `MainMenu.xib` (847 lines, 193 items) | TODO | Highest risk. Still `INFOPLIST_KEY_NSMainNibFile`. Localization removal cut the risk a lot. |
 | Identify the 658 -> 939 MB growth | NEEDS DECISION | **No unbounded accumulator found.** Checked `info.thumbnails`, the Logger buffer, mpv observers, `CacheManager`, `NSCache`; all bounded. Leading theory is IOSurface / Metal residency from decode, not a Swift leak. Needs a `vmmap -summary` diff while idle vs after an hour. No code change will answer this. |
 | Strip Sparkle's own `.lproj` (1.4 MB) | TODO | Small. yina's sources ship `Base` only; the rest comes from the Sparkle framework. Needs a build step, not a project edit. |
@@ -125,8 +125,11 @@ as a raw key like `general.ok` instead of "OK".
 - [ ] Cancel the chooser
 - [ ] Download a subtitle: succeeds, and a malformed/unavailable response does not crash
 
-### Filter sheets
+### Filter window and sheets
 
+- [ ] Open both filter windows; edit an active filter string and confirm the applied filter changes
+- [ ] Add a preset, change its parameters, and cancel without adding
+- [ ] Resize the window; active/saved lists and row controls remain readable
 - [ ] In both Video Filters and Audio Filters, save an active filter with a name and shortcut
 - [ ] Edit a saved filter's name, command, and shortcut; saved values and menu shortcuts update
 - [ ] Cancel Save/Edit without changing the saved filter

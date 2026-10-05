@@ -40,11 +40,13 @@ The first migration wave is now implemented on the `meh` branch:
   The recorder delegate is weak so closing the sheet releases the controller.
 - Filter Save/Edit sheets now use shared programmatic AppKit content. The
   existing controller owns save/edit/cancel, validation, persistence, and filter
-  application. The two filter tables and New Filter preset sheet remain in the
-  reduced Filters XIB for the next migration slice.
+  application. The filter lists and New Filter preset sheet are also now
+  programmatic AppKit; the Filters XIB is removed. Initial saved-filter state
+  is synchronized before displaying rows, and table edits explicitly commit
+  through the existing validation/application path.
 
 The next practical wave is additional settings-page slices, logs, and history.
-Inspector, Filters, and key recording remain dedicated higher-risk projects. The player window, rendering,
+Inspector remains a dedicated higher-risk project. The player window, rendering,
 PiP, dynamic menus, WebKit runtime, and display/EDR authority remain AppKit or
 system-framework led by design.
 
@@ -66,7 +68,6 @@ existing application model.
 After the first migration wave, the application still contains these app-owned XIBs:
 
 - Inspector: `Base.lproj/InspectorWindowController.xib`.
-- Filters: `Base.lproj/FilterWindowController.xib`.
 - Application menu: `Base.lproj/MainMenu.xib`.
 
 YINA's contribution rules already say not to introduce new XIBs and to use
@@ -130,13 +131,12 @@ string tables remain bundled.
    controls, a watch table, color/display information, dynamic sizing, and
    window behavior. Use a SwiftUI content view inside the existing panel first.
 
-10. **Filters** — `FilterWindowController.swift` and
-    `FilterWindowController.xib`.
-    Save/Edit sheets are now programmatic AppKit (`FilterShortcutSheet.swift`).
-    The filter lists and New Filter preset sheet still use the XIB. They can
-    move to SwiftUI, but editing,
-    drag/drop, validation, and mpv filter application should stay behind a
-    testable model/controller boundary.
+10. **Filters** — `FilterWindowController.swift`, `FilterWindowViews.swift`,
+    `NewFilterSheetViewController.swift`, and `FilterShortcutSheet.swift`.
+    All content is now programmatic AppKit. Isolated checks cover table editing,
+    saved row bindings/reuse, resizing, and audio/video preset selection.
+    Manual filter application and sheet checks remain in the cleanup tracker.
+    A later SwiftUI migration should retain the validation/mpv boundary.
 
 11. **Key recording** — `KeyRecordViewController.swift` and
     its programmatic AppKit view.

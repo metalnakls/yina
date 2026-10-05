@@ -10,20 +10,43 @@ import Cocoa
 
 class FilterWindowController: NSWindowController, NSWindowDelegate {
 
-  override var windowNibName: NSNib.Name {
-    return NSNib.Name("FilterWindowController")
+  private let frameAutosaveName: String
+  private var newFilterController: NewFilterSheetViewController!
+  private(set) var splitView: NSSplitView!
+  private(set) var currentFiltersTableView: NSTableView!
+  private(set) var savedFiltersTableView: NSTableView!
+  private(set) var newFilterSheet: NSWindow!
+
+  // init(window: nil) does not provide AppKit's nib-driven lazy lifecycle.
+  override var window: NSWindow? {
+    get {
+      if super.window == nil {
+        loadWindow()
+        windowDidLoad()
+      }
+      return super.window
+    }
+    set { super.window = newValue }
   }
 
-  @objc let monospacedFont: NSFont = .monospacedDigitFont(for: .regular)
-
-  @IBOutlet weak var splitView: NSSplitView!
-  @IBOutlet weak var splitViewUpperView: NSView!
-  @IBOutlet weak var splitViewLowerView: NSView!
-  @IBOutlet var upperView: NSView!
-  @IBOutlet var lowerView: NSView!
-  @IBOutlet weak var currentFiltersTableView: NSTableView!
-  @IBOutlet weak var savedFiltersTableView: NSTableView!
-  @IBOutlet var newFilterSheet: NSWindow!
+  override func loadWindow() {
+    let window = CommonWindow(contentRect: NSRect(x: 608, y: 562, width: 640, height: 382),
+                              styleMask: [.titled, .closable, .miniaturizable, .resizable],
+                              backing: .buffered, defer: false)
+    window.isReleasedWhenClosed = false
+    window.allowsToolTipsWhenApplicationIsInactive = false
+    window.autorecalculatesKeyViewLoop = false
+    window.minSize = NSSize(width: 240, height: 300)
+    let content = FilterWindowContentView(target: self,
+      addAction: #selector(addFilterAction(_:)), removeAction: #selector(removeFilterAction(_:)))
+    splitView = content.splitView
+    currentFiltersTableView = content.currentFiltersTableView
+    savedFiltersTableView = content.savedFiltersTableView
+    removeButton = content.removeButton
+    window.contentView = content
+    self.window = window
+    windowFrameAutosaveName = frameAutosaveName
+  }
   private(set) var saveFilterSheet: FilterShortcutSheet!
   private(set) var editFilterSheet: FilterShortcutSheet!
   private var saveFilterNameTextField: NSTextField!
@@ -33,7 +56,7 @@ class FilterWindowController: NSWindowController, NSWindowDelegate {
   private var editFilterStringTextField: NSTextField!
   private var editFilterKeyRecordView: KeyRecordView!
   private var editFilterKeyRecordViewLabel: NSTextField!
-  @IBOutlet weak var removeButton: NSButton!
+  private(set) var removeButton: NSButton!
 
   var loaded = false
 
@@ -48,9 +71,9 @@ class FilterWindowController: NSWindowController, NSWindowDelegate {
 
   init(filterType: String, autosaveName: String) {
     self.filterType = filterType
+    self.frameAutosaveName = autosaveName
     super.init(window: nil)
-    self.windowFrameAutosaveName = autosaveName
-    Logger.log("Init \(windowFrameAutosaveName)", level: .verbose)
+    Logger.log("Init \(autosaveName)", level: .verbose)
   }
 
   required init?(coder: NSCoder) {
@@ -65,13 +88,29 @@ class FilterWindowController: NSWindowController, NSWindowDelegate {
     // title
     window?.title = filterType == MPVProperty.af ? NSLocalizedString("filter.audio_filters", comment: "Audio Filters") : NSLocalizedString("filter.video_filters", comment: "Video Filters")
 
-    splitViewUpperView.addSubview(upperView)
-    splitViewLowerView.addSubview(lowerView)
-    Utility.quickConstraints(["H:|[v]|", "V:|[v]|", "H:|[w]|", "V:|[w]|"], ["v": upperView, "w": lowerView])
+    window?.contentView?.layoutSubtreeIfNeeded()
     splitView.setPosition(splitView.frame.height - 140, ofDividerAt: 0)
+    currentFiltersTableView.delegate = self
+    currentFiltersTableView.dataSource = self
+    savedFiltersTableView.delegate = self
+    savedFiltersTableView.dataSource = self
+    savedFiltersTableView.target = self
+
+    newFilterController = NewFilterSheetViewController(filterWindow: self)
+    let presetView = newFilterController.view as! FilterPresetContentView
+    newFilterSheet = CommonWindow(contentRect: presetView.frame,
+      styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
+    newFilterSheet.title = "New Filter"
+    newFilterSheet.isReleasedWhenClosed = false
+    newFilterSheet.isRestorable = false
+    newFilterSheet.contentViewController = newFilterController
+    newFilterSheet.contentMinSize = NSSize(width: max(450, presetView.presetsWidthConstraint.constant + 212), height: 200)
+    newFilterSheet.setFrameAutosaveName("NewFilterWindow")
+    newFilterSheet.initialFirstResponder = presetView.tableView
 
     savedFilters = (Preference.array(for: filterType == MPVProperty.af ? .savedAudioFilters : .savedVideoFilters) ?? []).compactMap(SavedFilter.init(dict:))
     filters = PlayerCore.lastActive.mpv.getFilters(filterType)
+    updateSavedFilterStates()
     currentFiltersTableView.reloadData()
     savedFiltersTableView.reloadData()
 
@@ -117,6 +156,12 @@ class FilterWindowController: NSWindowController, NSWindowDelegate {
     // been told to shutdown mpv APIs must not be called as it can trigger a crash in mpv.
     guard pc.info.state.active else { return }
     filters = pc.mpv.getFilters(filterType)
+    updateSavedFilterStates()
+    currentFiltersTableView.reloadData()
+    savedFiltersTableView.reloadData()
+  }
+
+  private func updateSavedFilterStates() {
     filterIsSaved = [Bool](repeatElement(false, count: filters.count))
     savedFilters.forEach { savedFilter in
       if let asObject = MPVFilter(rawString: savedFilter.filterString),
@@ -127,8 +172,6 @@ class FilterWindowController: NSWindowController, NSWindowDelegate {
         savedFilter.isEnabled = false
       }
     }
-    currentFiltersTableView.reloadData()
-    savedFiltersTableView.reloadData()
   }
 
   func setFilters() {
@@ -313,11 +356,30 @@ extension FilterWindowController: NSTableViewDelegate, NSTableViewDataSource {
       } else if tableColumn?.identifier == .value {
         return filters[at: row]?.stringFormat
       } else {
-        return filterIsSaved[row]
+        return filterIsSaved[at: row] ?? false
       }
     } else {
       return savedFilters[at: row]
     }
+  }
+
+  func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
+    guard let column = tableColumn else { return nil }
+    let identifier = NSUserInterfaceItemIdentifier("FilterCell.\(column.identifier.rawValue)")
+    if let cell = tableView.makeView(withIdentifier: identifier, owner: self) { return cell }
+    let cell: NSTableCellView
+    if tableView == savedFiltersTableView {
+      cell = SavedFilterCellView(target: self, toggleAction: #selector(toggleSavedFilterAction(_:)),
+        editAction: #selector(editSavedFilterAction(_:)), deleteAction: #selector(deleteSavedFilterAction(_:)))
+    } else if column.identifier == .key {
+      cell = FilterViewFactory.textCell(aligned: .right)
+    } else if column.identifier == .value {
+      cell = FilterViewFactory.textCell(editable: true)
+    } else {
+      cell = FilterViewFactory.saveCell(target: self, action: #selector(saveFilterAction(_:)))
+    }
+    cell.identifier = identifier
+    return cell
   }
 
   func tableView(_ tableView: NSTableView, setObjectValue object: Any?, for tableColumn: NSTableColumn?, row: Int) {
@@ -389,194 +451,5 @@ extension FilterWindowController {
 
   @IBAction func cancelEditingFilterAction(_ sender: Any) {
     window!.endSheet(editFilterSheet)
-  }
-}
-
-
-class NewFilterSheetViewController: NSViewController, NSTableViewDelegate, NSTableViewDataSource {
-  private static let textAndTableWidthDifference = 20.0
-
-  @IBOutlet weak var filterWindow: FilterWindowController!
-  @IBOutlet weak var tableView: NSTableView!
-  @IBOutlet weak var scrollContentView: NSView!
-  @IBOutlet weak var addButton: NSButton!
-  @IBOutlet weak var presetsClipViewWidthConstraint: NSLayoutConstraint!
-
-  private var currentPreset: FilterPreset?
-  private var currentBindings: [String: NSControl] = [:]
-  private var presets: [FilterPreset] = []
-
-  override func awakeFromNib() {
-    tableView.dataSource = self
-    tableView.delegate = self
-    presets = filterWindow.filterType == MPVProperty.vf ? FilterPreset.vfPresets : FilterPreset.afPresets
-
-    // Different locales have different text width requirements. Examine all content and fit table to widest item.
-    var maxWidth = 0.0
-    for preset in presets {
-      let presetString = NSMutableAttributedString(string: preset.localizedName)
-      let fontSize = NSFont.systemFontSize(for: .regular)
-      let textFont = NSFont.systemFont(ofSize: fontSize)
-      presetString.addAttribute(.font, value: textFont, range: NSRange(location: 0, length: presetString.length))
-      let textWidth = presetString.size().width
-      if textWidth > maxWidth {
-        maxWidth = textWidth
-      }
-    }
-    presetsClipViewWidthConstraint.constant = maxWidth + NewFilterSheetViewController.textAndTableWidthDifference
-
-    // Select first filter preset in table if nothing already selected
-    if tableView.selectedRowIndexes.isEmpty {
-      tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
-    }
-  }
-
-  func numberOfRows(in tableView: NSTableView) -> Int {
-    return presets.count
-  }
-
-  func tableView(_ tableView: NSTableView, objectValueFor tableColumn: NSTableColumn?, row: Int) -> Any? {
-    return presets[at: row]?.localizedName
-  }
-
-  func tableViewSelectionDidChange(_ notification: Notification) {
-    guard let preset = presets[at: tableView.selectedRow] else { return }
-    showSettings(for: preset)
-  }
-
-  /** Render parameter controls at right side when selected a filter in the table. */
-  func showSettings(for preset: FilterPreset) {
-    currentPreset = preset
-    currentBindings.removeAll()
-    scrollContentView.subviews.forEach { $0.removeFromSuperview() }
-    addButton.isEnabled = true
-
-    let stackView = NSStackView()
-    stackView.orientation = .vertical
-    stackView.alignment = .leading
-    stackView.translatesAutoresizingMaskIntoConstraints = false
-    scrollContentView.addSubview(stackView)
-    Utility.quickConstraints(["H:|-4-[v]-4-|", "V:|-4-[v]-4-|"], ["v": stackView])
-
-    let generateInputs: (String, FilterParameter) -> Void = { (name, param) in
-      stackView.addArrangedSubview(self.quickLabel(title: preset.localizedParamName(name)))
-      let input = self.quickInput(param: param)
-      // For preventing crash due to adding a filter with no name:
-      if name == "name", preset.name.starts(with: "custom_"), let textField = input as? NSTextField {
-        textField.delegate = self
-        self.addButton.isEnabled = !textField.stringValue.isEmpty
-      }
-      stackView.addArrangedSubview(input)
-      self.currentBindings[name] = input
-    }
-    for name in preset.paramOrder {
-      generateInputs(name, preset.params[name]!)
-    }
-  }
-
-  private func quickLabel(title: String) -> NSTextField {
-    let label = NSTextField(frame: NSRect(x: 0, y: 0,
-                                          width: scrollContentView.frame.width,
-                                          height: 17))
-    label.font = NSFont.systemFont(ofSize: NSFont.systemFontSize)
-    label.stringValue = title
-    label.drawsBackground = false
-    label.isBezeled = false
-    label.isSelectable = false
-    label.isEditable = false
-    label.usesSingleLineMode = false
-    label.lineBreakMode = .byWordWrapping
-    label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-    return label
-  }
-
-  /** Create the control from a `FilterParameter` definition. */
-  private func quickInput(param: FilterParameter) -> NSControl {
-    switch param.type {
-    case .text:
-      // Text field
-      let label = NSTextField(frame: NSRect(x: 0, y: 0,
-                              width: scrollContentView.frame.width - 8,
-                              height: 22))
-      label.stringValue = param.defaultValue.stringValue
-      label.isSelectable = false
-      label.isEditable = true
-      label.lineBreakMode = .byClipping
-      label.usesSingleLineMode = true
-      label.cell?.isScrollable = true
-      return label
-    case .int:
-      // Slider
-      let slider = NSSlider(frame: NSRect(x: 0, y: 0,
-                                          width: scrollContentView.frame.width - 8,
-                                          height: 19))
-      slider.minValue = Double(param.minInt!)
-      slider.maxValue = Double(param.maxInt!)
-      if let step = param.step {
-        slider.numberOfTickMarks = (param.maxInt! - param.minInt!) / step + 1
-        slider.allowsTickMarkValuesOnly = true
-        slider.frame.size.height = 24
-      }
-      slider.intValue = Int32(param.defaultValue.intValue)
-      return slider
-    case .float:
-      // Slider
-      let slider = NSSlider(frame: NSRect(x: 0, y: 0,
-                                          width: scrollContentView.frame.width - 8,
-                                          height: 19))
-      slider.minValue = Double(param.min!)
-      slider.maxValue = Double(param.max!)
-      slider.floatValue = param.defaultValue.floatValue
-      return slider
-    case .choose:
-      // Choose
-      let popupBtn = NSPopUpButton(frame: NSRect(x: 0, y: 0,
-                                                 width: scrollContentView.frame.width - 8,
-                                                 height: 26))
-      popupBtn.addItems(withTitles: param.choices)
-      return popupBtn
-    }
-  }
-
-  @IBAction func sheetAddBtnAction(_ sender: Any) {
-    guard let preset = currentPreset else { return }
-    // create instance
-    let instance = FilterPresetInstance(from: preset)
-    for (name, control) in currentBindings {
-      switch preset.params[name]!.type {
-      case .text:
-        instance.params[name] = FilterParameterValue(string: control.stringValue)
-      case .int:
-        instance.params[name] = FilterParameterValue(int: Int(control.intValue))
-      case .float:
-        instance.params[name] = FilterParameterValue(float: control.floatValue)
-      case .choose:
-        instance.params[name] = FilterParameterValue(string: preset.params[name]!.choices[Int(control.intValue)])
-      }
-    }
-    // Validate custom filter syntax before closing the sheet. MPVFilter rejects malformed labels,
-    // such as a name beginning with "@" but lacking the required label separator.
-    guard let filter = preset.transformer(instance) else {
-      Utility.showAlert("filter.incorrect", sheetWindow: filterWindow.newFilterSheet)
-      return
-    }
-    filterWindow.window!.endSheet(filterWindow.newFilterSheet, returnCode: .OK)
-    if filterWindow.addFilter(filter) {
-      PlayerCore.lastActive.sendOSD(.addFilter(preset.localizedName))
-    }
-  }
-
-  @IBAction func sheetCancelBtnAction(_ sender: Any) {
-    filterWindow.window!.endSheet(filterWindow.newFilterSheet, returnCode: .cancel)
-  }
-
-}
-
-/* For preventing crash due to to adding filter with no name */
-extension NewFilterSheetViewController: NSTextFieldDelegate {
-  func controlTextDidChange(_ obj: Notification) {
-    if let textField = obj.object as? NSTextField {
-      self.addButton.isEnabled = !textField.stringValue.isEmpty
-    }
   }
 }
