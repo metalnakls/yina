@@ -32,8 +32,26 @@ class MainWindowController: PlayerWindowController {
     static let transportSpacing: CGFloat = 16
   }
 
-  override var windowNibName: NSNib.Name {
-    return NSNib.Name("MainWindowController")
+  /// Build the window in code. The nib previously supplied only the window and the PiP overlay,
+  /// and the overlay is now constructed in `pipOverlayView`.
+  override func loadWindow() {
+    let window = MainWindow(
+      contentRect: NSRect(x: 196, y: 240, width: 640, height: 400),
+      styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
+      backing: .buffered,
+      defer: false,
+      usesUnifiedToolbar: false
+    )
+    window.title = "Window"
+    window.allowsToolTipsWhenApplicationIsInactive = false
+    window.autorecalculatesKeyViewLoop = false
+    window.isRestorable = false
+    window.isReleasedWhenClosed = false
+    window.tabbingMode = .disallowed
+    window.setFrameAutosaveName("")
+    self.window = window
+    window.contentView = MainWindowContentView(frame: NSRect(x: 0, y: 0, width: 640, height: 400))
+    window.delegate = self
   }
 
   /** For Force Touch. */
@@ -395,7 +413,48 @@ class MainWindowController: PlayerWindowController {
     }
   }
 
-  @IBOutlet weak var pipOverlayView: NSVisualEffectView!
+  /// Overlay shown while the video is playing in picture-in-picture.
+  ///
+  /// Built in code rather than loaded from a nib. It is a blur-filled backdrop carrying the PiP
+  /// symbol and a short explanatory label, pinned to the content view.
+  let pipOverlayView = MainWindowController.makePipOverlayView()
+
+  private static func makePipOverlayView() -> NSVisualEffectView {
+    let overlay = NSVisualEffectView()
+    overlay.translatesAutoresizingMaskIntoConstraints = false
+    overlay.blendingMode = .behindWindow
+    overlay.material = .underWindowBackground
+    overlay.state = .followsWindowActiveState
+    overlay.isHidden = true
+
+    let imageView = NSImageView()
+    imageView.translatesAutoresizingMaskIntoConstraints = false
+    if let symbol = NSImage(systemSymbolName: "pip", accessibilityDescription: nil) {
+      imageView.image = symbol.withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 80, weight: .thin))
+    }
+    imageView.contentTintColor = .labelColor
+    overlay.addSubview(imageView)
+    imageView.centerXAnchor.constraint(equalTo: overlay.centerXAnchor).isActive = true
+    imageView.centerYAnchor.constraint(equalTo: overlay.centerYAnchor).isActive = true
+
+    let pipHint = NSLocalizedString("pip.playing_in_background",
+                                    value: "This video is playing in picture in picture",
+                                    comment: "Shown over the video window while in picture in picture")
+    let label = NSTextField(labelWithString: pipHint)
+    label.translatesAutoresizingMaskIntoConstraints = false
+    label.font = NSFont.systemFont(ofSize: NSFont.systemFontSize)
+    label.textColor = .labelColor
+    label.lineBreakMode = .byClipping
+    label.isBezeled = false
+    label.drawsBackground = false
+    label.isEditable = false
+    label.isSelectable = false
+    overlay.addSubview(label)
+    label.centerXAnchor.constraint(equalTo: overlay.centerXAnchor).isActive = true
+    label.topAnchor.constraint(equalTo: imageView.bottomAnchor, constant: 20).isActive = true
+
+    return overlay
+  }
 
   lazy var pluginOverlayViewContainer: NSView! = {
     guard let window, let cv = window.contentView else { return nil }
@@ -680,9 +739,15 @@ class MainWindowController: PlayerWindowController {
 
     // other initialization
     cachedScreens = NSScreen.screens
-    [pipOverlayView].forEach {
-      $0?.state = .followsWindowActiveState
+
+    // The PiP overlay used to arrive as a nib outlet, which put it in the content view for us.
+    // Now that it is built in code it has to be attached here, pinned to the content view.
+    if let cv = window.contentView {
+      cv.addSubview(pipOverlayView, positioned: .below, relativeTo: videoView)
+      pipOverlayView.padding(.all)
     }
+    pipOverlayView.state = .followsWindowActiveState
+
     let pipBackgroundView = NSView()
     pipBackgroundView.translatesAutoresizingMaskIntoConstraints = false
     pipBackgroundView.wantsLayer = true

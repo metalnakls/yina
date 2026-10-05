@@ -22,8 +22,31 @@ fileprivate extension LayoutValue {
 
 
 class MiniPlayerWindowController: PlayerWindowController, NSPopoverDelegate {
-  override var windowNibName: NSNib.Name {
-    return NSNib.Name("MiniPlayerWindowController")
+  /// Build the window in code. Everything below `windowDidLoad` was already programmatic; the nib
+  /// only supplied an empty content view and the window's own configuration.
+  override func loadWindow() {
+    let window = MiniPlayerWindow(
+      contentRect: NSRect(x: 196, y: 240, width: 300, height: 72),
+      styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
+      backing: .buffered,
+      defer: false,
+      usesUnifiedToolbar: false
+    )
+    window.title = "Window"
+    window.titleVisibility = .hidden
+    window.isOpaque = false
+    window.backgroundColor = .clear
+    window.allowsToolTipsWhenApplicationIsInactive = false
+    window.autorecalculatesKeyViewLoop = false
+    window.tabbingMode = .disallowed
+    window.collectionBehavior.insert(.fullScreenNone)
+    window.minSize = NSSize(width: 300, height: 72)
+    window.setFrameAutosaveName("IINAMiniPlayerWindow")
+    window.isReleasedWhenClosed = false
+    self.window = window
+    window.contentView = NSView(frame: NSRect(x: 0, y: 0, width: 300, height: 72))
+    window.contentView?.translatesAutoresizingMaskIntoConstraints = true
+    window.delegate = self
   }
 
   override var videoView: VideoView {

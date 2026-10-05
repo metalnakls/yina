@@ -356,13 +356,11 @@
 		C789872F1E34EF170005769F /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 843B97AA1E82D3C100D07261 /* Base */; };
 		8400D5EA1E1AB33B006785F5 /* KeyRecordViewController.xib in Resources */ = {isa = PBXBuildFile; fileRef = 8400D5EB1E1AB33B006785F5 /* Base */; };
 		84EC12861F504D2500137C1E /* FilterPresets.strings in Resources */ = {isa = PBXBuildFile; fileRef = 84EC12871F504D2500137C1E /* Base */; };
-		8F49C36E213EFB7E0076C4F9 /* MiniPlayerWindowController.xib in Resources */ = {isa = PBXBuildFile; fileRef = 8F49C36F213EFB7E0076C4F9 /* Base */; };
 		84A0BA951D2F9E9600BC8DA1 /* MainMenu.xib in Resources */ = {isa = PBXBuildFile; fileRef = 84A0BA941D2F9E9600BC8DA1 /* Base */; };
 		84F5D49A1E44E9A50060A838 /* KeyBinding.strings in Resources */ = {isa = PBXBuildFile; fileRef = 84F5D49B1E44E9A50060A838 /* Base */; };
 		8400D5D21E1AB312006785F5 /* InspectorWindowController.xib in Resources */ = {isa = PBXBuildFile; fileRef = 8400D5D31E1AB312006785F5 /* Base */; };
 		845AC09C1E1AE6C10080B614 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 845AC09D1E1AE6C10080B614 /* Base */; };
 		8400D5D51E1AB317006785F5 /* FilterWindowController.xib in Resources */ = {isa = PBXBuildFile; fileRef = 8400D5D61E1AB317006785F5 /* Base */; };
-		8400D5C61E1AB2F1006785F5 /* MainWindowController.xib in Resources */ = {isa = PBXBuildFile; fileRef = 8400D5C71E1AB2F1006785F5 /* Base */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -664,7 +662,6 @@
 		51F7974628C7E00200812D0D /* Lock.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Lock.swift; sourceTree = "<group>"; };
 		6100FF2A1EDF9806002CF0FB /* dsa_pub.pem */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = dsa_pub.pem; sourceTree = "<group>"; };
 		8400D5C21E17C6D2006785F5 /* AboutWindowController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AboutWindowController.swift; sourceTree = "<group>"; };
-		8400D5C71E1AB2F1006785F5 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.xib; name = Base; path = Base.lproj/MainWindowController.xib; sourceTree = "<group>"; };
 		8400D5D31E1AB312006785F5 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.xib; name = Base; path = Base.lproj/InspectorWindowController.xib; sourceTree = "<group>"; };
 		8400D5D61E1AB317006785F5 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.xib; name = Base; path = Base.lproj/FilterWindowController.xib; sourceTree = "<group>"; };
 		8400D5EB1E1AB33B006785F5 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.xib; name = Base; path = Base.lproj/KeyRecordViewController.xib; sourceTree = "<group>"; };
@@ -770,7 +767,6 @@
 		84FBCB361EEACDDD0076C77C /* FFmpegController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = FFmpegController.h; sourceTree = "<group>"; };
 		84FBCB371EEACDDD0076C77C /* FFmpegController.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = FFmpegController.m; sourceTree = "<group>"; };
 		84FBF23D1EF06A90003EA491 /* ThumbnailCache.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ThumbnailCache.swift; sourceTree = "<group>"; };
-		8F49C36F213EFB7E0076C4F9 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.xib; name = Base; path = Base.lproj/MiniPlayerWindowController.xib; sourceTree = "<group>"; };
 		9E47DABF1E3CFA6D00457420 /* DurationDisplayTextField.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DurationDisplayTextField.swift; sourceTree = "<group>"; };
 		D17504A72918F13E005C3DD0 /* OSCToolbarButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OSCToolbarButton.swift; sourceTree = "<group>"; };
 		D1A4D9892B1495270009AB4E /* LegacyMigration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacyMigration.swift; sourceTree = "<group>"; };
@@ -1430,7 +1426,6 @@
 		84EB1ED81D2F51D3004FA5A1 /* yina */ = {
 			isa = PBXGroup;
 			children = (
-				8400D5C71E1AB2F1006785F5 /* Base */,
 				8400D5D31E1AB312006785F5 /* Base */,
 				8400D5D61E1AB317006785F5 /* Base */,
 				8400D5EB1E1AB33B006785F5 /* Base */,
@@ -1439,7 +1434,6 @@
 				84A0BA941D2F9E9600BC8DA1 /* Base */,
 				84EC12871F504D2500137C1E /* Base */,
 				84F5D49B1E44E9A50060A838 /* Base */,
-				8F49C36F213EFB7E0076C4F9 /* Base */,
 				A1B2C3D40000000000000004 /* DefaultPreferences.plist */,
 				84FF846D1D2FF698001B318A /* deps */,
 				84A0BAA21D2FAE8200BC8DA1 /* Assets */,
@@ -1806,7 +1800,6 @@
                 A1B2C3D40000000000000003 /* DefaultPreferences.plist in Resources */,
 				A1C0DEC0A1C0DEC0A1C0DE02 /* AppIcon.icon in Resources */,
 				8492C2861E771FB200CE5825 /* ISO639.strings in Resources */,
-				8F49C36E213EFB7E0076C4F9 /* MiniPlayerWindowController.xib in Resources */,
 				84A0BA951D2F9E9600BC8DA1 /* MainMenu.xib in Resources */,
 				E3AD62772FF4C9BE00D2CAC5 /* VerbatimStrings.strings in Resources */,
 				8483FB001EDFF325000F55D6 /* Credits.rtf in Resources */,
@@ -1817,7 +1810,6 @@
 				845AC09C1E1AE6C10080B614 /* Localizable.strings in Resources */,
 				8400D5D51E1AB317006785F5 /* FilterWindowController.xib in Resources */,
 				518DB7022FA6A2120024F0B0 /* write_info_plist_header.sh in Resources */,
-				8400D5C61E1AB2F1006785F5 /* MainWindowController.xib in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
