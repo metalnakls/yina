@@ -147,3 +147,10 @@ default was aligned to `true` to match upstream `2b2f3c8c`.
   render-context setup. Added an opening-order regression check. A user playback
   check is still required.
   Stack samples and temporary probes are outside the repository.
+
+- The user reopened build `202610051120`: the early fatal VO error disappeared,
+  but `vid=no` and absent video dimensions persisted. The order fix addresses a
+  real initialization error but does not yet resolve black playback.
+- Added selection snapshots after mpv initialization, plugin setup, window setup,
+  and load stages, plus explicit app video-track requests. These record only
+  option values and counts, to locate when video selection becomes disabled.

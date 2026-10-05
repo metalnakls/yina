@@ -84,7 +84,9 @@ class PlayerCore: NSObject {
     pc.label = "\(playerCoreCounter)"
     playerCores.append(pc)
     pc.startMPV()
+    pc.recordVideoSelection("mpv initialized")
     pc.loadPlugins()
+    pc.recordVideoSelection("plugins loaded")
     os_log("player=%{public}d stage=core ready elapsed_ms=%{public}.1f",
            log: mediaOpeningLog, type: .default,
            pc.playerNumber, (CACurrentMediaTime() - startedAt) * 1000)
@@ -313,9 +315,19 @@ class PlayerCore: NSObject {
   /// Only stage names and durations are recorded, never media paths or URLs.
   func recordMediaOpeningStage(_ stage: String) {
     guard let startedAt = mediaOpeningStartedAt else { return }
+    recordVideoSelection(stage)
     os_log("player=%{public}d stage=%{public}@ elapsed_ms=%{public}.1f",
            log: Self.mediaOpeningLog, type: .default,
            playerNumber, stage, (CACurrentMediaTime() - startedAt) * 1000)
+  }
+
+  private func recordVideoSelection(_ stage: String) {
+    os_log("player=%{public}d selection_stage=%{public}@ vid=%{public}@ option_vid=%{public}@ track_auto=%{public}@ tracks=%{public}d",
+           log: Self.mediaOpeningLog, type: .default, playerNumber, stage,
+           mpv.getString(MPVOption.TrackSelection.vid) ?? "unavailable",
+           mpv.getString("options/vid") ?? "unavailable",
+           mpv.getString("track-auto-selection") ?? "unavailable",
+           mpv.getInt("track-list/count"))
   }
 
   let playerNumber: Int
@@ -1308,6 +1320,10 @@ class PlayerCore: NSObject {
   }
 
   func setTrack(_ index: Int, forType: MPVTrack.TrackType) {
+    if forType == .video {
+      os_log("player=%{public}d requested_video_track=%{public}d",
+             log: Self.mediaOpeningLog, type: .default, playerNumber, index)
+    }
     finishSubtitleDissolve()
     let name: String
     switch forType {
