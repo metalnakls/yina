@@ -1896,6 +1896,7 @@ class MainWindowController: PlayerWindowController {
       player.resume()
       isPausedDueToInactive = false
     }
+    player.resumeVideoForBackgrounding()
   }
 
   func windowDidResignKey(_ notification: Notification) {
@@ -1907,6 +1908,10 @@ class MainWindowController: PlayerWindowController {
       if Preference.bool(for: .pauseWhenInactive), player.info.state == .playing {
         player.pause()
         isPausedDueToInactive = true
+      } else {
+        // Not pausing outright, so at least stop decoding and rendering a picture nobody can see.
+        // Audio continues.
+        player.suspendVideoForBackgrounding()
       }
     }
   }

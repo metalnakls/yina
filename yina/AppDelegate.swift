@@ -347,6 +347,23 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     }
   }
 
+  /// Suspend video decoding and rendering for every player when the app goes to the background.
+  ///
+  /// yina keeps playing audio in the background by design, but mpv would otherwise keep decoding
+  /// video and presenting frames that nobody can see. Each player disables its video track and stops
+  /// its display link, and `applicationDidBecomeActive` puts both back.
+  func applicationDidResignActive(_ notification: Notification) {
+    for player in PlayerCore.playerCores where player.info.state == .playing {
+      player.suspendVideoForBackgrounding()
+    }
+  }
+
+  func applicationDidBecomeActive(_ notification: Notification) {
+    for player in PlayerCore.playerCores {
+      player.resumeVideoForBackgrounding()
+    }
+  }
+
   func applicationDidFinishLaunching(_ aNotification: Notification) {
     Logger.log("App launched")
 

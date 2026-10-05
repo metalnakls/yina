@@ -180,6 +180,11 @@ class PlayerCore: NSObject {
   var initialWindow: InitialWindowController!
 
   var mainWindow: MainWindowController!
+
+  /// Video track id captured when `suspendVideoForBackgrounding` ran, restored on foregrounding.
+  var suspendedVideoTrackId: Int?
+  /// True while video is suspended for backgrounding and audio is still playing.
+  var videoSuspendedForBackgrounding = false
   var miniPlayer: MiniPlayerWindowController!
 
   var currentController: PlayerWindowController {
@@ -886,6 +891,46 @@ class PlayerCore: NSObject {
     mpv.setFlag(MPVOption.PlaybackControl.pause, true, level: .verbose)
   }
 
+  /// Suspend video decoding and rendering while leaving audio playing.
+  ///
+  /// mpv keeps decoding and presenting frames even when the window is fully occluded or the app is in
+  /// the background, which burns CPU and keeps the GPU busy for a picture nobody can see. Disabling the
+  /// video track with `vid` stops the decode pipeline entirely while audio continues, and the display
+  /// link is stopped so the render context is not driven.
+  ///
+  /// - Important: The previous video track id is remembered so `resumeVideoForBackgrounding` can put it
+  ///     back. If the track is gone on resume, playback falls back to mpv's default selection.
+  func suspendVideoForBackgrounding() {
+    guard info.state == .playing, !videoSuspendedForBackgrounding else { return }
+    guard let videoTrack = info.currentTrack(.video) else { return }
+    suspendedVideoTrackId = videoTrack.id
+    videoSuspendedForBackgrounding = true
+    log("Suspending video for backgrounding, keeping audio playing", level: .verbose)
+    // Stop the display link immediately rather than through `displayIdle`, which deliberately waits
+    // six seconds to ride out brief pauses. Backgrounding is not transient, so there is nothing to
+    // ride out and the link should be idle now.
+    mainWindow.videoView.stopDisplayLink()
+    mpv.setString(MPVOption.vid, "no", level: .verbose)
+  }
+
+  /// Undo `suspendVideoForBackgrounding`, restoring the previous video track and the display link.
+  func resumeVideoForBackgrounding() {
+    guard videoSuspendedForBackgrounding else { return }
+    videoSuspendedForBackgrounding = false
+    guard info.state == .playing else {
+      suspendedVideoTrackId = nil
+      return
+    }
+    // `vid` is "no" while suspended, so mpv no longer has a selected video track. Put back the id
+    // captured on suspend. `setTrack` keeps that id current if the user picks a different video
+    // track while suspended, so the user's choice is what gets restored.
+    let rememberedId = suspendedVideoTrackId
+    suspendedVideoTrackId = nil
+    log("Resuming video after foregrounding", level: .verbose)
+    mainWindow.videoView.displayActive()
+    mpv.setString(MPVOption.vid, rememberedId.map { "\($0)" } ?? "auto", level: .verbose)
+  }
+
   /// Resume playback.
   /// - Important: Although primary responsibility for ensuring the display link is running when playback is in progress belongs to
   ///     the `pauseChanged` method, this method calls `displayActive` to provide more time for the display link to start up.
@@ -919,6 +964,11 @@ class PlayerCore: NSObject {
   func stop() {
     guard info.state != .shutDown else { return }
     savePlaybackPosition()
+
+    // Clear any backgrounding suspension so the next file is not loaded with video disabled.
+    videoSuspendedForBackgrounding = false
+    suspendedVideoTrackId = nil
+    lastSyncedDisplayPosition = nil
 
     // The player may already be stopped in which case the state must not be set to stopping.
     if info.state != .idle {
@@ -969,6 +1019,7 @@ class PlayerCore: NSObject {
     }
     let useExact = forceExact ? true : Preference.bool(for: .useExactSeek)
     let seekMode = useExact ? "absolute-percent+exact" : "absolute-percent"
+    invalidateSyncedDisplayPosition()
     mpv.command(.seek, args: ["\(percent)", seekMode], checkError: false, level: .verbose)
   }
 
@@ -976,9 +1027,11 @@ class PlayerCore: NSObject {
     switch option {
 
     case .relative:
+      invalidateSyncedDisplayPosition()
       mpv.command(.seek, args: ["\(relativeSecond)", "relative"], checkError: false, level: .verbose)
 
     case .exact:
+      invalidateSyncedDisplayPosition()
       mpv.command(.seek, args: ["\(relativeSecond)", "relative+exact"], checkError: false)
 
     case .auto:
@@ -992,12 +1045,14 @@ class PlayerCore: NSObject {
         triedUsingExactSeekForCurrentFile = true
       }
       let seekMode = useExactSeekForCurrentFile ? "relative+exact" : "relative"
+      invalidateSyncedDisplayPosition()
       mpv.command(.seek, args: ["\(relativeSecond)", seekMode], checkError: false)
 
     }
   }
 
   func seek(absoluteSecond: Double) {
+    invalidateSyncedDisplayPosition()
     mpv.command(.seek, args: ["\(absoluteSecond)", "absolute+exact"])
   }
 
@@ -1285,6 +1340,11 @@ class PlayerCore: NSObject {
       name = MPVOption.Subtitles.secondarySid
     }
     mpv.setInt(name, index)
+    // A video track chosen while video is suspended for backgrounding replaces the id that
+    // `resumeVideoForBackgrounding` would otherwise restore, so record the new choice.
+    if forType == .video, videoSuspendedForBackgrounding {
+      suspendedVideoTrackId = index
+    }
     getSelectedTracks()
   }
 
@@ -2817,6 +2877,14 @@ class PlayerCore: NSObject {
     syncUI(.time)
   }
 
+  /// Last rounded position pushed to the time labels, used to skip redundant UI work.
+  ///
+  /// `syncUITimer` can fire 25 times a second, but the displayed time only changes at the display
+  /// precision. Re-reading mpv, re-formatting the labels and re-running the fullscreen info and
+  /// buffer updates on every tick is wasted work, so the whole `.time` pass is skipped when the
+  /// rounded position has not moved.
+  private var lastSyncedDisplayPosition: Double?
+
   func syncUI(_ options: [SyncUIOption]) {
     for option in options {
       syncUI(option)
@@ -2834,17 +2902,25 @@ class PlayerCore: NSObject {
     case .time:
       let isNetworkStream = info.isNetworkResource
       syncPosition()
+
+      // Skip the label/formatting pass when nothing the user can see has changed. Buffer and cache
+      // state can still move while paused, so those are refreshed independently below.
+      guard let position = info.videoPosition else { return }
+      let displayPrecision = DurationDisplayTextField.precision
+      let bucket = (position.second * pow(10, Double(displayPrecision))).rounded(.down)
+      let positionChanged = bucket != lastSyncedDisplayPosition
+      lastSyncedDisplayPosition = bucket
+
+      guard positionChanged else {
+        if isNetworkStream { updateNetworkStreamCacheState() }
+        return
+      }
+
       info.videoRemaining?.second = Preference.bool(for: .scaleRemainingTime) ?
       mpv.getDouble(MPVProperty.playtimeRemainingFull) :
       mpv.getDouble(MPVProperty.timeRemainingFull)
       if isNetworkStream {
-        // Update cache info
-        info.pausedForCache = mpv.getFlag(MPVProperty.pausedForCache)
-        let cacheState = mpv.getNode(MPVProperty.demuxerCacheState) as? [String: Any] ?? [:]
-        info.cacheUsed = Int(cacheState["fw-bytes"] as? Int64 ?? 0)
-        info.cacheSpeed = Int(cacheState["raw-input-rate"] as? Int64 ?? 0)
-        info.cacheTime = mpv.getInt(MPVProperty.demuxerCacheTime)
-        info.bufferingState = mpv.getInt(MPVProperty.cacheBufferingState)
+        updateNetworkStreamCacheState()
       }
       DispatchQueue.main.async { [self] in
         currentController.updatePlayTime(withDuration: isNetworkStream, andProgressBar: true)
@@ -2866,6 +2942,24 @@ class PlayerCore: NSObject {
         self.currentController.updateVolume()
       }
     }
+  }
+
+  /// Refresh the cached network stream statistics shown by the buffer indicator.
+  /// Force the next `.time` sync to rebuild the labels.
+  ///
+  /// Seeking jumps the position outside the sync timer, so without this the coalescing cache would
+  /// suppress the update and the labels would keep showing the pre-seek time.
+  private func invalidateSyncedDisplayPosition() {
+    lastSyncedDisplayPosition = nil
+  }
+
+  private func updateNetworkStreamCacheState() {
+    info.pausedForCache = mpv.getFlag(MPVProperty.pausedForCache)
+    let cacheState = mpv.getNode(MPVProperty.demuxerCacheState) as? [String: Any] ?? [:]
+    info.cacheUsed = Int(cacheState["fw-bytes"] as? Int64 ?? 0)
+    info.cacheSpeed = Int(cacheState["raw-input-rate"] as? Int64 ?? 0)
+    info.cacheTime = mpv.getInt(MPVProperty.demuxerCacheTime)
+    info.bufferingState = mpv.getInt(MPVProperty.cacheBufferingState)
   }
 
   func sendOSD(_ osd: OSDMessage, autoHide: Bool = true, forcedTimeout: Float? = nil, accessoryView: NSView? = nil, context: Any? = nil, external: Bool = false) {
