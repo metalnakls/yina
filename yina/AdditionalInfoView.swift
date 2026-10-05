@@ -81,10 +81,32 @@ class AdditionalInfoView: TranslucentView {
     fatalError("init(coder:) has not been implemented")
   }
 
+  /// Minimum interval between power-source polls.
+  ///
+  /// `update()` is driven by the playback sync timer, which can fire 25 times a second, but the
+  /// clock only shows minutes and the battery level moves far more slowly than that. Polling IOKit
+  /// for power sources that often is wasted work, so it is rate limited while the labels still
+  /// refresh on every call.
+  private static let powerPollInterval: TimeInterval = 2
+  private var lastPowerPoll = Date.distantPast
+
+  /// Formatters are cached because creating them is expensive and this runs on a timer.
+  private static let timeFormatter: DateFormatter = {
+    let formatter = DateFormatter()
+    formatter.dateStyle = .none
+    formatter.timeStyle = .short
+    return formatter
+  }()
+
   func update() {
-    timeLabel.stringValue = DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .short)
+    timeLabel.stringValue = AdditionalInfoView.timeFormatter.string(from: Date())
     title.stringValue = window?.representedURL?.lastPathComponent ?? window?.title ?? ""
-    if let capacity = PowerSource.getList().filter({ $0.type == "InternalBattery" }).first?.currentCapacity {
+
+    let now = Date()
+    guard now.timeIntervalSince(lastPowerPoll) >= AdditionalInfoView.powerPollInterval else { return }
+    lastPowerPoll = now
+
+    if let capacity = PowerSource.getList().first(where: { $0.type == "InternalBattery" })?.currentCapacity {
       batteryLabel.stringValue = "\(capacity)%"
       stackView.setVisibilityPriority(.mustHold, for: batteryView)
     } else {

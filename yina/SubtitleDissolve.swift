@@ -92,6 +92,8 @@ final class SubtitleDissolve: NSObject {
         colors.append((name, original, color))
       }
       style = Style(blur: mpv.getDouble(MPVOption.Subtitles.subBlur), colors: colors)
+      // Force the cached sRGB components to be rebuilt for the newly captured style.
+      resolvedSRGBComponents = []
     }
     timer?.invalidate()
     startTime = now
@@ -131,12 +133,30 @@ final class SubtitleDissolve: NSObject {
     }
   }
 
+  /// sRGB components of each style colour, resolved once per dissolve.
+  ///
+  /// `mpvColorString` normalises the colour to sRGB and interpolates four components into a string.
+  /// The dissolve timer runs at 60 fps, so resolving the components on every frame repeated that
+  /// work for colours that do not change during the animation. Only the alpha varies per frame.
+  private var resolvedSRGBComponents: [(name: String, red: CGFloat, green: CGFloat, blue: CGFloat, alpha: CGFloat)] = []
+
+  private func resolveColors(of style: Style) {
+    resolvedSRGBComponents = style.colors.map { name, _, color in
+      let rgb = color.usingColorSpace(.sRGB) ?? color
+      var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
+      rgb.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+      return (name, red, green, blue, alpha)
+    }
+  }
+
   private func apply(opacity: Double, blur: Double) {
     guard let style else { return }
+    if resolvedSRGBComponents.isEmpty { resolveColors(of: style) }
     mpv.setDouble(MPVOption.Subtitles.subBlur, blur, level: .verbose)
-    for (name, _, color) in style.colors {
-      let faded = color.withAlphaComponent(color.alphaComponent * opacity)
-      mpv.setString(name, faded.mpvColorString, level: .verbose)
+    for component in resolvedSRGBComponents {
+      let fadedAlpha = component.alpha * opacity
+      let value = "\(component.red)/\(component.green)/\(component.blue)/\(fadedAlpha)"
+      mpv.setString(component.name, value, level: .verbose)
     }
   }
 

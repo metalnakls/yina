@@ -52,11 +52,26 @@ struct FloatingPointByteCountFormatter {
     }
   }
 
-  static func string(fromByteCount byteCount: Int, prefixedBy prefixFactor: PrefixFactor = .none, digits: Int = 2, countStyle: CountStyle = .decimal) -> String {
-    let bytes = byteCount * prefixFactor.rawValue
+  /// `NumberFormatter` initialisation builds locale data and is expensive relative to the rest of
+  /// this function, which runs on the buffer indicator's update path. One formatter is cached per
+  /// digit count instead of constructing one per call.
+  private static let formatterLock = NSLock()
+  private static let formatterCache: [Int: NumberFormatter] = (0...4).reduce(into: [:]) { result, digits in
     let formatter = NumberFormatter()
     formatter.maximumFractionDigits = digits
-    
+    result[digits] = formatter
+  }
+
+  private static func formatter(forDigits digits: Int) -> NumberFormatter {
+    formatterLock.lock()
+    defer { formatterLock.unlock() }
+    return formatterCache[digits] ?? formatterCache[2]!
+  }
+
+  static func string(fromByteCount byteCount: Int, prefixedBy prefixFactor: PrefixFactor = .none, digits: Int = 2, countStyle: CountStyle = .decimal) -> String {
+    let bytes = byteCount * prefixFactor.rawValue
+    let formatter = formatter(forDigits: digits)
+
     if let prefixFactor = countStyle.prefixFactors.reversed().first(where: { bytes >= $0.rawValue }),
       let value = formatter.string(from: NSNumber(value: Double(bytes) / Double(prefixFactor.rawValue))) {
       return "\(value) \(prefixFactor)"

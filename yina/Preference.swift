@@ -1777,7 +1777,6 @@ extension Preference {
     deinit {
       observedKeys.keys.forEach {
         AppEnvironment.defaults.removeObserver(self, forKeyPath: $0.rawValue)
-        print("removed \($0.rawValue)")
       }
     }
 

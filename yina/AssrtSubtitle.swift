@@ -217,10 +217,16 @@ class Assrt {
             if let lang = sub["lang"] as? [String: Any], let desc = lang["desc"] as? String {
               subLang = desc
             }
+            // These fields come from a remote API, so a malformed or partial response must not be
+            // able to crash the app. Skip any entry missing the fields the UI relies on.
+            guard let id = sub["id"] as? Int,
+                  let nativeName = sub["native_name"] as? String else {
+              continue
+            }
             subtitles.append(Subtitle(index: index,
-                                           id: sub["id"] as! Int,
-                                           nativeName: sub["native_name"] as! String,
-                                           uploadTime: sub["upload_time"] as! String,
+                                           id: id,
+                                           nativeName: nativeName,
+                                           uploadTime: sub["upload_time"] as? String ?? "",
                                            subType: sub["subtype"] as? String,
                                            subLang: subLang))
             index += 1
@@ -241,7 +247,7 @@ class Assrt {
         subChooseViewController.context = self
 
         subChooseViewController.userDoneAction = { subs in
-          resolver.fulfill(subs as! [Subtitle])
+          resolver.fulfill(subs)
         }
         subChooseViewController.userCanceledAction = {
           resolver.reject(OnlineSubtitle.CommonError.canceled)
@@ -275,13 +281,20 @@ class Assrt {
             return
           }
 
-          sub.url = URL(string: subArray[0]["url"] as! String)
+          // A download response without a usable url is not usable, so reject it rather than
+          // force-unwrapping a value that came from the network.
+          guard let urlString = subArray[0]["url"] as? String,
+                let url = URL(string: urlString) else {
+            resolver.reject(Error.wrongResponseFormat)
+            return
+          }
+          sub.url = url
           sub.filename = subArray[0]["filename"] as? String
 
           if let fileList = subArray[0]["filelist"] as? [[String: String]] {
-            sub.fileList = fileList.map { info in
-              Subtitle.File(url: URL(string: info["url"]!)!,
-                                 filename: info["f"]!)
+            sub.fileList = fileList.compactMap { info in
+              guard let urlString = info["url"], let url = URL(string: urlString) else { return nil }
+              return Subtitle.File(url: url, filename: info["f"] ?? "")
             }
           }
 

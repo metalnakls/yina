@@ -1145,9 +1145,20 @@ class MPVController: NSObject {
   // MARK: - Events
 
   // Read event and handle it async
+  /// Long-lived consumer for mpv's event queue.
+  ///
+  /// mpv's wakeup callback can fire many times a second while a file is playing. Dispatching a fresh
+  /// block to the controller queue on every wakeup meant a steady stream of block/unblock cycles on
+  /// a thread that then immediately parked again in `mpv_wait_event`. Instead a single block is
+  /// started once and loops until the queue drains or the core shuts down.
+  private var isReadingEvents = false
+
   private func readEvents() {
-    queue.async {
-      while ((self.mpv) != nil) {
+    queue.async { [weak self] in
+      guard let self, !self.isReadingEvents else { return }
+      self.isReadingEvents = true
+      defer { self.isReadingEvents = false }
+      while self.mpv != nil {
         let event = mpv_wait_event(self.mpv, 0)!
         let eventId = event.pointee.event_id
         // Do not deal with mpv-event-none
