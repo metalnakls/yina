@@ -17,6 +17,8 @@ class KeyRecordViewController: NSViewController, KeyRecordViewDelegate, NSRuleEd
 
   private lazy var criterions: [Criterion] = KeyBindingDataLoader.load()
 
+  private var keyBindingInputObserver: NSObjectProtocol?
+
   private var pendingKey: String?
   private var pendingAction: String?
 
@@ -69,8 +71,16 @@ class KeyRecordViewController: NSViewController, KeyRecordViewDelegate, NSRuleEd
       pendingAction = nil
     }
 
-    NotificationCenter.default.addObserver(forName: .yinaKeyBindingInputChanged, object: nil, queue: .main) { [unowned self] _ in
-      self.updateCommandField()
+    keyBindingInputObserver = NotificationCenter.default.addObserver(
+      forName: .yinaKeyBindingInputChanged, object: nil, queue: .main
+    ) { [weak self] _ in
+      self?.updateCommandField()
+    }
+  }
+
+  deinit {
+    if let keyBindingInputObserver {
+      NotificationCenter.default.removeObserver(keyBindingInputObserver)
     }
   }
 

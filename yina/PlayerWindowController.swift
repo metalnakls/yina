@@ -251,6 +251,9 @@ class PlayerWindowController: NSWindowController, NSWindowDelegate {
   }
 
   deinit {
+    for observer in notificationObservers {
+      NotificationCenter.default.removeObserver(observer)
+    }
     ObjcUtils.silenced {
       for key in self.observedPrefKeys {
         AppEnvironment.defaults.removeObserver(self, forKeyPath: key.rawValue)
@@ -258,8 +261,14 @@ class PlayerWindowController: NSWindowController, NSWindowDelegate {
     }
   }
 
+  /// Tokens for block-based notification observers registered through `addObserver(to:forName:object:using:)`.
+  /// NotificationCenter keeps the block alive until the token is removed, so the tokens have to be
+  /// retained here and torn down in `deinit`. Without this the registrations outlive the controller.
+  private var notificationObservers: [NSObjectProtocol] = []
+
   internal func addObserver(to notificationCenter: NotificationCenter, forName name: Notification.Name, object: Any? = nil, using block: @escaping (Notification) -> Void) {
-    notificationCenter.addObserver(forName: name, object: object, queue: .main, using: block)
+    let token = notificationCenter.addObserver(forName: name, object: object, queue: .main, using: block)
+    notificationObservers.append(token)
   }
 
   internal func setMaterial(_ theme: Preference.Theme?) {

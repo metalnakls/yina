@@ -635,7 +635,8 @@ class MainWindowController: PlayerWindowController {
     // fade-able views
 
     standardWindowButtons.forEach {
-      fadeableViews.add($0) { [unowned self] in
+      fadeableViews.add($0) { [weak self] in
+        guard let self else { return .alwaysHidden }
         if sidebars.leadingSidebar.status != .hidden {
           return .alwaysShown
         }
@@ -643,7 +644,8 @@ class MainWindowController: PlayerWindowController {
       }
     }
 
-    fadeableViews.add(titleBarView) { [unowned self] in
+    fadeableViews.add(titleBarView) { [weak self] in
+      guard let self else { return .alwaysHidden }
       if fsState == .windowed {
         Preference.isDocked ? .alwaysShown : .auto
       } else { // full screen
@@ -651,7 +653,8 @@ class MainWindowController: PlayerWindowController {
       }
     }
 
-    fadeableViews.add(additionalInfoView) { [unowned self] in
+    fadeableViews.add(additionalInfoView) { [weak self] in
+      guard let self else { return .alwaysHidden }
       if fsState == .windowed {
         .alwaysHidden
       } else {
@@ -659,7 +662,8 @@ class MainWindowController: PlayerWindowController {
       }
     }
 
-    fadeableViews.add(oscBottomView) { [unowned self] in
+    fadeableViews.add(oscBottomView) { [weak self] in
+      guard let self else { return .alwaysHidden }
       if oscPosition == .bottom {
         Preference.isDocked ? .alwaysShown : .auto
       } else {
@@ -667,8 +671,9 @@ class MainWindowController: PlayerWindowController {
       }
     }
 
-    fadeableViews.add(oscFloatingView) { [unowned self] in
-      oscPosition == .floating ? .auto : .alwaysHidden
+    fadeableViews.add(oscFloatingView) { [weak self] in
+      guard let self else { return .alwaysHidden }
+      return oscPosition == .floating ? .auto : .alwaysHidden
     }
 
     fadeableViews.update()
@@ -705,7 +710,7 @@ class MainWindowController: PlayerWindowController {
 
     // add notification observers
 
-    addObserver(to: .default, forName: NSView.frameDidChangeNotification, object: videoView) { [unowned self] _ in
+    { [weak self] _ in
       if case .animating = fsState {
         forceDraw("window resized during animated enter or exit full screen")
       } else if !videoView.videoLayer.inLiveResize {
@@ -715,7 +720,7 @@ class MainWindowController: PlayerWindowController {
       }
     }
 
-    addObserver(to: .default, forName: NSApplication.didChangeScreenParametersNotification) { [unowned self] _ in
+    { [weak self] _ in
       updateOSCExtendedDynamicRange()
       // This observer handles a situation that the user connected a new screen or removed a screen
       let screens = NSScreen.screens
@@ -769,10 +774,9 @@ class MainWindowController: PlayerWindowController {
     // Observers for toolbar buttons
     let notifications: [Notification.Name] = [.yinaPIPStatusChanged, .yinaFullscreenChanged, .yinaSidebarStatusChanged]
     notifications.forEach {
-      NotificationCenter.default
-        .addObserver(forName: $0, object: nil, queue: .main) { [weak self] n in
-          self?.updateOSCToolbarButtons(n)
-        }
+      addObserver(to: .default, forName: $0, object: nil) { [weak self] n in
+        self?.updateOSCToolbarButtons(n)
+      }
     }
 
     player.events.emit(.windowLoaded)
@@ -2096,7 +2100,8 @@ class MainWindowController: PlayerWindowController {
     // Sometimes the doc icon may not be available, eg. when opened an online video.
     // We should try to add it every time when window title changed.
     if let docIcon = window?.standardWindowButton(.documentIconButton) {
-      fadeableViews.add(docIcon) { [unowned self] in
+      fadeableViews.add(docIcon) { [weak self] in
+        guard let self else { return .alwaysHidden }
         fsState == .windowed ? .auto : .alwaysShown
       }
     }

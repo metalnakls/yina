@@ -62,6 +62,8 @@ class HistoryWindowController: NSWindowController, NSOutlineViewDelegate, NSOutl
   private var searchToolbarItem: NSSearchToolbarItem?
   private var expandCollapseControl: NSSegmentedControl?
 
+  private var observers: [NSObjectProtocol] = []
+
   private var historyData: [String: [PlaybackHistory]] = [:]
   private var historyDataKeys: [String] = []
 
@@ -86,14 +88,18 @@ class HistoryWindowController: NSWindowController, NSOutlineViewDelegate, NSOutl
     window.toolbar = toolbar
     window.toolbarStyle = .unified
 
-    NotificationCenter.default.addObserver(forName: .yinaHistoryUpdated, object: nil, queue: .main) { [unowned self] _ in
-      self.reloadData()
-    }
+    observers.append(NotificationCenter.default.addObserver(
+      forName: .yinaHistoryUpdated, object: nil, queue: .main
+    ) { [weak self] _ in
+      self?.reloadData()
+    })
 
     [NSOutlineView.itemDidExpandNotification, NSOutlineView.itemDidCollapseNotification].forEach {
-      NotificationCenter.default.addObserver(forName: $0, object: outlineView, queue: .main) { [unowned self] _ in
-        self.updateExpandCollapseSegmentState()
-      }
+      observers.append(NotificationCenter.default.addObserver(
+        forName: $0, object: outlineView, queue: .main
+      ) { [weak self] _ in
+        self?.updateExpandCollapseSegmentState()
+      })
     }
 
     scrollView.documentView = outlineView
@@ -130,6 +136,12 @@ class HistoryWindowController: NSWindowController, NSOutlineViewDelegate, NSOutl
     outlineView.target = self
     outlineView.doubleAction = #selector(doubleAction)
     outlineView.expandItem(nil, expandChildren: true)
+  }
+
+  deinit {
+    for observer in observers {
+      NotificationCenter.default.removeObserver(observer)
+    }
   }
 
   required init?(coder: NSCoder) {
