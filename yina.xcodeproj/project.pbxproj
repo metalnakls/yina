@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A1B2C3D40000000000000003 /* DefaultPreferences.plist in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000004 /* DefaultPreferences.plist */; };
         A1B2C3D40000000000000001 /* AppEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000002 /* AppEnvironment.swift */; };
         A1B2C3D40000000000000003 /* DefaultPreferences.plist in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000004 /* DefaultPreferences.plist */; };
 		B4E1C40EA8EE02AB20CD9D59 /* libSvtAv1Enc.4.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = AA11E2A8DC729CC0CD27F6A4 /* libSvtAv1Enc.4.dylib */; };
@@ -352,6 +353,16 @@
 		E3FC31461FE1501E00B9B86F /* PowerSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3FC31451FE1501E00B9B86F /* PowerSource.swift */; };
 		E3FEC1332A30400F00CFD845 /* PluginInputManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3FEC1322A30400F00CFD845 /* PluginInputManager.swift */; };
 		E3FF5AC02938582F0019CE45 /* JavascriptDevTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3FF5ABF2938582F0019CE45 /* JavascriptDevTool.swift */; };
+		C789872F1E34EF170005769F /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 843B97AA1E82D3C100D07261 /* Base */; };
+		8400D5EA1E1AB33B006785F5 /* KeyRecordViewController.xib in Resources */ = {isa = PBXBuildFile; fileRef = 8400D5EB1E1AB33B006785F5 /* Base */; };
+		84EC12861F504D2500137C1E /* FilterPresets.strings in Resources */ = {isa = PBXBuildFile; fileRef = 84EC12871F504D2500137C1E /* Base */; };
+		8F49C36E213EFB7E0076C4F9 /* MiniPlayerWindowController.xib in Resources */ = {isa = PBXBuildFile; fileRef = 8F49C36F213EFB7E0076C4F9 /* Base */; };
+		84A0BA951D2F9E9600BC8DA1 /* MainMenu.xib in Resources */ = {isa = PBXBuildFile; fileRef = 84A0BA941D2F9E9600BC8DA1 /* Base */; };
+		84F5D49A1E44E9A50060A838 /* KeyBinding.strings in Resources */ = {isa = PBXBuildFile; fileRef = 84F5D49B1E44E9A50060A838 /* Base */; };
+		8400D5D21E1AB312006785F5 /* InspectorWindowController.xib in Resources */ = {isa = PBXBuildFile; fileRef = 8400D5D31E1AB312006785F5 /* Base */; };
+		845AC09C1E1AE6C10080B614 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 845AC09D1E1AE6C10080B614 /* Base */; };
+		8400D5D51E1AB317006785F5 /* FilterWindowController.xib in Resources */ = {isa = PBXBuildFile; fileRef = 8400D5D61E1AB317006785F5 /* Base */; };
+		8400D5C61E1AB2F1006785F5 /* MainWindowController.xib in Resources */ = {isa = PBXBuildFile; fileRef = 8400D5C71E1AB2F1006785F5 /* Base */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -506,6 +517,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		A1B2C3D40000000000000004 /* DefaultPreferences.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = DefaultPreferences.plist; sourceTree = "<group>"; };
         A1B2C3D40000000000000002 /* AppEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppEnvironment.swift; sourceTree = "<group>"; };
         A1B2C3D40000000000000004 /* DefaultPreferences.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = DefaultPreferences.plist; sourceTree = "<group>"; };
 		AA11E2A8DC729CC0CD27F6A4 /* libSvtAv1Enc.4.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = "libSvtAv1Enc.4.dylib"; path = "deps/lib/libSvtAv1Enc.4.dylib"; sourceTree = "<group>"; };
@@ -1418,6 +1430,17 @@
 		84EB1ED81D2F51D3004FA5A1 /* yina */ = {
 			isa = PBXGroup;
 			children = (
+				8400D5C71E1AB2F1006785F5 /* Base */,
+				8400D5D31E1AB312006785F5 /* Base */,
+				8400D5D61E1AB317006785F5 /* Base */,
+				8400D5EB1E1AB33B006785F5 /* Base */,
+				843B97AA1E82D3C100D07261 /* Base */,
+				845AC09D1E1AE6C10080B614 /* Base */,
+				84A0BA941D2F9E9600BC8DA1 /* Base */,
+				84EC12871F504D2500137C1E /* Base */,
+				84F5D49B1E44E9A50060A838 /* Base */,
+				8F49C36F213EFB7E0076C4F9 /* Base */,
+				A1B2C3D40000000000000004 /* DefaultPreferences.plist */,
 				84FF846D1D2FF698001B318A /* deps */,
 				84A0BAA21D2FAE8200BC8DA1 /* Assets */,
 				84A0BAA71D2FAF9700BC8DA1 /* Controllers */,
@@ -1776,11 +1799,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				C789872F1E34EF170005769F /* InfoPlist.strings in Resources */,
-				E32712B224F2B8CA00359DAB /* ScreenshotOSDView.xib in Resources */,
-				8400D5DB1E1AB326006785F5 /* FontPickerWindowController.xib in Resources */,
 				8400D5EA1E1AB33B006785F5 /* KeyRecordViewController.xib in Resources */,
 				84EC12861F504D2500137C1E /* FilterPresets.strings in Resources */,
-				1326717E20852D0D000FA7E2 /* SubChooseViewController.xib in Resources */,
 				84C3AB8B1E7BF22300FEFB7A /* MPVCommandFormat.strings in Resources */,
 				84EB1EDC1D2F51D3004FA5A1 /* Assets.xcassets in Resources */,
                 A1B2C3D40000000000000003 /* DefaultPreferences.plist in Resources */,
@@ -1788,18 +1808,14 @@
 				8492C2861E771FB200CE5825 /* ISO639.strings in Resources */,
 				8F49C36E213EFB7E0076C4F9 /* MiniPlayerWindowController.xib in Resources */,
 				84A0BA951D2F9E9600BC8DA1 /* MainMenu.xib in Resources */,
-				8400D5D81E1AB31B006785F5 /* AboutWindowController.xib in Resources */,
 				E3AD62772FF4C9BE00D2CAC5 /* VerbatimStrings.strings in Resources */,
 				8483FB001EDFF325000F55D6 /* Credits.rtf in Resources */,
 				84F5D49A1E44E9A50060A838 /* KeyBinding.strings in Resources */,
-				E34A0E012053F93A00B50097 /* OSCToolbarSettingsSheetController.xib in Resources */,
-				E34E909A24F821280073BF04 /* GuideWindowController.xib in Resources */,
 				34F294C02C0B68B300F14962 /* Contribution.rtf in Resources */,
 				8400D5D21E1AB312006785F5 /* InspectorWindowController.xib in Resources */,
 				6100FF2B1EDF9806002CF0FB /* dsa_pub.pem in Resources */,
 				845AC09C1E1AE6C10080B614 /* Localizable.strings in Resources */,
 				8400D5D51E1AB317006785F5 /* FilterWindowController.xib in Resources */,
-				8418A2F5213F5791003166AC /* OpenURLWindowController.xib in Resources */,
 				518DB7022FA6A2120024F0B0 /* write_info_plist_header.sh in Resources */,
 				8400D5C61E1AB2F1006785F5 /* MainWindowController.xib in Resources */,
 			);
