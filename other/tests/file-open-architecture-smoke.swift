@@ -19,6 +19,10 @@ import Foundation
     precondition(pending < loadWindow,
                  "the pending media path must be available during windowDidLoad")
 
+    let forceWindow = openBody.range(of: "mpv.setString(MPVOption.Window.forceWindow")!.lowerBound
+    precondition(loadWindow < forceWindow,
+                 "force-window must not initialize libmpv's VO before the render context exists")
+
     let closeWelcome = openBody.range(of: "initialWindow.close()")!.lowerBound
     let startLoad = openBody.range(of: "startPendingWindowLoad()")!.lowerBound
     precondition(loadWindow < closeWelcome && closeWelcome < startLoad,

@@ -548,9 +548,6 @@ class PlayerCore: NSObject {
     // Better to directly reset icc-profile-auto. See issue #5727 for details.
     mpv.setFlag(MPVOption.GPURendererOptions.iccProfileAuto, false)
 
-    // Delay force-window until an actual file load to avoid Xcode-launched app startup hanging
-    // while mpv tries to create a VO before YINA has entered its normal media-open path.
-    mpv.setString(MPVOption.Window.forceWindow, "yes", level: .verbose)
     mpv.setFlag(MPVOption.Cache.cacheOnDisk, usesDiskCache, level: .verbose)
 
     if Preference.bool(for: .autoRepeat) {
@@ -568,6 +565,9 @@ class PlayerCore: NSObject {
     // already-loaded window and start immediately.
     recordMediaOpeningStage("options ready")
     let _ = mainWindow.window
+    // Enabling force-window can initialize libmpv's VO immediately, even before loadfile.
+    // The programmatic window must finish initVideo() and create its render context first.
+    mpv.setString(MPVOption.Window.forceWindow, "immediate", level: .verbose)
     recordMediaOpeningStage("window ready")
     initialWindow.close()
     startPendingWindowLoad()

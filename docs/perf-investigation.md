@@ -137,5 +137,13 @@ default was aligned to `true` to match upstream `2b2f3c8c`.
   codecs, pause state, video/layer bounds, attachment, and hidden state. mpv warnings
   and errors now reach `PlaybackFailure` even when file logging is disabled; message
   text is private because it can contain media paths or URLs. No preferences changed.
-- Black playback remains unresolved pending a fresh opening with these diagnostics.
+- Fresh diagnostics showed `vid=no`, no video decoder, and zero media dimensions,
+  while the attached, visible view and layer both had 640 x 360 bounds. A fatal
+  `vo/libmpv` event preceded renderer initialization. The isolated harness reproduced
+  "No render context set" when force-window was enabled before context creation,
+  although its later load recovered video selection. This distinguishes an observed
+  initialization fault from a fully reproduced black-screen sequence.
+- Moved force-window activation after programmatic window initialization and its
+  render-context setup. Added an opening-order regression check. A user playback
+  check is still required.
   Stack samples and temporary probes are outside the repository.
