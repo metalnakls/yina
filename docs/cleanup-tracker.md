@@ -9,7 +9,7 @@ Status legend: `TODO` / `WIP` / `DONE` / `DECLINED`
 
 | # | Item | Commit | Notes |
 |---|---|---|---|
-| 1 | Drop all localizations except `Base` | `4240fd6f` | 1092 files, 124582 lines deleted. `yina/` 30 MB -> 21 MB. Fixed three latent regressions: empty `InfoPlist.strings`, 10 subtitle-dissolve keys that only existed in `en.lproj`, 3 `SubChooseViewController` calls with no `value:` fallback. |
+| 1 | Drop all localizations except `Base` | `5ce37849` | 1092 files, 124582 lines deleted. `yina/` 30 MB -> 21 MB. Fixed three latent regressions: empty `InfoPlist.strings`, 10 subtitle-dissolve keys that only existed in `en.lproj`, 3 `SubChooseViewController` calls with no `value:` fallback. |
 | 2 | Notification observer leaks / unowned-self crashes | `22e4cd6e` | `KeyRecordViewController` use-after-free on every key-binding dialog. `PlayerWindowController.addObserver(to:...)` discarded all 8 tokens. `HistoryWindowController` 3 untracked. 6 `fadeableViews` unowned closures. |
 
 ## Progress
