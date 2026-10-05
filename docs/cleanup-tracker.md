@@ -41,7 +41,7 @@ Verification for this pass means **inspecting the built bundle**, not trusting t
 
 | Item | Status | Notes |
 |---|---|---|
-| `InspectorWindowController.xib` (1380 lines, 51 outlets) | TODO | Large but mechanical: tab view, ~50 text fields, 2 table views. |
+| `InspectorWindowController.xib` | Removed | Programmatic AppKit panel, toolbar tabs, 45 detail fields, track popup, and watch table. Existing playback queries, link formatting, update timer, and persistence keys retained. Isolated checks cover fields, actions, resizing, and empty/short/long watch lists. Long lists scroll the status page while the table header stays clear of rows. Manual playback checks remain. |
 | `FilterWindowController.xib` | Removed | Split view, active/saved tables, row bindings, and New Filter preset sheet are programmatic AppKit. Preset logic is extracted into `NewFilterSheetViewController`. Isolated checks exercise editing, checkbox writes, cell reuse, resizing, and every audio/video preset. Manual application checks remain below. |
 | `MainMenu.xib` (847 lines, 193 items) | TODO | Highest risk. Still `INFOPLIST_KEY_NSMainNibFile`. Localization removal cut the risk a lot. |
 | Identify the 658 -> 939 MB growth | NEEDS DECISION | **No unbounded accumulator found.** Checked `info.thumbnails`, the Logger buffer, mpv observers, `CacheManager`, `NSCache`; all bounded. Leading theory is IOSurface / Metal residency from decode, not a Swift leak. Needs a `vmmap -summary` diff while idle vs after an hour. No code change will answer this. |
@@ -167,3 +167,12 @@ been deleted. Xcode silently copied nothing and the app exited at launch with
     ls /Applications/yina.app/Contents/Resources/DefaultPreferences.plist
 
 A green build only means the compiler was satisfied, not that the bundle is correct.
+
+### Inspector
+
+- [ ] Open Inspector during playback; General, Tracks, File, and Status show current values
+- [ ] Switch the track popup; flags, codec, title, language, and external path update
+- [ ] Select/copy a value and open an HTTP/HTTPS metadata link
+- [ ] Add and remove watched properties; reopen Inspector and verify persistence
+- [ ] Watch values refresh, including invalid-property errors; a long watch list scrolls
+- [ ] Resize the panel, switch playback windows, and close/reopen it without stale updates

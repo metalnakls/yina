@@ -46,7 +46,7 @@ The first migration wave is now implemented on the `meh` branch:
   through the existing validation/application path.
 
 The next practical wave is additional settings-page slices, logs, and history.
-Inspector remains a dedicated higher-risk project. The player window, rendering,
+Inspector now also uses programmatic AppKit. The player window, rendering,
 PiP, dynamic menus, WebKit runtime, and display/EDR authority remain AppKit or
 system-framework led by design.
 
@@ -67,7 +67,6 @@ existing application model.
 
 After the first migration wave, the application still contains these app-owned XIBs:
 
-- Inspector: `Base.lproj/InspectorWindowController.xib`.
 - Application menu: `Base.lproj/MainMenu.xib`.
 
 YINA's contribution rules already say not to introduce new XIBs and to use
@@ -125,11 +124,12 @@ string tables remain bundled.
 
 ### Priority 3: complex controls that need a designed replacement
 
-9. **Inspector** — `InspectorWindowController.swift` and
-   `InspectorWindowController.xib`.
-   This is a high-value but high-risk migration because it combines track
-   controls, a watch table, color/display information, dynamic sizing, and
-   window behavior. Use a SwiftUI content view inside the existing panel first.
+9. **Inspector** — `InspectorWindowController.swift` and `InspectorWindowViews.swift`.
+   The XIB is removed. Programmatic AppKit retains the utility panel, toolbar
+   tabs, 45 detail fields, track popup, watch table, and frame persistence key.
+   Playback queries and timer/listener ownership remain in the controller.
+   Long watch lists scroll the status page so table rows stay below the header.
+   Isolated layout/action checks pass; manual playback checks are in the tracker.
 
 10. **Filters** — `FilterWindowController.swift`, `FilterWindowViews.swift`,
     `NewFilterSheetViewController.swift`, and `FilterShortcutSheet.swift`.
@@ -254,8 +254,9 @@ letting SwiftUI views reach directly into mpv or window internals.
    retaining the established AppKit window and binding adapters.
 2. **Log and history presentation** — preserve bounded storage, large-data
    performance, filtering, keyboard navigation, and full file export.
-3. **Inspector content** — begin with a narrow hosted content view after its
-   dynamic controls and update lifecycle have behavior coverage.
+3. **Inspector SwiftUI content** — the AppKit XIB replacement is complete;
+   consider a narrow hosted slice after manual playback and update-lifecycle
+   checks confirm the replacement.
 
 The first-wave Open URL, subtitle chooser, About, and welcome migrations are
 complete. PiP, player windows, dynamic menus, and the JavaScript runtime remain

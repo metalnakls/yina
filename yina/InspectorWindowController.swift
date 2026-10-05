@@ -13,8 +13,88 @@ fileprivate let watchTableColumnHeaderColor = NSColor(red: 0.05, green: 0.05, bl
 
 class InspectorWindowController: NSWindowController, NSWindowDelegate, NSTableViewDelegate, NSTableViewDataSource {
 
-  override var windowNibName: NSNib.Name {
-    return NSNib.Name("InspectorWindowController")
+  override var window: NSWindow? {
+    get {
+      if super.window == nil { loadWindow(); windowDidLoad() }
+      return super.window
+    }
+    set { super.window = newValue }
+  }
+
+  init() { super.init(window: nil) }
+  required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+  override func loadWindow() {
+    let panel = NSPanel(contentRect: NSRect(x: 1539, y: 436, width: 468, height: 481),
+      styleMask: [.titled, .closable, .miniaturizable, .resizable, .utilityWindow, .hudWindow],
+      backing: .buffered, defer: false)
+    panel.title = "Inspector"
+    panel.hidesOnDeactivate = true
+    panel.isReleasedWhenClosed = false
+    panel.allowsToolTipsWhenApplicationIsInactive = false
+    panel.autorecalculatesKeyViewLoop = false
+    panel.toolbarStyle = .unifiedCompact
+    panel.contentMinSize = NSSize(width: 468, height: 481)
+    let content = InspectorWindowContentView(target: self,
+      tabAction: #selector(tabSwitched(_:)), trackAction: #selector(trackSwitched(_:)),
+      addAction: #selector(addWatchAction(_:)), removeAction: #selector(removeWatchAction(_:)))
+    tabView = content.tabView
+    tabButtonGroup = content.tabButtonGroup
+    trackPopup = content.trackPopup
+    watchTableView = content.watchTableView
+    watchTableContainerView = content.watchTableContainerView
+    deleteButton = content.deleteButton
+    vformatField = content.fields["vformatField"]!
+    vcodecField = content.fields["vcodecField"]!
+    vdecoderField = content.fields["vdecoderField"]!
+    vprimariesField = content.fields["vprimariesField"]!
+    vcolorspaceField = content.fields["vcolorspaceField"]!
+    vPixelFormat = content.fields["vPixelFormat"]!
+    voField = content.fields["voField"]!
+    vsizeField = content.fields["vsizeField"]!
+    vbitrateField = content.fields["vbitrateField"]!
+    vfpsField = content.fields["vfpsField"]!
+    aformatField = content.fields["aformatField"]!
+    acodecField = content.fields["acodecField"]!
+    aoField = content.fields["aoField"]!
+    achannelsField = content.fields["achannelsField"]!
+    abitrateField = content.fields["abitrateField"]!
+    asamplerateField = content.fields["asamplerateField"]!
+    trackIdField = content.fields["trackIdField"]!
+    trackDefaultField = content.fields["trackDefaultField"]!
+    trackForcedField = content.fields["trackForcedField"]!
+    trackSelectedField = content.fields["trackSelectedField"]!
+    trackExternalField = content.fields["trackExternalField"]!
+    trackSourceIdField = content.fields["trackSourceIdField"]!
+    trackTitleField = content.fields["trackTitleField"]!
+    trackLangField = content.fields["trackLangField"]!
+    trackFilePathField = content.fields["trackFilePathField"]!
+    trackCodecField = content.fields["trackCodecField"]!
+    trackDecoderField = content.fields["trackDecoderField"]!
+    trackFPSField = content.fields["trackFPSField"]!
+    trackChannelsField = content.fields["trackChannelsField"]!
+    trackSampleRateField = content.fields["trackSampleRateField"]!
+    pathField = content.fields["pathField"]!
+    titleField = content.fields["titleField"]!
+    commentField = content.fields["commentField"]!
+    fileSizeField = content.fields["fileSizeField"]!
+    fileFormatField = content.fields["fileFormatField"]!
+    durationField = content.fields["durationField"]!
+    chaptersField = content.fields["chaptersField"]!
+    editionsField = content.fields["editionsField"]!
+    avsyncField = content.fields["avsyncField"]!
+    totalAvsyncField = content.fields["totalAvsyncField"]!
+    droppedFramesField = content.fields["droppedFramesField"]!
+    mistimedFramesField = content.fields["mistimedFramesField"]!
+    displayFPSField = content.fields["displayFPSField"]!
+    voFPSField = content.fields["voFPSField"]!
+    edispFPSField = content.fields["edispFPSField"]!
+    panel.contentView = content
+    panel.toolbar = content.makeToolbar()
+    panel.delegate = self
+    self.window = panel
+    // Keep the existing persistence key when replacing the nib.
+    panel.setFrameAutosaveName("IINAInspectorPanel")
   }
 
   var updateTimer: Timer?
@@ -23,63 +103,63 @@ class InspectorWindowController: NSWindowController, NSWindowDelegate, NSTableVi
 
   private var observers: [NSObjectProtocol] = []
 
-  @IBOutlet weak var tabView: NSTabView!
-  @IBOutlet weak var tabButtonGroup: NSSegmentedControl!
-  @IBOutlet weak var trackPopup: NSPopUpButton!
+  private(set) var tabView: NSTabView!
+  private(set) var tabButtonGroup: NSSegmentedControl!
+  private(set) var trackPopup: NSPopUpButton!
 
-  @IBOutlet weak var pathField: NSTextField!
-  @IBOutlet weak var fileSizeField: NSTextField!
-  @IBOutlet weak var fileFormatField: NSTextField!
-  @IBOutlet weak var chaptersField: NSTextField!
-  @IBOutlet weak var editionsField: NSTextField!
-  @IBOutlet weak var titleField: NSTextField!
-  @IBOutlet weak var commentField: NSTextField!
+  private(set) var pathField: NSTextField!
+  private(set) var fileSizeField: NSTextField!
+  private(set) var fileFormatField: NSTextField!
+  private(set) var chaptersField: NSTextField!
+  private(set) var editionsField: NSTextField!
+  private(set) var titleField: NSTextField!
+  private(set) var commentField: NSTextField!
 
-  @IBOutlet weak var durationField: NSTextField!
-  @IBOutlet weak var vformatField: NSTextField!
-  @IBOutlet weak var vcodecField: NSTextField!
-  @IBOutlet weak var vdecoderField: NSTextField!
-  @IBOutlet weak var vcolorspaceField: NSTextField!
-  @IBOutlet weak var vprimariesField: NSTextField!
-  @IBOutlet weak var vPixelFormat: NSTextField!
+  private(set) var durationField: NSTextField!
+  private(set) var vformatField: NSTextField!
+  private(set) var vcodecField: NSTextField!
+  private(set) var vdecoderField: NSTextField!
+  private(set) var vcolorspaceField: NSTextField!
+  private(set) var vprimariesField: NSTextField!
+  private(set) var vPixelFormat: NSTextField!
 
-  @IBOutlet weak var voField: NSTextField!
-  @IBOutlet weak var vsizeField: NSTextField!
-  @IBOutlet weak var vbitrateField: NSTextField!
-  @IBOutlet weak var vfpsField: NSTextField!
-  @IBOutlet weak var aformatField: NSTextField!
-  @IBOutlet weak var acodecField: NSTextField!
-  @IBOutlet weak var aoField: NSTextField!
-  @IBOutlet weak var achannelsField: NSTextField!
-  @IBOutlet weak var abitrateField: NSTextField!
-  @IBOutlet weak var asamplerateField: NSTextField!
+  private(set) var voField: NSTextField!
+  private(set) var vsizeField: NSTextField!
+  private(set) var vbitrateField: NSTextField!
+  private(set) var vfpsField: NSTextField!
+  private(set) var aformatField: NSTextField!
+  private(set) var acodecField: NSTextField!
+  private(set) var aoField: NSTextField!
+  private(set) var achannelsField: NSTextField!
+  private(set) var abitrateField: NSTextField!
+  private(set) var asamplerateField: NSTextField!
 
-  @IBOutlet weak var trackIdField: NSTextField!
-  @IBOutlet weak var trackDefaultField: NSTextField!
-  @IBOutlet weak var trackForcedField: NSTextField!
-  @IBOutlet weak var trackSelectedField: NSTextField!
-  @IBOutlet weak var trackExternalField: NSTextField!
-  @IBOutlet weak var trackSourceIdField: NSTextField!
-  @IBOutlet weak var trackTitleField: NSTextField!
-  @IBOutlet weak var trackLangField: NSTextField!
-  @IBOutlet weak var trackFilePathField: NSTextField!
-  @IBOutlet weak var trackCodecField: NSTextField!
-  @IBOutlet weak var trackDecoderField: NSTextField!
-  @IBOutlet weak var trackFPSField: NSTextField!
-  @IBOutlet weak var trackChannelsField: NSTextField!
-  @IBOutlet weak var trackSampleRateField: NSTextField!
+  private(set) var trackIdField: NSTextField!
+  private(set) var trackDefaultField: NSTextField!
+  private(set) var trackForcedField: NSTextField!
+  private(set) var trackSelectedField: NSTextField!
+  private(set) var trackExternalField: NSTextField!
+  private(set) var trackSourceIdField: NSTextField!
+  private(set) var trackTitleField: NSTextField!
+  private(set) var trackLangField: NSTextField!
+  private(set) var trackFilePathField: NSTextField!
+  private(set) var trackCodecField: NSTextField!
+  private(set) var trackDecoderField: NSTextField!
+  private(set) var trackFPSField: NSTextField!
+  private(set) var trackChannelsField: NSTextField!
+  private(set) var trackSampleRateField: NSTextField!
 
-  @IBOutlet weak var avsyncField: NSTextField!
-  @IBOutlet weak var totalAvsyncField: NSTextField!
-  @IBOutlet weak var droppedFramesField: NSTextField!
-  @IBOutlet weak var mistimedFramesField: NSTextField!
-  @IBOutlet weak var displayFPSField: NSTextField!
-  @IBOutlet weak var voFPSField: NSTextField!
-  @IBOutlet weak var edispFPSField: NSTextField!
-  @IBOutlet weak var watchTableView: NSTableView!
-  @IBOutlet weak var deleteButton: NSButton!
+  private(set) var avsyncField: NSTextField!
+  private(set) var totalAvsyncField: NSTextField!
+  private(set) var droppedFramesField: NSTextField!
+  private(set) var mistimedFramesField: NSTextField!
+  private(set) var displayFPSField: NSTextField!
+  private(set) var voFPSField: NSTextField!
+  private(set) var edispFPSField: NSTextField!
+  private(set) var watchTableView: NSTableView!
+  private(set) var deleteButton: NSButton!
 
-  @IBOutlet weak var watchTableContainerView: NSView!
+  private(set) var watchTableContainerView: NSView!
   private var tableHeightConstraint: NSLayoutConstraint? = nil
 
   // MARK: - Window Delegate
@@ -94,7 +174,7 @@ class InspectorWindowController: NSWindowController, NSWindowDelegate, NSTableVi
     let headerFont = NSFont.boldSystemFont(ofSize: NSFont.smallSystemFontSize)
     for column in watchTableView.tableColumns {
       let headerCell = WatchTableColumnHeaderCell()
-      // Use title from the XIB
+      // Preserve the column title
       let title = column.headerCell.title
       // Use small bold system font
       headerCell.attributedStringValue = NSMutableAttributedString(string: title, attributes: [.font: headerFont])
@@ -390,9 +470,8 @@ class InspectorWindowController: NSWindowController, NSWindowDelegate, NSTableVi
 
   func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
     guard let identifier = tableColumn?.identifier else { return nil }
-    guard let cell = watchTableView.makeView(withIdentifier: identifier, owner: self) as? NSTableCellView else {
-      return nil
-    }
+    let cell = watchTableView.makeView(withIdentifier: identifier, owner: self) as? NSTableCellView
+      ?? InspectorWindowContentView.watchCell(identifier: identifier)
     guard let property = watchProperties[at: row] else { return nil }
 
     switch identifier {
