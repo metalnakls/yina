@@ -58,6 +58,7 @@ return -1;\
 
 - (int)getPeeksForFile:(NSString *)file thumbnailsWidth:(int)thumbnailsWidth requestedTime:(double)requestedTime operation:(NSOperation *)operation;
 - (void)saveThumbnail:(AVFrame *)pFrame width:(int)width height:(int)height index:(int)index realTime:(int)second forFile:(NSString *)file;
+- (void)releaseThumbnailResults;
 
 @end
 
@@ -97,12 +98,16 @@ return -1;\
     if ([weakOp isCancelled]) {
       return;
     }
-    self->_timestamp = CACurrentMediaTime();
-    int success = [self getPeeksForFile:file thumbnailsWidth:thumbWidth requestedTime:time operation:weakOp];
-    if (self.delegate) {
-      [self.delegate didGenerateThumbnails:[NSArray arrayWithArray:self->_thumbnails]
-                                   forFile: file
-                                 succeeded:(success < 0 ? NO : YES)];
+    @try {
+      self->_timestamp = CACurrentMediaTime();
+      int success = [self getPeeksForFile:file thumbnailsWidth:thumbWidth requestedTime:time operation:weakOp];
+      if (![weakOp isCancelled] && self.delegate) {
+        [self.delegate didGenerateThumbnails:[NSArray arrayWithArray:self->_thumbnails]
+                                     forFile:file
+                                   succeeded:(success < 0 ? NO : YES)];
+      }
+    } @finally {
+      [self releaseThumbnailResults];
     }
   }];
   [_queue addOperation:op];
@@ -111,6 +116,15 @@ return -1;\
 - (void)cancelThumbnailGeneration
 {
   [_queue cancelAllOperations];
+  // The decode operation owns these collections. Reclaim only after it leaves the queue.
+  [_queue addOperationWithBlock:^{ [self releaseThumbnailResults]; }];
+}
+
+- (void)releaseThumbnailResults
+{
+  [_thumbnails removeAllObjects];
+  [_thumbnailPartialResult removeAllObjects];
+  [_addedTimestamps removeAllObjects];
 }
 
 - (int)getPeeksForFile:(NSString *)file

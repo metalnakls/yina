@@ -21,9 +21,41 @@ static int descriptorCount(void) {
   return proc_pidinfo(getpid(), PROC_PIDLISTFDS, 0, NULL, 0) / (int)sizeof(struct proc_fdinfo);
 }
 
+@interface PreviewConsumer : NSObject <FFmpegControllerDelegate>
+@property NSArray<FFThumbnail *> *results;
+@property BOOL succeeded;
+@end
+@implementation PreviewConsumer
+- (void)didUpdateThumbnails:(NSArray<FFThumbnail *> *)thumbnails forFile:(NSString *)filename withProgress:(NSInteger)progress {}
+- (void)didGenerateThumbnails:(NSArray<FFThumbnail *> *)thumbnails forFile:(NSString *)filename succeeded:(BOOL)succeeded {
+  self.results = thumbnails;
+  self.succeeded = succeeded;
+}
+@end
+
+@interface ControlledPreview : FFmpegController
+@property dispatch_semaphore_t entered;
+@property dispatch_semaphore_t proceed;
+@end
+@implementation ControlledPreview
+- (instancetype)init {
+  if ((self = [super init])) {
+    _entered = dispatch_semaphore_create(0);
+    _proceed = dispatch_semaphore_create(0);
+  }
+  return self;
+}
+- (int)getPeeksForFile:(NSString *)file thumbnailsWidth:(int)width requestedTime:(double)time operation:(NSOperation *)operation {
+  [[self valueForKey:@"thumbnails"] addObject:[FFThumbnail new]];
+  dispatch_semaphore_signal(self.entered);
+  dispatch_semaphore_wait(self.proceed, DISPATCH_TIME_FOREVER);
+  return 0;
+}
+@end
+
 int main(int argc, const char **argv) {
   @autoreleasepool {
-    NSCAssert(argc == 2, @"supply the generated audio-only WAV fixture");
+    NSCAssert(argc == 3, @"supply the generated audio and video fixtures");
     FFmpegController *controller = [FFmpegController new];
     NSBlockOperation *operation = [NSBlockOperation new];
     NSString *fixture = [NSString stringWithUTF8String:argv[1]];
@@ -56,7 +88,40 @@ int main(int argc, const char **argv) {
     // This read is instrumented by ASan; the provider must own surviving pixels.
     NSCAssert(pixels[3] == 255 && pixels[0] > 0, @"HDR image pixels survive their producer");
     CFRelease(imageData);
-    puts("PASS: decoder failure cleanup and HDR pixel ownership (Address Sanitizer)");
+    __weak FFThumbnail *releasedThumbnail = thumbnail;
+    [controller cancelThumbnailGeneration];
+    NSOperationQueue *queue = [controller valueForKey:@"queue"];
+    [queue waitUntilAllOperationsAreFinished];
+    NSCAssert([[controller valueForKey:@"thumbnails"] count] == 0, @"cancel releases worker results");
+    NSCAssert([thumbnail.image CGImageForProposedRect:NULL context:nil hints:nil] != NULL,
+              @"consumer's retained thumbnail survives worker cleanup");
+    thumbnail = nil;
+    NSCAssert(releasedThumbnail == nil, @"cancelled worker must not retain a decoded frame");
+
+    PreviewConsumer *consumer = [PreviewConsumer new];
+    controller.delegate = consumer;
+    [controller generateThumbnailForFile:[NSString stringWithUTF8String:argv[2]] atTime:0 thumbWidth:64];
+    [queue waitUntilAllOperationsAreFinished];
+    NSCAssert(consumer.succeeded && consumer.results.count > 0, @"successful preview reaches consumer");
+    NSCAssert([[controller valueForKey:@"thumbnails"] count] == 0 &&
+              [[controller valueForKey:@"thumbnailPartialResult"] count] == 0 &&
+              [[controller valueForKey:@"addedTimestamps"] count] == 0,
+              @"completed worker releases full and partial results");
+    FFThumbnail *delivered = consumer.results.firstObject;
+    NSCAssert([delivered.image CGImageForProposedRect:NULL context:nil hints:nil] != NULL,
+              @"delivered image survives producer cleanup");
+    ControlledPreview *cancelled = [ControlledPreview new];
+    PreviewConsumer *cancelledConsumer = [PreviewConsumer new];
+    cancelled.delegate = cancelledConsumer;
+    [cancelled generateThumbnailForFile:fixture thumbWidth:64];
+    NSCAssert(dispatch_semaphore_wait(cancelled.entered, dispatch_time(DISPATCH_TIME_NOW, 3 * NSEC_PER_SEC)) == 0,
+              @"decode operation started");
+    [cancelled cancelThumbnailGeneration];
+    dispatch_semaphore_signal(cancelled.proceed);
+    [[cancelled valueForKey:@"queue"] waitUntilAllOperationsAreFinished];
+    NSCAssert(cancelledConsumer.results == nil, @"cancelled decode must not deliver a completion");
+    NSCAssert([[cancelled valueForKey:@"thumbnails"] count] == 0, @"in-flight cancellation releases decoded results");
+    puts("PASS: decoder failure cleanup, HDR pixel ownership, cancellation release, completed preview delivery and release (Address Sanitizer)");
   }
   return 0;
 }

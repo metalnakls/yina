@@ -15,6 +15,8 @@ Verification for this pass means **inspecting the built bundle**, not trusting t
 
 The first whole-app audit fixes are implemented: Utilities clears history through `HistoryController`, invalidating queued pre-clear additions; the thumbnail-size label belongs only to the thumbnail row. Plugin WebSocket delegates and callbacks are weak, teardown cancels accepted connections, and plugin cleanup removes managed JavaScript handlers. Handler replacement now installs the replacement instead of silently removing it. `bash other/tests/audit-fixes-smoke.sh` checks isolated history persistence/queued additions and real loopback socket lifecycle; manual Utilities/plugin UI checks remain.
 
+The FFmpeg preview worker now releases full/partial results and timestamp bookkeeping after completion, including error/exception paths. Cancellation schedules cleanup on the decode queue and suppresses a cancelled operation's final callback. Consumer-owned copies remain valid. `optimization-smoke.sh` includes Address Sanitizer checks for successful synthetic-video delivery, retained-image validity, completed-buffer release, and cancellation before/during decoding. This reduces producer retention; idle player-owned previews and whole-app RAM growth remain separate work.
+
 | Item | Commit | Result |
 |---|---|---|
 | Drop all localizations except `Base` | `5ce37849` | 1092 files, 124,582 lines deleted. `yina/` 30 MB -> 21 MB. Fixed three latent regressions: empty `InfoPlist.strings` in Base (About would have lost its copyright), 10 subtitle-dissolve keys that only existed in `en.lproj` (would have shown as raw identifiers), 3 `SubChooseViewController` calls with no `value:` fallback. |

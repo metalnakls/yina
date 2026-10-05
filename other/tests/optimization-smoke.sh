@@ -36,8 +36,15 @@ with wave.open(sys.argv[1], 'wb') as wav:
     wav.setframerate(8000)
     wav.writeframes(bytes(16000))
 PY
+python3 - "$TEST_DIR/video.y4m" <<'PY'
+import sys
+with open(sys.argv[1], 'wb') as video:
+    video.write(b'YUV4MPEG2 W64 H36 F30:1 Ip A1:1 C420jpeg\n')
+    for frame in range(30):
+        video.write(b'FRAME\n' + bytes([80 + frame]) * (64 * 36) + bytes([128]) * (64 * 36 // 2))
+PY
 xcrun clang -fobjc-arc -fsanitize=address -mmacosx-version-min=27.0 -I "$TEST_DIR" -I yina -I deps/include \
   yina/FFmpegController.m other/tests/ffmpeg-preview-smoke.m \
   deps/lib/libavcodec.63.dylib deps/lib/libavformat.63.dylib deps/lib/libavutil.61.dylib deps/lib/libswscale.10.dylib \
   -framework Cocoa -framework Accelerate -framework QuartzCore -Wl,-rpath,"$REPO_DIR/deps/lib" -o "$TEST_DIR/ffmpeg"
-"$TEST_DIR/ffmpeg" "$TEST_DIR/audio.wav"
+"$TEST_DIR/ffmpeg" "$TEST_DIR/audio.wav" "$TEST_DIR/video.y4m"
