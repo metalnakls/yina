@@ -186,10 +186,6 @@ class PlayerCore: NSObject {
 
   var mainWindow: MainWindowController!
 
-  /// Video track id captured when `suspendVideoForBackgrounding` ran, restored on foregrounding.
-  var suspendedVideoTrackId: Int?
-  /// True while video is suspended for backgrounding and audio is still playing.
-  var videoSuspendedForBackgrounding = false
   var miniPlayer: MiniPlayerWindowController!
 
   var currentController: PlayerWindowController {
@@ -918,46 +914,6 @@ class PlayerCore: NSObject {
     mpv.setFlag(MPVOption.PlaybackControl.pause, true, level: .verbose)
   }
 
-  /// Suspend video decoding and rendering while leaving audio playing.
-  ///
-  /// mpv keeps decoding and presenting frames even when the window is fully occluded or the app is in
-  /// the background, which burns CPU and keeps the GPU busy for a picture nobody can see. Disabling the
-  /// video track with `vid` stops the decode pipeline entirely while audio continues, and the display
-  /// link is stopped so the render context is not driven.
-  ///
-  /// - Important: The previous video track id is remembered so `resumeVideoForBackgrounding` can put it
-  ///     back. If the track is gone on resume, playback falls back to mpv's default selection.
-  func suspendVideoForBackgrounding() {
-    guard info.state == .playing, !videoSuspendedForBackgrounding else { return }
-    guard let videoTrack = info.currentTrack(.video) else { return }
-    suspendedVideoTrackId = videoTrack.id
-    videoSuspendedForBackgrounding = true
-    log("Suspending video for backgrounding, keeping audio playing", level: .verbose)
-    // Stop the display link immediately rather than through `displayIdle`, which deliberately waits
-    // six seconds to ride out brief pauses. Backgrounding is not transient, so there is nothing to
-    // ride out and the link should be idle now.
-    mainWindow.videoView.stopDisplayLink()
-    mpv.setString(MPVOption.TrackSelection.vid, "no", level: .verbose)
-  }
-
-  /// Undo `suspendVideoForBackgrounding`, restoring the previous video track and the display link.
-  func resumeVideoForBackgrounding() {
-    guard videoSuspendedForBackgrounding else { return }
-    videoSuspendedForBackgrounding = false
-    guard info.state == .playing else {
-      suspendedVideoTrackId = nil
-      return
-    }
-    // `vid` is "no" while suspended, so mpv no longer has a selected video track. Put back the id
-    // captured on suspend. `setTrack` keeps that id current if the user picks a different video
-    // track while suspended, so the user's choice is what gets restored.
-    let rememberedId = suspendedVideoTrackId
-    suspendedVideoTrackId = nil
-    log("Resuming video after foregrounding", level: .verbose)
-    mainWindow.videoView.displayActive()
-    mpv.setString(MPVOption.TrackSelection.vid, rememberedId.map { "\($0)" } ?? "auto", level: .verbose)
-  }
-
   /// Resume playback.
   /// - Important: Although primary responsibility for ensuring the display link is running when playback is in progress belongs to
   ///     the `pauseChanged` method, this method calls `displayActive` to provide more time for the display link to start up.
@@ -993,9 +949,6 @@ class PlayerCore: NSObject {
     mediaOpeningStartedAt = nil
     savePlaybackPosition()
 
-    // Clear any backgrounding suspension so the next file is not loaded with video disabled.
-    videoSuspendedForBackgrounding = false
-    suspendedVideoTrackId = nil
     lastSyncedDisplayPosition = nil
 
     // The player may already be stopped in which case the state must not be set to stopping.
@@ -1368,11 +1321,6 @@ class PlayerCore: NSObject {
       name = MPVOption.Subtitles.secondarySid
     }
     mpv.setInt(name, index)
-    // A video track chosen while video is suspended for backgrounding replaces the id that
-    // `resumeVideoForBackgrounding` would otherwise restore, so record the new choice.
-    if forType == .video, videoSuspendedForBackgrounding {
-      suspendedVideoTrackId = index
-    }
     getSelectedTracks()
   }
 

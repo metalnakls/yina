@@ -30,7 +30,7 @@ Verification for this pass means **inspecting the built bundle**, not trusting t
 | Programmatic key recorder | This pass | XIB removed; existing key capture, `NSRuleEditor`, command field, and 480×155 layout retained. Isolated AppKit checks cover pending values, recording, readiness, rule selection, and controller/observer cleanup. Check the real Settings sheet. |
 | Filter Save/Edit sheets | This pass | Both sheets now share programmatic AppKit content. Existing save/edit/cancel actions and persistence remain in `FilterWindowController`; name, filter string, shortcut recording, and keyboard button equivalents are preserved. Isolated checks cover layout, focus, input, button targets, and resizing. The Filters tables and preset sheet still use the reduced XIB. |
 | Opening stage timings | This pass | System log category `MediaOpening` records durations through options, renderer/window setup, load submission, file-loaded callback, and window display. Records no media paths or URLs. Slow opening remains under investigation. |
-| Suspend video decode/render when not visible | `b8f7314c` | Switching apps or covering the window sets `vid=no` and stops the display link; **audio keeps playing**. Restores the track id and restarts the link on return. `stop()` clears the state so the next file is never loaded video-disabled; `setTrack` keeps the remembered id current if you switch video tracks while suspended. |
+| Preserve video while switching apps/windows | This pass | Removed the `b8f7314c` background video suspension after a black-playback report. Losing focus does not mean the video is invisible; setting `vid=no` also survived paused restores and stop/new-file transitions. Focus and occlusion callbacks no longer change track selection. CPU reduction from disabling decoding is withdrawn. |
 | Coalesce the `.time` UI sync | `b8f7314c` | The 25 Hz timer now skips the label/formatting/view pass when the rounded position has not moved. All five seek paths invalidate the cache so labels cannot go stale. Network cache state still refreshes because it moves while paused. |
 | Long-lived mpv event consumer | `01842aae` | One draining loop instead of re-dispatching to the controller queue on every mpv wakeup. |
 | Allocation cleanups | `01842aae` | Cached `NumberFormatter` in `FloatingPointByteCountFormatter`. `AdditionalInfoView` polls IOKit at most every 2s instead of 25x/sec and caches its `DateFormatter`. Subtitle dissolve resolves sRGB components once per animation instead of per frame. Stray `print()` removed from `Preference.Observer.deinit`. |
@@ -89,15 +89,13 @@ as a raw key like `general.ok` instead of "OK".
 - [ ] Date, time and number formats look sane
 - [ ] No raw identifiers anywhere, especially first thing after launch
 
-### 3. Backgrounding — the main CPU/RAM change
+### 3. Video visibility and backgrounding
 
-- [ ] Play a video, switch to another app: **audio continues**, video stops decoding
-- [ ] Return to yina: video resumes on the **same track**, audio never stopped
-- [ ] Repeat with the window covered by another window (occlusion, not app switch)
-- [ ] Switch video tracks **while backgrounded**, then return: your choice should stick
-- [ ] Stop playback while backgrounded, then play again: video must not be stuck off
-- [ ] Open a second file after returning: video must be present
-- [ ] Check Activity Monitor: CPU should be far lower while backgrounded than before
+- [ ] Play a video, switch to another app with yina still visible: video and audio continue
+- [ ] Cover the window, then uncover it: video remains present
+- [ ] Pause while covered, then return and resume: video remains present
+- [ ] Use PiP while the main window is hidden: video continues
+- [ ] Stop playback while backgrounded, then open a second file: video remains present
 
 ### 4. Time display and seeking
 

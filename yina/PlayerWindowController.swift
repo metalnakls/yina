@@ -624,14 +624,7 @@ class PlayerWindowController: NSWindowController, NSWindowDelegate {
   ///     [occlusionState](https://developer.apple.com/documentation/appkit/nswindow/occlusionstate-swift.property)
   ///     property is used as it will not indicate the window is visible when it is obscured by other windows.
   func windowDidChangeOcclusionState(_ notification: Notification) {
-    guard let window else { return }
-    guard window.occlusionState.contains(.visible) else {
-      // Fully obscured: nothing can be seen, so stop driving the render context and suspend
-      // decoding. Audio keeps playing so background listening is unaffected.
-      player.suspendVideoForBackgrounding()
-      return
-    }
-    player.resumeVideoForBackgrounding()
+    guard let window, window.occlusionState.contains(.visible) else { return }
     forceDraw("window became visible")
   }
 
