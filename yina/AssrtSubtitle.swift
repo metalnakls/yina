@@ -246,8 +246,10 @@ class Assrt {
         subChooseViewController.subtitles = subs
         subChooseViewController.context = self
 
-        subChooseViewController.userDoneAction = { subs in
-          resolver.fulfill(subs)
+        subChooseViewController.userDoneAction = { selected in
+          // The chooser hands back `[OnlineSubtitle]`; this fetcher only put its own `Subtitle`
+          // type into it, so narrow safely instead of force-casting the whole selection.
+          resolver.fulfill(selected.compactMap { $0 as? Subtitle })
         }
         subChooseViewController.userCanceledAction = {
           resolver.reject(OnlineSubtitle.CommonError.canceled)

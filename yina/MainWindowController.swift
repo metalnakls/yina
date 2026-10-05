@@ -635,7 +635,7 @@ class MainWindowController: PlayerWindowController {
     // fade-able views
 
     standardWindowButtons.forEach {
-      fadeableViews.add($0) { [weak self] in
+      fadeableViews.add($0) { [weak self] () -> FadeableViewController.State in
         guard let self else { return .alwaysHidden }
         if sidebars.leadingSidebar.status != .hidden {
           return .alwaysShown
@@ -644,34 +644,34 @@ class MainWindowController: PlayerWindowController {
       }
     }
 
-    fadeableViews.add(titleBarView) { [weak self] in
+    fadeableViews.add(titleBarView) { [weak self] () -> FadeableViewController.State in
       guard let self else { return .alwaysHidden }
       if fsState == .windowed {
-        Preference.isDocked ? .alwaysShown : .auto
+        return Preference.isDocked ? .alwaysShown : .auto
       } else { // full screen
-        oscPosition == .top ? .auto : .alwaysHidden
+        return oscPosition == .top ? .auto : .alwaysHidden
       }
     }
 
-    fadeableViews.add(additionalInfoView) { [weak self] in
+    fadeableViews.add(additionalInfoView) { [weak self] () -> FadeableViewController.State in
       guard let self else { return .alwaysHidden }
       if fsState == .windowed {
-        .alwaysHidden
+        return .alwaysHidden
       } else {
-        Preference.bool(for: .displayTimeAndBatteryInFullScreen) ? .auto : .alwaysHidden
+        return Preference.bool(for: .displayTimeAndBatteryInFullScreen) ? .auto : .alwaysHidden
       }
     }
 
-    fadeableViews.add(oscBottomView) { [weak self] in
+    fadeableViews.add(oscBottomView) { [weak self] () -> FadeableViewController.State in
       guard let self else { return .alwaysHidden }
       if oscPosition == .bottom {
-        Preference.isDocked ? .alwaysShown : .auto
+        return Preference.isDocked ? .alwaysShown : .auto
       } else {
-        .alwaysHidden
+        return .alwaysHidden
       }
     }
 
-    fadeableViews.add(oscFloatingView) { [weak self] in
+    fadeableViews.add(oscFloatingView) { [weak self] () -> FadeableViewController.State in
       guard let self else { return .alwaysHidden }
       return oscPosition == .floating ? .auto : .alwaysHidden
     }
@@ -710,23 +710,25 @@ class MainWindowController: PlayerWindowController {
 
     // add notification observers
 
-    { [weak self] _ in
-      if case .animating = fsState {
-        forceDraw("window resized during animated enter or exit full screen")
-      } else if !videoView.videoLayer.inLiveResize {
-        forceDraw("window resized")
-      } else if Preference.unlockWindowAspectRatio && videoView.isIdle {
-        forceDraw("window resized with aspect ratio unlocked and paused")
+    addObserver(to: .default, forName: NSView.frameDidChangeNotification, object: videoView) { [weak self] _ in
+      guard let self else { return }
+      if case .animating = self.fsState {
+        self.forceDraw("window resized during animated enter or exit full screen")
+      } else if !self.videoView.videoLayer.inLiveResize {
+        self.forceDraw("window resized")
+      } else if Preference.unlockWindowAspectRatio && self.videoView.isIdle {
+        self.forceDraw("window resized with aspect ratio unlocked and paused")
       }
     }
 
-    { [weak self] _ in
-      updateOSCExtendedDynamicRange()
+    addObserver(to: .default, forName: NSApplication.didChangeScreenParametersNotification) { [weak self] _ in
+      guard let self else { return }
+      self.updateOSCExtendedDynamicRange()
       // This observer handles a situation that the user connected a new screen or removed a screen
       let screens = NSScreen.screens
       // HDR can be disabled on an existing display without changing its ID or frame.
       // VideoView caches capability so brightness ramp notifications remain inexpensive.
-      videoView.updateDisplayLink()
+      self.videoView.updateDisplayLink()
 
       // Activating extended dynamic range will cause notifications to be posted at a high rate
       // because the screen's maximumExtendedDynamicRangeColorComponentValue property keeps changing
@@ -736,25 +738,25 @@ class MainWindowController: PlayerWindowController {
       // high rate. Compare the current list of screens to the cached list and only process this
       // notification if changes require processing this notification.
       let screensChanged: Bool = {
-        guard screens.count == cachedScreens.count else { return true }
-        return zip(screens, cachedScreens).contains {
+        guard screens.count == self.cachedScreens.count else { return true }
+        return zip(screens, self.cachedScreens).contains {
           $0.frame != $1.frame || $0.displayId != $1.displayId
         }
       }()
       guard screensChanged else { return }
       // Update the cached screens
-      cachedScreens = screens
+      self.cachedScreens = screens
 
       log("Screen parameters have changed")
       DisplayController.shared.addNewDisplays()
       NSScreen.logAll(subsystem: subsystem)
       NSScreen.log("Window is on screen", window.screen, details: false, subsystem: subsystem)
 
-      if fsState.isFullscreen && Preference.bool(for: .blackOutMonitor) {
-        removeBlackWindow()
-        blackOutOtherMonitors()
+      if self.fsState.isFullscreen && Preference.bool(for: .blackOutMonitor) {
+        self.removeBlackWindow()
+        self.blackOutOtherMonitors()
       }
-      videoView.updateDisplayLink()
+      self.videoView.updateDisplayLink()
     }
 
     // Observe the loop knobs on the progress bar and update mpv when the knobs move.
@@ -2105,9 +2107,9 @@ class MainWindowController: PlayerWindowController {
     // Sometimes the doc icon may not be available, eg. when opened an online video.
     // We should try to add it every time when window title changed.
     if let docIcon = window?.standardWindowButton(.documentIconButton) {
-      fadeableViews.add(docIcon) { [weak self] in
+      fadeableViews.add(docIcon) { [weak self] () -> FadeableViewController.State in
         guard let self else { return .alwaysHidden }
-        fsState == .windowed ? .auto : .alwaysShown
+        return fsState == .windowed ? .auto : .alwaysShown
       }
     }
   }

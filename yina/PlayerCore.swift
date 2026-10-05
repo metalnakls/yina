@@ -910,7 +910,7 @@ class PlayerCore: NSObject {
     // six seconds to ride out brief pauses. Backgrounding is not transient, so there is nothing to
     // ride out and the link should be idle now.
     mainWindow.videoView.stopDisplayLink()
-    mpv.setString(MPVOption.vid, "no", level: .verbose)
+    mpv.setString(MPVOption.TrackSelection.vid, "no", level: .verbose)
   }
 
   /// Undo `suspendVideoForBackgrounding`, restoring the previous video track and the display link.
@@ -928,7 +928,7 @@ class PlayerCore: NSObject {
     suspendedVideoTrackId = nil
     log("Resuming video after foregrounding", level: .verbose)
     mainWindow.videoView.displayActive()
-    mpv.setString(MPVOption.vid, rememberedId.map { "\($0)" } ?? "auto", level: .verbose)
+    mpv.setString(MPVOption.TrackSelection.vid, rememberedId.map { "\($0)" } ?? "auto", level: .verbose)
   }
 
   /// Resume playback.
