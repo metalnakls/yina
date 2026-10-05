@@ -675,6 +675,7 @@ class MainWindowController: PlayerWindowController {
 
     addVideoViewToWindow()
     player.initVideo()
+    player.recordMediaOpeningStage("renderer ready")
     videoView.postsFrameChangedNotifications = true
 
     // osc views

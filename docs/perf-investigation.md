@@ -59,6 +59,30 @@ intermittent fault in the paths below.
    was not reproduced in any sample so far, so it may be a distinct,
    intermittent condition.
 
+## Slow media opening (2026-10-05)
+
+The user confirmed that the player-window lifecycle fix stops the video-open
+crash, but reported a slow opening. Existing system logs show Metal starting
+during opening; they do not establish which yina stage accounts for the delay.
+No playback or app interaction was performed for this investigation.
+
+`PlayerCore` now records cumulative opening timings in the system log under
+subsystem `tsmc.yina`, category `MediaOpening`, independently of the session
+logging preference. Stages cover options, renderer/window setup, load request
+and return, file-loaded callback, and showing the window. Only the player
+number, stage, and elapsed milliseconds are recorded; paths/URLs are omitted.
+Separate `mpv initialized` and `core ready` durations cover first-core startup,
+including plugin loading. Those durations use their own start points; the
+remaining stages measure cumulative time from the main-window open request.
+
+Read the timings after a user opens media:
+
+    /usr/bin/log show --last 10m --style compact --predicate 'subsystem == "tsmc.yina" AND category == "MediaOpening"'
+
+Media still loads after player-window setup. The existing file-opening
+architecture check passes; starting earlier could reintroduce callbacks into
+uninitialized views. No opening-speed improvement is claimed yet.
+
 ## Retention fixes
 
 The logger's pending buffer and visible log list now retain at most 10,000

@@ -13,20 +13,27 @@ fileprivate extension NSColor {
   static let keyRecordViewBackgroundActive = NSColor.controlBackgroundColor
 }
 
-protocol KeyRecordViewDelegate {
+protocol KeyRecordViewDelegate: AnyObject {
   func keyRecordView(_ view: KeyRecordView, recordedKeyDownWith event: NSEvent)
 }
 
 class KeyRecordView: NSView {
 
-  var delegate: KeyRecordViewDelegate!
+  weak var delegate: KeyRecordViewDelegate?
 
   var currentKey: String = ""
   var currentKeyModifiers: NSEvent.ModifierFlags = []
 
-  override func awakeFromNib() {
+  override init(frame frameRect: NSRect) {
+    super.init(frame: frameRect)
     wantsLayer = true
     layer?.backgroundColor = NSColor.keyRecordViewBackgroundActive.cgColor
+    layer?.cornerRadius = 4
+  }
+
+  required init?(coder: NSCoder) {
+    super.init(coder: coder)
+    wantsLayer = true
     layer?.cornerRadius = 4
   }
 
@@ -41,7 +48,7 @@ class KeyRecordView: NSView {
   override func keyDown(with event: NSEvent) {
     currentKey = event.charactersIgnoringModifiers ?? ""
     currentKeyModifiers = event.modifierFlags
-    delegate.keyRecordView(self, recordedKeyDownWith: event)
+    delegate?.keyRecordView(self, recordedKeyDownWith: event)
   }
 
   override func mouseDown(with event: NSEvent) {

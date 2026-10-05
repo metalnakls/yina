@@ -10,10 +10,10 @@ import Cocoa
 
 class KeyRecordViewController: NSViewController, KeyRecordViewDelegate, NSRuleEditorDelegate, NSTextFieldDelegate {
 
-  @IBOutlet weak var keyRecordView: KeyRecordView!
-  @IBOutlet weak var keyLabel: NSTextField!
-  @IBOutlet weak var actionTextField: NSTextField!
-  @IBOutlet weak var ruleEditor: NSRuleEditor!
+  private(set) var keyRecordView: KeyRecordView!
+  private var keyLabel: NSTextField!
+  private var actionTextField: NSTextField!
+  private var ruleEditor: NSRuleEditor!
 
   private lazy var criterions: [Criterion] = KeyBindingDataLoader.load()
 
@@ -48,6 +48,76 @@ class KeyRecordViewController: NSViewController, KeyRecordViewDelegate, NSRuleEd
         pendingAction = newValue
       }
     }
+  }
+
+  override func loadView() {
+    let contentView = NSView(frame: NSRect(x: 0, y: 0, width: 480, height: 155))
+    keyRecordView = KeyRecordView(frame: .zero)
+    keyLabel = NSTextField(labelWithString: "")
+    keyLabel.font = NSFont(name: "Menlo-Regular", size: 22)
+    keyLabel.alignment = .center
+    keyLabel.lineBreakMode = .byClipping
+    keyRecordView.addSubview(keyLabel)
+
+    let actionLabel = NSTextField(labelWithString: "Select action:")
+    let commandLabel = NSTextField(labelWithString: "Or enter a mpv command:")
+    for label in [actionLabel, commandLabel] {
+      label.font = NSFont.systemFont(ofSize: 11)
+      label.controlSize = .small
+    }
+
+    let ruleScrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 480, height: 24))
+    ruleScrollView.borderType = .lineBorder
+    ruleScrollView.drawsBackground = false
+    ruleScrollView.hasHorizontalScroller = false
+    ruleScrollView.hasVerticalScroller = false
+    ruleScrollView.horizontalScrollElasticity = .none
+    ruleScrollView.verticalScrollElasticity = .none
+    ruleEditor = NSRuleEditor(frame: ruleScrollView.contentView.bounds)
+    ruleEditor.autoresizingMask = [.width, .height]
+    ruleEditor.rowHeight = 24
+    ruleScrollView.documentView = ruleEditor
+
+    actionTextField = NSTextField(string: "")
+    actionTextField.isBezeled = true
+    actionTextField.bezelStyle = .squareBezel
+    actionTextField.focusRingType = .none
+    actionTextField.usesSingleLineMode = true
+    actionTextField.lineBreakMode = .byClipping
+
+    for subview in [keyRecordView!, actionLabel, ruleScrollView, commandLabel, actionTextField!] {
+      subview.translatesAutoresizingMaskIntoConstraints = false
+      contentView.addSubview(subview)
+    }
+    keyLabel.translatesAutoresizingMaskIntoConstraints = false
+    NSLayoutConstraint.activate([
+      keyRecordView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
+      keyRecordView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
+      keyRecordView.topAnchor.constraint(equalTo: contentView.topAnchor),
+      keyRecordView.heightAnchor.constraint(equalToConstant: 46),
+      keyLabel.leadingAnchor.constraint(equalTo: keyRecordView.leadingAnchor),
+      keyLabel.trailingAnchor.constraint(equalTo: keyRecordView.trailingAnchor),
+      keyLabel.topAnchor.constraint(equalTo: keyRecordView.topAnchor, constant: 8),
+      keyLabel.bottomAnchor.constraint(equalTo: keyRecordView.bottomAnchor, constant: -7),
+      actionLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
+      actionLabel.trailingAnchor.constraint(lessThanOrEqualTo: contentView.trailingAnchor),
+      actionLabel.topAnchor.constraint(equalTo: keyRecordView.bottomAnchor, constant: 12),
+      actionLabel.heightAnchor.constraint(equalToConstant: 14),
+      ruleScrollView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
+      ruleScrollView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
+      ruleScrollView.topAnchor.constraint(equalTo: actionLabel.bottomAnchor, constant: 4),
+      ruleScrollView.heightAnchor.constraint(equalToConstant: 24),
+      commandLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
+      commandLabel.trailingAnchor.constraint(lessThanOrEqualTo: contentView.trailingAnchor),
+      commandLabel.topAnchor.constraint(equalTo: ruleScrollView.bottomAnchor, constant: 8),
+      commandLabel.heightAnchor.constraint(equalToConstant: 14),
+      actionTextField.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
+      actionTextField.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
+      actionTextField.topAnchor.constraint(equalTo: commandLabel.bottomAnchor, constant: 4),
+      actionTextField.heightAnchor.constraint(equalToConstant: 22),
+      actionTextField.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -7)
+    ])
+    view = contentView
   }
 
   override func viewDidLoad() {

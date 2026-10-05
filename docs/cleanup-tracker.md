@@ -26,7 +26,9 @@ Verification for this pass means **inspecting the built bundle**, not trusting t
 
 | Item | Commit | What to expect |
 |---|---|---|
-| Programmatic main and mini-player windows | `f3b55c49` + follow-up lifecycle fix | Both XIBs removed. First window access explicitly runs `loadWindow` and `windowDidLoad`; without that, mpv callbacks crashed on uninitialized video/speed-label views. Build and isolated AppKit lifecycle check only; playback, fullscreen, PiP, and music-mode switching need a user check. |
+| Programmatic main and mini-player windows | `f3b55c49`, `33b2a500` | Both XIBs removed. First window access explicitly runs `loadWindow` and `windowDidLoad`; without that, mpv callbacks crashed on uninitialized video/speed-label views. User confirms video opens without crashing, but slowly. Fullscreen, PiP, and music-mode switching still need a user check. |
+| Programmatic key recorder | This pass | XIB removed; existing key capture, `NSRuleEditor`, command field, and 480×155 layout retained. Isolated AppKit checks cover pending values, recording, readiness, rule selection, and controller/observer cleanup. Check the real Settings sheet. |
+| Opening stage timings | This pass | System log category `MediaOpening` records durations through options, renderer/window setup, load submission, file-loaded callback, and window display. Records no media paths or URLs. Slow opening remains under investigation. |
 | Suspend video decode/render when not visible | `b8f7314c` | Switching apps or covering the window sets `vid=no` and stops the display link; **audio keeps playing**. Restores the track id and restarts the link on return. `stop()` clears the state so the next file is never loaded video-disabled; `setTrack` keeps the remembered id current if you switch video tracks while suspended. |
 | Coalesce the `.time` UI sync | `b8f7314c` | The 25 Hz timer now skips the label/formatting/view pass when the rounded position has not moved. All five seek paths invalidate the cache so labels cannot go stale. Network cache state still refreshes because it moves while paused. |
 | Long-lived mpv event consumer | `01842aae` | One draining loop instead of re-dispatching to the controller queue on every mpv wakeup. |
@@ -38,7 +40,6 @@ Verification for this pass means **inspecting the built bundle**, not trusting t
 
 | Item | Status | Notes |
 |---|---|---|
-| `KeyRecordViewController.xib` (129 lines, 4 outlets) | TODO | Small: 4 subviews plus Auto Layout. |
 | `InspectorWindowController.xib` (1380 lines, 51 outlets) | TODO | Large but mechanical: tab view, ~50 text fields, 2 table views. |
 | `FilterWindowController.xib` (881 lines, 23 outlets) | TODO | Split view, 2 tables, 3 embedded sheets. |
 | `MainMenu.xib` (847 lines, 193 items) | TODO | Highest risk. Still `INFOPLIST_KEY_NSMainNibFile`. Localization removal cut the risk a lot. |
@@ -99,7 +100,7 @@ as a raw key like `general.ok` instead of "OK".
 
 ### 4. Time display and seeking
 
-- [ ] Open a video from a fresh launch: player window appears without crashing
+- [x] User confirms opening a video no longer crashes after the lifecycle fix
 - [ ] Close the player window, open another video: controls initialize correctly
 - [ ] Enter/exit fullscreen and PiP after opening a video
 - [ ] OSC time label updates smoothly
@@ -112,6 +113,7 @@ as a raw key like `general.ok` instead of "OK".
 ### 5. Key binding dialog — the crash fix
 
 - [ ] Settings > Key Bindings, open the key recorder, cancel, repeat **10+ times**. Must not crash.
+- [ ] Record a shortcut, select an action, enter a command manually, and save it
 - [ ] Open the recorder, then trigger a key-binding change elsewhere; must not crash
 - [ ] History window: open, close, expand/collapse rows several times
 - [ ] Toggle the settings/playlist/plugins sidebars; toolbar button highlighting stays correct
@@ -149,7 +151,7 @@ been deleted. Xcode silently copied nothing and the app exited at launch with
 
 **Always confirm a build by inspecting the product**, for example:
 
-    ls /Applications/yina.app/Contents/Resources/Base.lproj   # expect 4 .nib + 4 .strings
+    ls /Applications/yina.app/Contents/Resources/Base.lproj   # expect 3 .nib + 4 .strings
     ls /Applications/yina.app/Contents/Resources/DefaultPreferences.plist
 
 A green build only means the compiler was satisfied, not that the bundle is correct.

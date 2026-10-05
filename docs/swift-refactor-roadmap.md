@@ -35,6 +35,9 @@ The first migration wave is now implemented on the `meh` branch:
   the main window's PiP overlay. Their shared controller explicitly loads and
   initializes the window on first access, preserving the old lazy lifecycle.
   The XIBs are removed; playback/fullscreen/PiP/music-mode runtime checks remain.
+- Key recording now builds its existing AppKit content programmatically. Key
+  capture, `NSRuleEditor`, command entry, and sheet ownership remain unchanged.
+  The recorder delegate is weak so closing the sheet releases the controller.
 
 The next practical wave is additional settings-page slices, logs, and history.
 Inspector, Filters, and key recording remain dedicated higher-risk projects. The player window, rendering,
@@ -60,7 +63,6 @@ After the first migration wave, the application still contains these app-owned X
 
 - Inspector: `Base.lproj/InspectorWindowController.xib`.
 - Filters: `Base.lproj/FilterWindowController.xib`.
-- Key recording: `Base.lproj/KeyRecordViewController.xib`.
 - Application menu: `Base.lproj/MainMenu.xib`.
 
 YINA's contribution rules already say not to introduce new XIBs and to use
@@ -131,8 +133,8 @@ string tables remain bundled.
     testable model/controller boundary.
 
 11. **Key recording** — `KeyRecordViewController.swift` and
-    `KeyRecordViewController.xib`.
-    Removing the XIB can preserve `NSRuleEditor` in programmatic AppKit first.
+    its programmatic AppKit view.
+    The XIB has been removed while retaining `NSRuleEditor` and key capture.
     A later SwiftUI replacement needs a designed rule editor because there is
     no direct SwiftUI equivalent. Keep the key event recorder and key-binding
     model independent from that replacement view.

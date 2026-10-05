@@ -7,6 +7,7 @@
 //
 
 import Cocoa
+import os.log
 
 class PlayerCore: NSObject {
   static let minimumVolume = 100.0
@@ -78,11 +79,15 @@ class PlayerCore: NSObject {
   }
 
   static private func createPlayerCore() -> PlayerCore {
+    let startedAt = CACurrentMediaTime()
     let pc = PlayerCore()
     pc.label = "\(playerCoreCounter)"
     playerCores.append(pc)
     pc.startMPV()
     pc.loadPlugins()
+    os_log("player=%{public}d stage=core ready elapsed_ms=%{public}.1f",
+           log: mediaOpeningLog, type: .default,
+           pc.playerNumber, (CACurrentMediaTime() - startedAt) * 1000)
     playerCoreCounter += 1
     return pc
   }
@@ -301,10 +306,21 @@ class PlayerCore: NSObject {
   /// URL to open once an outstanding mpv stop command completes.
   private var pendingUrl: URL?
 
-  /// Media waiting for the initial player window to finish creating its render context.
-  /// `windowDidLoad` starts this load before it builds the rest of the AppKit controls so
-  /// network I/O can overlap the expensive tail of window setup.
+  /// Media waiting for the initial player window to finish creating its render context
+  /// and controls. Loading starts after that setup so callbacks see initialized views.
   private var pendingWindowLoadPath: String?
+
+  private static let mediaOpeningLog = OSLog(subsystem: "tsmc.yina", category: "MediaOpening")
+  private var mediaOpeningStartedAt: CFTimeInterval?
+
+  /// Stage timings remain available in system logs even when session logging is off.
+  /// Only stage names and durations are recorded, never media paths or URLs.
+  func recordMediaOpeningStage(_ stage: String) {
+    guard let startedAt = mediaOpeningStartedAt else { return }
+    os_log("player=%{public}d stage=%{public}@ elapsed_ms=%{public}.1f",
+           log: Self.mediaOpeningLog, type: .default,
+           playerNumber, stage, (CACurrentMediaTime() - startedAt) * 1000)
+  }
 
   let playerNumber: Int
 
@@ -501,6 +517,7 @@ class PlayerCore: NSObject {
   ///   - url: URL of the media to open.
   ///   - isNetwork: Whether the media must be streamed over the network.
   private func openMainWindow(path: String, url: URL, isNetwork: Bool, usesDiskCache: Bool) {
+    mediaOpeningStartedAt = CACurrentMediaTime()
     log("Opening \(path) in main window")
     info.currentURL = url
     info.mpvMd5 = Utility.mpvWatchLaterMd5(url, ignorePathInWatchLaterConfig)
@@ -553,7 +570,9 @@ class PlayerCore: NSObject {
 
     // Finish creating the initial player window before starting mpv. Later opens use the
     // already-loaded window and start immediately.
+    recordMediaOpeningStage("options ready")
     let _ = mainWindow.window
+    recordMediaOpeningStage("window ready")
     initialWindow.close()
     startPendingWindowLoad()
   }
@@ -561,7 +580,9 @@ class PlayerCore: NSObject {
   func startPendingWindowLoad() {
     guard let path = pendingWindowLoadPath else { return }
     pendingWindowLoadPath = nil
+    recordMediaOpeningStage("load requested")
     mpv.command(.loadfile, args: [path], level: .verbose)
+    recordMediaOpeningStage("load command returned")
   }
 
   static func loadKeyBindings() {
@@ -622,6 +643,12 @@ class PlayerCore: NSObject {
   }
 
   func startMPV() {
+    let startedAt = CACurrentMediaTime()
+    defer {
+      os_log("player=%{public}d stage=mpv initialized elapsed_ms=%{public}.1f",
+             log: Self.mediaOpeningLog, type: .default,
+             playerNumber, (CACurrentMediaTime() - startedAt) * 1000)
+    }
     // set path for youtube-dl
     let oldPath = String(cString: getenv("PATH")!)
     var path = Utility.exeDirURL.path + ":" + oldPath
@@ -963,6 +990,7 @@ class PlayerCore: NSObject {
   ///     running when the mpv core is shutdown it may call into mpv triggering a crash.
   func stop() {
     guard info.state != .shutDown else { return }
+    mediaOpeningStartedAt = nil
     savePlaybackPosition()
 
     // Clear any backgrounding suspension so the next file is not loaded with video disabled.
@@ -2236,6 +2264,7 @@ class PlayerCore: NSObject {
   ///         the player is no longer active.
   func fileLoaded() {
     guard info.state.active else { return }
+    recordMediaOpeningStage("file loaded")
     log("File loaded")
 
     info.state = .loaded
@@ -2813,6 +2842,8 @@ class PlayerCore: NSObject {
     if currentController.pendingShow {
       currentController.pendingShow = false
       currentController.showWindow(self)
+      recordMediaOpeningStage("window shown")
+      mediaOpeningStartedAt = nil
       AppDelegate.shared.openURLWindow.close()
     }
     if info.state == .loaded {
