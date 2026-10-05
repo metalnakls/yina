@@ -80,131 +80,250 @@ class MenuController: NSObject, NSMenuDelegate {
   private var stringForOpenURLAlternative: String!
 
   // File
-  @IBOutlet weak var fileMenu: NSMenu!
-  @IBOutlet weak var open: NSMenuItem!
-  @IBOutlet weak var openAlternative: NSMenuItem!
-  @IBOutlet weak var openURL: NSMenuItem!
-  @IBOutlet weak var openURLAlternative: NSMenuItem!
-  @IBOutlet weak var savePlaylist: NSMenuItem!
-  @IBOutlet weak var showCurrentFileInFinder: NSMenuItem!
-  @IBOutlet weak var deleteCurrentFile: NSMenuItem!
-  @IBOutlet weak var newWindow: NSMenuItem!
-  @IBOutlet weak var newWindowSeparator: NSMenuItem!
-  @IBOutlet weak var otherKeyBindingsMenu: NSMenu!
+  var fileMenu: NSMenu!
+  var open: NSMenuItem!
+  var openAlternative: NSMenuItem!
+  var openURL: NSMenuItem!
+  var openURLAlternative: NSMenuItem!
+  var savePlaylist: NSMenuItem!
+  var showCurrentFileInFinder: NSMenuItem!
+  var deleteCurrentFile: NSMenuItem!
+  var newWindow: NSMenuItem!
+  var newWindowSeparator: NSMenuItem!
+  var otherKeyBindingsMenu: NSMenu!
   // Playback
-  @IBOutlet weak var playbackMenu: NSMenu!
-  @IBOutlet weak var pause: NSMenuItem!
-  @IBOutlet weak var stop: NSMenuItem!
-  @IBOutlet weak var forward: NSMenuItem!
-  @IBOutlet weak var nextFrame: NSMenuItem!
-  @IBOutlet weak var backward: NSMenuItem!
-  @IBOutlet weak var previousFrame: NSMenuItem!
-  @IBOutlet weak var jumpToBegin: NSMenuItem!
-  @IBOutlet weak var jumpTo: NSMenuItem!
-  @IBOutlet weak var speedIndicator: NSMenuItem!
-  @IBOutlet weak var speedUp: NSMenuItem!
-  @IBOutlet weak var speedUpSlightly: NSMenuItem!
-  @IBOutlet weak var speedDown: NSMenuItem!
-  @IBOutlet weak var speedDownSlightly: NSMenuItem!
-  @IBOutlet weak var speedReset: NSMenuItem!
-  @IBOutlet weak var screenshot: NSMenuItem!
-  @IBOutlet weak var gotoScreenshotFolder: NSMenuItem!
-  @IBOutlet weak var advancedScreenshot: NSMenuItem!
-  @IBOutlet weak var abLoop: NSMenuItem!
-  @IBOutlet weak var fileLoop: NSMenuItem!
-  @IBOutlet weak var playlistPanel: NSMenuItem!
-  @IBOutlet weak var playlist: NSMenuItem!
-  @IBOutlet weak var playlistLoop: NSMenuItem!
-  @IBOutlet weak var playlistMenu: NSMenu!
-  @IBOutlet weak var nextMedia: NSMenuItem!
-  @IBOutlet weak var previousMedia: NSMenuItem!
-  @IBOutlet weak var chapterPanel: NSMenuItem!
-  @IBOutlet weak var nextChapter: NSMenuItem!
-  @IBOutlet weak var previousChapter: NSMenuItem!
-  @IBOutlet weak var chapter: NSMenuItem!
-  @IBOutlet weak var chapterMenu: NSMenu!
+  var playbackMenu: NSMenu!
+  var pause: NSMenuItem!
+  var stop: NSMenuItem!
+  var forward: NSMenuItem!
+  var nextFrame: NSMenuItem!
+  var backward: NSMenuItem!
+  var previousFrame: NSMenuItem!
+  var jumpToBegin: NSMenuItem!
+  var jumpTo: NSMenuItem!
+  var speedIndicator: NSMenuItem!
+  var speedUp: NSMenuItem!
+  var speedUpSlightly: NSMenuItem!
+  var speedDown: NSMenuItem!
+  var speedDownSlightly: NSMenuItem!
+  var speedReset: NSMenuItem!
+  var screenshot: NSMenuItem!
+  var gotoScreenshotFolder: NSMenuItem!
+  var advancedScreenshot: NSMenuItem!
+  var abLoop: NSMenuItem!
+  var fileLoop: NSMenuItem!
+  var playlistPanel: NSMenuItem!
+  var playlist: NSMenuItem!
+  var playlistLoop: NSMenuItem!
+  var playlistMenu: NSMenu!
+  var nextMedia: NSMenuItem!
+  var previousMedia: NSMenuItem!
+  var chapterPanel: NSMenuItem!
+  var nextChapter: NSMenuItem!
+  var previousChapter: NSMenuItem!
+  var chapter: NSMenuItem!
+  var chapterMenu: NSMenu!
   // Video
-  @IBOutlet weak var videoMenu: NSMenu!
-  @IBOutlet weak var quickSettingsVideo: NSMenuItem!
-  @IBOutlet weak var cycleVideoTracks: NSMenuItem!
-  @IBOutlet weak var videoTrack: NSMenuItem!
-  @IBOutlet weak var videoTrackMenu: NSMenu!
-  @IBOutlet weak var halfSize: NSMenuItem!
-  @IBOutlet weak var normalSize: NSMenuItem!
-  @IBOutlet weak var normalSizeRetina: NSMenuItem!
-  @IBOutlet weak var doubleSize: NSMenuItem!
-  @IBOutlet weak var biggerSize: NSMenuItem!
-  @IBOutlet weak var smallerSize: NSMenuItem!
-  @IBOutlet weak var fitToScreen: NSMenuItem!
-  @IBOutlet weak var fullScreen: NSMenuItem!
-  @IBOutlet weak var pictureInPicture: NSMenuItem!
-  @IBOutlet weak var alwaysOnTop: NSMenuItem!
-  @IBOutlet weak var lockAspectRatio: NSMenuItem!
-  @IBOutlet weak var liveText: NSMenuItem!
-  @IBOutlet weak var aspectMenu: NSMenu!
-  @IBOutlet weak var cropMenu: NSMenu!
-  @IBOutlet weak var rotationMenu: NSMenu!
-  @IBOutlet weak var flipMenu: NSMenu!
-  @IBOutlet weak var mirror: NSMenuItem!
-  @IBOutlet weak var flip: NSMenuItem!
-  @IBOutlet weak var deinterlace: NSMenuItem!
-  @IBOutlet weak var delogo: NSMenuItem!
-  @IBOutlet weak var videoFilters: NSMenuItem!
-  @IBOutlet weak var savedVideoFiltersMenu: NSMenu!
+  var videoMenu: NSMenu!
+  var quickSettingsVideo: NSMenuItem!
+  var cycleVideoTracks: NSMenuItem!
+  var videoTrack: NSMenuItem!
+  var videoTrackMenu: NSMenu!
+  var halfSize: NSMenuItem!
+  var normalSize: NSMenuItem!
+  var normalSizeRetina: NSMenuItem!
+  var doubleSize: NSMenuItem!
+  var biggerSize: NSMenuItem!
+  var smallerSize: NSMenuItem!
+  var fitToScreen: NSMenuItem!
+  var fullScreen: NSMenuItem!
+  var pictureInPicture: NSMenuItem!
+  var alwaysOnTop: NSMenuItem!
+  var lockAspectRatio: NSMenuItem!
+  var liveText: NSMenuItem!
+  var aspectMenu: NSMenu!
+  var cropMenu: NSMenu!
+  var rotationMenu: NSMenu!
+  var flipMenu: NSMenu!
+  var mirror: NSMenuItem!
+  var flip: NSMenuItem!
+  var deinterlace: NSMenuItem!
+  var delogo: NSMenuItem!
+  var videoFilters: NSMenuItem!
+  var savedVideoFiltersMenu: NSMenu!
   //Audio
-  @IBOutlet weak var audioMenu: NSMenu!
-  @IBOutlet weak var quickSettingsAudio: NSMenuItem!
-  @IBOutlet weak var cycleAudioTracks: NSMenuItem!
-  @IBOutlet weak var audioTrackMenu: NSMenu!
-  @IBOutlet weak var loadExternalAudio: NSMenuItem!
-  @IBOutlet weak var volumeIndicator: NSMenuItem!
-  @IBOutlet weak var increaseVolume: NSMenuItem!
-  @IBOutlet weak var increaseVolumeSlightly: NSMenuItem!
-  @IBOutlet weak var decreaseVolume: NSMenuItem!
-  @IBOutlet weak var decreaseVolumeSlightly: NSMenuItem!
-  @IBOutlet weak var mute: NSMenuItem!
-  @IBOutlet weak var audioDelayIndicator: NSMenuItem!
-  @IBOutlet weak var increaseAudioDelay: NSMenuItem!
-  @IBOutlet weak var increaseAudioDelaySlightly: NSMenuItem!
-  @IBOutlet weak var decreaseAudioDelay: NSMenuItem!
-  @IBOutlet weak var decreaseAudioDelaySlightly: NSMenuItem!
-  @IBOutlet weak var resetAudioDelay: NSMenuItem!
-  @IBOutlet weak var audioFilters: NSMenuItem!
-  @IBOutlet weak var audioDeviceMenu: NSMenu!
-  @IBOutlet weak var savedAudioFiltersMenu: NSMenu!
+  var audioMenu: NSMenu!
+  var quickSettingsAudio: NSMenuItem!
+  var cycleAudioTracks: NSMenuItem!
+  var audioTrackMenu: NSMenu!
+  var loadExternalAudio: NSMenuItem!
+  var volumeIndicator: NSMenuItem!
+  var increaseVolume: NSMenuItem!
+  var increaseVolumeSlightly: NSMenuItem!
+  var decreaseVolume: NSMenuItem!
+  var decreaseVolumeSlightly: NSMenuItem!
+  var mute: NSMenuItem!
+  var audioDelayIndicator: NSMenuItem!
+  var increaseAudioDelay: NSMenuItem!
+  var increaseAudioDelaySlightly: NSMenuItem!
+  var decreaseAudioDelay: NSMenuItem!
+  var decreaseAudioDelaySlightly: NSMenuItem!
+  var resetAudioDelay: NSMenuItem!
+  var audioFilters: NSMenuItem!
+  var audioDeviceMenu: NSMenu!
+  var savedAudioFiltersMenu: NSMenu!
   // Subtitle
-  @IBOutlet weak var subMenu: NSMenu!
-  @IBOutlet weak var quickSettingsSub: NSMenuItem!
-  @IBOutlet weak var hideSubtitles: NSMenuItem!
-  @IBOutlet weak var hideSecondSubtitles: NSMenuItem!
-  @IBOutlet weak var cycleSubtitles: NSMenuItem!
-  @IBOutlet weak var subTrackMenu: NSMenu!
-  @IBOutlet weak var secondSubTrackMenu: NSMenu!
-  @IBOutlet weak var loadExternalSub: NSMenuItem!
-  @IBOutlet weak var increaseTextSize: NSMenuItem!
-  @IBOutlet weak var decreaseTextSize: NSMenuItem!
-  @IBOutlet weak var resetTextSize: NSMenuItem!
-  @IBOutlet weak var subDelayIndicator: NSMenuItem!
-  @IBOutlet weak var increaseSubDelay: NSMenuItem!
-  @IBOutlet weak var increaseSubDelaySlightly: NSMenuItem!
-  @IBOutlet weak var decreaseSubDelay: NSMenuItem!
-  @IBOutlet weak var decreaseSubDelaySlightly: NSMenuItem!
-  @IBOutlet weak var resetSubDelay: NSMenuItem!
-  @IBOutlet weak var encodingMenu: NSMenu!
-  @IBOutlet weak var subFont: NSMenuItem!
-  @IBOutlet weak var findOnlineSub: NSMenuItem!
-  @IBOutlet weak var onlineSubSourceMenu: NSMenu!
-  @IBOutlet weak var saveDownloadedSub: NSMenuItem!
+  var subMenu: NSMenu!
+  var quickSettingsSub: NSMenuItem!
+  var hideSubtitles: NSMenuItem!
+  var hideSecondSubtitles: NSMenuItem!
+  var cycleSubtitles: NSMenuItem!
+  var subTrackMenu: NSMenu!
+  var secondSubTrackMenu: NSMenu!
+  var loadExternalSub: NSMenuItem!
+  var increaseTextSize: NSMenuItem!
+  var decreaseTextSize: NSMenuItem!
+  var resetTextSize: NSMenuItem!
+  var subDelayIndicator: NSMenuItem!
+  var increaseSubDelay: NSMenuItem!
+  var increaseSubDelaySlightly: NSMenuItem!
+  var decreaseSubDelay: NSMenuItem!
+  var decreaseSubDelaySlightly: NSMenuItem!
+  var resetSubDelay: NSMenuItem!
+  var encodingMenu: NSMenu!
+  var subFont: NSMenuItem!
+  var findOnlineSub: NSMenuItem!
+  var onlineSubSourceMenu: NSMenu!
+  var saveDownloadedSub: NSMenuItem!
   // Plugin
-  @IBOutlet weak var pluginMenu: NSMenu!
-  @IBOutlet weak var pluginMenuItem: NSMenuItem!
+  var pluginMenu: NSMenu!
+  var pluginMenuItem: NSMenuItem!
   // Window
-  @IBOutlet weak var inspector: NSMenuItem!
-  @IBOutlet weak var miniPlayer: NSMenuItem!
-  @IBOutlet weak var debugDump: NSMenuItem!
+  var inspector: NSMenuItem!
+  var miniPlayer: NSMenuItem!
+  var debugDump: NSMenuItem!
 
   /// If `true` then all menu items are disabled.
   private var isDisabled = false
+
+  func connectMenus(_ menus: ApplicationMenus) {
+    abLoop = menus.item("abLoop")
+    advancedScreenshot = menus.item("advancedScreenshot")
+    alwaysOnTop = menus.item("alwaysOnTop")
+    aspectMenu = menus.menu("aspectMenu")
+    audioDelayIndicator = menus.item("audioDelayIndicator")
+    audioDeviceMenu = menus.menu("audioDeviceMenu")
+    audioFilters = menus.item("audioFilters")
+    audioMenu = menus.menu("audioMenu")
+    audioTrackMenu = menus.menu("audioTrackMenu")
+    backward = menus.item("backward")
+    biggerSize = menus.item("biggerSize")
+    chapter = menus.item("chapter")
+    chapterMenu = menus.menu("chapterMenu")
+    chapterPanel = menus.item("chapterPanel")
+    cropMenu = menus.menu("cropMenu")
+    cycleAudioTracks = menus.item("cycleAudioTracks")
+    cycleSubtitles = menus.item("cycleSubtitles")
+    cycleVideoTracks = menus.item("cycleVideoTracks")
+    debugDump = menus.item("debugDump")
+    decreaseAudioDelay = menus.item("decreaseAudioDelay")
+    decreaseAudioDelaySlightly = menus.item("decreaseAudioDelaySlightly")
+    decreaseSubDelay = menus.item("decreaseSubDelay")
+    decreaseSubDelaySlightly = menus.item("decreaseSubDelaySlightly")
+    decreaseTextSize = menus.item("decreaseTextSize")
+    decreaseVolume = menus.item("decreaseVolume")
+    decreaseVolumeSlightly = menus.item("decreaseVolumeSlightly")
+    deinterlace = menus.item("deinterlace")
+    deleteCurrentFile = menus.item("deleteCurrentFile")
+    delogo = menus.item("delogo")
+    doubleSize = menus.item("doubleSize")
+    encodingMenu = menus.menu("encodingMenu")
+    fileLoop = menus.item("fileLoop")
+    fileMenu = menus.menu("fileMenu")
+    findOnlineSub = menus.item("findOnlineSub")
+    fitToScreen = menus.item("fitToScreen")
+    flip = menus.item("flip")
+    flipMenu = menus.menu("flipMenu")
+    forward = menus.item("forward")
+    fullScreen = menus.item("fullScreen")
+    gotoScreenshotFolder = menus.item("gotoScreenshotFolder")
+    halfSize = menus.item("halfSize")
+    hideSecondSubtitles = menus.item("hideSecondSubtitles")
+    hideSubtitles = menus.item("hideSubtitles")
+    increaseAudioDelay = menus.item("increaseAudioDelay")
+    increaseAudioDelaySlightly = menus.item("increaseAudioDelaySlightly")
+    increaseSubDelay = menus.item("increaseSubDelay")
+    increaseSubDelaySlightly = menus.item("increaseSubDelaySlightly")
+    increaseTextSize = menus.item("increaseTextSize")
+    increaseVolume = menus.item("increaseVolume")
+    increaseVolumeSlightly = menus.item("increaseVolumeSlightly")
+    inspector = menus.item("inspector")
+    jumpTo = menus.item("jumpTo")
+    jumpToBegin = menus.item("jumpToBegin")
+    liveText = menus.item("liveText")
+    loadExternalAudio = menus.item("loadExternalAudio")
+    loadExternalSub = menus.item("loadExternalSub")
+    lockAspectRatio = menus.item("lockAspectRatio")
+    miniPlayer = menus.item("miniPlayer")
+    mirror = menus.item("mirror")
+    mute = menus.item("mute")
+    newWindow = menus.item("newWindow")
+    newWindowSeparator = menus.item("newWindowSeparator")
+    nextChapter = menus.item("nextChapter")
+    nextFrame = menus.item("nextFrame")
+    nextMedia = menus.item("nextMedia")
+    normalSize = menus.item("normalSize")
+    normalSizeRetina = menus.item("normalSizeRetina")
+    onlineSubSourceMenu = menus.menu("onlineSubSourceMenu")
+    open = menus.item("open")
+    openAlternative = menus.item("openAlternative")
+    openURL = menus.item("openURL")
+    openURLAlternative = menus.item("openURLAlternative")
+    otherKeyBindingsMenu = menus.menu("otherKeyBindingsMenu")
+    pause = menus.item("pause")
+    pictureInPicture = menus.item("pictureInPicture")
+    playbackMenu = menus.menu("playbackMenu")
+    playlist = menus.item("playlist")
+    playlistLoop = menus.item("playlistLoop")
+    playlistMenu = menus.menu("playlistMenu")
+    playlistPanel = menus.item("playlistPanel")
+    pluginMenu = menus.menu("pluginMenu")
+    pluginMenuItem = menus.item("pluginMenuItem")
+    previousChapter = menus.item("previousChapter")
+    previousFrame = menus.item("previousFrame")
+    previousMedia = menus.item("previousMedia")
+    quickSettingsAudio = menus.item("quickSettingsAudio")
+    quickSettingsSub = menus.item("quickSettingsSub")
+    quickSettingsVideo = menus.item("quickSettingsVideo")
+    resetAudioDelay = menus.item("resetAudioDelay")
+    resetSubDelay = menus.item("resetSubDelay")
+    resetTextSize = menus.item("resetTextSize")
+    rotationMenu = menus.menu("rotationMenu")
+    saveDownloadedSub = menus.item("saveDownloadedSub")
+    savePlaylist = menus.item("savePlaylist")
+    savedAudioFiltersMenu = menus.menu("savedAudioFiltersMenu")
+    savedVideoFiltersMenu = menus.menu("savedVideoFiltersMenu")
+    screenshot = menus.item("screenshot")
+    secondSubTrackMenu = menus.menu("secondSubTrackMenu")
+    showCurrentFileInFinder = menus.item("showCurrentFileInFinder")
+    smallerSize = menus.item("smallerSize")
+    speedDown = menus.item("speedDown")
+    speedDownSlightly = menus.item("speedDownSlightly")
+    speedIndicator = menus.item("speedIndicator")
+    speedReset = menus.item("speedReset")
+    speedUp = menus.item("speedUp")
+    speedUpSlightly = menus.item("speedUpSlightly")
+    stop = menus.item("stop")
+    subDelayIndicator = menus.item("subDelayIndicator")
+    subFont = menus.item("subFont")
+    subMenu = menus.menu("subMenu")
+    subTrackMenu = menus.menu("subTrackMenu")
+    videoFilters = menus.item("videoFilters")
+    videoMenu = menus.menu("videoMenu")
+    videoTrack = menus.item("videoTrack")
+    videoTrackMenu = menus.menu("videoTrackMenu")
+    volumeIndicator = menus.item("volumeIndicator")
+  }
 
   // MARK: - Construct Menus
 

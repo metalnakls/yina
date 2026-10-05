@@ -20,7 +20,6 @@ fileprivate let NormalMenuItemTag = 0
 fileprivate let AlternativeMenuItemTag = 1
 
 
-@NSApplicationMain
 class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
 
   override init() {
@@ -83,9 +82,37 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
   /// Whether the shutdown sequence timed out.
   private var timedOut = false
 
-  @IBOutlet var menuController: MenuController!
+  private(set) var menuController: MenuController!
 
-  @IBOutlet weak var dockMenu: NSMenu!
+  private(set) var dockMenu: NSMenu!
+
+  private var applicationMenus: ApplicationMenus!
+
+  func installApplicationMenus(in application: NSApplication) {
+    updaterController = SPUStandardUpdaterController(startingUpdater: false,
+      updaterDelegate: self, userDriverDelegate: nil)
+    let menus = ApplicationMenus(applicationDelegate: self, updater: updaterController,
+                                 fontManager: NSFontManager.shared)
+    applicationMenus = menus
+    menuController = MenuController()
+    menuController.connectMenus(menus)
+    dockMenu = menus.dockMenu
+    menus.install(in: application)
+    menus.configureRecentDocuments(target: self, openAction: #selector(openRecentDocument(_:)), urls: {
+      guard !AppEnvironment.isCleanStart else { return [] }
+      let documents = NSDocumentController.shared
+      return Array(documents.recentDocumentURLs.prefix(documents.maximumRecentDocumentCount))
+    }, clear: {
+      guard !AppEnvironment.isCleanStart else { return }
+      NSDocumentController.shared.clearRecentDocuments(nil)
+    })
+  }
+
+  @objc private func openRecentDocument(_ sender: NSMenuItem) {
+    guard let url = sender.representedObject as? URL else { return }
+    if !isReady { getReady() }
+    if PlayerCore.openURLs([url]) == 0 { Utility.showAlert("nothing_to_open") }
+  }
 
   private func getReady() {
     menuController.bindMenuItems()
@@ -178,7 +205,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
   }
 
   // MARK: - SPUUpdaterDelegate
-  @IBOutlet var updaterController: SPUStandardUpdaterController!
+  @objc dynamic private(set) var updaterController: SPUStandardUpdaterController!
 
   func feedURLString(for updater: SPUUpdater) -> String? {
     return Preference.bool(for: .receiveBetaUpdate) ? AppData.appcastBetaLink : AppData.appcastLink
@@ -356,6 +383,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
 
     // see https://sparkle-project.org/documentation/api-reference/Classes/SPUUpdater.html#/c:objc(cs)SPUUpdater(im)clearFeedURLFromUserDefaults
     if !AppEnvironment.isCleanStart { updaterController.updater.clearFeedURLFromUserDefaults() }
+
+    // Start after profile migration and feed cleanup, using Sparkle’s programmatic lifecycle.
+    updaterController.startUpdater()
 
     // show alpha in color panels
     NSColorPanel.shared.showsAlpha = true

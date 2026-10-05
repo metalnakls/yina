@@ -43,7 +43,7 @@ Verification for this pass means **inspecting the built bundle**, not trusting t
 |---|---|---|
 | `InspectorWindowController.xib` | Removed | Programmatic AppKit panel, toolbar tabs, 45 detail fields, track popup, and watch table. Existing playback queries, link formatting, update timer, and persistence keys retained. Isolated checks cover fields, actions, resizing, and empty/short/long watch lists. Long lists scroll the status page while the table header stays clear of rows. Manual playback checks remain. |
 | `FilterWindowController.xib` | Removed | Split view, active/saved tables, row bindings, and New Filter preset sheet are programmatic AppKit. Preset logic is extracted into `NewFilterSheetViewController`. Isolated checks exercise editing, checkbox writes, cell reuse, resizing, and every audio/video preset. Manual application checks remain below. |
-| `MainMenu.xib` (847 lines, 193 items) | TODO | Highest risk. Still `INFOPLIST_KEY_NSMainNibFile`. Localization removal cut the risk a lot. |
+| `MainMenu.xib` | Removed | `ApplicationMain` explicitly owns the app delegate and installs `ApplicationMenus` before `NSApplicationMain`. All 193 menu entries and 116 controller connections preserved; system menus and Dock registered in code. Open Recent reads native document-controller storage. Sparkle is created programmatically and starts after profile/feed preparation. Isolated contract, action, recents, and startup checks pass; manual app checks remain. |
 | Identify the 658 -> 939 MB growth | NEEDS DECISION | **No unbounded accumulator found.** Checked `info.thumbnails`, the Logger buffer, mpv observers, `CacheManager`, `NSCache`; all bounded. Leading theory is IOSurface / Metal residency from decode, not a Swift leak. Needs a `vmmap -summary` diff while idle vs after an hour. No code change will answer this. |
 | Strip Sparkle's own `.lproj` (1.4 MB) | TODO | Small. yina's sources ship `Base` only; the rest comes from the Sparkle framework. Needs a build step, not a project edit. |
 | SF Symbol replacements for `Icons` / `Symbols` assets | TODO | 1.3 MB + 844 KB of bitmaps. Replace with SF Symbols where an equivalent exists. |
@@ -176,3 +176,12 @@ A green build only means the compiler was satisfied, not that the bundle is corr
 - [ ] Add and remove watched properties; reopen Inspector and verify persistence
 - [ ] Watch values refresh, including invalid-property errors; a long watch list scrolls
 - [ ] Resize the panel, switch playback windows, and close/reopen it without stale updates
+
+### Application menus and startup
+
+- [ ] Quit/reopen normally and by opening a file; startup, welcome, and restoration behave as before
+- [ ] Open with Command-O and Option-Command-O; URL alternatives and Dock items work
+- [ ] Open Recent refreshes, opens the selected file, and Clear Menu clears the native list
+- [ ] Playback/track/chapter/filter/plugin menus update and their shortcuts operate on the active player
+- [ ] Preferences, Services, Window, Help, and Check for Updates work
+- [ ] Clean start hides recent files and avoids normal-profile state

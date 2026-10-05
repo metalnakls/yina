@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A10F517E000000000000000B /* ApplicationMain.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10F517E000000000000000C /* ApplicationMain.swift */; };
+		A10F517E0000000000000009 /* ApplicationMenus.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10F517E000000000000000A /* ApplicationMenus.swift */; };
 		A10F517E0000000000000007 /* InspectorWindowViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10F517E0000000000000008 /* InspectorWindowViews.swift */; };
 		A10F517E0000000000000005 /* NewFilterSheetViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10F517E0000000000000006 /* NewFilterSheetViewController.swift */; };
 		A10F517E0000000000000003 /* FilterWindowViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10F517E0000000000000004 /* FilterWindowViews.swift */; };
@@ -359,7 +361,6 @@
 		E3FF5AC02938582F0019CE45 /* JavascriptDevTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3FF5ABF2938582F0019CE45 /* JavascriptDevTool.swift */; };
 		C789872F1E34EF170005769F /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 843B97AA1E82D3C100D07261 /* Base */; };
 		84EC12861F504D2500137C1E /* FilterPresets.strings in Resources */ = {isa = PBXBuildFile; fileRef = 84EC12871F504D2500137C1E /* Base */; };
-		84A0BA951D2F9E9600BC8DA1 /* MainMenu.xib in Resources */ = {isa = PBXBuildFile; fileRef = 84A0BA941D2F9E9600BC8DA1 /* Base */; };
 		84F5D49A1E44E9A50060A838 /* KeyBinding.strings in Resources */ = {isa = PBXBuildFile; fileRef = 84F5D49B1E44E9A50060A838 /* Base */; };
 		845AC09C1E1AE6C10080B614 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 845AC09D1E1AE6C10080B614 /* Base */; };
 /* End PBXBuildFile section */
@@ -516,6 +517,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		A10F517E000000000000000C /* ApplicationMain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationMain.swift; sourceTree = "<group>"; };
+		A10F517E000000000000000A /* ApplicationMenus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationMenus.swift; sourceTree = "<group>"; };
 		A10F517E0000000000000008 /* InspectorWindowViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InspectorWindowViews.swift; sourceTree = "<group>"; };
 		A10F517E0000000000000006 /* NewFilterSheetViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewFilterSheetViewController.swift; sourceTree = "<group>"; };
 		A10F517E0000000000000004 /* FilterWindowViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilterWindowViews.swift; sourceTree = "<group>"; };
@@ -718,7 +721,6 @@
 		A31000002F00000000000001 /* ShowFolder.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ShowFolder.swift; sourceTree = "<group>"; };
 		8497A4831D2FF573005F504F /* yina-Bridging-Header.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "yina-Bridging-Header.h"; sourceTree = "<group>"; };
 		84A09A0C1F2DF596000FF343 /* MiniPlayerWindowController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MiniPlayerWindowController.swift; sourceTree = "<group>"; };
-		84A0BA941D2F9E9600BC8DA1 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.xib; name = Base; path = Base.lproj/MainMenu.xib; sourceTree = "<group>"; };
 		84A0BA961D2FA1CE00BC8DA1 /* PlayerCore.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PlayerCore.swift; sourceTree = "<group>"; };
 		84A0BA981D2FAAA700BC8DA1 /* MPVController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MPVController.swift; sourceTree = "<group>"; };
 		84A0BA9C1D2FAD4000BC8DA1 /* MainWindowController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MainWindowController.swift; sourceTree = "<group>"; };
@@ -1364,6 +1366,8 @@
 				841B14271E941DFF00744AB8 /* TimeLabelOverflowedStackView.swift */,
 				840D479F1DFEFC49000D9A64 /* KeyRecordView.swift */,
 				A10F517E0000000000000002 /* FilterShortcutSheet.swift */,
+				A10F517E000000000000000A /* ApplicationMenus.swift */,
+				A10F517E000000000000000C /* ApplicationMain.swift */,
 				A10F517E0000000000000008 /* InspectorWindowViews.swift */,
 				A10F517E0000000000000006 /* NewFilterSheetViewController.swift */,
 				A10F517E0000000000000004 /* FilterWindowViews.swift */,
@@ -1434,7 +1438,6 @@
 			children = (
 				843B97AA1E82D3C100D07261 /* Base */,
 				845AC09D1E1AE6C10080B614 /* Base */,
-				84A0BA941D2F9E9600BC8DA1 /* Base */,
 				84EC12871F504D2500137C1E /* Base */,
 				84F5D49B1E44E9A50060A838 /* Base */,
 				A1B2C3D40000000000000004 /* DefaultPreferences.plist */,
@@ -1802,7 +1805,6 @@
                 A1B2C3D40000000000000003 /* DefaultPreferences.plist in Resources */,
 				A1C0DEC0A1C0DEC0A1C0DE02 /* AppIcon.icon in Resources */,
 				8492C2861E771FB200CE5825 /* ISO639.strings in Resources */,
-				84A0BA951D2F9E9600BC8DA1 /* MainMenu.xib in Resources */,
 				E3AD62772FF4C9BE00D2CAC5 /* VerbatimStrings.strings in Resources */,
 				8483FB001EDFF325000F55D6 /* Credits.rtf in Resources */,
 				84F5D49A1E44E9A50060A838 /* KeyBinding.strings in Resources */,
@@ -1927,6 +1929,8 @@
 				E3C2280D2FDFBE30009A1A89 /* SidebarSliderView.swift in Sources */,
 				840D47A01DFEFC49000D9A64 /* KeyRecordView.swift in Sources */,
 				A10F517E0000000000000001 /* FilterShortcutSheet.swift in Sources */,
+				A10F517E0000000000000009 /* ApplicationMenus.swift in Sources */,
+				A10F517E000000000000000B /* ApplicationMain.swift in Sources */,
 				A10F517E0000000000000007 /* InspectorWindowViews.swift in Sources */,
 				A10F517E0000000000000005 /* NewFilterSheetViewController.swift in Sources */,
 				A10F517E0000000000000003 /* FilterWindowViews.swift in Sources */,
@@ -2187,7 +2191,6 @@
 				GCC_PREPROCESSOR_DEFINITIONS = "GL_SILENCE_DEPRECATION=1";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.video";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2017-2026\nCollider LI, et al.\nReleased under GPLv3.";
-				INFOPLIST_KEY_NSMainNibFile = MainMenu;
 				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
@@ -2234,7 +2237,6 @@
 				GCC_PREPROCESSOR_DEFINITIONS = "GL_SILENCE_DEPRECATION=1";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.video";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2017-2026\nCollider LI, et al.\nReleased under GPLv3.";
-				INFOPLIST_KEY_NSMainNibFile = MainMenu;
 				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
@@ -2296,7 +2298,6 @@
 				);
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.video";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2017-2026\nCollider LI, et al.\nReleased under GPLv3.";
-				INFOPLIST_KEY_NSMainNibFile = MainMenu;
 				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
@@ -2315,7 +2316,6 @@
 				GCC_PREPROCESSOR_DEFINITIONS = "GL_SILENCE_DEPRECATION=1";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.video";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2017-2026\nCollider LI, et al.\nReleased under GPLv3.";
-				INFOPLIST_KEY_NSMainNibFile = MainMenu;
 				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",

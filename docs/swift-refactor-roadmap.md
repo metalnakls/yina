@@ -63,11 +63,19 @@ They are useful reference implementations for the direction of travel:
 SwiftUI content, AppKit window ownership, and explicit callbacks into the
 existing application model.
 
-### XIB-backed surfaces
+### XIB removal complete
 
-After the first migration wave, the application still contains these app-owned XIBs:
-
-- Application menu: `Base.lproj/MainMenu.xib`.
+All app-owned XIBs are removed. `ApplicationMain.swift` explicitly owns the app
+delegate, installs menus before `NSApplicationMain`, and preserves normal launch
+events and argument handling. `ApplicationMenus.swift` constructs the former
+main and Dock menu trees; `MenuController` still owns dynamic playback menus.
+Services, Window, and Help menus are registered through public AppKit APIs.
+Open Recent uses native `NSDocumentController` storage with an explicit adapter.
+Sparkle starts after preference migration and feed preparation, using its
+[programmatic setup](https://sparkle-project.org/documentation/api-reference/Classes/SPUStandardUpdaterController.html).
+Isolated checks cover all 193 menu entries, 116 controller connections,
+shortcuts/actions, recent-list operations, and the production entry point.
+Manual app launch and playback-menu checks remain in the cleanup tracker.
 
 YINA's contribution rules already say not to introduce new XIBs and to use
 programmatic views and existing helpers for new UI. Migration work should
@@ -183,7 +191,7 @@ AppKit/system-framework responsibilities.
 
 ### Menus and commands
 
-`MainMenu.xib` and `MenuController.swift` contain a large dynamic menu graph:
+`ApplicationMenus.swift` and `MenuController.swift` own the menu graph:
 track menus, plugin menus, key-binding replacement, validation, and runtime
 updates. SwiftUI `Commands` may be useful for isolated commands, but it is not
 a drop-in replacement for the current `NSMenu` ownership model. Modernize in
