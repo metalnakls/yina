@@ -26,6 +26,7 @@ Verification for this pass means **inspecting the built bundle**, not trusting t
 
 | Item | Commit | What to expect |
 |---|---|---|
+| Subtitle settings toggle slice | This pass | Window scaling, fullscreen letterbox placement, and automatic online search now reuse `SettingsItem.SwiftUIToggle`. Preference keys, default values, localized titles/descriptions, settings search, and existing mpv observers retained. Build verification covers integration; manual settings checks remain. |
 | Programmatic main and mini-player windows | `f3b55c49`, `33b2a500` | Both XIBs removed. First window access explicitly runs `loadWindow` and `windowDidLoad`; without that, mpv callbacks crashed on uninitialized video/speed-label views. User confirms video opens without crashing, but slowly. Fullscreen, PiP, and music-mode switching still need a user check. |
 | Programmatic key recorder | This pass | XIB removed; existing key capture, `NSRuleEditor`, command field, and 480×155 layout retained. Isolated AppKit checks cover pending values, recording, readiness, rule selection, and controller/observer cleanup. Check the real Settings sheet. |
 | Filter Save/Edit sheets | This pass | Both sheets now share programmatic AppKit content. Existing save/edit/cancel actions and persistence remain in `FilterWindowController`; name, filter string, shortcut recording, and keyboard button equivalents are preserved. Isolated checks cover layout, focus, input, button targets, and resizing. The remaining tables and preset sheet are now programmatic too (see below). |
@@ -185,3 +186,11 @@ A green build only means the compiler was satisfied, not that the bundle is corr
 - [ ] Playback/track/chapter/filter/plugin menus update and their shortcuts operate on the active player
 - [ ] Preferences, Services, Window, Help, and Check for Updates work
 - [ ] Clean start hides recent files and avoids normal-profile state
+
+### Subtitle settings toggle slice
+
+- [ ] Search Settings for each migrated subtitle option; the matching row is revealed
+- [ ] Toggle window scaling and fullscreen letterbox placement; playback responds as before
+- [ ] Toggle automatic online search; its explanation and saved value remain correct
+- [ ] Reopen Settings and restart yina; all three saved values persist
+- [ ] Tab/Space operate each toggle; narrow-window layout keeps labels and description readable

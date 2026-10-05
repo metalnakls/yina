@@ -134,13 +134,13 @@ class SettingsPageSubtitles: SettingsPage {
       }
 
       SettingsList {
-        SettingsItem.Switch()
+        SettingsItem.SwiftUIToggle()
           .image(name: ["arrow.up.left.and.arrow.down.right.rectangle", "arrow.up.backward.and.arrow.down.forward"])
           .bindTo(.subScaleWithWindow)
       }
 
       SettingsList {
-        SettingsItem.Switch()
+        SettingsItem.SwiftUIToggle()
           .image(name: ["inset.filled.bottomthird.rectangle", "rectangle.bottomthird.inset.filled", "rectangle.bottomthird.inset.fill"])
           .bindTo(.displayInLetterBox)
       }
@@ -153,7 +153,7 @@ class SettingsPageSubtitles: SettingsPage {
         SettingsItem.General(title: .text_SubtitleSource)
           .image(name: "server.rack")
           .withDetailView(subtitleSourceView)
-        SettingsItem.Switch()
+        SettingsItem.SwiftUIToggle()
           .image(name: ["text.magnifyingglass", "magnifyingglass"])
           .bindTo(.autoSearchOnlineSub)
           .hasDescription()

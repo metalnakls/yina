@@ -26,6 +26,11 @@ The first migration wave is now implemented on the `meh` branch:
   profile, and HDR support) are now SwiftUI-backed. The settings window,
   page/section/list layout, search index, and remaining input, selection, and
   expandable tone-mapping rows remain AppKit-owned.
+- The Subtitles page's independent window-scaling, letterbox-placement, and
+  automatic-online-search rows now use the same SwiftUI toggle adapter.
+  Existing preference keys, descriptions, search registration, and playback
+  option observers remain in place. The surrounding page and richer controls
+  remain AppKit-owned.
 - The programmatic welcome window now uses reusable SwiftUI content for Recent
   rows. AppKit continues to own its window, scroll view, `NSTableView`
   selection, keyboard navigation, availability checks, and open routing.
