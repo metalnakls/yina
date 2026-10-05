@@ -229,9 +229,6 @@
 		84EB1EDA1D2F51D3004FA5A1 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84EB1ED91D2F51D3004FA5A1 /* AppDelegate.swift */; };
 		84EB1EDC1D2F51D3004FA5A1 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 84EB1EDB1D2F51D3004FA5A1 /* Assets.xcassets */; };
 		A1C0DEC0A1C0DEC0A1C0DE02 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = A1C0DEC0A1C0DEC0A1C0DE01 /* AppIcon.icon */; };
-		A1C0DEC0A1C0DEC0A1C0DE04 /* AppIconBeta.icon in Resources */ = {isa = PBXBuildFile; fileRef = A1C0DEC0A1C0DEC0A1C0DE03 /* AppIconBeta.icon */; };
-		A1C0DEC0A1C0DEC0A1C0DE06 /* AppIconDebug.icon in Resources */ = {isa = PBXBuildFile; fileRef = A1C0DEC0A1C0DEC0A1C0DE05 /* AppIconDebug.icon */; };
-		A1C0DEC0A1C0DEC0A1C0DE08 /* AppIconNightly.icon in Resources */ = {isa = PBXBuildFile; fileRef = A1C0DEC0A1C0DEC0A1C0DE07 /* AppIconNightly.icon */; };
 		84EB1F051D2F5C5B004FA5A1 /* AppData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84EB1F041D2F5C5B004FA5A1 /* AppData.swift */; };
 		84EB1F071D2F5E76004FA5A1 /* Utility.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84EB1F061D2F5E76004FA5A1 /* Utility.swift */; };
 		84EC12831F4F939000137C1E /* FilterPresets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84EC12821F4F939000137C1E /* FilterPresets.swift */; };
@@ -747,9 +744,6 @@
 		84EB1ED91D2F51D3004FA5A1 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		84EB1EDB1D2F51D3004FA5A1 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A1C0DEC0A1C0DEC0A1C0DE01 /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = AppIcon.icon; sourceTree = "<group>"; };
-		A1C0DEC0A1C0DEC0A1C0DE03 /* AppIconBeta.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = AppIconBeta.icon; sourceTree = "<group>"; };
-		A1C0DEC0A1C0DEC0A1C0DE05 /* AppIconDebug.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = AppIconDebug.icon; sourceTree = "<group>"; };
-		A1C0DEC0A1C0DEC0A1C0DE07 /* AppIconNightly.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = AppIconNightly.icon; sourceTree = "<group>"; };
 		84EB1EE01D2F51D3004FA5A1 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		84EB1F041D2F5C5B004FA5A1 /* AppData.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppData.swift; sourceTree = "<group>"; };
 		84EB1F061D2F5E76004FA5A1 /* Utility.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Utility.swift; sourceTree = "<group>"; };
@@ -1141,9 +1135,6 @@
 				84E745D71DFDE8C100588DED /* config */,
 				84EB1EDB1D2F51D3004FA5A1 /* Assets.xcassets */,
 				A1C0DEC0A1C0DEC0A1C0DE01 /* AppIcon.icon */,
-				A1C0DEC0A1C0DEC0A1C0DE03 /* AppIconBeta.icon */,
-				A1C0DEC0A1C0DEC0A1C0DE05 /* AppIconDebug.icon */,
-				A1C0DEC0A1C0DEC0A1C0DE07 /* AppIconNightly.icon */,
 				84EB1EE01D2F51D3004FA5A1 /* Info.plist */,
 				34F294BF2C0B68B300F14962 /* Contribution.rtf */,
 				8483FAFF1EDFF325000F55D6 /* Credits.rtf */,
@@ -1794,9 +1785,6 @@
 				84EB1EDC1D2F51D3004FA5A1 /* Assets.xcassets in Resources */,
                 A1B2C3D40000000000000003 /* DefaultPreferences.plist in Resources */,
 				A1C0DEC0A1C0DEC0A1C0DE02 /* AppIcon.icon in Resources */,
-				A1C0DEC0A1C0DEC0A1C0DE04 /* AppIconBeta.icon in Resources */,
-				A1C0DEC0A1C0DEC0A1C0DE06 /* AppIconDebug.icon in Resources */,
-				A1C0DEC0A1C0DEC0A1C0DE08 /* AppIconNightly.icon in Resources */,
 				8492C2861E771FB200CE5825 /* ISO639.strings in Resources */,
 				8F49C36E213EFB7E0076C4F9 /* MiniPlayerWindowController.xib in Resources */,
 				84A0BA951D2F9E9600BC8DA1 /* MainMenu.xib in Resources */,
