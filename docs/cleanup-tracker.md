@@ -12,13 +12,18 @@ Status legend: `TODO` / `WIP` / `DONE` / `DECLINED`
 | 1 | Drop all localizations except `Base` | `4240fd6f` | 1092 files, 124582 lines deleted. `yina/` 30 MB -> 21 MB. Fixed three latent regressions: empty `InfoPlist.strings`, 10 subtitle-dissolve keys that only existed in `en.lproj`, 3 `SubChooseViewController` calls with no `value:` fallback. |
 | 2 | Notification observer leaks / unowned-self crashes | `22e4cd6e` | `KeyRecordViewController` use-after-free on every key-binding dialog. `PlayerWindowController.addObserver(to:...)` discarded all 8 tokens. `HistoryWindowController` 3 untracked. 6 `fadeableViews` unowned closures. |
 
+## Progress
+
+`yina/` source tree: **30 MB -> 6.1 MB** across three commits. All committed
+work is local; nothing has been pushed.
+
 ## Bundle size
 
 | # | Item | Status | Notes |
 |---|---|---|---|
 | 3 | Legacy `AppIcon*.appiconset` PNG dirs | DONE | 4 dirs, ~3 MB, referenced by nothing. Superseded by the `.icon` package. |
 | 4 | `AppIconBeta` / `AppIconDebug` / `AppIconNightly` `.icon` packages | DONE | ~68 KB total. All four configs now use `AppIcon`; beta/debug are ephemeral and share the normal icon. |
-| 5 | `DocIcons` -> native macOS document icons | WIP | 13 MB, 22 iconsets, no `Contents.json` so `actool` never compiled them and `CFBundleTypeIconFile` cannot resolve them. Finder already falls back to system icons. Setting `CFBundleTypeIconSystemGenerated = 1` makes that explicit and correct. |
+| 5 | `DocIcons` -> native macOS document icons | DONE | 13 MB, 22 iconsets, no `Contents.json` so `actool` never compiled them and `CFBundleTypeIconFile` cannot resolve them. Committed `86942910`. All 26 entries now use `CFBundleTypeIconSystemGenerated = 1`; `CFBundleTypeIconFile` removed. `doc_plugin.iconset` kept (no system equivalent for a yina plugin package). 13 MB -> 476 KB. |
 | 6 | Strip Sparkle / upstream `.lproj` from bundle | TODO | Agent measured 32 `.lproj` dirs, ~6.4 MB, inside the built bundle. yina's own sources now ship `Base` only. Needs a build-time strip step. |
 | 7 | Audit remaining `Icons` / `Symbols` assets for SF Symbol replacements | TODO | `Icons` 1.3 MB, `Symbols` 844 KB. Replace bitmap toolbar icons with SF Symbols where an equivalent exists. |
 | 8 | Release build settings (strip, LTO, `ONLY_ACTIVE_ARCH`) | TODO | Unverified. Agent could not run a Release build. |
