@@ -166,3 +166,14 @@ selection is not proven; background suspension previously changed `vid` to `no`,
 but no current app track request was logged during the failed openings. That
 suspension path remains removed. The separate early VO initialization error is
 fixed. No user preferences or watch-later files were edited by the investigation.
+# Captured AVFoundation CPU loop — 2026-10-07
+
+The user reported 99% CPU, and a live read confirmed 97.4%. Captures and detailed handoff notes are saved outside Git at `/Users/wsb/yina/yina-traces/cpu-spike-20261007-1528/`. The hot sample identifies mpv's `avfoundation event` queue: 7,533 of 7,580 thread samples were under its dispatch drain, dominated by `AVMediaDataRequester` and mpv's audio-feed callback. The sampled footprint was about 849 MiB, peak 939 MiB; this does not prove a leak.
+
+The pinned AVFoundation driver stopped media-data requests at EOF, but left them registered after a zero-sample read without EOF. A ready renderer can immediately invoke that empty callback again. An isolated AVFoundation probe produced 6,378,033 callbacks in one second; stopping requests reduced that to one.
+
+`other/metal-deps/patches/mpv-metal-macos.patch` now handles zero-sample reads through the same stop/restart contract as EOF. `ao_start()` re-registers requests when audio returns. The regression harness extracts the actual patched callback and lifecycle, with a scripted mpv buffer and real muted AVFoundation renderer: baseline fails; patched empty-read, data-return, pause/resume, EOF and shutdown checks pass. `other/tests/mpv-avfoundation-smoke.sh` also validates the rebuilt libmpv with muted synthetic audio through five pause/resume cycles with advancing time, EOF, reopen and stop. Native EOF checks use the end-file event, since its property can disappear when media unloads; resume checks allow asynchronous audio timing.
+
+The old Meson build references the pre-rename checkout, and Homebrew FFmpeg/libass have drifted from the lock. For this targeted fix, only the changed audio-driver object was recompiled using packaged headers; pinned objects were relinked against existing `deps/lib` libraries. No public exports were added or removed, and no other packaged dependency changed. The patch applies to clean sources at the exact manifest pin. A future full clean dependency build must resolve lock drift explicitly, not silently upgrade the stack.
+
+This fixes a reproduced callback loop. Long-session confirmation in the user's app remains pending; the app was not operated during investigation or testing.

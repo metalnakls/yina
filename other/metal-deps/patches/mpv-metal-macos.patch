@@ -1,14 +1,19 @@
 diff --git a/audio/out/ao_avfoundation.m b/audio/out/ao_avfoundation.m
-index 09f3ef002..fbb1ed8c3 100644
+index 09f3ef002..36638b94a 100644
 --- a/audio/out/ao_avfoundation.m
 +++ b/audio/out/ao_avfoundation.m
-@@ -143 +143 @@ finish:
+@@ -81 +81,3 @@ static void feed(struct ao *ao)
+-    if (eof) {
++    // An empty read leaves the renderer ready, causing an immediate callback loop.
++    // Use the same restart contract as EOF when audio becomes available again.
++    if (eof || real_sample_count == 0) {
+@@ -143 +145 @@ finish:
 -static void start(struct ao *ao)
 +static void request_media_data(struct ao *ao)
-@@ -147,2 +146,0 @@ static void start(struct ao *ao)
+@@ -147,2 +148,0 @@ static void start(struct ao *ao)
 -    p->end_time_av = -1;
 -    [p->synchronizer setRate:1];
-@@ -153,0 +152,9 @@ static void start(struct ao *ao)
+@@ -153,0 +154,9 @@ static void start(struct ao *ao)
 +static void start(struct ao *ao)
 +{
 +    struct priv *p = ao->priv;
@@ -18,12 +23,12 @@ index 09f3ef002..fbb1ed8c3 100644
 +    request_media_data(ao);
 +}
 +
-@@ -169,0 +177 @@ static bool set_pause(struct ao *ao, bool paused)
+@@ -169,0 +179 @@ static bool set_pause(struct ao *ao, bool paused)
 +        [p->renderer stopRequestingMediaData];
-@@ -172,0 +181 @@ static bool set_pause(struct ao *ao, bool paused)
+@@ -172,0 +183 @@ static bool set_pause(struct ao *ao, bool paused)
 +        request_media_data(ao);
 diff --git a/meson.build b/meson.build
-index 534c28a12..7c2e17dbe 100644
+index 534c28a12..ba8d93a49 100644
 --- a/meson.build
 +++ b/meson.build
 @@ -1548,2 +1548,4 @@ videotoolbox_pl = get_option('videotoolbox-pl').require(
@@ -33,11 +38,11 @@ index 534c28a12..7c2e17dbe 100644
 +     (darwin and libplacebo.get_variable('pl_has_metal', default_value: '0') == '1')) and
 +    corevideo.found(),
 +    error_message: 'neither Vulkan nor libplacebo Metal support could be found!',
-@@ -1842 +1844 @@ if get_option('libmpv')
+@@ -1840 +1842 @@ if get_option('libmpv')
 -               'include/mpv/render_gl.h', 'include/mpv/stream_cb.h']
 +               'include/mpv/render_gl.h', 'include/mpv/render_mtl.h', 'include/mpv/stream_cb.h']
 diff --git a/video/out/mac/view.swift b/video/out/mac/view.swift
-index c341b3154..a83d5c41c 100644
+index c341b3154..39c419101 100644
 --- a/video/out/mac/view.swift
 +++ b/video/out/mac/view.swift
 @@ -31,0 +32 @@ class View: NSView, CALayerDelegate {
