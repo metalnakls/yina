@@ -216,6 +216,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
   func applicationWillFinishLaunching(_ notification: Notification) {
     // Must setup preferences before logging so log level is set correctly.
     IdentityMigration.shared.migrateLegacyIdentityIfNeeded()
+    ManagedDefaultsUpdater.applyStartupDefaults()
     registerUserDefaultValues()
 
     observedPrefKeys.forEach { key in
@@ -377,6 +378,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
   func applicationDidFinishLaunching(_ aNotification: Notification) {
     Logger.log("App launched")
 
+    Task { await ManagedDefaultsUpdater.shared.refreshIfDue() }
+
     if !isReady {
       getReady()
     }
@@ -465,6 +468,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     if !openFileCalled {
       showWelcomeWindow()
     }
+  }
+
+  func applicationDidBecomeActive(_ notification: Notification) {
+    Task { await ManagedDefaultsUpdater.shared.refreshIfDue() }
   }
 
   private func showWelcomeWindow(checkingForUpdatedData: Bool = false) {
@@ -1106,6 +1113,23 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
       """
     alert.alertStyle = .informational
     alert.runModal()
+  }
+
+  @IBAction func exportManagedDefaults(_ sender: AnyObject) {
+#if DEBUG
+    let panel = NSSavePanel()
+    panel.nameFieldStringValue = "ManagedDefaults.json"
+    panel.canCreateDirectories = true
+    panel.begin { response in
+      guard response == .OK, let url = panel.url else { return }
+      do {
+        try ManagedDefaultsUpdater.exportCurrentSettings().write(to: url, options: .atomic)
+      } catch {
+        let alert = NSAlert(error: error)
+        alert.runModal()
+      }
+    }
+#endif
   }
 
   private func registerUserDefaultValues() {

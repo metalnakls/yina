@@ -49,6 +49,9 @@ final class ApplicationMenus {
   init(applicationDelegate: AnyObject, updater: AnyObject, fontManager: AnyObject) {
     targets = [.applicationDelegate: applicationDelegate, .updater: updater, .fontManager: fontManager]
     mainMenu = build(Self.mainDefinition)
+#if DEBUG
+    itemBindings["exportManagedDefaults"]?.isHidden = false
+#endif
     dockMenu = build(Self.dockDefinition)
     // Menu items retain neither their targets nor their delegates.
     targets.removeAll()
@@ -101,6 +104,7 @@ final class ApplicationMenus {
           .item("Check for Updates...", modifiers: [], action: "checkForUpdates:", target: .updater),
           .separator(),
           .item("Preferences…", key: ",", action: "showPreferences:", target: .applicationDelegate),
+          .item("Export Current Settings as Defaults…", binding: "exportManagedDefaults", modifiers: [], action: "exportManagedDefaults:", target: .applicationDelegate, hidden: true),
           .separator(),
           .item("Services", modifiers: [], submenu:
             .menu("Services", binding: "servicesMenu", items: [

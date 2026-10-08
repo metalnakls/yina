@@ -25,6 +25,7 @@ readonly REMOTE="${YINA_RELEASE_REMOTE:-yina}"
 readonly DERIVED_DATA="${YINA_RELEASE_DERIVED:-/tmp/yina-release}"
 readonly SPARKLE_BIN="$REPO_DIR/SourcePackages/artifacts/sparkle/Sparkle/bin"
 readonly RELEASE_OUT="$DERIVED_DATA/release"
+source "$SCRIPT_DIR/even-git-time.sh"
 
 DRY_RUN=0
 for arg in "$@"; do
@@ -48,6 +49,9 @@ if [ -z "$VERSION" ]; then
   echo "VERSION file is empty. A release needs an explicit version." >&2
   exit 66
 fi
+
+echo "==> Validating managed defaults"
+python3 "$SCRIPT_DIR/publish_defaults.py" "$REPO_DIR/yina/ManagedDefaults.json" >/dev/null
 
 TAG="v$VERSION"
 
@@ -191,7 +195,9 @@ if [ "$DRY_RUN" -eq 1 ]; then
 fi
 
 echo "==> Tagging $TAG"
-git tag -a "$TAG" -m "yina $VERSION"
+wait_for_even_git_minute
+GIT_TAG_DATE="$(nearest_even_git_timestamp)"
+GIT_AUTHOR_DATE="$GIT_TAG_DATE" GIT_COMMITTER_DATE="$GIT_TAG_DATE" git tag -a "$TAG" -m "yina $VERSION"
 
 echo "==> Pushing tag"
 git push "$REMOTE" "$TAG"

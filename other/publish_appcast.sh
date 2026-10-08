@@ -11,6 +11,7 @@ ARCHIVE_DIR="$2"
 REMOTE="${3:-yina}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+source "$SCRIPT_DIR/even-git-time.sh"
 APPCAST="$(cd "$(dirname "$APPCAST")" && pwd)/$(basename "$APPCAST")"
 test -f "$APPCAST"
 test -d "$ARCHIVE_DIR"
@@ -32,6 +33,9 @@ cp "$REPO_DIR/.github/workflows/pages.yml" "$PAGES_DIR/.github/workflows/pages.y
 touch "$PAGES_DIR/.nojekyll"
 git -C "$PAGES_DIR" add index.html favicon.png appcast.xml .nojekyll .github/workflows/pages.yml
 if ! git -C "$PAGES_DIR" diff --cached --quiet; then
-  git -C "$PAGES_DIR" commit -m pages
+  wait_for_even_git_minute
+  GIT_COMMIT_DATE="$(nearest_even_git_timestamp)"
+  GIT_AUTHOR_DATE="$GIT_COMMIT_DATE" GIT_COMMITTER_DATE="$GIT_COMMIT_DATE" git -C "$PAGES_DIR" commit -m pages
+  wait_for_even_git_minute
   git -C "$PAGES_DIR" push "$REMOTE" HEAD:refs/heads/gh-pages
 fi
