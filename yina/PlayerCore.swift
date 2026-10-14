@@ -2277,6 +2277,20 @@ class PlayerCore: NSObject {
     getChapters()
     syncAbLoop()
     refreshSyncUITimer()
+    // Ported from IINA #6472, commit 4eedabb364bb12509547bbf1ba48d5bdf55445d0.
+    // Workaround mpv issue #18581 / IINA issue #6378. Newer iPhones can generate video files with
+    // two audio tracks, one encoded with the Apple Positional Audio Codec to support spatial audio
+    // and one stereo track. FFmpeg 9.0.2 does not support APAC (FFmpeg is adding support). If the
+    // APAC encoded track happens to be the first audio track, mpv will select it, fail to decode it
+    // and continue playback with no sound. Select the second track if this has occurred.
+    if info.aid == 0, info.audioTracks.count >= 2, info.audioTracks[0].codec == "apple_apac" {
+      log("""
+        Audio track 1 uses Apple Positional Audio Codec, switching to audio track 2:
+        \(info.audioTracks.compactMap { String(describing: $0) }.joined(separator: "\n"))
+        """, level: .warning)
+      setTrack(2, forType: .audio)
+    }
+
     if info.aid == 0 {
       mainWindow.muteButton.isHidden = true
       mainWindow.volumeSlider.isHidden = true
