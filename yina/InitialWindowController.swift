@@ -371,9 +371,12 @@ class InitialWindowController: NSWindowController {
     isCheckingAvailability = true
     let generation = coordinator.currentGeneration
     let urls = recentDocuments.map(\.url)
+    let identities = urls.map(documentIdentity)
 
     availabilityQueue.async { [weak self] in
-      let availability = urls.map(Self.isDocumentAvailable)
+      let availabilityByIdentity = Dictionary(
+        zip(identities, urls.map(Self.isDocumentAvailable)),
+        uniquingKeysWith: { _, latest in latest })
       DispatchQueue.main.async {
         guard let self else { return }
         self.isCheckingAvailability = false
@@ -384,8 +387,11 @@ class InitialWindowController: NSWindowController {
         }
 
         var changedRows = IndexSet()
-        for index in self.recentDocuments.indices where self.recentDocuments[index].isAvailable != availability[index] {
-          self.recentDocuments[index].isAvailable = availability[index]
+        for index in self.recentDocuments.indices {
+          let identity = self.documentIdentity(self.recentDocuments[index].url)
+          guard let isAvailable = availabilityByIdentity[identity],
+                self.recentDocuments[index].isAvailable != isAvailable else { continue }
+          self.recentDocuments[index].isAvailable = isAvailable
           changedRows.insert(index)
         }
         guard !changedRows.isEmpty else { return }
@@ -396,7 +402,7 @@ class InitialWindowController: NSWindowController {
         }
         self.recentFilesTableView.reloadData(forRowIndexes: changedRows,
                                              columnIndexes: IndexSet(integersIn: 0..<self.recentFilesTableView.numberOfColumns))
-        if self.recentFilesTableView.selectedRow >= 0,
+        if self.recentDocuments.indices.contains(self.recentFilesTableView.selectedRow),
            !self.recentDocuments[self.recentFilesTableView.selectedRow].isAvailable {
           self.recentFilesTableView.deselectAll(nil)
         }
