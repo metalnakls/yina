@@ -47,12 +47,22 @@ class BufferIndicatorView: TranslucentView {
     fatalError("init(coder:) has not been implemented")
   }
 
+  // Hidden Liquid Glass spinners can limit native fullscreen frame pacing (IINA #6495).
+  override func viewDidHide() {
+    super.viewDidHide()
+    progressIndicator.stopAnimation(nil)
+  }
+
+  override func viewDidUnhide() {
+    super.viewDidUnhide()
+    progressIndicator.startAnimation(nil)
+  }
+
   func update() {
     guard mainWindow.loaded else { return }
 
     if player.info.isNetworkResource {
       isHidden = false
-      progressIndicator.startAnimation(nil)
       progressLabel.stringValue = NSLocalizedString("main.opening_stream", comment:"Opening stream…")
       detailLabel.isHidden = true
     } else {

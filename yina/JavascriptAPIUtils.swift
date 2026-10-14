@@ -163,12 +163,16 @@ class JavascriptAPIUtils: JavascriptAPI, JavascriptAPIUtilsExportable {
       }
 
       stdout.fileHandleForReading.readabilityHandler = { file in
-        guard let output = String(data: file.availableData, encoding: .utf8) else { return }
+        let data = file.availableData
+        guard !data.isEmpty else { file.readabilityHandler = nil; return }
+        guard let output = String(data: data, encoding: .utf8) else { return }
         stdoutContent += output
         stdoutHook?.call(withArguments: [output])
       }
       stderr.fileHandleForReading.readabilityHandler = { file in
-        guard let output = String(data: file.availableData, encoding: .utf8) else { return }
+        let data = file.availableData
+        guard !data.isEmpty else { file.readabilityHandler = nil; return }
+        guard let output = String(data: data, encoding: .utf8) else { return }
         stderrContent += output
         stderrHook?.call(withArguments: [output])
       }
@@ -176,6 +180,8 @@ class JavascriptAPIUtils: JavascriptAPI, JavascriptAPIUtilsExportable {
       do {
         try process.run()
       } catch {
+        stdout.fileHandleForReading.readabilityHandler = nil
+        stderr.fileHandleForReading.readabilityHandler = nil
         reject.call(withArguments: ["Execution failed reporting: \(error.localizedDescription)"])
         return
       }
