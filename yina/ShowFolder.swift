@@ -293,10 +293,28 @@ struct ShowFolderCardArtwork {
   }
 }
 
+private final class ShowFolderCardKeyboardSelectionRingView: NSView {
+  override func draw(_ dirtyRect: NSRect) {
+    super.draw(dirtyRect)
+    guard let context = NSGraphicsContext.current?.cgContext else { return }
+    let path = CGPath(roundedRect: bounds.insetBy(dx: 3, dy: 3),
+                      cornerWidth: ShowFolderCardMetrics.cornerRadius + 1,
+                      cornerHeight: ShowFolderCardMetrics.cornerRadius + 1,
+                      transform: nil)
+    context.setStrokeColor(NSColor.keyboardFocusIndicatorColor.cgColor)
+    context.setLineWidth(2.5)
+    context.addPath(path)
+    context.strokePath()
+  }
+
+  override func hitTest(_ point: NSPoint) -> NSView? { nil }
+}
+
 final class ShowFolderCardView: NSView {
   static let size = ShowFolderCardMetrics.size
 
   private let glassView = NSGlassEffectView()
+  private let keyboardSelectionRing = ShowFolderCardKeyboardSelectionRingView()
   private let cardContentView = NSView()
   private let artworkView = ShowFolderArtworkView()
   private let artworkLegibilityEffect = NSVisualEffectView()
@@ -307,6 +325,9 @@ final class ShowFolderCardView: NSView {
   private let progressView = ShowFolderCardProgressView()
   private(set) var show: ShowFolder
   private(set) var hasThumbnail = false
+  var isKeyboardSelected = false {
+    didSet { keyboardSelectionRing.isHidden = !isKeyboardSelected }
+  }
 
   init(show: ShowFolder, target: AnyObject, openAction: Selector, dismissAction: Selector) {
     self.show = show
@@ -324,6 +345,9 @@ final class ShowFolderCardView: NSView {
     glassView.cornerRadius = ShowFolderCardMetrics.cornerRadius
     glassView.effectIsInteractive = true
     glassView.contentView = cardContentView
+
+    keyboardSelectionRing.translatesAutoresizingMaskIntoConstraints = false
+    keyboardSelectionRing.isHidden = true
 
     artworkView.translatesAutoresizingMaskIntoConstraints = false
 
@@ -386,6 +410,7 @@ final class ShowFolderCardView: NSView {
     playButton.menu = contextMenu
 
     addSubview(glassView)
+    addSubview(keyboardSelectionRing)
     progressView.translatesAutoresizingMaskIntoConstraints = false
     [artworkView, artworkLegibilityEffect, titleLabel, episodeLabel, button, playButton, progressView]
       .forEach(cardContentView.addSubview)
@@ -396,6 +421,10 @@ final class ShowFolderCardView: NSView {
       glassView.trailingAnchor.constraint(equalTo: trailingAnchor),
       glassView.topAnchor.constraint(equalTo: topAnchor),
       glassView.bottomAnchor.constraint(equalTo: bottomAnchor),
+      keyboardSelectionRing.leadingAnchor.constraint(equalTo: leadingAnchor, constant: -4),
+      keyboardSelectionRing.trailingAnchor.constraint(equalTo: trailingAnchor, constant: 4),
+      keyboardSelectionRing.topAnchor.constraint(equalTo: topAnchor, constant: -4),
+      keyboardSelectionRing.bottomAnchor.constraint(equalTo: bottomAnchor, constant: 4),
       artworkView.leadingAnchor.constraint(equalTo: cardContentView.leadingAnchor),
       artworkView.trailingAnchor.constraint(equalTo: cardContentView.trailingAnchor),
       artworkView.topAnchor.constraint(equalTo: cardContentView.topAnchor),
@@ -912,6 +941,12 @@ final class ShowFolderShelfView: NSView {
         stackView.removeArrangedSubview(item)
         stackView.insertArrangedSubview(item, at: desiredIndex)
       }
+    }
+  }
+
+  func setKeyboardSelectedCard(identityPath: String?) {
+    for (path, card) in cards {
+      card.isKeyboardSelected = path == identityPath
     }
   }
 

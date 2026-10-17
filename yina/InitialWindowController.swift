@@ -36,6 +36,7 @@ class InitialWindowController: NSWindowController {
   private let coordinator = WelcomeWindowCoordinator()
   private let folderClassificationCache = WelcomeFolderClassificationCache()
   private var isCheckingAvailability = false
+  private var isRecentListKeyboardActive = false
   private let showFolderShelf = ShowFolderShelfView()
   private let shelfAccessoryController = WelcomeShelfAccessoryController()
   private let showFolderHeader = NSTextField(labelWithString: "Continue Watching")
@@ -405,17 +406,12 @@ class InitialWindowController: NSWindowController {
         if self.recentDocuments.indices.contains(self.recentFilesTableView.selectedRow),
            !self.recentDocuments[self.recentFilesTableView.selectedRow].isAvailable {
           self.recentFilesTableView.deselectAll(nil)
+          self.isRecentListKeyboardActive = false
+          self.showFolderShelf.setKeyboardSelectedCard(identityPath: self.showFolders.first?.identityPath)
         }
-        self.selectFirstRecentDocumentIfNeeded()
         self.updateEmptyState()
       }
     }
-  }
-
-  private func selectFirstRecentDocumentIfNeeded() {
-    guard recentFilesTableView.selectedRow == -1,
-          let firstAvailable = recentDocuments.firstIndex(where: \.isAvailable) else { return }
-    recentFilesTableView.selectRowIndexes(IndexSet(integer: firstAvailable), byExtendingSelection: false)
   }
 
   private func reloadShowFolders() {
@@ -577,11 +573,12 @@ class InitialWindowController: NSWindowController {
     player.openURL(show.resumeURL)
   }
 
-  @discardableResult
-  private func openLeftmostShowFolderCard() -> Bool {
-    guard let show = showFolders.first else { return false }
-    player.openURL(show.resumeURL)
-    return true
+  private func selectRecentDocument(at index: Int) {
+    guard recentDocuments.indices.contains(index), recentDocuments[index].isAvailable else { return }
+    isRecentListKeyboardActive = true
+    showFolderShelf.setKeyboardSelectedCard(identityPath: nil)
+    recentFilesTableView.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
+    recentFilesTableView.scrollRowToVisible(index)
   }
 
   @objc private func dismissShowFolderCard(_ sender: NSMenuItem) {
@@ -607,6 +604,8 @@ class InitialWindowController: NSWindowController {
   }
 
   @objc func onTableClicked() {
+    isRecentListKeyboardActive = true
+    showFolderShelf.setKeyboardSelectedCard(identityPath: nil)
     openRecentItemFromTable(recentFilesTableView.clickedRow)
   }
 
@@ -658,7 +657,6 @@ class InitialWindowController: NSWindowController {
     }
     recentFilesHeader.isHidden = false
     recentFilesTableView.reloadData()
-    selectFirstRecentDocumentIfNeeded()
     updateEmptyState()
   }
 
@@ -673,6 +671,8 @@ class InitialWindowController: NSWindowController {
                            target: self,
                            openAction: #selector(openShowFolderCard(_:)),
                            dismissAction: #selector(dismissShowFolderCard(_:)))
+    showFolderShelf.setKeyboardSelectedCard(
+      identityPath: isRecentListKeyboardActive ? nil : cards.first?.identityPath)
     let hasShows = !cards.isEmpty
     let shelfVisibilityChanged = showFolderShelf.isHidden == hasShows
     showFolderHeader.isHidden = !hasShows
@@ -687,6 +687,9 @@ class InitialWindowController: NSWindowController {
   }
 
   private func reloadRecents() {
+    isRecentListKeyboardActive = false
+    recentFilesTableView.deselectAll(nil)
+    showFolderShelf.setKeyboardSelectedCard(identityPath: showFolders.first?.identityPath)
     let generation = coordinator.currentGeneration
     let collapsedFolderPaths = Set(showFolders.compactMap {
       $0.kind == .folder ? $0.folderURL.standardizedFileURL.path : nil
@@ -731,7 +734,6 @@ class InitialWindowController: NSWindowController {
             Logger.log("InitialWindow.reloadData(): Loaded RecentDocuments[\(index)]: \(document.url.path), available: \(document.isAvailable)", level: .verbose)
           }
         }
-        self.selectFirstRecentDocumentIfNeeded()
       }
     }
   }
@@ -804,30 +806,47 @@ extension InitialWindowController: NSTableViewDelegate, NSTableViewDataSource {
     let keyChar = KeyCodeHelper.keyMap[event.keyCode]?.0
     switch keyChar {
       case "ENTER", "KP_ENTER":  // RETURN or (keypad ENTER)
-        if openLeftmostShowFolderCard() {
-          return
-        }
-        if recentFilesTableView.selectedRow >= 0 {
-          // If user selected a row in the table using the keyboard, use that
-          openRecentItemFromTable(recentFilesTableView.selectedRow)
-        } else if recentFilesTableView.numberOfRows > 0 {
-          // No selection yet: open the first available recent item.
-          openRecentItemFromTable(0)
+        if isRecentListKeyboardActive {
+          if recentDocuments.indices.contains(recentFilesTableView.selectedRow) {
+            openRecentItemFromTable(recentFilesTableView.selectedRow)
+          }
+        } else if let show = showFolders.first {
+          player.openURL(show.resumeURL)
+        } else if let firstAvailable = recentDocuments.firstIndex(where: \.isAvailable) {
+          player.openURL(recentDocuments[firstAvailable].url)
         }
       case "DOWN":  // DOWN arrow
-        if recentDocuments.count == 0 || (recentFilesTableView.selectedRow >= recentFilesTableView.numberOfRows - 1) {
-          super.keyDown(with: event)  // invalid command: beep at user
+        if !isRecentListKeyboardActive {
+          guard let firstAvailable = recentDocuments.firstIndex(where: \.isAvailable) else {
+            super.keyDown(with: event)
+            return
+          }
+          selectRecentDocument(at: firstAvailable)
         } else {
-          // default: let recentFilesTableView handle it
-          recentFilesTableView.keyDown(with: event)
+          let selectedRow = recentFilesTableView.selectedRow
+          let nextAvailable = recentDocuments.indices.first { index in
+            index > selectedRow && recentDocuments[index].isAvailable
+          }
+          if let nextAvailable {
+            selectRecentDocument(at: nextAvailable)
+          }
         }
       case "UP":  // UP arrow
-        if recentFilesTableView.selectedRow <= 0 || recentDocuments.isEmpty {
-          super.keyDown(with: event)  // invalid command: beep at user
-          return
+        if isRecentListKeyboardActive {
+          let selectedRow = recentFilesTableView.selectedRow
+          let previousAvailable = recentDocuments.indices.reversed().first { index in
+            index < selectedRow && recentDocuments[index].isAvailable
+          }
+          if let previousAvailable {
+            selectRecentDocument(at: previousAvailable)
+          } else {
+            recentFilesTableView.deselectAll(nil)
+            isRecentListKeyboardActive = false
+            showFolderShelf.setKeyboardSelectedCard(identityPath: showFolders.first?.identityPath)
+          }
+        } else {
+          super.keyDown(with: event)
         }
-        // default: let recentFilesTableView handle it
-        recentFilesTableView.keyDown(with: event)
       default:
         super.keyDown(with: event)
     }

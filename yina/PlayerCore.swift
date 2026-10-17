@@ -12,6 +12,7 @@ import os.log
 class PlayerCore: NSObject {
   static let minimumVolume = 100.0
   static let maximumVolume = 400.0
+  private static let shortFileLoopThreshold = 10 * 60.0
 
   private lazy var subtitleDissolve = SubtitleDissolve(mpv: mpv)
 
@@ -225,6 +226,9 @@ class PlayerCore: NSObject {
   var overrideAutoSwitchToMusicMode = false
 
   var isSearchingOnlineSubtitle = false
+
+  private var loopModeBeforeShortFileAutoLoop: LoopMode?
+  private var keepCurrentFileWindowed = false
 
   /// For supporting mpv `--shuffle` arg, to shuffle playlist when launching from command line
   @Atomic private var shufflePending = false
@@ -570,6 +574,7 @@ class PlayerCore: NSObject {
     mainWindow.pendingShow = true
     miniPlayer.pendingShow = true
     info.justOpenedFile = true
+    keepCurrentFileWindowed = false
     info.state = .loading
     pendingWindowLoadPath = path
 
@@ -1245,6 +1250,7 @@ class PlayerCore: NSObject {
   }
 
   func togglePlaylistLoop() {
+    loopModeBeforeShortFileAutoLoop = nil
     let loopMode = getLoopMode()
     if loopMode == .playlist {
       setLoopMode(.off)
@@ -1254,6 +1260,7 @@ class PlayerCore: NSObject {
   }
 
   func toggleFileLoop() {
+    loopModeBeforeShortFileAutoLoop = nil
     let loopMode = getLoopMode()
     if loopMode == .file {
       setLoopMode(.off)
@@ -2251,6 +2258,10 @@ class PlayerCore: NSObject {
     let width = mpv.getInt(MPVProperty.width)
     let height = mpv.getInt(MPVProperty.height)
     let duration = mpv.getDouble(MPVProperty.duration)
+    let isManuallyOpenedShortFile = info.justOpenedFile && duration.isFinite && duration > 0 &&
+      duration < Self.shortFileLoopThreshold
+    keepCurrentFileWindowed = isManuallyOpenedShortFile
+    configureLoopModeForLoadedFile(shouldLoop: isManuallyOpenedShortFile)
     let pos = mpv.getDouble(MPVProperty.timePos)
     let remaining = Preference.bool(for: .scaleRemainingTime) ?
       mpv.getDouble(MPVProperty.playtimeRemainingFull) :
@@ -2327,6 +2338,21 @@ class PlayerCore: NSObject {
 
     Task { @MainActor in
       mainWindow.liveText.requestAnalysis()
+    }
+  }
+
+  private func configureLoopModeForLoadedFile(shouldLoop: Bool) {
+    if let loopModeBeforeShortFileAutoLoop {
+      setLoopMode(loopModeBeforeShortFileAutoLoop)
+      self.loopModeBeforeShortFileAutoLoop = nil
+    }
+
+    guard shouldLoop else { return }
+
+    let currentLoopMode = getLoopMode()
+    if currentLoopMode != .file {
+      loopModeBeforeShortFileAutoLoop = currentLoopMode
+      setLoopMode(.file)
     }
   }
 
@@ -2417,7 +2443,13 @@ class PlayerCore: NSObject {
   func fullscreenChanged() {
     guard mainWindow.loaded, info.state.active else { return }
     let fs = mpv.getFlag(MPVOption.Window.fullscreen)
-    if fs != mainWindow.fsState.isFullscreen {
+    if keepCurrentFileWindowed {
+      if mainWindow.fsState.isFullscreen {
+        mainWindow.toggleWindowFullScreen()
+      } else if fs {
+        mpv.setFlag(MPVOption.Window.fullscreen, false)
+      }
+    } else if fs != mainWindow.fsState.isFullscreen {
       mainWindow.toggleWindowFullScreen()
     }
   }
@@ -2729,7 +2761,13 @@ class PlayerCore: NSObject {
     guard mainWindow.loaded else { return }
 
     let fs = mpv.getFlag(MPVOption.Window.fullscreen)
-    if fs != mainWindow.fsState.isFullscreen {
+    if keepCurrentFileWindowed {
+      if mainWindow.fsState.isFullscreen {
+        mainWindow.toggleWindowFullScreen()
+      } else if fs {
+        mpv.setFlag(MPVOption.Window.fullscreen, false)
+      }
+    } else if fs != mainWindow.fsState.isFullscreen {
       DispatchQueue.main.async {
         self.mainWindow.toggleWindowFullScreen()
       }
@@ -2849,7 +2887,8 @@ class PlayerCore: NSObject {
       }
       info.state = Preference.bool(for: .pauseWhenOpen) ? .paused : .playing
       syncUI(.playButton)
-      if Preference.bool(for: .fullScreenWhenOpen) && !mainWindow.fsState.isFullscreen && !isInMiniPlayer {
+      if Preference.bool(for: .fullScreenWhenOpen) && !keepCurrentFileWindowed &&
+          !mainWindow.fsState.isFullscreen && !isInMiniPlayer {
         mainWindow.toggleWindowFullScreen()
       }
     }
