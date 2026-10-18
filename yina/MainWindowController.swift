@@ -1110,7 +1110,7 @@ class MainWindowController: PlayerWindowController {
       oscPlayControlView.setVisibilityPriority(.notVisible, for: oscSpeedLabelLeftContainer)
       oscPlayControlView.setVisibilityPriority(.notVisible, for: oscSpeedLabelRightContainer)
       oscPlayControlView.setVisibilityPriority(.mustHold, for: oscPlayControlMiddleView)
-      oscFloatingView.oscTopView.install(transport: oscPlayControlView, playButton: playButton,
+      oscFloatingView.oscTopView.install(transport: playButton, playButton: playButton,
                                          volume: oscVolumeView, toolbar: oscToolbarView)
       oscFloatingView.oscBottomView.addSubview(oscSliderView)
       Utility.quickConstraints(["H:|[v]|", "V:|[v]|"], ["v": oscSliderView])
