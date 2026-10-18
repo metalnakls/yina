@@ -259,6 +259,7 @@ struct Preference {
     static let subAutoLoadPriorityString = Key("subAutoLoadPriorityString")
     static let subAutoLoadSearchPath = Key("subAutoLoadSearchPath")
     static let ignoreAssStyles = Key("ignoreAssStyles")
+    static let subStyle = Key("subStyle")
     static let subOverrideLevel = Key("subOverrideLevel")
     static let secondarySubOverrideLevel = Key("secondarySubOverrideLevel")
     static let subTextFont = Key("subTextFont")
@@ -1214,6 +1215,7 @@ struct Preference {
     .subAutoLoadPriorityString: "",
     .subAutoLoadSearchPath: "./*",
     .ignoreAssStyles: false,
+    .subStyle: SubtitleStyleID.defaultValue.rawValue,
     .subOverrideLevel: SubOverrideLevel.scale.rawValue,
     .secondarySubOverrideLevel: SubOverrideLevel.scale.rawValue,
     .subTextFont: Constants.String.mpvDefaultFont,

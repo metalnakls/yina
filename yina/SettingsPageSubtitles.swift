@@ -39,12 +39,25 @@ class SettingsPageSubtitles: SettingsPage {
 
   override func content() -> [SettingsSection] {
     return sections {
+      sectionStyle()
       sectionAutoLoad()
       sectionASS()
       sectionText()
       sectionPosition()
       sectionOnlineSubtitles()
       sectionOther()
+    }
+  }
+
+  private func sectionStyle() -> SettingsSection {
+    return section {
+      SettingsList(title: .text_Style) {
+        SettingsItem.PopupButton()
+          .image(name: ["paintbrush.pointed.fill", "paintpalette.fill", "paintbrush.fill"])
+          .bindTo(.subStyle, ofType: SubtitleStyleID.self)
+          .hasDescription()
+          .withHelpLink(AppData.mpvManualLink.appending("/#options-sub-ass-override"))
+      }
     }
   }
 

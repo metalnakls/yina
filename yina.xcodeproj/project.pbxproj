@@ -149,6 +149,7 @@
 		51DE55C92A6646710050AD06 /* Sysctl.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51DE55C82A6646710050AD06 /* Sysctl.swift */; };
 		51E63DFB29CFB031008AFC20 /* PlaySlider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51E63DFA29CFB031008AFC20 /* PlaySlider.swift */; };
 		FBCBA4112026090200000001 /* SubtitleDissolve.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBCBA4112026090200000002 /* SubtitleDissolve.swift */; };
+		FBCBA4112026090200000003 /* SubtitleStyles.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBCBA4112026090200000004 /* SubtitleStyles.swift */; };
 		FBCBA4112026090300000001 /* OSCFloatingTopView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBCBA4112026090300000002 /* OSCFloatingTopView.swift */; };
 		FBCBA4112026091200000001 /* OSCExtendedDynamicRange.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBCBA4112026091200000002 /* OSCExtendedDynamicRange.swift */; };
 		51E63DFD29CFB04C008AFC20 /* PlaySliderLoopKnob.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51E63DFC29CFB04B008AFC20 /* PlaySliderLoopKnob.swift */; };
@@ -667,6 +668,7 @@
 		51DE55C82A6646710050AD06 /* Sysctl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sysctl.swift; sourceTree = "<group>"; };
 		51E63DFA29CFB031008AFC20 /* PlaySlider.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PlaySlider.swift; sourceTree = "<group>"; };
 		FBCBA4112026090200000002 /* SubtitleDissolve.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubtitleDissolve.swift; sourceTree = "<group>"; };
+		FBCBA4112026090200000004 /* SubtitleStyles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubtitleStyles.swift; sourceTree = "<group>"; };
 		FBCBA4112026090300000002 /* OSCFloatingTopView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OSCFloatingTopView.swift; sourceTree = "<group>"; };
 		51E63DFC29CFB04B008AFC20 /* PlaySliderLoopKnob.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PlaySliderLoopKnob.swift; sourceTree = "<group>"; };
 		51EDB4712E85EE10007E5018 /* DisplayController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayController.swift; sourceTree = "<group>"; };
@@ -1362,6 +1364,7 @@
 				843FFD4C1D5DAA01001F3A44 /* RoundedTextFieldCell.swift */,
 				51E63DFA29CFB031008AFC20 /* PlaySlider.swift */,
 				FBCBA4112026090200000002 /* SubtitleDissolve.swift */,
+				FBCBA4112026090200000004 /* SubtitleStyles.swift */,
 				FBCBA4112026090300000002 /* OSCFloatingTopView.swift */,
 				51E63DFC29CFB04B008AFC20 /* PlaySliderLoopKnob.swift */,
 				8461C52D1D45FFF6006E91FF /* PlaySliderCell.swift */,
@@ -2108,6 +2111,7 @@
 				E38BD4AF20054BD9007635FC /* MainWindow.swift in Sources */,
 				51E63DFB29CFB031008AFC20 /* PlaySlider.swift in Sources */,
 				FBCBA4112026090200000001 /* SubtitleDissolve.swift in Sources */,
+				FBCBA4112026090200000003 /* SubtitleStyles.swift in Sources */,
 				FBCBA4112026090300000001 /* OSCFloatingTopView.swift in Sources */,
 				84F5D4A01E44F9DB0060A838 /* KeyBindingItem.swift in Sources */,
 				84E5221323FF3D080006FDA1 /* JavascriptAPIPlaylist.swift in Sources */,

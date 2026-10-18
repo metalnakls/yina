@@ -410,6 +410,8 @@ fileprivate class SubStyleView: NSView {
   private unowned let player: PlayerCore
   private let prefObserver = Preference.Observer()
 
+  private var stylePopUp: NSPopUpButton!
+  private var stylePreview: SubtitleStylePreviewView!
   private var scaleSlider: NSSlider!
   private var fontChooser: NSButton!
   private var borderSizePicker: NSPopUpButton!
@@ -422,6 +424,20 @@ fileprivate class SubStyleView: NSView {
     super.init(frame: .zero)
 
     translatesAutoresizingMaskIntoConstraints = false
+
+    self.stylePopUp = NSPopUpButton()
+    stylePopUp.controlSize = .small
+    stylePopUp.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+    stylePopUp.target = self
+    stylePopUp.action = #selector(chooseSubStyleAction)
+    for style in SubtitleStyleID.allCases {
+      let item = NSMenuItem(title: style.localizedName, action: nil, keyEquivalent: "")
+      item.tag = style.rawValue
+      stylePopUp.menu?.addItem(item)
+    }
+
+    self.stylePreview = SubtitleStylePreviewView()
+    stylePreview.translatesAutoresizingMaskIntoConstraints = false
 
     self.scaleSlider = NSSlider()
     scaleSlider.minValue = -2
@@ -465,8 +481,19 @@ fileprivate class SubStyleView: NSView {
     )
     scaleStack.size(height: 30)
 
+    let styleStack = ui.hStack(
+      spacing: 8,
+      ui.image("paintbrush.pointed.fill", size: 16, config: .sidebarIconConfig),
+      ui.label("sidebar.style", font: .boldSystemFont(ofSize: 12)),
+      ui.flexibleSpace(),
+      stylePopUp,
+    )
+    styleStack.size(height: 24)
+
     let stack = ui.vStack(
       spacing: .sidebarItemSpacing,
+      styleStack,
+      stylePreview,
       scaleStack,
       {
         let label = ui.label("sidebar.font", font: .boldSystemFont(ofSize: 12))
@@ -506,6 +533,7 @@ fileprivate class SubStyleView: NSView {
     addSubview(stack)
     stack.padding(.all)
 
+    updateSelectedStyle()
     updateScale()
     updateTextStyle()
     prefObserver.addAll([
@@ -514,8 +542,15 @@ fileprivate class SubStyleView: NSView {
       .subShadowColorString,
       .subBorderSize,
       .subBorderColorString,
+      .subBorderStyle,
+      .subBold,
+      .subItalic,
+      .subTextSize,
     ]) { [unowned self] _ in
-      updateTextStyle()
+      self.updateTextStyle()
+    }
+    prefObserver.add(.subStyle) { [unowned self] _ in
+      self.updateSelectedStyle()
     }
     prefObserver.add(.subScale) { [unowned self] _ in
       updateScale()
@@ -542,6 +577,12 @@ fileprivate class SubStyleView: NSView {
     scaleSlider.doubleValue = SubtitleScale.sliderValue(for: currSubScale)
   }
 
+  private func updateSelectedStyle() {
+    let selected = SubtitleStyleID(rawValue: Preference.integer(for: .subStyle)) ?? .none
+    stylePopUp.selectItem(withTag: selected.rawValue)
+    updateTextStyle()
+  }
+
   private func updateTextStyle() {
     fontChooser.title = Preference.string(for: .subTextFont) ?? "sans-serif"
 
@@ -563,6 +604,13 @@ fileprivate class SubStyleView: NSView {
         colorWell?.color = color
       }
     }
+
+    stylePreview.preview = SubtitleStyles.Preview.current()
+  }
+
+  @objc private func chooseSubStyleAction(_ sender: NSPopUpButton) {
+    guard let style = SubtitleStyleID(rawValue: sender.selectedTag()) else { return }
+    SubtitleStyles.apply(style)
   }
 
   @objc private func scaleResetButtonAction(_ sender: AnyObject) {
@@ -599,6 +647,115 @@ fileprivate class SubStyleView: NSView {
     case 2: player.setSubTextBgColor(color)
     case 3: player.setSubTextBorderColor(color)
     default: break
+    }
+  }
+
+  required init?(coder: NSCoder) {
+    fatalError("init(coder:) has not been implemented")
+  }
+}
+
+
+/// A miniature rendering of the current subtitle appearance.
+///
+/// Picking between "white on black" and "white with an outline" by name alone is hopeless, so the
+/// style picker shows the actual result. It reads live preferences rather than the selected
+/// profile, which keeps it honest when a profile leaves a knob alone — and makes it double as a
+/// live preview of the font, colour, border and shadow controls underneath it.
+fileprivate class SubtitleStylePreviewView: NSView {
+  var preview: SubtitleStyles.Preview? {
+    didSet { needsDisplay = true }
+  }
+
+  /// mpv's outline and shadow offsets are in subtitle units; scale them into preview points.
+  private static let strokeScale: CGFloat = 1.5
+  private static let boxPadding: CGFloat = 8
+
+  override var intrinsicContentSize: NSSize {
+    NSSize(width: NSView.noIntrinsicMetric, height: 44)
+  }
+
+  override init(frame: NSRect) {
+    super.init(frame: frame)
+    wantsLayer = false
+  }
+
+  override func draw(_ dirtyRect: NSRect) {
+    let bounds = self.bounds
+    drawCheckerboard(in: bounds)
+
+    guard let preview else { return }
+
+    let text = NSLocalizedString("sidebar.sub_style_preview", comment: "")
+    let strokeWidth = preview.outlineSize * SubtitleStylePreviewView.strokeScale
+    let inset = strokeWidth + (preview.isBox ? SubtitleStylePreviewView.boxPadding : 0)
+
+    let textSize = (text as NSString).size(withAttributes: [.font: preview.font])
+    let contentWidth = textSize.width + inset * 2
+    let contentHeight = textSize.height + inset * 2
+    let origin = NSPoint(x: bounds.midX - contentWidth / 2, y: bounds.midY - contentHeight / 2)
+    let textRect = NSRect(x: origin.x + inset, y: origin.y + inset,
+                          width: textSize.width, height: textSize.height)
+
+    if preview.isBox {
+      let boxRect = NSRect(x: origin.x, y: origin.y, width: contentWidth, height: contentHeight)
+      // A neutral base first so a translucent box still reads as a box over the checkerboard.
+      let box = NSBezierPath(roundedRect: boxRect, xRadius: 5, yRadius: 5)
+      NSColor(calibratedWhite: 0.5, alpha: 1).setFill()
+      box.fill()
+      preview.shadowColor.setFill()
+      box.fill()
+    }
+
+    // libass layers shadow, then outline, then fill. Match that order so the preview looks like
+    // the video does.
+    let shadowOffset = preview.shadowSize * SubtitleStylePreviewView.strokeScale
+    if shadowOffset > 0, preview.shadowColor.alphaComponent > 0 {
+      draw(text, at: textRect.offsetBy(dx: shadowOffset, dy: -shadowOffset), font: preview.font,
+           fill: preview.shadowColor, stroke: nil, strokeWidth: 0)
+    }
+    if strokeWidth > 0 {
+      draw(text, at: textRect, font: preview.font, fill: preview.outlineColor,
+           stroke: preview.outlineColor, strokeWidth: strokeWidth)
+    }
+    draw(text, at: textRect, font: preview.font, fill: preview.textColor, stroke: nil,
+         strokeWidth: 0)
+  }
+
+  private func draw(_ text: String, at rect: NSRect, font: NSFont, fill: NSColor, stroke: NSColor?,
+                    strokeWidth: CGFloat) {
+    var attributes: [NSAttributedString.Key: Any] = [
+      .font: font,
+      .foregroundColor: fill,
+      // A negative width makes AppKit fill instead of stroke.
+      .strokeWidth: stroke != nil && strokeWidth > 0 ? strokeWidth : -1,
+    ]
+    if let stroke {
+      attributes[.strokeColor] = stroke
+    }
+    NSAttributedString(string: text, attributes: attributes).draw(in: rect)
+  }
+
+  private func drawCheckerboard(in rect: NSRect) {
+    let clip = NSBezierPath(roundedRect: rect.insetBy(dx: 0.5, dy: 0.5), xRadius: 6, yRadius: 6)
+    clip.addClip()
+
+    let square: CGFloat = 10
+    var row = 0
+    var y = rect.minY
+    while y < rect.maxY {
+      var column = 0
+      var x = rect.minX
+      while x < rect.maxX {
+        if (row + column).isMultiple(of: 2) {
+          NSColor(calibratedWhite: 0.55, alpha: 1).setFill()
+          NSBezierPath(rect: NSRect(x: x, y: y, width: square, height: square)).fill()
+        }
+        x += square
+        column += 1
+      }
+      y += square
+      row += 1
     }
   }
 

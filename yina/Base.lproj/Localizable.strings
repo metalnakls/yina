@@ -579,6 +579,8 @@
 "sidebar.text" = "Text";
 "sidebar.border" = "Border";
 "sidebar.shadow" = "Shadow";
+"sidebar.style" = "Style";
+"sidebar.sub_style_preview" = "The quick brown fox";
 "sidebar.sub_settings_not_available" = "Some settings are not available for this subtitle type.";
 "sidebar.sub_style_warning" = "Setting style options for ASS subtitles may break rendering.";
 
@@ -796,6 +798,14 @@
 "settings.subBorderStyle.items.3" = "Opaque Box";
 "settings.subBorderStyle.items.4" = "Background Box";
 "settings.subBorderStyle.label" = "Border Style";
+"settings.subStyle.items.0" = "Bitchy";
+"settings.subStyle.items.1" = "Classic Yellow";
+"settings.subStyle.items.2" = "White on Black";
+"settings.subStyle.items.3" = "Netflix";
+"settings.subStyle.items.4" = "Beefy";
+"settings.subStyle.items.5" = "None";
+"settings.subStyle.label" = "Style";
+"settings.subStyle.desc" = "A style completely overrides the styling that comes with the subtitle file. “None” leaves it alone.";
 "settings.subBold.label" = "Bold";
 "settings.subItalic.label" = "Italic";
 "settings.subLang.desc" = "This option will be stored as ISO 639-2 language code and will work for both mpv and opensubtitles.";

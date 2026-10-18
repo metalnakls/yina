@@ -124,6 +124,7 @@ extension SettingsLocalization.Key {
   static let text_AutoLoad = SettingsLocalization.Key("$AutoLoad")
   static let text_Border = SettingsLocalization.Key("$Border")
   static let text_Percent = SettingsLocalization.Key("$Percent")
+  static let text_Style = SettingsLocalization.Key("$Style")
 
   // Network
   static let text_Cache = SettingsLocalization.Key("$Cache")

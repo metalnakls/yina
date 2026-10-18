@@ -437,6 +437,12 @@ class MPVController: NSObject {
                   forName: MPVOption.Subtitles.secondarySubAssOverride, verboseIfDefault: true,
                   transformer: subOverrideHandler)
 
+    // A subtitle style is a complete override of the file's own styling, so selecting one has to
+    // rewrite every appearance preference it owns rather than a single mpv option. Observe the
+    // selection here so settings and quick settings share one path.
+    AppEnvironment.defaults.addObserver(self, forKeyPath: PK.subStyle.rawValue, options: [.new, .old],
+                                        context: nil)
+
     // NSFontManager can return a PostScript face name even for TrueType fonts. libass matches
     // TrueType faces by their full name, so resolve the saved identifier before passing it to mpv.
     let subFontNameHandler: OptionObserverInfo.Transformer = { key in
@@ -819,10 +825,17 @@ class MPVController: NSObject {
   }
 
   /// Remove observers for YINA preferences.
+  /// Preference keys observed by this controller that are *not* option observers, because they
+  /// drive more than a single mpv option.
+  private static let extraObservedKeys: [Preference.Key] = [.subStyle]
+
   private func removeOptionObservers() {
     ObjcUtils.silenced {
       self.optionObservers.forEach { (k, _) in
         AppEnvironment.defaults.removeObserver(self, forKeyPath: k)
+      }
+      MPVController.extraObservedKeys.forEach { k in
+        AppEnvironment.defaults.removeObserver(self, forKeyPath: k.rawValue)
       }
     }
   }
@@ -1822,6 +1835,12 @@ class MPVController: NSObject {
     guard !(change?[NSKeyValueChangeKey.oldKey] is NSNull) else { return }
 
     guard let keyPath else { return }
+    if keyPath == Preference.Key.subStyle.rawValue {
+      // Handled here rather than through `optionObservers` because a style spans many options.
+      // `push` leaves `subStyle` untouched, so this cannot re-trigger itself.
+      SubtitleStyles.push(SubtitleStyleID(key: .subStyle) ?? .bitchy)
+      return
+    }
     guard let infos = optionObservers[keyPath] else { return }
 
     // Subtitle animation state belongs to the main run loop. KVO may arrive on the thread
