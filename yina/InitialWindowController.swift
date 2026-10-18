@@ -46,7 +46,7 @@ class InitialWindowController: NSWindowController {
   private var showFolderHeaderHeightConstraint: NSLayoutConstraint?
   private var recentScrollViewTopConstraint: NSLayoutConstraint?
   private var documentIconCache: [String: NSImage] = [:]
-  private var showFolderArtworkCache: [String: ShowFolderCardArtwork] = [:]
+  private var showFolderArtworkCache: [String: (position: Double, artwork: ShowFolderCardArtwork)] = [:]
   private var artworkRequests: [String: WelcomeArtworkRequest] = [:]
 
   override func observeValue(forKeyPath keyPath: String?, of object: Any?, change: [NSKeyValueChangeKey : Any]?, context: UnsafeMutableRawPointer?) {
@@ -503,8 +503,8 @@ class InitialWindowController: NSWindowController {
     var artworkRequests: [ShowFolder] = []
     for show in cards {
       let cacheKey = WelcomeArtworkRequest.cacheName(for: show)
-      if let artwork = showFolderArtworkCache[cacheKey] {
-        artworkByPath[show.identityPath] = artwork
+      if let cached = showFolderArtworkCache[cacheKey], abs(cached.position - show.position) <= 1 {
+        artworkByPath[show.identityPath] = cached.artwork
         continue
       }
       ThumbnailCache.importLegacyPreview(forName: cacheKey, forVideo: show.resumeURL)
@@ -512,7 +512,7 @@ class InitialWindowController: NSWindowController {
       // Only one frame is needed here. Decoding the whole catalog and keeping a
       // single image costs megabytes per card and is repeated on every rescan.
       let highResolutionThumbnail = ThumbnailCache.fileIsCached(forName: cacheKey, forVideo: show.resumeURL, allowUnavailableVideo: true)
-        ? ThumbnailCache.readOne(forName: cacheKey)
+        ? ThumbnailCache.readOne(forName: cacheKey, nearest: show.position, maximumDistance: 1)
         : nil
       let targetTime = show.position
       let cachedFrame = highResolutionThumbnail == nil && ThumbnailCache.fileIsCached(forName: show.thumbnailCacheName, forVideo: show.resumeURL, allowUnavailableVideo: true)
@@ -521,8 +521,8 @@ class InitialWindowController: NSWindowController {
       if let thumbnail = highResolutionThumbnail ?? cachedFrame,
          let artwork = ShowFolderCardArtwork.make(from: thumbnail) {
         artworkByPath[show.identityPath] = artwork
-        if Self.isBackingScaleSufficient(thumbnail) {
-          showFolderArtworkCache[cacheKey] = artwork
+        if highResolutionThumbnail != nil && Self.isBackingScaleSufficient(thumbnail) {
+          showFolderArtworkCache[cacheKey] = (show.position, artwork)
         } else {
           // Show the available preview now and upgrade it without leaving the card blank.
           artworkRequests.append(show)
@@ -534,12 +534,18 @@ class InitialWindowController: NSWindowController {
 
     DispatchQueue.main.async { [weak self] in
       guard let self, self.coordinator.isCurrent(generation) else { return }
-      for show in cards {
+      for show in cards where self.showFolders.contains(where: {
+        $0.identityPath == show.identityPath && $0.resumeURL == show.resumeURL && $0.position == show.position
+      }) {
         if let artwork = artworkByPath[show.identityPath] {
           self.showFolderShelf.setThumbnail(artwork, for: show)
         }
       }
-      artworkRequests.forEach { self.requestArtwork(for: $0, generation: generation) }
+      artworkRequests.filter { requested in
+        self.showFolders.contains(where: {
+          $0.identityPath == requested.identityPath && $0.resumeURL == requested.resumeURL && $0.position == requested.position
+        })
+      }.forEach { self.requestArtwork(for: $0, generation: generation) }
     }
   }
 
@@ -551,16 +557,23 @@ class InitialWindowController: NSWindowController {
 
   private func requestArtwork(for show: ShowFolder, generation: Int) {
     let cacheName = WelcomeArtworkRequest.cacheName(for: show)
-    guard artworkRequests[show.identityPath] == nil else { return }
+    if let existing = artworkRequests[show.identityPath] {
+      guard !existing.matches(show) else { return }
+      existing.cancel()
+      artworkRequests.removeValue(forKey: show.identityPath)
+    }
     let requestID = UUID()
     let request = WelcomeArtworkRequest(id: requestID, show: show) { [weak self] thumbnail in
       guard let self else { return }
       guard self.artworkRequests[show.identityPath]?.id == requestID else { return }
       defer { self.artworkRequests.removeValue(forKey: show.identityPath) }
       guard self.coordinator.isCurrent(generation),
+            self.showFolders.contains(where: {
+              $0.identityPath == show.identityPath && $0.resumeURL == show.resumeURL && $0.position == show.position
+            }),
             let thumbnail,
             let artwork = ShowFolderCardArtwork.make(from: thumbnail) else { return }
-      self.showFolderArtworkCache[cacheName] = artwork
+      self.showFolderArtworkCache[cacheName] = (show.position, artwork)
       self.showFolderShelf.setThumbnail(artwork, for: show)
     }
     artworkRequests[show.identityPath] = request
@@ -1019,6 +1032,10 @@ private final class WelcomeArtworkRequest: NSObject, FFmpegControllerDelegate {
 
   static func cacheName(for show: ShowFolder) -> String {
     "welcome-artwork-480-\(show.thumbnailCacheName)"
+  }
+
+  func matches(_ show: ShowFolder) -> Bool {
+    self.show.resumeURL == show.resumeURL && self.show.position == show.position
   }
 
   func start() {

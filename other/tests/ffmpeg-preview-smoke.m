@@ -14,7 +14,7 @@
 
 @interface FFmpegController (Testing)
 - (int)getPeeksForFile:(NSString *)file thumbnailsWidth:(int)width requestedTime:(double)time operation:(NSOperation *)operation;
-- (void)saveThumbnail:(AVFrame *)frame width:(int)width height:(int)height index:(int)index realTime:(int)time forFile:(NSString *)file;
+- (void)saveThumbnail:(AVFrame *)frame width:(int)width height:(int)height index:(int)index realTime:(double)time forFile:(NSString *)file;
 @end
 
 static int descriptorCount(void) {
@@ -110,6 +110,20 @@ int main(int argc, const char **argv) {
     FFThumbnail *delivered = consumer.results.firstObject;
     NSCAssert([delivered.image CGImageForProposedRect:NULL context:nil hints:nil] != NULL,
               @"delivered image survives producer cleanup");
+    controller.thumbnailCount = 1;
+    [controller generateThumbnailForFile:[NSString stringWithUTF8String:argv[2]] atTime:0.7 thumbWidth:64];
+    [queue waitUntilAllOperationsAreFinished];
+    NSCAssert(consumer.succeeded && consumer.results.count == 1, @"saved-position preview delivered");
+    NSCAssert(consumer.results.firstObject.realTime >= 0.7,
+              @"saved-position preview must decode past the backward-seek frame");
+    [controller generateThumbnailForFile:[NSString stringWithUTF8String:argv[2]] atTime:1000000 thumbWidth:64];
+    [queue waitUntilAllOperationsAreFinished];
+    NSCAssert(consumer.succeeded && consumer.results.count == 1 && consumer.results.firstObject.realTime >= 0.9,
+              @"end-of-file saved positions retain the final available preview");
+    NSBitmapImageRep *lastFrame = [NSBitmapImageRep imageRepWithData:consumer.results.firstObject.image.TIFFRepresentation];
+    NSColor *lastColor = [[lastFrame colorAtX:32 y:18] colorUsingColorSpace:NSColorSpace.deviceRGBColorSpace];
+    NSCAssert(MAX(lastColor.redComponent, MAX(lastColor.greenComponent, lastColor.blueComponent)) > 0.05,
+              @"the ending preview must not reuse the black opening keyframe");
     ControlledPreview *cancelled = [ControlledPreview new];
     PreviewConsumer *cancelledConsumer = [PreviewConsumer new];
     cancelled.delegate = cancelledConsumer;

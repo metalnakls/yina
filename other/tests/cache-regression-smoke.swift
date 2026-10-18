@@ -100,6 +100,15 @@ extension FileHandle {
     check(ThumbnailCache.readOne(forName: "valid", nearest: .nan) == nil, "invalid caller timestamp is rejected")
     check(FileManager.default.fileExists(atPath: directory.appendingPathComponent("valid").path), "bad caller input preserves valid cache")
 
+    try write("saved-position", cache(frames: [(0, red)]))
+    check(ThumbnailCache.readOne(forName: "saved-position", nearest: 120, maximumDistance: 1) == nil,
+          "opening artwork is rejected after playback advances")
+    check(FileManager.default.fileExists(atPath: directory.appendingPathComponent("saved-position").path),
+          "stale artwork is preserved until replacement succeeds")
+    try write("saved-position", cache(frames: [(120.25, blue)]))
+    check(isBlue(ThumbnailCache.readOne(forName: "saved-position", nearest: 120, maximumDistance: 1)),
+          "current saved-position artwork is reused")
+
     // Failed image encoding must not truncate an existing cache.
     let video = directory.appendingPathComponent("video")
     try Data([1]).write(to: video)

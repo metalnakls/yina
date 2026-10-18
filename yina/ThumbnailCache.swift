@@ -188,9 +188,12 @@ class ThumbnailCache {
   ///
   /// - Parameter name:       cache file name.
   /// - Parameter targetTime: when set, return the frame nearest this time.
+  /// - Parameter maximumDistance: reject a stale frame farther from the requested time.
   /// - Returns: the requested preview, or `nil` when the file cannot be read.
-  static func readOne(forName name: String, nearest targetTime: Double? = nil) -> NSImage? {
-    guard targetTime?.isFinite != false else { return nil }
+  static func readOne(forName name: String, nearest targetTime: Double? = nil,
+                      maximumDistance: Double? = nil) -> NSImage? {
+    guard targetTime?.isFinite != false,
+          maximumDistance.map({ $0.isFinite && $0 >= 0 && targetTime != nil }) != false else { return nil }
     let pathURL = urlFor(name)
     guard let file = try? FileHandle(forReadingFrom: pathURL) else { return nil }
     defer { file.closeFile() }
@@ -213,6 +216,8 @@ class ThumbnailCache {
       file.seek(toFileOffset: header.dataOffset + UInt64(header.dataLength))
     }
     guard let selected else { return nil }
+    if let targetTime, let maximumDistance,
+       abs(selected.timestamp - targetTime) > maximumDistance { return nil }
     file.seek(toFileOffset: selected.dataOffset)
     guard let image = decodeImage(file.readData(ofLength: selected.dataLength), headroom: selected.headroom) else {
       deleteCacheFile(at: pathURL)

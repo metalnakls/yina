@@ -472,6 +472,9 @@ class MainWindowController: PlayerWindowController {
     return view
   }()
 
+  private var oscSliderLabelConstraints: [NSLayoutConstraint] = []
+  private var oscSliderOnlyConstraints: [NSLayoutConstraint] = []
+
   private var videoViewConstraints: [NSLayoutConstraint.Attribute: NSLayoutConstraint] = [:]
   private var videoContainerConstraints: [NSLayoutConstraint.Attribute: NSLayoutConstraint] = [:]
 
@@ -639,10 +642,19 @@ class MainWindowController: PlayerWindowController {
     oscSliderView.addSubview(rightLabel)
     oscSliderView.addSubview(playSlider)
     leftLabel.widthAnchor.constraint(equalTo: rightLabel.widthAnchor).isActive = true
-    leftLabel.padding(.leading(2)).spacing(.trailing(2), to: playSlider)
-      .center(.y, with: playSlider)
-    rightLabel.padding(.trailing(2)).spacing(.leading(2), to: playSlider)
-      .center(.y, with: playSlider)
+    leftLabel.center(.y, with: playSlider)
+    rightLabel.center(.y, with: playSlider)
+    oscSliderLabelConstraints = [
+      leftLabel.leadingAnchor.constraint(equalTo: oscSliderView.leadingAnchor, constant: 2),
+      playSlider.leadingAnchor.constraint(equalTo: leftLabel.trailingAnchor, constant: 2),
+      rightLabel.trailingAnchor.constraint(equalTo: oscSliderView.trailingAnchor, constant: -2),
+      rightLabel.leadingAnchor.constraint(equalTo: playSlider.trailingAnchor, constant: 2)
+    ]
+    NSLayoutConstraint.activate(oscSliderLabelConstraints)
+    oscSliderOnlyConstraints = [
+      playSlider.leadingAnchor.constraint(equalTo: oscSliderView.leadingAnchor, constant: 8),
+      playSlider.trailingAnchor.constraint(equalTo: oscSliderView.trailingAnchor, constant: -8)
+    ]
     oscPlaySliderTopConstraint = playSlider.topAnchor.constraint(equalTo: oscSliderView.topAnchor,
                                                                  constant: DockedOSCLayout.playSliderInset)
     oscPlaySliderBottomConstraint = oscSliderView.bottomAnchor.constraint(equalTo: playSlider.bottomAnchor,
@@ -922,10 +934,15 @@ class MainWindowController: PlayerWindowController {
       videoView.superview?.removeFromSuperview()
       videoViewContainer.addSubview(videoView)
     }
-    // The constraints are pinned to `videoViewContainer`, which never changes, so they survive the
-    // move to and from the PiP window and must not be rebuilt. Tearing them down forces a full
-    // layout pass of the content view while the PiP animation is still running, which is what
-    // makes the transition stutter.
+    videoView.translatesAutoresizingMaskIntoConstraints = false
+    if videoViewConstraints.isEmpty {
+      videoViewConstraints = [
+        .leading: videoView.leadingAnchor.constraint(equalTo: videoViewContainer.leadingAnchor),
+        .trailing: videoViewContainer.trailingAnchor.constraint(equalTo: videoView.trailingAnchor),
+        .top: videoView.topAnchor.constraint(equalTo: videoViewContainer.topAnchor),
+        .bottom: videoViewContainer.bottomAnchor.constraint(equalTo: videoView.bottomAnchor)
+      ]
+    }
     layoutSides.forEach { videoViewConstraints[$0]?.isActive = true }
   }
 
@@ -1080,7 +1097,6 @@ class MainWindowController: PlayerWindowController {
     [oscFloatingView, oscBottomView].forEach { $0.isHidden = true }
 
     oscFloatingView.isDragging = false
-    oscFloatingView.oscTopView.uninstall()
 
     // detach all fragment views
     [titleBarView.oscView, oscBottomView.oscView].forEach { stackView in
@@ -1110,8 +1126,6 @@ class MainWindowController: PlayerWindowController {
       oscPlayControlView.setVisibilityPriority(.notVisible, for: oscSpeedLabelLeftContainer)
       oscPlayControlView.setVisibilityPriority(.notVisible, for: oscSpeedLabelRightContainer)
       oscPlayControlView.setVisibilityPriority(.mustHold, for: oscPlayControlMiddleView)
-      oscFloatingView.oscTopView.install(transport: playButton, playButton: playButton,
-                                         volume: oscVolumeView, toolbar: oscToolbarView)
       oscFloatingView.oscBottomView.addSubview(oscSliderView)
       Utility.quickConstraints(["H:|[v]|", "V:|[v]|"], ["v": oscSliderView])
       oscFloatingView.initPosition()
@@ -1156,6 +1170,10 @@ class MainWindowController: PlayerWindowController {
     (playButton as? OSCButton)?.setQuickTimeStyle(enabled, role: .primary)
     (rightArrowButton as? OSCButton)?.setQuickTimeStyle(enabled, role: .transport)
     playSlider.setQuickTimeStyle(enabled)
+    NSLayoutConstraint.deactivate(enabled ? oscSliderLabelConstraints : oscSliderOnlyConstraints)
+    NSLayoutConstraint.activate(enabled ? oscSliderOnlyConstraints : oscSliderLabelConstraints)
+    leftLabel.isHidden = enabled
+    rightLabel.isHidden = enabled
     oscPlaySliderTopConstraint.constant = DockedOSCLayout.playSliderInset
     oscPlaySliderBottomConstraint.constant = DockedOSCLayout.playSliderInset
 
@@ -1808,8 +1826,10 @@ class MainWindowController: PlayerWindowController {
     // first and hides the window here, once AppKit has finished the transition.
     if isHidingWindowForPIP {
       isHidingWindowForPIP = false
-      isWindowHidden = true
-      window?.orderOut(self)
+      if pipStatus == .inPIP {
+        isWindowHidden = true
+        window?.orderOut(self)
+      }
     }
 
     if player.info.state == .paused {
@@ -1843,6 +1863,7 @@ class MainWindowController: PlayerWindowController {
 
     player.events.emit(.windowFullscreenChanged, data: false)
     NotificationCenter.default.post(name: .yinaFullscreenChanged, object: nil, userInfo: ["enable": false])
+    restoreFullscreenAfterPIPIfNeeded()
   }
 
   /// Called if the window failed to exit full screen mode.
@@ -1854,6 +1875,7 @@ class MainWindowController: PlayerWindowController {
   /// - Parameter window: The window that failed to exit to full screen mode.
   func windowDidFailToExitFullScreen(_ window: NSWindow) {
     log("AppKit failed to exit full screen mode! Restoring full screen state", level: .error)
+    clearPendingFullscreenRestore()
     guard case .animating(let toFullscreen, let priorWindowedFrame) = fsState,
             !toFullscreen else {
       // Must not occur! Represents an error in YINA or AppKit.
@@ -3076,7 +3098,8 @@ class MainWindowController: PlayerWindowController {
 extension MainWindowController: PIPViewControllerDelegate {
 
   func enterPIP() {
-    guard pipStatus != .inPIP else { return }
+    guard pipStatus == .notInPIP else { return }
+    if case .animating = fsState { return }
     shouldRestoreWindowAfterPIP = true
     pipStatus = .inPIP
     liveText.clearAnalysis()
@@ -3092,7 +3115,8 @@ extension MainWindowController: PIPViewControllerDelegate {
     // operation. Doing it on the next main loop turn keeps that cost out of the first frame of
     // the PiP presentation animation.
     DispatchQueue.main.async { [weak self] in
-      self?.pipOverlayView.isHidden = false
+      guard let self, self.pipStatus == .inPIP else { return }
+      self.pipOverlayView.isHidden = false
     }
     syncPIPPlaybackState()
 
@@ -3156,13 +3180,10 @@ extension MainWindowController: PIPViewControllerDelegate {
     addVideoViewToWindow()
     oscFloatingView.updatePosition()
 
-    // Return to full screen now that the window is back on screen. Doing it here rather than at
-    // entry means AppKit creates the full screen Space on the display the window actually
-    // returned to, instead of stranding the app in the Space it started from.
-    let shouldRestoreFullscreen = wasFullscreenBeforePIP
-    clearPendingFullscreenRestore()
-    if shouldRestoreFullscreen, isRestoringWindow {
-      window?.toggleFullScreen(self)
+    if isRestoringWindow {
+      restoreFullscreenAfterPIPIfNeeded()
+    } else {
+      clearPendingFullscreenRestore()
     }
 
     // Similarly, we need to run a redraw here as well. We check to make sure we are paused, because
@@ -3226,6 +3247,13 @@ extension MainWindowController: PIPViewControllerDelegate {
     // The system close button should dismiss PiP without restoring YINA's window.
     shouldRestoreWindowAfterPIP = false
     player.pause()
+  }
+
+  private func restoreFullscreenAfterPIPIfNeeded() {
+    guard wasFullscreenBeforePIP, pipStatus == .notInPIP,
+          case .windowed = fsState else { return }
+    clearPendingFullscreenRestore()
+    window?.toggleFullScreen(self)
   }
 
   /// Abandon any full screen restoration, for example when PiP closes without restoring the window.

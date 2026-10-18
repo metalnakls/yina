@@ -8,11 +8,6 @@ import CoreImage
 //  Copyright © 2026 lhc. All rights reserved.
 //
 
-fileprivate extension LayoutValue {
-  static let oscPaddingTop = LayoutValue(14, 10)
-  static let oscPaddingBottom = LayoutValue(8, 5)
-}
-
 /// Button used by the floating OSC so AppKit keeps the native tracking path active.
 class OSCButton: NSButton {
   enum Role {
@@ -175,11 +170,7 @@ private final class OSCFloatingContentView: NSView {
   override func hitTest(_ point: NSPoint) -> NSView? {
     guard bounds.contains(point), let mainWindow else { return nil }
 
-    var controls: [NSView] = mainWindow.oscToolbarView?.subviews ?? []
-    controls.append(contentsOf: [mainWindow.volumeSlider, mainWindow.muteButton,
-                                 mainWindow.playButton,
-                                 mainWindow.leftLabel,
-                                 mainWindow.rightLabel, mainWindow.playSlider].compactMap { $0 })
+    let controls: [NSView] = [mainWindow.playSlider].compactMap { $0 }
     for control in controls.reversed()
       where control.isDescendant(of: self) && !control.isHiddenOrHasHiddenAncestor {
       let localPoint = control.convert(point, from: self)
@@ -216,13 +207,12 @@ private final class OSCFloatingDragSurface: NSView {
 
 
 class OSCFloatingView: TranslucentView {
-  /// Padding kept between the bar and the edges of the video. The bar spans nearly the whole
-  /// width in the manner of the picture in picture controls, but never touches the edges.
-  static let horizontalInset: CGFloat = 96
+  static let preferredWidth: CGFloat = 460
+  static let horizontalInset: CGFloat = 48
   /// Distance kept between the bar and the bottom of the video.
   static let verticalMargin: CGFloat = 25
   /// Fallback height used for clamping before the bar has been laid out.
-  private static let assumedHeight: CGFloat = 67
+  private static let assumedHeight: CGFloat = 40
 
   static var hiddenBlurRadius: CGFloat {
     CGFloat(min(max(Preference.float(for: .oscDissolveBlurRadius), 0), 48))
@@ -235,10 +225,8 @@ class OSCFloatingView: TranslucentView {
   private var prefersUnfilteredVisibleAppearance = false
   private var dissolveAnimationInProgress = false
 
-  var oscTopView: OSCFloatingTopView!
   var oscBottomView: TimeLabelOverflowedStackView!
 
-  private var widthConstraint: NSLayoutConstraint!
   private var yConstraint: NSLayoutConstraint!
 
   var mousePosRelatedToView: CGPoint?
@@ -282,21 +270,10 @@ class OSCFloatingView: TranslucentView {
     dragSurface.padding(.all)
     container.dragSurface = dragSurface
 
-    self.oscTopView = OSCFloatingTopView()
-    oscTopView.translatesAutoresizingMaskIntoConstraints = false
-    container.addSubview(oscTopView)
-    oscTopView.padding(.top(.oscPaddingTop), .horizontal(12))
-
     self.oscBottomView = TimeLabelOverflowedStackView()
     oscBottomView.translatesAutoresizingMaskIntoConstraints = false
     container.addSubview(oscBottomView)
-    oscBottomView.padding(.bottom(.oscPaddingBottom), .horizontal(8))
-      .spacing(.top(8), to: oscTopView)
-
-    let widthConstraint = widthAnchor.constraint(equalToConstant: 0)
-    widthConstraint.priority = .init(300)
-    widthConstraint.isActive = true
-    self.widthConstraint = widthConstraint
+    oscBottomView.padding(.vertical(8), .horizontal(8))
 
     setContent(container)
 
@@ -306,18 +283,9 @@ class OSCFloatingView: TranslucentView {
     }
   }
 
-  /// The control bar is always plain glass, matching the picture in picture overlay.
-
-  ///
-  /// The previous implementation forced a `hudWindow` material and a dark appearance, which is
-  /// what made the bar read as a light or dark slab rather than as glass over the video.
   override func setStyle(_ newStyle: TranslucentView.Style, force: Bool = false) {
-    super.setStyle(.visualEffect, force: force)
-    guard let visualEffectView = container as? NSVisualEffectView else { return }
-    visualEffectView.blendingMode = .behindWindow
-    visualEffectView.material = .underWindowBackground
-    visualEffectView.state = .followsWindowActiveState
-    visualEffectView.appearance = nil
+    super.setStyle(.liquidGlass, force: force)
+    (container as? NSGlassEffectView)?.style = .clear
   }
 
   /// Sets the starting blur without animation. Used only while the OSC is fully transparent.
@@ -387,21 +355,15 @@ class OSCFloatingView: TranslucentView {
   func setupConstraints() {
     let videoView = mainWindow.videoViewContainer!
 
-    // The bar spans nearly the whole video in the manner of the picture in picture controls, but
-    // never touches the edges. It is always centred horizontally; only the vertical position is
-    // the user's to tune.
-    widthConstraint = widthAnchor.constraint(equalTo: videoView.widthAnchor,
-                                              constant: -2 * Self.horizontalInset)
-    widthConstraint.priority = .defaultHigh
-    widthConstraint.isActive = true
-
+    let preferredWidth = widthAnchor.constraint(equalToConstant: Self.preferredWidth)
+    preferredWidth.priority = .defaultHigh
+    preferredWidth.isActive = true
+    widthAnchor.constraint(lessThanOrEqualTo: videoView.widthAnchor, multiplier: 0.7).isActive = true
     centerXAnchor.constraint(equalTo: videoView.centerXAnchor).isActive = true
-
-    // Keep the bar inside the video no matter how wide it grows.
     leadingAnchor.constraint(greaterThanOrEqualTo: videoView.leadingAnchor,
-                             constant: Self.horizontalInset / 2).isActive = true
+                             constant: Self.horizontalInset).isActive = true
     trailingAnchor.constraint(lessThanOrEqualTo: videoView.trailingAnchor,
-                              constant: -Self.horizontalInset / 2).isActive = true
+                              constant: -Self.horizontalInset).isActive = true
 
     yConstraint = videoView.bottomAnchor.constraint(equalTo: bottomAnchor)
     yConstraint.priority = .defaultHigh
@@ -411,7 +373,7 @@ class OSCFloatingView: TranslucentView {
   func initPosition() {
     let videoView = mainWindow.videoViewContainer!
     let cpv = Preference.float(for: .controlBarPositionVertical)
-    yConstraint.constant = videoView.frame.height * CGFloat(cpv)
+    yConstraint.constant = clampedY(videoView.frame.height * CGFloat(cpv), inHeight: videoView.frame.height)
   }
 
   func updatePosition() {

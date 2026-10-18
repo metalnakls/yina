@@ -57,7 +57,7 @@ return -1;\
 }
 
 - (int)getPeeksForFile:(NSString *)file thumbnailsWidth:(int)thumbnailsWidth requestedTime:(double)requestedTime operation:(NSOperation *)operation;
-- (void)saveThumbnail:(AVFrame *)pFrame width:(int)width height:(int)height index:(int)index realTime:(int)second forFile:(NSString *)file;
+- (void)saveThumbnail:(AVFrame *)pFrame width:(int)width height:(int)height index:(int)index realTime:(double)second forFile:(NSString *)file;
 - (void)releaseThumbnailResults;
 
 @end
@@ -243,17 +243,27 @@ return -1;\
     int64_t duration = av_rescale_q(pFormatCtx->duration, AV_TIME_BASE_Q, pVideoStream->time_base);
     double interval = duration / (double)self.thumbnailCount;
     double timebaseDouble = av_q2d(pVideoStream->time_base);
-    AVPacket packet;
+    AVPacket packet = {0};
     BOOL hasRequestedTime = isfinite(requestedTime);
     int lastThumbnailIndex = hasRequestedTime ? 0 : self.thumbnailCount;
+    int64_t streamStart = pVideoStream->start_time == AV_NOPTS_VALUE ? 0 : pVideoStream->start_time;
+    double frameDuration = 1.0 / av_q2d(videoAvgFrameRate);
+    double targetTime = MAX(0, requestedTime);
+    double videoDuration = pVideoStream->duration > 0 && pVideoStream->duration != AV_NOPTS_VALUE
+      ? pVideoStream->duration * timebaseDouble : pFormatCtx->duration / (double)AV_TIME_BASE;
+    if (hasRequestedTime && videoDuration > 0) {
+      targetTime = MIN(targetTime, MAX(0, videoDuration - frameDuration));
+    }
+    int64_t halfFrame = av_rescale_q((int64_t)(frameDuration * AV_TIME_BASE / 2),
+                                    AV_TIME_BASE_Q, pVideoStream->time_base);
 
     // For each preview point
     for (i = 0; i <= lastThumbnailIndex; i++) {
       if (operation.isCancelled) { return -1; }
       int64_t seek_pos = hasRequestedTime
-        ? av_rescale_q((int64_t)MAX(0, requestedTime * AV_TIME_BASE),
-                       AV_TIME_BASE_Q, pVideoStream->time_base) + pVideoStream->start_time
-        : interval * i + pVideoStream->start_time;
+        ? av_rescale_q((int64_t)(targetTime * AV_TIME_BASE),
+                       AV_TIME_BASE_Q, pVideoStream->time_base) + streamStart
+        : interval * i + streamStart;
 
       avcodec_flush_buffers(pCodecCtx);
 
@@ -265,21 +275,32 @@ return -1;\
       avcodec_flush_buffers(pCodecCtx);
 
       // Read and decode frame
-      while(!operation.isCancelled && av_read_frame(pFormatCtx, &packet) >= 0) {
+      BOOL draining = NO;
+      while (!operation.isCancelled) {
+        BOOL sendPacket = !draining;
+        if (!draining && av_read_frame(pFormatCtx, &packet) < 0) {
+          draining = YES;
+        }
         @try {
-          // Make sure it's video stream
-          if (packet.stream_index == videoStream) {
+          // Flush delayed frames at EOF too, especially for a saved position near the end.
+          if (draining || packet.stream_index == videoStream) {
 
-            // Decode video frame
-            if (avcodec_send_packet(pCodecCtx, &packet) < 0)
+            if (sendPacket && avcodec_send_packet(pCodecCtx, draining ? NULL : &packet) < 0)
               break;
 
             ret = avcodec_receive_frame(pCodecCtx, pFrame);
             if (ret < 0) {  // something happened
-              if (ret == AVERROR(EAGAIN))  // input not ready, retry
+              if (ret == AVERROR(EAGAIN) && !draining)  // input not ready, retry
                 continue;
               else
                 break;
+            }
+
+            // Backward seeking finds a keyframe, which can precede the saved position by seconds.
+            // Decode through it instead of permanently caching that earlier (possibly black) frame.
+            if (hasRequestedTime && pFrame->best_effort_timestamp != AV_NOPTS_VALUE &&
+                pFrame->best_effort_timestamp + halfFrame < seek_pos) {
+              continue;
             }
 
             // Check if duplicated
@@ -340,7 +361,7 @@ return -1;\
                           width:pFrameRGB->width
                          height:pFrameRGB->height
                           index:i
-                       realTime:(pFrame->best_effort_timestamp * timebaseDouble)
+                       realTime:((pFrame->best_effort_timestamp - streamStart) * timebaseDouble)
                         forFile:file];
             break;
           }
@@ -433,7 +454,7 @@ static inline uint8_t YINAToneMapHDRToSRGB(uint16_t V, bool isPQ) {
                      :(int)width height
                      :(int)height index
                      :(int)index realTime
-                     :(int)second forFile
+                     :(double)second forFile
                      :(NSString *)file
 {
   // Create CGImage
