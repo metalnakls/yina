@@ -326,7 +326,10 @@ final class ShowFolderCardView: NSView {
   private(set) var show: ShowFolder
   private(set) var hasThumbnail = false
   var isKeyboardSelected = false {
-    didSet { keyboardSelectionRing.isHidden = !isKeyboardSelected }
+    didSet {
+      keyboardSelectionRing.isHidden = true
+      button.setAccessibilityValue(isKeyboardSelected ? 1 : 0)
+    }
   }
 
   init(show: ShowFolder, target: AnyObject, openAction: Selector, dismissAction: Selector) {
@@ -371,6 +374,7 @@ final class ShowFolderCardView: NSView {
 
     playButton.translatesAutoresizingMaskIntoConstraints = false
     playButton.isBordered = false
+    playButton.focusRingType = .none
     let playConfiguration = NSImage.SymbolConfiguration(
       pointSize: max(32, NSFont.preferredFont(forTextStyle: .largeTitle).pointSize),
       weight: .bold)
@@ -390,6 +394,7 @@ final class ShowFolderCardView: NSView {
 
     button.translatesAutoresizingMaskIntoConstraints = false
     button.isBordered = false
+    button.focusRingType = .none
     button.title = ""
     button.target = target
     button.action = openAction
@@ -502,7 +507,7 @@ final class ShowFolderCardView: NSView {
     progressView.usesLightTrack = hasThumbnail
     progressView.set(progress: show.progress, position: show.position, duration: show.duration)
     glassView.style = hasThumbnail ? .clear : .regular
-    artworkLegibilityEffect.isHidden = !hasThumbnail
+    artworkLegibilityEffect.isHidden = true
   }
 
   private static func makeLegibilityMask() -> NSImage {
@@ -790,7 +795,7 @@ private final class ShowFolderArtworkView: NSView {
       let fade = CABasicAnimation(keyPath: "opacity")
       fade.fromValue = 0
       fade.toValue = 1
-      fade.duration = 1.8
+      fade.duration = 0.2
       fade.timingFunction = CAMediaTimingFunction(name: .easeOut)
       imageLayer.add(fade, forKey: "previewFade")
     }
@@ -904,6 +909,7 @@ final class ShowFolderShelfView: NSView {
   }
 
   func reload(shows: [ShowFolder], target: AnyObject, openAction: Selector, dismissAction: Selector) {
+    guard dismissingPaths.isEmpty else { return }
     let desiredPaths = Set(shows.map(\.identityPath))
     for (path, item) in items where !desiredPaths.contains(path) && !dismissingPaths.contains(path) {
       stackView.removeArrangedSubview(item)
@@ -973,18 +979,16 @@ final class ShowFolderShelfView: NSView {
         completion()
         return
       }
-      // Once the dismissed card is fully invisible, collapse only its layout
-      // slot. The remaining native stack items then slide into place without
-      // showing a second shrinking copy of the dismissed card.
+      // Remove the invisible slot before reflow. Keeping a zero-width slot
+      // conflicts with the fixed-width card inside it and distorts its siblings.
       NSAnimationContext.runAnimationGroup { context in
         context.duration = reflowDuration
         context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
         context.allowsImplicitAnimation = true
-        item.widthConstraint.constant = 0
-        self.stackView.animator().layoutSubtreeIfNeeded()
-      } completionHandler: {
         self.stackView.removeArrangedSubview(item)
         item.removeFromSuperview()
+        self.layoutSubtreeIfNeeded()
+      } completionHandler: {
         self.cards.removeValue(forKey: path)
         self.items.removeValue(forKey: path)
         self.dismissingPaths.remove(path)

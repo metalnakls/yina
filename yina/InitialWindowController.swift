@@ -218,6 +218,7 @@ class InitialWindowController: NSWindowController {
   private func configureCenteredLayout() {
     guard let window else { return }
 
+    window.standardWindowButton(.closeButton)?.isHidden = true
     window.standardWindowButton(.miniaturizeButton)?.isHidden = true
     window.standardWindowButton(.zoomButton)?.isHidden = true
 
@@ -241,7 +242,7 @@ class InitialWindowController: NSWindowController {
     recentScrollView.drawsBackground = false
     recentScrollView.borderType = .noBorder
     recentScrollView.hasHorizontalScroller = false
-    recentScrollView.hasVerticalScroller = false
+    recentScrollView.hasVerticalScroller = true
     recentScrollView.autohidesScrollers = true
     recentScrollView.automaticallyAdjustsContentInsets = false
     recentScrollView.scrollerStyle = .overlay
@@ -253,7 +254,7 @@ class InitialWindowController: NSWindowController {
     mainView.addSubview(recentScrollView)
     let shelfHeight = showFolderShelf.heightAnchor.constraint(equalToConstant: ShowFolderShelfView.height)
     showFolderShelfHeightConstraint = shelfHeight
-    let showHeaderHeight = showFolderHeader.heightAnchor.constraint(equalToConstant: 17)
+    let showHeaderHeight = showFolderHeader.heightAnchor.constraint(equalToConstant: 0)
     showFolderHeaderHeightConstraint = showHeaderHeight
     let recentScrollTop = recentScrollView.topAnchor.constraint(equalTo: mainView.topAnchor)
     recentScrollViewTopConstraint = recentScrollTop
@@ -307,7 +308,7 @@ class InitialWindowController: NSWindowController {
     let isEmpty = showFolders.isEmpty && recentDocuments.isEmpty
     emptyStateView.isHidden = !isEmpty
     recentScrollView.isHidden = recentDocuments.isEmpty
-    recentFilesHeader.isHidden = recentDocuments.isEmpty
+    recentFilesHeader.isHidden = true
     shelfAccessoryController.view.isHidden = isEmpty
   }
 
@@ -315,6 +316,8 @@ class InitialWindowController: NSWindowController {
     guard let window else { return }
     let root = shelfAccessoryController.view
     root.wantsLayer = true
+    showFolderHeader.isHidden = true
+    recentFilesHeader.isHidden = true
     root.addSubview(showFolderHeader)
     root.addSubview(showFolderShelf)
     root.addSubview(recentFilesHeader)
@@ -340,6 +343,8 @@ class InitialWindowController: NSWindowController {
     window?.setContentSize(NSSize(width: 760, height: 560))
     window?.center()
     updateRecentLayout(resetScrollPosition: true)
+    isRecentListKeyboardActive = false
+    reloadData()
     startAvailabilityRefresh()
   }
 
@@ -552,7 +557,7 @@ class InitialWindowController: NSWindowController {
   private static func isBackingScaleSufficient(_ image: NSImage) -> Bool {
     var rect = NSRect(origin: .zero, size: image.size)
     guard let cgImage = image.cgImage(forProposedRect: &rect, context: nil, hints: nil) else { return false }
-    return cgImage.width >= 480 && cgImage.height >= 256
+    return cgImage.width >= 960 && cgImage.height >= 512
   }
 
   private func requestArtwork(for show: ShowFolder, generation: Int) {
@@ -602,10 +607,19 @@ class InitialWindowController: NSWindowController {
     ShowFolderSnapshotStore.save(showFolders)
     showFolderShelf.dismissCard(for: show) { [weak self] in
       guard let self else { return }
-      self.showFolderHeader.isHidden = self.showFolders.isEmpty
+      self.showFolderHeader.isHidden = true
       self.showFolderShelf.isHidden = self.showFolders.isEmpty
       self.showFolderShelfHeightConstraint?.constant = self.showFolders.isEmpty ? 0 : ShowFolderShelfView.height
       self.coordinator.invalidate()
+      self.cancelArtworkRequests()
+      self.showFolderShelf.reload(shows: self.showFolders, target: self,
+                                 openAction: #selector(self.openShowFolderCard(_:)),
+                                 dismissAction: #selector(self.dismissShowFolderCard(_:)))
+      let generation = self.coordinator.currentGeneration
+      let cards = self.showFolders
+      self.availabilityQueue.async { [weak self] in
+        self?.loadShowFolderArtwork(for: cards, generation: generation)
+      }
       self.reloadRecents()
       self.updateRecentLayout(resetScrollPosition: true)
     }
@@ -688,9 +702,9 @@ class InitialWindowController: NSWindowController {
       identityPath: isRecentListKeyboardActive ? nil : cards.first?.identityPath)
     let hasShows = !cards.isEmpty
     let shelfVisibilityChanged = showFolderShelf.isHidden == hasShows
-    showFolderHeader.isHidden = !hasShows
+    showFolderHeader.isHidden = true
     showFolderShelf.isHidden = !hasShows
-    showFolderHeaderHeightConstraint?.constant = hasShows ? 17 : 0
+    showFolderHeaderHeightConstraint?.constant = 0
     showFolderShelfHeightConstraint?.constant = hasShows ? ShowFolderShelfView.height : 0
     if shelfVisibilityChanged {
       mainView.layoutSubtreeIfNeeded()
@@ -700,9 +714,10 @@ class InitialWindowController: NSWindowController {
   }
 
   private func reloadRecents() {
-    isRecentListKeyboardActive = false
-    recentFilesTableView.deselectAll(nil)
-    showFolderShelf.setKeyboardSelectedCard(identityPath: showFolders.first?.identityPath)
+    if !isRecentListKeyboardActive {
+      recentFilesTableView.deselectAll(nil)
+      showFolderShelf.setKeyboardSelectedCard(identityPath: showFolders.first?.identityPath)
+    }
     let generation = coordinator.currentGeneration
     let collapsedFolderPaths = Set(showFolders.compactMap {
       $0.kind == .folder ? $0.folderURL.standardizedFileURL.path : nil
@@ -726,7 +741,7 @@ class InitialWindowController: NSWindowController {
         let previousDocuments = self.recentDocuments
         self.recentDocuments = documents
         WelcomeRecentSnapshotStore.save(documents.map(\.url))
-        self.recentFilesHeader.isHidden = documents.isEmpty
+        self.recentFilesHeader.isHidden = true
         let documentListChanged = previousDocuments.count != documents.count ||
           zip(previousDocuments, documents).contains { old, new in
             self.documentIdentity(old.url) != self.documentIdentity(new.url) ||
@@ -752,8 +767,8 @@ class InitialWindowController: NSWindowController {
   }
 
   private func updateRecentLayout(resetScrollPosition: Bool = false) {
-    let headerHeight = max(showFolderHeader.intrinsicContentSize.height, 17)
-    let recentHeaderHeight = max(recentFilesHeader.intrinsicContentSize.height, 17)
+    let headerHeight: CGFloat = 0
+    let recentHeaderHeight: CGFloat = 0
     let shelfHeight = showFolders.isEmpty ? CGFloat(0) : ShowFolderShelfView.height
     let sectionOffset = showFolders.isEmpty ? CGFloat(0) : headerHeight + 6 + shelfHeight + 18
     let accessoryHeight = 20 + sectionOffset + recentHeaderHeight + 6
@@ -786,6 +801,12 @@ extension InitialWindowController: NSTableViewDelegate, NSTableViewDataSource {
 
   func tableView(_ tableView: NSTableView, selectionIndexesForProposedSelection proposedSelectionIndexes: IndexSet) -> IndexSet {
     IndexSet(proposedSelectionIndexes.filter { recentDocuments[$0].isAvailable })
+  }
+
+  func tableViewSelectionDidChange(_ notification: Notification) {
+    guard recentFilesTableView.selectedRow >= 0 else { return }
+    isRecentListKeyboardActive = true
+    showFolderShelf.setKeyboardSelectedCard(identityPath: nil)
   }
 
   func numberOfRows(in tableView: NSTableView) -> Int {
@@ -1031,7 +1052,7 @@ private final class WelcomeArtworkRequest: NSObject, FFmpegControllerDelegate {
   }
 
   static func cacheName(for show: ShowFolder) -> String {
-    "welcome-artwork-480-\(show.thumbnailCacheName)"
+    "welcome-artwork-960-\(show.thumbnailCacheName)"
   }
 
   func matches(_ show: ShowFolder) -> Bool {
@@ -1039,7 +1060,7 @@ private final class WelcomeArtworkRequest: NSObject, FFmpegControllerDelegate {
   }
 
   func start() {
-    controller.generateThumbnail(forFile: show.resumeURL.path, atTime: show.position, thumbWidth: 480)
+    controller.generateThumbnail(forFile: show.resumeURL.path, atTime: show.position, thumbWidth: 960)
   }
 
   func cancel() {
