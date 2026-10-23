@@ -7,7 +7,6 @@
 //
 
 import Cocoa
-import SwiftUI
 import UniformTypeIdentifiers
 
 class InitialWindowController: NSWindowController {
@@ -25,7 +24,7 @@ class InitialWindowController: NSWindowController {
   var loaded = false
 
   let recentFilesTableView = NSTableView()
-  private let recentScrollView = NSScrollView()
+  private let recentScrollView = WelcomeRecentScrollView()
   private let visualEffectView = NSVisualEffectView()
   private let mainView = InitialWindowContentView()
   private let emptyStateView = NSStackView()
@@ -38,7 +37,8 @@ class InitialWindowController: NSWindowController {
   private var isCheckingAvailability = false
   private var isRecentListKeyboardActive = false
   private let showFolderShelf = ShowFolderShelfView()
-  private let shelfAccessoryController = WelcomeShelfAccessoryController()
+  private let shelfOverlay = NSView()
+  private var shelfOverlayHeightConstraint: NSLayoutConstraint?
   private let showFolderHeader = NSTextField(labelWithString: "Continue Watching")
   private let recentFilesHeader = NSTextField(labelWithString: "Recents")
   private var showFolders: [ShowFolder] = []
@@ -143,7 +143,8 @@ class InitialWindowController: NSWindowController {
     }
 
     if Preference.bool(for: .recordRecentFiles) {
-      HistoryController.shared.$history.withLock { history in
+      let history = HistoryController.shared.$history.withLock { $0.map { $0.detachedCopy() } }
+      do {
         for entry in history.lazy
           .filter({ $0.addedDate >= cutoffDate })
           .prefix(Self.maximumRecentDocumentCount) {
@@ -242,7 +243,7 @@ class InitialWindowController: NSWindowController {
     recentScrollView.drawsBackground = false
     recentScrollView.borderType = .noBorder
     recentScrollView.hasHorizontalScroller = false
-    recentScrollView.hasVerticalScroller = true
+    recentScrollView.hasVerticalScroller = false
     recentScrollView.autohidesScrollers = true
     recentScrollView.automaticallyAdjustsContentInsets = false
     recentScrollView.scrollerStyle = .overlay
@@ -309,12 +310,21 @@ class InitialWindowController: NSWindowController {
     emptyStateView.isHidden = !isEmpty
     recentScrollView.isHidden = recentDocuments.isEmpty
     recentFilesHeader.isHidden = true
-    shelfAccessoryController.view.isHidden = isEmpty
+    shelfOverlay.isHidden = isEmpty
   }
 
   private func configureShelfAccessory() {
-    guard let window else { return }
-    let root = shelfAccessoryController.view
+    let root = shelfOverlay
+    root.translatesAutoresizingMaskIntoConstraints = false
+    mainView.addSubview(root)
+    let height = root.heightAnchor.constraint(equalToConstant: 226)
+    shelfOverlayHeightConstraint = height
+    NSLayoutConstraint.activate([
+      root.leadingAnchor.constraint(equalTo: mainView.leadingAnchor),
+      root.trailingAnchor.constraint(equalTo: mainView.trailingAnchor),
+      root.topAnchor.constraint(equalTo: mainView.topAnchor, constant: 32),
+      height,
+    ])
     root.wantsLayer = true
     showFolderHeader.isHidden = true
     recentFilesHeader.isHidden = true
@@ -332,7 +342,7 @@ class InitialWindowController: NSWindowController {
       recentFilesHeader.widthAnchor.constraint(equalToConstant: 400),
       recentFilesHeader.topAnchor.constraint(equalTo: showFolderShelf.bottomAnchor, constant: 18),
     ])
-    window.addTitlebarAccessoryViewController(shelfAccessoryController)
+
   }
 
   override func showWindow(_ sender: Any?) {
@@ -427,8 +437,8 @@ class InitialWindowController: NSWindowController {
       let cutoffDate = now.addingTimeInterval(-ShowFolder.inactivityInterval)
       let lastURL = Preference.url(for: .iinaLastPlayedFilePath)?.standardizedFileURL
       let lastPosition = Preference.double(for: .iinaLastPlayedFilePosition)
-      let historyItems: [ShowFolderHistoryItem] = HistoryController.shared.$history.withLock { history in
-        history.lazy
+      let history = HistoryController.shared.$history.withLock { $0.map { $0.detachedCopy() } }
+      let historyItems: [ShowFolderHistoryItem] = history.lazy
           .filter { $0.addedDate >= cutoffDate }
           .prefix(Self.maximumShowFolderCount)
           .compactMap { entry in
@@ -444,7 +454,6 @@ class InitialWindowController: NSWindowController {
                                          duration: entry.duration.second,
                                          thumbnailCacheName: entry.mpvMd5)
           }
-      }
       let dismissals = ShowFolderDismissalStore.dismissedAtByFolder()
       let cachedFolderPaths = ShowFolderSnapshotStore.load()
       let excludedContainerPaths = Self.nonShowContainerPaths()
@@ -725,7 +734,8 @@ class InitialWindowController: NSWindowController {
     let collapsedDocumentIdentities = Set(showFolders.compactMap {
       $0.kind == .file ? documentIdentity($0.resumeURL) : nil
     })
-    let appKitRecents = AppEnvironment.isCleanStart ? [] : NSDocumentController.shared.recentDocumentURLs
+    let appKitRecents = AppEnvironment.isCleanStart || Preference.bool(for: .recordRecentFiles)
+      ? [] : NSDocumentController.shared.recentDocumentURLs
     let previousAvailability = Dictionary(uniqueKeysWithValues: recentDocuments.map {
       (documentIdentity($0.url), $0.isAvailable)
     })
@@ -772,16 +782,16 @@ class InitialWindowController: NSWindowController {
     let shelfHeight = showFolders.isEmpty ? CGFloat(0) : ShowFolderShelfView.height
     let sectionOffset = showFolders.isEmpty ? CGFloat(0) : headerHeight + 6 + shelfHeight + 18
     let accessoryHeight = 20 + sectionOffset + recentHeaderHeight + 6
-    shelfAccessoryController.view.frame.size.height = accessoryHeight
-    // Make the accessory and the Recents viewport non-overlapping layout
-    // regions. A content inset positions rows initially but still lets AppKit's
-    // selection layer scroll underneath the shelf and header.
+    shelfOverlayHeightConstraint?.constant = accessoryHeight
+    // A stationary viewport fade hides rows beneath the shelf; only the document scrolls.
     let recentRowsTop = accessoryHeight + recentHeaderHeight + 12
-    recentScrollViewTopConstraint?.constant = recentRowsTop
-    recentScrollView.contentInsets = NSEdgeInsets(top: 0,
+    recentScrollView.fadeBoundary = recentRowsTop
+    recentScrollViewTopConstraint?.constant = 0
+    recentScrollView.contentInsets = NSEdgeInsets(top: recentRowsTop,
                                                   left: 0, bottom: 16, right: 0)
     if resetScrollPosition {
-      recentFilesTableView.scrollToBeginningOfDocument(nil)
+      recentScrollView.contentView.scroll(to: NSPoint(x: 0, y: -recentRowsTop))
+      recentScrollView.reflectScrolledClipView(recentScrollView.contentView)
     }
   }
 
@@ -815,8 +825,8 @@ extension InitialWindowController: NSTableViewDelegate, NSTableViewDataSource {
 
   func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
     let identifier = NSUserInterfaceItemIdentifier("InitialWindowRecentCell")
-    let cell = tableView.makeView(withIdentifier: identifier, owner: self) as? InitialWindowRecentHostingCell
-      ?? InitialWindowRecentHostingCell(identifier: identifier)
+    let cell = tableView.makeView(withIdentifier: identifier, owner: self) as? InitialWindowRecentCell
+      ?? InitialWindowRecentCell(identifier: identifier)
     let document = recentDocuments[row]
     cell.update(title: document.url.lastPathComponent,
                 icon: documentIcon(for: document))
@@ -826,12 +836,8 @@ extension InitialWindowController: NSTableViewDelegate, NSTableViewDataSource {
   private func documentIcon(for document: RecentDocument) -> NSImage {
     let identity = documentIdentity(document.url)
     if let icon = documentIconCache[identity] { return icon }
-    let icon: NSImage
-    if document.isAvailable {
-      icon = NSWorkspace.shared.icon(forFile: document.url.path)
-    } else {
-      icon = NSWorkspace.shared.icon(for: UTType(filenameExtension: document.url.pathExtension) ?? .data)
-    }
+    // Never ask Icon Services to inspect a mounted file while drawing a row.
+    let icon = NSWorkspace.shared.icon(for: UTType(filenameExtension: document.url.pathExtension) ?? .data)
     documentIconCache[identity] = icon
     return icon
   }
@@ -888,53 +894,41 @@ extension InitialWindowController: NSTableViewDelegate, NSTableViewDataSource {
 
 }
 
-private struct InitialWindowRecentCellContent: View {
-  let title: String
-  let icon: NSImage
-
-  var body: some View {
-    HStack(spacing: 2) {
-      Image(nsImage: icon)
-        .resizable()
-        .scaledToFit()
-        .frame(width: 16, height: 16)
-        .accessibilityHidden(true)
-      Text(title)
-        .font(.system(size: NSFont.systemFontSize))
-        .lineLimit(1)
-        .truncationMode(.tail)
-    }
-    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-    .padding(.leading, 9)
-    .padding(.trailing, 2)
-    .offset(y: -1)
-    .accessibilityElement(children: .combine)
-  }
-}
-
-private final class InitialWindowRecentHostingCell: NSTableCellView {
-  private let hostingView: NSHostingView<InitialWindowRecentCellContent>
+private final class InitialWindowRecentCell: NSTableCellView {
+  private let titleLabel = NSTextField(labelWithString: "")
+  private let fileIcon = NSImageView()
 
   init(identifier: NSUserInterfaceItemIdentifier) {
-    hostingView = NSHostingView(rootView: InitialWindowRecentCellContent(title: "", icon: NSImage()))
     super.init(frame: .zero)
     self.identifier = identifier
-    hostingView.translatesAutoresizingMaskIntoConstraints = false
-    addSubview(hostingView)
+    wantsLayer = true
+    layer?.masksToBounds = true
+    titleLabel.font = .systemFont(ofSize: NSFont.systemFontSize)
+    titleLabel.lineBreakMode = .byTruncatingTail
+    titleLabel.maximumNumberOfLines = 1
+    titleLabel.translatesAutoresizingMaskIntoConstraints = false
+    fileIcon.translatesAutoresizingMaskIntoConstraints = false
+    fileIcon.imageScaling = .scaleProportionallyUpOrDown
+    addSubview(fileIcon)
+    addSubview(titleLabel)
+    textField = titleLabel
+    imageView = fileIcon
     NSLayoutConstraint.activate([
-      hostingView.leadingAnchor.constraint(equalTo: leadingAnchor),
-      hostingView.trailingAnchor.constraint(equalTo: trailingAnchor),
-      hostingView.topAnchor.constraint(equalTo: topAnchor),
-      hostingView.bottomAnchor.constraint(equalTo: bottomAnchor),
+      fileIcon.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 9),
+      fileIcon.centerYAnchor.constraint(equalTo: centerYAnchor),
+      fileIcon.widthAnchor.constraint(equalToConstant: 16),
+      fileIcon.heightAnchor.constraint(equalToConstant: 16),
+      titleLabel.leadingAnchor.constraint(equalTo: fileIcon.trailingAnchor, constant: 2),
+      titleLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -2),
+      titleLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
     ])
   }
 
-  required init?(coder: NSCoder) {
-    fatalError("init(coder:) has not been implemented")
-  }
+  required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
   func update(title: String, icon: NSImage) {
-    hostingView.rootView = InitialWindowRecentCellContent(title: title, icon: icon)
+    titleLabel.stringValue = title
+    fileIcon.image = icon
   }
 }
 
@@ -949,21 +943,27 @@ private final class InitialWindowRecentRowView: NSTableRowView {
   }
 }
 
-/// System-owned shelf chrome. The public soft scroll edge is owned by AppKit,
-/// so content scrolling beneath this titlebar accessory never uses a bitmap mask.
-private final class WelcomeShelfAccessoryController: NSTitlebarAccessoryViewController {
-  override func loadView() {
-    view = NSView(frame: NSRect(x: 0, y: 0, width: 760, height: 43))
-  }
+/// The mask belongs to the stationary scroll view, never its moving clip/document view.
+private final class WelcomeRecentScrollView: NSScrollView {
+  var fadeBoundary: CGFloat = 0 { didSet { needsLayout = true } }
+  private let edgeMask = CAGradientLayer()
 
-  override func viewDidLoad() {
-    super.viewDidLoad()
-    // A bottom titlebar accessory sits below the transparent titlebar and owns
-    // a dynamically adjustable height. A top accessory replaces the titlebar
-    // and clips this shelf to its initial titlebar-sized frame.
-    layoutAttribute = .bottom
-    automaticallyAdjustsSize = false
-    preferredScrollEdgeEffectStyle = .soft
+  override func layout() {
+    super.layout()
+    wantsLayer = true
+    let height = max(bounds.height, 1)
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
+    edgeMask.frame = CGRect(origin: .zero, size: bounds.size)
+    let topY: CGFloat = isFlipped ? 0 : 1
+    edgeMask.startPoint = CGPoint(x: 0.5, y: topY)
+    edgeMask.endPoint = CGPoint(x: 0.5, y: 1 - topY)
+    edgeMask.colors = [NSColor.clear.cgColor, NSColor.clear.cgColor,
+                       NSColor.black.cgColor, NSColor.black.cgColor]
+    edgeMask.locations = [0, NSNumber(value: Double(max(0, fadeBoundary - 24) / height)),
+                           NSNumber(value: Double(min(height, fadeBoundary) / height)), 1]
+    layer?.mask = edgeMask
+    CATransaction.commit()
   }
 }
 

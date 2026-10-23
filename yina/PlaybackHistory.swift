@@ -127,6 +127,22 @@ class PlaybackHistory: NSObject, NSSecureCoding {
     super.init()
   }
 
+  /// Capture under the history lock without resolving bookmarks or touching disk.
+  /// Background readers may resolve this copy without mutating the shared entry.
+  func detachedCopy() -> PlaybackHistory { PlaybackHistory(copying: self) }
+
+  private init(copying entry: PlaybackHistory) {
+    url = entry.url
+    name = entry.name
+    mpvMd5 = entry.mpvMd5
+    played = entry.played
+    addedDate = entry.addedDate
+    duration = VideoTime(entry.duration.second)
+    title = entry.title
+    bookmarkData = entry.bookmarkData
+    super.init()
+  }
+
   /// Returns the current location of a local file after Finder moves or renames it.
   /// Existing history archives did not contain bookmarks, so use thumbnail metadata
   /// as a conservative one-time migration when exactly one sibling still matches.
