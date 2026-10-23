@@ -12,8 +12,6 @@ import Sparkle
 
 let IINA_ENABLE_PLUGIN_SYSTEM = true
 
-/** Max time interval for repeated `application(_:openFile:)` calls. */
-fileprivate let OpenFileRepeatTime = TimeInterval(0.2)
 /** Tags for "Open File/URL" menu item when "Always open file in new windows" is off. Vice versa. */
 fileprivate let NormalMenuItemTag = 0
 /** Tags for "Open File/URL in New Window" when "Always open URL" when "Open file in new windows" is off. Vice versa. */
@@ -33,18 +31,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
   /** Whether performed some basic initialization, like bind menu items. */
   var isReady = false
   /**
-   Becomes true once `application(_:openFile:)` or `droppedText()` is called.
+   Becomes true once `application(_:openFiles:)` or `droppedText()` is called.
    Mainly used to distinguish normal launches from others triggered by drag-and-dropping files.
    */
   var openFileCalled = false
   var shouldIgnoreOpenFile = false
   /** Cached URL when launching from URL scheme. */
   var pendingURL: String?
-
-  /** Cached file paths received in `application(_:openFile:)`. */
-  private var pendingFilesForOpenFile: [String] = []
-  /** The timer for `OpenFileRepeatTime` and `application(_:openFile:)`. */
-  private var openFileTimer: Timer?
 
   private var allPlayersHaveShutdown = false
 
@@ -462,7 +455,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     MemoryUsage.shared.logUsage("after launching finished")
   }
 
-  /** Show welcome window if `application(_:openFile:)` wasn't called, i.e. launched normally. */
+  /** Show welcome window if `application(_:openFiles:)` wasn't called, i.e. launched normally. */
   @objc
   func checkForShowingInitialWindow() {
     if !openFileCalled {
@@ -775,31 +768,22 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     AppEnvironment.finishCleanStart()
   }
 
-  /**
-   When dragging multiple files to App icon, cocoa will simply call this method repeatedly.
-   Therefore we must cache all possible calls and handle them together.
-   */
-  func application(_ sender: NSApplication, openFile filename: String) -> Bool {
+  /// AppKit supplies the complete Finder/Dock open request as one batch, preserving
+  /// playlist and separate-window preferences without delaying single-file opens.
+  func application(_ sender: NSApplication, openFiles filenames: [String]) {
     openFileCalled = true
-    openFileTimer?.invalidate()
-    pendingFilesForOpenFile.append(filename)
-    openFileTimer = Timer.scheduledTimer(timeInterval: OpenFileRepeatTime, target: self, selector: #selector(handleOpenFile), userInfo: nil, repeats: false)
-    return true
-  }
-
-  /** Handle pending file paths if `application(_:openFile:)` not being called again in `OpenFileRepeatTime`. */
-  @objc
-  func handleOpenFile() {
+    var reply: NSApplication.DelegateReply = .success
+    defer { sender.reply(toOpenOrPrint: reply) }
     if !isReady {
       getReady()
     }
-    // if launched from command line, should ignore openFile once
+    // The CLI has already opened its arguments; acknowledge its duplicate launch event.
     if shouldIgnoreOpenFile {
       shouldIgnoreOpenFile = false
       return
     }
-    let urls = pendingFilesForOpenFile.map { URL(fileURLWithPath: $0) }
-    pendingFilesForOpenFile.removeAll()
+    guard !filenames.isEmpty else { return }
+    let urls = filenames.map { URL(fileURLWithPath: $0) }
 
     // if installing a plugin package
     if let pluginPackageURL = urls.first(where: { $0.pathExtension == "iinaplgz" }) {
@@ -807,8 +791,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
       return
     }
 
-    // open pending files
+    // Route the whole batch through the existing playlist/window policy.
     if PlayerCore.openURLs(urls) == 0 {
+      reply = .failure
       Utility.showAlert("nothing_to_open")
     }
   }
