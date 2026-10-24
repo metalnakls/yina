@@ -13,6 +13,12 @@ fileprivate let IINA_PREFIX_IN_FILE = "#" + IINA_PREFIX
 
 class KeyMapping: NSObject {
 
+  /// The plain M mute binding is temporarily suppressed while leaving other mute controls intact.
+  var isTemporarilyDisabledMuteShortcut: Bool {
+    !isYINACommand && normalizedMpvKey == "m" &&
+      action == ["cycle", MPVOption.Audio.mute]
+  }
+
   // TODO: this is UI logic. Move it out of here.
   @objc var keyForDisplay: String {
     get {

@@ -404,6 +404,7 @@ class PlayerWindowController: NSWindowController, NSWindowDelegate {
       input: normalizedKeyCode, event: .keyDown, player: player,
       arguments: keyEventArgs(event), handler: {
       if let kb = PlayerCore.keyBindings[normalizedKeyCode] {
+        if kb.isTemporarilyDisabledMuteShortcut { return true }
         self.handleKeyBinding(kb)
         return true
       }

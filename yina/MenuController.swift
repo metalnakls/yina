@@ -1052,7 +1052,7 @@ class MenuController: NSObject, NSMenuDelegate {
     settings.forEach { (menuItem, isYINACmd, actions, normalizeLastNum, numRange, l10nKey) in
       /// Loop over all key bindings. Examine each binding's action and see if it is equivalent to `menuItem`'s action
       var didBindMenuItem = false
-      for kb in keyBindings {
+      for kb in keyBindings where !kb.isTemporarilyDisabledMuteShortcut {
         guard kb.isYINACommand == isYINACmd else { continue }
         let (sameAction, value, extraData) = sameKeyAction(kb.action, actions, normalizeLastNum, numRange)
         if sameAction, let (kEqv, kMdf) = KeyCodeHelper.macOSKeyEquivalent(from: kb.normalizedMpvKey) {
