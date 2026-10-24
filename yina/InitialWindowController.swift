@@ -13,6 +13,11 @@ class InitialWindowController: NSWindowController {
 
   private static let maximumShowFolderCount = 20
   private static let maximumRecentDocumentCount = 20
+  private static let recentListWidth: CGFloat = 400
+  private static let maximumRecentWindowHeight: CGFloat = 560
+  private static let minimumVisibleRecentRows = 4
+  private static let recentListBottomInset: CGFloat = 16
+  private static let nativeTopEdgeHeight: CGFloat = 32
 
   private struct RecentDocument {
     let url: URL
@@ -24,10 +29,12 @@ class InitialWindowController: NSWindowController {
   var loaded = false
 
   let recentFilesTableView = NSTableView()
-  private let recentScrollView = WelcomeRecentScrollView()
+  private let recentScrollView = NSScrollView()
+  private lazy var recentDocumentView = WelcomeRecentDocumentView(tableView: recentFilesTableView)
   private let visualEffectView = NSVisualEffectView()
   private let mainView = InitialWindowContentView()
   private let emptyStateView = NSStackView()
+  private let nativeScrollEdgeAccessory = NSTitlebarAccessoryViewController()
 
   private let observedPrefKeys: [Preference.Key] = [.themeMaterial]
   private let availabilityQueue = DispatchQueue(label: "YINAInitialWindowAvailability", qos: .utility)
@@ -47,14 +54,9 @@ class InitialWindowController: NSWindowController {
   private var isCheckingAvailability = false
   private var isRecentListKeyboardActive = false
   private let showFolderShelf = ShowFolderShelfView()
-  private let shelfOverlay = NSView()
-  private var shelfOverlayHeightConstraint: NSLayoutConstraint?
-  private let showFolderHeader = NSTextField(labelWithString: "Continue Watching")
-  private let recentFilesHeader = NSTextField(labelWithString: "Recents")
+  private var shelfWindow: NSWindow?
+  private var mainViewHeightConstraint: NSLayoutConstraint?
   private var showFolders: [ShowFolder] = []
-  private var showFolderShelfHeightConstraint: NSLayoutConstraint?
-  private var showFolderHeaderHeightConstraint: NSLayoutConstraint?
-  private var recentScrollViewTopConstraint: NSLayoutConstraint?
   private var documentIconCache: [String: NSImage] = [:]
   private var showFolderArtworkCache: [String: (position: Double, artwork: ShowFolderCardArtwork)] = [:]
   private var artworkRequests: [String: WelcomeArtworkRequest] = [:]
@@ -78,7 +80,8 @@ class InitialWindowController: NSWindowController {
 
   init(playerCore: PlayerCore) {
     self.player = playerCore
-    let window = CommonWindow(contentRect: NSRect(x: 0, y: 0, width: 760, height: 560),
+    let window = CommonWindow(contentRect: NSRect(x: 0, y: 0, width: Self.recentListWidth,
+                                                  height: Self.maximumRecentWindowHeight),
                               styleMask: [.titled, .closable, .fullSizeContentView],
                               backing: .buffered,
                               defer: false)
@@ -175,10 +178,34 @@ class InitialWindowController: NSWindowController {
   private func configureWelcomeWindow() {
     loaded = true
     configureWindowAppearance()
+    configureRecentTableView()
     configureCenteredLayout()
-    configureShelfAccessory()
+    configureShelfWindow()
     configureEmptyState()
 
+    setMaterial(Preference.enum(for: .themeMaterial))
+
+    observedPrefKeys.forEach { key in
+      AppEnvironment.defaults.addObserver(self, forKeyPath: key.rawValue, options: .new, context: nil)
+    }
+    NotificationCenter.default.addObserver(self, selector: #selector(historyDidUpdate),
+                                           name: .yinaHistoryUpdated, object: nil)
+    NotificationCenter.default.addObserver(self, selector: #selector(initialWindowWillClose),
+                                           name: NSWindow.willCloseNotification, object: window)
+    NotificationCenter.default.addObserver(self, selector: #selector(parentWindowGeometryDidChange),
+                                           name: NSWindow.didResizeNotification, object: window)
+    NotificationCenter.default.addObserver(self, selector: #selector(parentWindowGeometryDidChange),
+                                           name: NSWindow.didMoveNotification, object: window)
+    NotificationCenter.default.addObserver(self, selector: #selector(availabilityDidChange),
+                                           name: NSApplication.didBecomeActiveNotification, object: nil)
+    NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(availabilityDidChange),
+                                                      name: NSWorkspace.didMountNotification, object: nil)
+    NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(availabilityDidChange),
+                                                      name: NSWorkspace.didUnmountNotification, object: nil)
+    reloadData()
+  }
+
+  private func configureRecentTableView() {
     recentFilesTableView.addTableColumn(NSTableColumn(identifier: NSUserInterfaceItemIdentifier("recent")))
     recentFilesTableView.columnAutoresizingStyle = .lastColumnOnlyAutoresizingStyle
     recentFilesTableView.delegate = self
@@ -191,23 +218,6 @@ class InitialWindowController: NSWindowController {
     recentFilesTableView.selectionHighlightStyle = .regular
     recentFilesTableView.rowHeight = 32
     recentFilesTableView.intercellSpacing = NSSize(width: 0, height: 2)
-
-    setMaterial(Preference.enum(for: .themeMaterial))
-
-    observedPrefKeys.forEach { key in
-      AppEnvironment.defaults.addObserver(self, forKeyPath: key.rawValue, options: .new, context: nil)
-    }
-    NotificationCenter.default.addObserver(self, selector: #selector(historyDidUpdate),
-                                           name: .yinaHistoryUpdated, object: nil)
-    NotificationCenter.default.addObserver(self, selector: #selector(initialWindowWillClose),
-                                           name: NSWindow.willCloseNotification, object: window)
-    NotificationCenter.default.addObserver(self, selector: #selector(availabilityDidChange),
-                                           name: NSApplication.didBecomeActiveNotification, object: nil)
-    NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(availabilityDidChange),
-                                                      name: NSWorkspace.didMountNotification, object: nil)
-    NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(availabilityDidChange),
-                                                      name: NSWorkspace.didUnmountNotification, object: nil)
-    reloadData()
   }
 
   private func configureWindowAppearance() {
@@ -218,10 +228,9 @@ class InitialWindowController: NSWindowController {
     window.titleVisibility = .hidden
     window.isMovableByWindowBackground = true
     window.isReleasedWhenClosed = false
-    if !AppEnvironment.isCleanStart { window.setFrameAutosaveName("YINAWelcomeWindow") }
     window.autorecalculatesKeyViewLoop = true
-    window.contentMinSize = NSSize(width: 760, height: 560)
     window.contentView?.registerForDraggedTypes([.nsFilenames, .nsURL, .string])
+    mainView.translatesAutoresizingMaskIntoConstraints = false
     mainView.wantsLayer = true
 
   }
@@ -239,53 +248,65 @@ class InitialWindowController: NSWindowController {
     visualEffectView.state = .active
     mainView.addSubview(visualEffectView)
 
-    showFolderShelf.translatesAutoresizingMaskIntoConstraints = false
-
-    showFolderHeader.font = .systemFont(ofSize: NSFont.systemFontSize, weight: .semibold)
-    recentFilesHeader.font = .systemFont(ofSize: NSFont.systemFontSize, weight: .semibold)
-    [showFolderHeader, recentFilesHeader].forEach {
-      $0.translatesAutoresizingMaskIntoConstraints = false
-      $0.textColor = .secondaryLabelColor
-      $0.setContentHuggingPriority(.required, for: .vertical)
-    }
-
     recentScrollView.translatesAutoresizingMaskIntoConstraints = false
     recentScrollView.drawsBackground = false
     recentScrollView.borderType = .noBorder
     recentScrollView.hasHorizontalScroller = false
     recentScrollView.hasVerticalScroller = false
     recentScrollView.autohidesScrollers = true
-    recentScrollView.automaticallyAdjustsContentInsets = false
+    recentScrollView.automaticallyAdjustsContentInsets = true
     recentScrollView.scrollerStyle = .overlay
     recentScrollView.verticalScrollElasticity = .allowed
-    recentScrollView.contentInsets = NSEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
     recentScrollView.setContentHuggingPriority(.defaultLow, for: .vertical)
     recentScrollView.setContentCompressionResistancePriority(.defaultLow, for: .vertical)
-    recentScrollView.documentView = recentFilesTableView
+    recentScrollView.documentView = recentDocumentView
     mainView.addSubview(recentScrollView)
-    let shelfHeight = showFolderShelf.heightAnchor.constraint(equalToConstant: ShowFolderShelfView.height)
-    showFolderShelfHeightConstraint = shelfHeight
-    let showHeaderHeight = showFolderHeader.heightAnchor.constraint(equalToConstant: 0)
-    showFolderHeaderHeightConstraint = showHeaderHeight
-    let recentScrollTop = recentScrollView.topAnchor.constraint(equalTo: mainView.topAnchor)
-    recentScrollViewTopConstraint = recentScrollTop
+
+    nativeScrollEdgeAccessory.layoutAttribute = .top
+    nativeScrollEdgeAccessory.automaticallyAdjustsSize = false
+    nativeScrollEdgeAccessory.preferredScrollEdgeEffectStyle = .soft
+    nativeScrollEdgeAccessory.view = NSView(frame: NSRect(x: 0, y: 0,
+                                                         width: Self.recentListWidth,
+                                                         height: Self.nativeTopEdgeHeight))
+    window.addTitlebarAccessoryViewController(nativeScrollEdgeAccessory)
+
+    let rowHeight = recentFilesTableView.rowHeight + recentFilesTableView.intercellSpacing.height
+    let initialHeight = Self.nativeTopEdgeHeight +
+      rowHeight * CGFloat(Self.minimumVisibleRecentRows) + Self.recentListBottomInset
+    let heightConstraint = mainView.heightAnchor.constraint(equalToConstant: initialHeight)
+    mainViewHeightConstraint = heightConstraint
     NSLayoutConstraint.activate([
-      mainView.widthAnchor.constraint(greaterThanOrEqualToConstant: 760),
-      mainView.heightAnchor.constraint(greaterThanOrEqualToConstant: 560),
+      mainView.widthAnchor.constraint(equalToConstant: Self.recentListWidth),
+      heightConstraint,
       visualEffectView.leadingAnchor.constraint(equalTo: mainView.leadingAnchor),
       visualEffectView.trailingAnchor.constraint(equalTo: mainView.trailingAnchor),
       visualEffectView.topAnchor.constraint(equalTo: mainView.topAnchor),
       visualEffectView.bottomAnchor.constraint(equalTo: mainView.bottomAnchor),
-      recentScrollTop,
+      recentScrollView.leadingAnchor.constraint(equalTo: mainView.leadingAnchor),
+      recentScrollView.trailingAnchor.constraint(equalTo: mainView.trailingAnchor),
+      recentScrollView.topAnchor.constraint(equalTo: mainView.topAnchor),
       recentScrollView.bottomAnchor.constraint(equalTo: mainView.bottomAnchor),
-      recentScrollView.centerXAnchor.constraint(equalTo: mainView.centerXAnchor),
-      recentScrollView.widthAnchor.constraint(equalToConstant: 400),
-      recentScrollView.widthAnchor.constraint(lessThanOrEqualTo: mainView.widthAnchor, constant: -128),
-      shelfHeight,
-      showHeaderHeight,
     ])
     mainView.layoutSubtreeIfNeeded()
     updateRecentLayout(resetScrollPosition: true)
+  }
+
+  private func configureShelfWindow() {
+    guard let window else { return }
+    let shelf = NSWindow(contentRect: NSRect(x: 0, y: 0,
+                                            width: ShowFolderShelfView.cardSlotWidth,
+                                            height: ShowFolderShelfView.height),
+                         styleMask: [.borderless], backing: .buffered, defer: false)
+    shelf.isOpaque = false
+    shelf.backgroundColor = .clear
+    shelf.hasShadow = false
+    shelf.isReleasedWhenClosed = false
+    shelf.level = window.level
+    shelf.contentView = showFolderShelf
+    shelf.appearance = window.appearance
+    shelfWindow = shelf
+    window.addChildWindow(shelf, ordered: .above)
+    updateShelfWindowFrame()
   }
 
   private func configureEmptyState() {
@@ -319,50 +340,15 @@ class InitialWindowController: NSWindowController {
     let isEmpty = showFolders.isEmpty && recentDocuments.isEmpty
     emptyStateView.isHidden = !isEmpty
     recentScrollView.isHidden = recentDocuments.isEmpty
-    recentFilesHeader.isHidden = true
-    shelfOverlay.isHidden = isEmpty
-  }
-
-  private func configureShelfAccessory() {
-    let root = shelfOverlay
-    root.translatesAutoresizingMaskIntoConstraints = false
-    mainView.addSubview(root)
-    let height = root.heightAnchor.constraint(equalToConstant: 226)
-    shelfOverlayHeightConstraint = height
-    NSLayoutConstraint.activate([
-      root.leadingAnchor.constraint(equalTo: mainView.leadingAnchor),
-      root.trailingAnchor.constraint(equalTo: mainView.trailingAnchor),
-      root.topAnchor.constraint(equalTo: mainView.topAnchor, constant: 32),
-      height,
-    ])
-    root.wantsLayer = true
-    showFolderHeader.isHidden = true
-    recentFilesHeader.isHidden = true
-    root.addSubview(showFolderHeader)
-    root.addSubview(showFolderShelf)
-    root.addSubview(recentFilesHeader)
-    NSLayoutConstraint.activate([
-      showFolderHeader.centerXAnchor.constraint(equalTo: root.centerXAnchor),
-      showFolderHeader.widthAnchor.constraint(equalToConstant: 400),
-      showFolderHeader.topAnchor.constraint(equalTo: root.topAnchor, constant: 20),
-      showFolderShelf.leadingAnchor.constraint(equalTo: root.leadingAnchor),
-      showFolderShelf.trailingAnchor.constraint(equalTo: root.trailingAnchor),
-      showFolderShelf.topAnchor.constraint(equalTo: showFolderHeader.bottomAnchor, constant: 6),
-      recentFilesHeader.centerXAnchor.constraint(equalTo: root.centerXAnchor),
-      recentFilesHeader.widthAnchor.constraint(equalToConstant: 400),
-      recentFilesHeader.topAnchor.constraint(equalTo: showFolderShelf.bottomAnchor, constant: 18),
-    ])
-
+    showFolderShelf.isHidden = showFolders.isEmpty
+    updateShelfWindowVisibility()
   }
 
   override func showWindow(_ sender: Any?) {
+    updateRecentLayout(resetScrollPosition: true, preserveTop: false)
+    centerWelcomeComposition()
     super.showWindow(sender)
-    // Preserve the welcome window's established presentation lifecycle. The
-    // centered layout has no useful compact state, so present it at its native
-    // content size after AppKit has restored the autosaved frame.
-    window?.setContentSize(NSSize(width: 760, height: 560))
-    window?.center()
-    updateRecentLayout(resetScrollPosition: true)
+    updateShelfWindowFrame()
     isRecentListKeyboardActive = false
     reloadData()
     startAvailabilityRefresh()
@@ -382,7 +368,56 @@ class InitialWindowController: NSWindowController {
   @objc private func initialWindowWillClose() {
     openRequestGeneration &+= 1
     mediaOpenQueue.cancelAllOperations()
+    shelfWindow?.orderOut(nil)
     stopAvailabilityRefresh()
+  }
+
+  @objc private func parentWindowGeometryDidChange() {
+    updateShelfWindowFrame()
+  }
+
+  private func centerWelcomeComposition() {
+    guard let window, let screen = window.screen ?? NSScreen.main else { return }
+    let visibleFrame = screen.visibleFrame
+    let windowFrame = window.frame
+    let cardOverflow = showFolders.isEmpty ? 0 : ShowFolderCardView.size.height / 2
+    let lowerBound = visibleFrame.minY
+    let upperBound = max(lowerBound, visibleFrame.maxY - windowFrame.height - cardOverflow)
+    let originY = min(max(visibleFrame.midY - (windowFrame.height + cardOverflow) / 2,
+                          lowerBound), upperBound)
+    window.setFrameOrigin(NSPoint(x: visibleFrame.midX - windowFrame.width / 2, y: originY))
+    updateShelfWindowFrame()
+  }
+
+  private func updateShelfWindowFrame() {
+    guard let parentWindow = window, let shelfWindow else { return }
+    guard !showFolders.isEmpty else {
+      shelfWindow.orderOut(nil)
+      return
+    }
+
+    let screen = parentWindow.screen ?? NSScreen.main
+    let availableWidth = screen?.visibleFrame.width ?? ShowFolderShelfView.cardSlotWidth
+    let centeredCardCount = min(showFolders.count, ShowFolderShelfView.maximumCenteredCardCount)
+    let desiredWidth = CGFloat(centeredCardCount) * ShowFolderShelfView.cardSlotWidth
+    let width = min(desiredWidth, availableWidth)
+    let parentFrame = parentWindow.frame
+    let frame = NSRect(x: parentFrame.midX - width / 2,
+                       y: parentFrame.maxY - ShowFolderShelfView.height / 2,
+                       width: width,
+                       height: ShowFolderShelfView.height)
+    shelfWindow.setFrame(frame, display: parentWindow.isVisible)
+    showFolderShelf.layoutSubtreeIfNeeded()
+    updateShelfWindowVisibility()
+  }
+
+  private func updateShelfWindowVisibility() {
+    guard let shelfWindow else { return }
+    if window?.isVisible == true && !showFolders.isEmpty {
+      shelfWindow.orderFront(nil)
+    } else {
+      shelfWindow.orderOut(nil)
+    }
   }
 
   private func startAvailabilityRefresh() {
@@ -648,9 +683,7 @@ class InitialWindowController: NSWindowController {
     ShowFolderSnapshotStore.save(showFolders)
     showFolderShelf.dismissCard(for: show) { [weak self] in
       guard let self else { return }
-      self.showFolderHeader.isHidden = true
       self.showFolderShelf.isHidden = self.showFolders.isEmpty
-      self.showFolderShelfHeightConstraint?.constant = self.showFolders.isEmpty ? 0 : ShowFolderShelfView.height
       self.coordinator.invalidate()
       self.cancelArtworkRequests()
       self.showFolderShelf.reload(shows: self.showFolders, target: self,
@@ -664,12 +697,14 @@ class InitialWindowController: NSWindowController {
       }
       self.reloadRecents()
       self.updateRecentLayout(resetScrollPosition: true)
+      self.updateEmptyState()
     }
   }
 
   private func setMaterial(_ theme: Preference.Theme?) {
     guard let window, let theme else { return }
     window.appearance = NSAppearance(yinaTheme: theme)
+    shelfWindow?.appearance = window.appearance
   }
 
   @objc func onTableClicked() {
@@ -725,8 +760,8 @@ class InitialWindowController: NSWindowController {
     recentDocuments = cachedURLs.prefix(Self.maximumRecentDocumentCount).map {
       RecentDocument(url: $0, isAvailable: true)
     }
-    recentFilesHeader.isHidden = false
     recentFilesTableView.reloadData()
+    updateRecentLayout(resetScrollPosition: true)
     updateEmptyState()
   }
 
@@ -741,19 +776,20 @@ class InitialWindowController: NSWindowController {
                            target: self,
                            openAction: #selector(openShowFolderCard(_:)),
                            dismissAction: #selector(dismissShowFolderCard(_:)))
+    if previousCardIdentities != cardIdentities {
+      showFolderShelf.resetHorizontalScrollPosition()
+    }
     showFolderShelf.setKeyboardSelectedCard(
       identityPath: isRecentListKeyboardActive ? nil : cards.first?.identityPath)
     let hasShows = !cards.isEmpty
     let shelfVisibilityChanged = showFolderShelf.isHidden == hasShows
-    showFolderHeader.isHidden = true
     showFolderShelf.isHidden = !hasShows
-    showFolderHeaderHeightConstraint?.constant = 0
-    showFolderShelfHeightConstraint?.constant = hasShows ? ShowFolderShelfView.height : 0
-    if shelfVisibilityChanged {
-      mainView.layoutSubtreeIfNeeded()
-    }
+    if shelfVisibilityChanged { showFolderShelf.layoutSubtreeIfNeeded() }
     updateRecentLayout(resetScrollPosition: previousCardIdentities != cardIdentities)
     updateEmptyState()
+    if previousCardIdentities.isEmpty, !cardIdentities.isEmpty, window?.isVisible == true {
+      centerWelcomeComposition()
+    }
   }
 
   private func reloadRecents() {
@@ -785,7 +821,6 @@ class InitialWindowController: NSWindowController {
         let previousDocuments = self.recentDocuments
         self.recentDocuments = documents
         WelcomeRecentSnapshotStore.save(documents.map(\.url))
-        self.recentFilesHeader.isHidden = true
         let documentListChanged = previousDocuments.count != documents.count ||
           zip(previousDocuments, documents).contains { old, new in
             self.documentIdentity(old.url) != self.documentIdentity(new.url) ||
@@ -794,6 +829,8 @@ class InitialWindowController: NSWindowController {
         if documentListChanged {
           self.recentFilesTableView.reloadData()
         }
+        self.updateRecentLayout()
+        self.updateEmptyState()
         if self.window?.isVisible == true {
           self.refreshRecentDocumentAvailability()
         }
@@ -810,23 +847,41 @@ class InitialWindowController: NSWindowController {
     }
   }
 
-  private func updateRecentLayout(resetScrollPosition: Bool = false) {
-    let headerHeight: CGFloat = 0
-    let recentHeaderHeight: CGFloat = 0
-    let shelfHeight = showFolders.isEmpty ? CGFloat(0) : ShowFolderShelfView.height
-    let sectionOffset = showFolders.isEmpty ? CGFloat(0) : headerHeight + 6 + shelfHeight + 18
-    let accessoryHeight = 20 + sectionOffset + recentHeaderHeight + 6
-    shelfOverlayHeightConstraint?.constant = accessoryHeight
-    // A stationary viewport fade hides rows beneath the shelf; only the document scrolls.
-    let recentRowsTop = accessoryHeight + recentHeaderHeight + 12
-    recentScrollView.fadeBoundary = recentRowsTop
-    recentScrollViewTopConstraint?.constant = 0
-    recentScrollView.contentInsets = NSEdgeInsets(top: recentRowsTop,
-                                                  left: 0, bottom: 16, right: 0)
+  private func updateRecentLayout(resetScrollPosition: Bool = false, preserveTop: Bool = true) {
+    let rowHeight = recentFilesTableView.rowHeight + recentFilesTableView.intercellSpacing.height
+    let documentTopInset = showFolders.isEmpty
+      ? Self.nativeTopEdgeHeight
+      : ShowFolderShelfView.height / 2
+    let rowCount = recentDocuments.count
+    let visibleRowCount = max(Self.minimumVisibleRecentRows, rowCount)
+    let minimumHeight = documentTopInset +
+      rowHeight * CGFloat(Self.minimumVisibleRecentRows) + Self.recentListBottomInset
+    let desiredHeight = documentTopInset +
+      rowHeight * CGFloat(visibleRowCount) + Self.recentListBottomInset
+    let windowHeight = min(Self.maximumRecentWindowHeight, max(minimumHeight, desiredHeight))
+
+    recentDocumentView.update(width: Self.recentListWidth,
+                              topInset: documentTopInset,
+                              rowHeight: rowHeight,
+                              rowCount: rowCount,
+                              bottomInset: Self.recentListBottomInset)
+    window?.contentMinSize = NSSize(width: Self.recentListWidth, height: minimumHeight)
+    window?.contentMaxSize = NSSize(width: Self.recentListWidth,
+                                    height: Self.maximumRecentWindowHeight)
+
+    let oldFrame = window?.frame
+    mainViewHeightConstraint?.constant = windowHeight
+    window?.setContentSize(NSSize(width: Self.recentListWidth, height: windowHeight))
+    mainView.layoutSubtreeIfNeeded()
+    if preserveTop, let window, let oldFrame, window.isVisible {
+      window.setFrameOrigin(NSPoint(x: oldFrame.minX,
+                                    y: oldFrame.maxY - window.frame.height))
+    }
     if resetScrollPosition {
-      recentScrollView.contentView.scroll(to: NSPoint(x: 0, y: -recentRowsTop))
+      recentScrollView.contentView.scroll(to: .zero)
       recentScrollView.reflectScrolledClipView(recentScrollView.contentView)
     }
+    updateShelfWindowFrame()
   }
 
   private func cancelArtworkRequests() {
@@ -994,28 +1049,26 @@ private final class InitialWindowRecentRowView: NSTableRowView {
   }
 }
 
-/// The mask belongs to the stationary scroll view, never its moving clip/document view.
-private final class WelcomeRecentScrollView: NSScrollView {
-  var fadeBoundary: CGFloat = 0 { didSet { needsLayout = true } }
-  private let edgeMask = CAGradientLayer()
+private final class WelcomeRecentDocumentView: NSView {
+  private let tableView: NSTableView
 
-  override func layout() {
-    super.layout()
-    wantsLayer = true
-    let height = max(bounds.height, 1)
-    CATransaction.begin()
-    CATransaction.setDisableActions(true)
-    edgeMask.frame = CGRect(origin: .zero, size: bounds.size)
-    let topY: CGFloat = isFlipped ? 0 : 1
-    edgeMask.startPoint = CGPoint(x: 0.5, y: topY)
-    edgeMask.endPoint = CGPoint(x: 0.5, y: 1 - topY)
-    edgeMask.colors = [NSColor.clear.cgColor, NSColor.clear.cgColor,
-                       NSColor.black.cgColor, NSColor.black.cgColor]
-    edgeMask.locations = [0, NSNumber(value: Double(max(0, fadeBoundary - 24) / height)),
-                           NSNumber(value: Double(min(height, fadeBoundary) / height)), 1]
-    layer?.mask = edgeMask
-    CATransaction.commit()
+  override var isFlipped: Bool { true }
+
+  init(tableView: NSTableView) {
+    self.tableView = tableView
+    super.init(frame: .zero)
+    addSubview(tableView)
   }
+
+  func update(width: CGFloat, topInset: CGFloat, rowHeight: CGFloat,
+              rowCount: Int, bottomInset: CGFloat) {
+    let tableHeight = rowHeight * CGFloat(rowCount)
+    let documentHeight = topInset + tableHeight + bottomInset
+    setFrameSize(NSSize(width: width, height: documentHeight))
+    tableView.frame = NSRect(x: 0, y: topInset, width: width, height: tableHeight)
+  }
+
+  required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 }
 
 /// Main-actor ownership boundary for every asynchronous welcome-surface result.

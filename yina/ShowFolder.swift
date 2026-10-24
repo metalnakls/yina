@@ -724,6 +724,8 @@ private final class ShowFolderShelfItemView: NSView {
 
 final class ShowFolderShelfView: NSView {
   static let height: CGFloat = ShowFolderCardView.size.height + 48
+  static let cardSlotWidth = ShowFolderShelfItemView.width
+  static let maximumCenteredCardCount = 3
 
   private let scrollView = NSScrollView()
   private let glassContainer = NSGlassEffectContainerView()
@@ -787,15 +789,15 @@ final class ShowFolderShelfView: NSView {
 
   override func layout() {
     super.layout()
-    let edgeSpace = Self.leadingCardInset(for: bounds.width)
+    let contentWidth = CGFloat(items.count) * Self.cardSlotWidth
+    let edgeSpace = max(0, (bounds.width - contentWidth) / 2)
     leadingSpacerWidth.constant = edgeSpace
     trailingSpacerWidth.constant = edgeSpace
   }
 
-  static func leadingCardInset(for shelfWidth: CGFloat) -> CGFloat {
-    let columnWidth = min(400, max(0, shelfWidth - 128))
-    let cardInset = (ShowFolderShelfItemView.width - ShowFolderCardView.size.width) / 2
-    return max(0, (shelfWidth - columnWidth) / 2 - cardInset)
+  func resetHorizontalScrollPosition() {
+    scrollView.contentView.scroll(to: .zero)
+    scrollView.reflectScrolledClipView(scrollView.contentView)
   }
 
   func reload(shows: [ShowFolder], target: AnyObject, openAction: Selector, dismissAction: Selector) {
