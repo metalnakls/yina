@@ -1907,9 +1907,8 @@ class MainWindowController: PlayerWindowController {
     if !window.inLiveResize {
       liveText.clearAnalysis()
     }
-    if frameSize.height <= AppData.mainWindowMinSize.height || frameSize.width <= AppData.mainWindowMinSize.width {
-      return currentWindowAspectRatio.grow(toSize: AppData.mainWindowMinSize)
-    }
+    // AppKit applies the native aspect ratio and resize limits. Do not project
+    // its proposal onto a different axis or resize the window a second time.
     return frameSize
   }
 
@@ -2302,11 +2301,6 @@ class MainWindowController: PlayerWindowController {
   }
 
   // MARK: - UI: Window size / aspect
-
-  private var currentWindowAspectRatio: NSSize {
-    guard let window else { return .zero }
-    return window.aspectRatio
-  }
 
   private func setWindowAspectRatio(_ aspectRatio: NSSize) {
     guard let window else { return }
