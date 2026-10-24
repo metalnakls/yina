@@ -3051,8 +3051,7 @@ class MainWindowController: PlayerWindowController {
   private func updateTimePreview(_ percentage: Double) {
     guard let duration = player.info.videoDuration else { return }
     let time = duration * percentage
-    let chapterTitle = player.info.getChapter(forVideoTime: time)?.title
-    let chapterChanged = timePreviewView.update(chapterTitle: chapterTitle, time: time.stringRepresentation)
+    timePreviewView.update(time: time.stringRepresentation)
     timePreviewView.layoutSubtreeIfNeeded()
     let previewSize = timePreviewView.fittingSize
 
@@ -3070,7 +3069,7 @@ class MainWindowController: PlayerWindowController {
       y: timeLabelYPos,
       width: previewSize.width,
       height: previewSize.height)
-    timePreviewView.setPreviewFrame(targetFrame, chapterChanged: chapterChanged)
+    timePreviewView.setPreviewFrame(targetFrame)
   }
 
 
