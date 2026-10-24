@@ -1701,6 +1701,7 @@ class MainWindowController: PlayerWindowController {
     // will correctly set the state to windowed.
     fsState = .animating(toFullscreen: false, priorWindowedFrame: priorWindowedFrame)
     fsState.finishAnimating()
+    titleTextField?.alphaValue = 1
 
     titleBarView.update(hasOSC: oscPosition == .top, inFullScreen: false)
     setWindowToolbar()
@@ -1789,6 +1790,7 @@ class MainWindowController: PlayerWindowController {
     window?.titlebarAppearsTransparent = true
 
     fsState.finishAnimating()
+    titleTextField?.alphaValue = 1
     setWindowToolbar()
     fadeableViews.update()
 
@@ -1863,6 +1865,7 @@ class MainWindowController: PlayerWindowController {
     // will correctly set the state to  full screen mode.
     fsState = .animating(toFullscreen: true, priorWindowedFrame: priorWindowedFrame)
     fsState.finishAnimating()
+    titleTextField?.alphaValue = 1
 
     titleBarView.update(hasOSC: oscPosition == .top, inFullScreen: true)
     setWindowToolbar()
@@ -2166,8 +2169,6 @@ class MainWindowController: PlayerWindowController {
       window?.representedURL = player.info.currentURL
       window?.setTitleWithRepresentedFilename(player.info.currentURL?.path ?? "")
     }
-    titleBarView?.updateTitle()
-
     // Sometimes the doc icon may not be available, eg. when opened an online video.
     // We should try to add it every time when window title changed.
     if let docIcon = window?.standardWindowButton(.documentIconButton) {

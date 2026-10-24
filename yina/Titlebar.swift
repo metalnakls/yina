@@ -15,30 +15,26 @@ fileprivate extension LayoutValue {
 
 
 class Titlebar: NSView {
-  /// Default inset for the title container from the leading edge — clears the traffic lights.
-  static let docIconLeadingPadding: CGFloat = 86
-
   private let accessoryIconConfig = NSImage.SymbolConfiguration(pointSize: 12, weight: .regular)
-
-  let useSystemTitle = false
-
-  var isTransparent = false {
-    didSet {
-      updateShadow()
-    }
-  }
 
   weak var mainWindow: MainWindowController!
 
   // A registered native accessory lets NSScrollView provide the system's variable blur.
   private let edgeAccessory = NSTitlebarAccessoryViewController()
+  private let titlebarAccessory = NSTitlebarAccessoryViewController()
 
   override var alphaValue: CGFloat {
-    didSet { edgeAccessory.view.alphaValue = alphaValue }
+    didSet {
+      edgeAccessory.view.alphaValue = alphaValue
+      titlebarAccessory.view.alphaValue = alphaValue
+    }
   }
 
   override var isHidden: Bool {
-    didSet { edgeAccessory.isHidden = isHidden }
+    didSet {
+      edgeAccessory.isHidden = isHidden
+      titlebarAccessory.isHidden = isHidden
+    }
   }
 
   private var onTopButton: NSButton
@@ -46,12 +42,9 @@ class Titlebar: NSView {
   private var container: NSStackView!
   private var titlebarContainer: NSView!
   private var titleHeightConstraint: NSLayoutConstraint!
-  private var titleLeadingConstraint: NSLayoutConstraint!
   private var trailingConstraint: NSLayoutConstraint!
   private var topConstraint: NSLayoutConstraint!
   private var verticalConstraint: NSLayoutConstraint!
-  private var titleTextField: NSTextField!
-  private var docIcon: NSImageView!
 
   var oscView: TimeLabelOverflowedStackView!
   private var oscContainer: NSView!
@@ -86,91 +79,52 @@ class Titlebar: NSView {
     onTopButton.isBordered = false
     updateOnTopIcon()
 
-    if useSystemTitle {
-      let titlebarAccessoryViewController = NSTitlebarAccessoryViewController()
-      titlebarAccessoryViewController.view = onTopButton
-      titlebarAccessoryViewController.layoutAttribute = .right
-      mainWindow.window!.addTitlebarAccessoryViewController(titlebarAccessoryViewController)
-    } else {
-      window.titleVisibility = .hidden
+    titlebarAccessory.view = onTopButton
+    titlebarAccessory.layoutAttribute = .right
+    mainWindow.window!.addTitlebarAccessoryViewController(titlebarAccessory)
+    window.titleVisibility = .visible
 
-      //
-      // titlebarContainer [-(leading)-[docIcon]-[titleTextField]] \                       |
-      //                   --------------------------------------  | container -(trailing)-|
-      //      oscContainer [-(leading)-[         oscView        ]] /                       |
-      //
-      self.container = NSStackView()
-      container.translatesAutoresizingMaskIntoConstraints = false
-      addSubview(container)
-      container.orientation = .vertical
-      container.alignment = .centerX
-      container.spacing = 0
-      container.padding(.bottom, .leading)
-      topConstraint = container.topAnchor.constraint(equalTo: topAnchor)
-      topConstraint.isActive = true
+    // The top row reserves the titlebar's content height. AppKit draws the title,
+    // proxy icon, and traffic lights in their native positions above this view.
+    self.container = NSStackView()
+    container.translatesAutoresizingMaskIntoConstraints = false
+    addSubview(container)
+    container.orientation = .vertical
+    container.alignment = .centerX
+    container.spacing = 0
+    container.padding(.bottom, .leading)
+    topConstraint = container.topAnchor.constraint(equalTo: topAnchor)
+    topConstraint.isActive = true
 
-      self.trailingConstraint = trailingAnchor
-        .constraint(equalTo: container.trailingAnchor)
-      trailingConstraint.isActive = true
+    self.trailingConstraint = trailingAnchor
+      .constraint(equalTo: container.trailingAnchor)
+    trailingConstraint.isActive = true
 
-      // title bar
-
-      self.titlebarContainer = NSView()
-      titlebarContainer.translatesAutoresizingMaskIntoConstraints = false
-      container.addArrangedSubview(titlebarContainer)
-      titlebarContainer.padding(.horizontal)
-      titleHeightConstraint = titlebarContainer.heightAnchor.constraint(equalToConstant: 0)
-      LayoutValue.titlebarHeight.use { [weak self] value in
-        self?.titleHeightConstraint.constant = value
-        self?.edgeAccessory.view.setFrameSize(NSSize(width: self?.bounds.width ?? 0, height: value))
-      }
-      titleHeightConstraint.isActive = true
-
-      self.docIcon = NSImageView()
-      docIcon.translatesAutoresizingMaskIntoConstraints = false
-      titlebarContainer.addSubview(docIcon)
-      docIcon.padding(.leading(greaterThan: Titlebar.docIconLeadingPadding))
-        .center(.y).size(width: 16, height: 16)
-
-      self.titleTextField = NSTextField(labelWithString: window.title)
-      titleTextField.translatesAutoresizingMaskIntoConstraints = false
-      titleTextField.font = .titleBarFont(ofSize: 13)
-      titleTextField.lineBreakMode = .byTruncatingMiddle
-      titleTextField.setContentCompressionResistancePriority(.init(200), for: .horizontal)
-      titleTextField.setContentHuggingPriority(.defaultHigh, for: .horizontal)
-      titlebarContainer.addSubview(titleTextField)
-      titleTextField.spacing(.leading(2), to: docIcon).center(.y)
-
-      self.titleLeadingConstraint = docIcon.leadingAnchor
-        .constraint(equalTo: titlebarContainer.leadingAnchor, constant: Titlebar.docIconLeadingPadding)
-      titleLeadingConstraint.priority = .defaultHigh
-      titleLeadingConstraint.isActive = true
-
-      let accessoryView = NSStackView(views: [onTopButton])
-      accessoryView.translatesAutoresizingMaskIntoConstraints = false
-      accessoryView.orientation = .horizontal
-      accessoryView.spacing = 8
-
-      titlebarContainer.addSubview(accessoryView)
-      accessoryView.padding(.trailing(8)).center(.y)
-      titleTextField.spacing(.trailing(greaterThan: 8), to: accessoryView)
-
-      // osc
-
-      self.oscContainer = TitlebarInnerView(titlebar: self)
-      oscContainer.translatesAutoresizingMaskIntoConstraints = false
-      container.addArrangedSubview(oscContainer)
-      self.oscView = TimeLabelOverflowedStackView()
-      oscView.translatesAutoresizingMaskIntoConstraints = false
-      oscContainer.addSubview(oscView)
-      oscView.padding(.trailing(6), .top, .bottom(.oscBottomMargin)).size(height: 24)
-
-      oscLeadingConstraint = oscView.leadingAnchor
-        .constraint(equalTo: oscContainer.leadingAnchor, constant: 6)
-      oscLeadingConstraint.isActive = true
+    self.titlebarContainer = NativeTitlebarSpacerView()
+    titlebarContainer.translatesAutoresizingMaskIntoConstraints = false
+    container.addArrangedSubview(titlebarContainer)
+    titlebarContainer.padding(.horizontal)
+    titleHeightConstraint = titlebarContainer.heightAnchor.constraint(equalToConstant: 0)
+    LayoutValue.titlebarHeight.use { [weak self] value in
+      self?.titleHeightConstraint.constant = value
+      self?.edgeAccessory.view.setFrameSize(NSSize(width: self?.bounds.width ?? 0, height: value))
     }
+    titleHeightConstraint.isActive = true
 
-    updateShadow()
+    // osc
+
+    self.oscContainer = TitlebarInnerView(titlebar: self)
+    oscContainer.translatesAutoresizingMaskIntoConstraints = false
+    container.addArrangedSubview(oscContainer)
+    self.oscView = TimeLabelOverflowedStackView()
+    oscView.translatesAutoresizingMaskIntoConstraints = false
+    oscContainer.addSubview(oscView)
+    oscView.padding(.trailing(6), .top, .bottom(.oscBottomMargin)).size(height: 24)
+
+    oscLeadingConstraint = oscView.leadingAnchor
+      .constraint(equalTo: oscContainer.leadingAnchor, constant: 6)
+    oscLeadingConstraint.isActive = true
+
   }
   
   required init?(coder: NSCoder) {
@@ -193,7 +147,7 @@ class Titlebar: NSView {
   func update(hasOSC: Bool, inFullScreen: Bool) {
     // when in full screen, the OSC should have a top padding
     topConstraint.constant = inFullScreen ? 8 : 0
-    // show/hide title or OSC
+    // The title remains native. Only the custom time display follows the OSC state.
     container.setVisibilityPriority(.mustHold, for: titlebarContainer)
     if hasOSC {
       container.setVisibilityPriority(.mustHold, for: oscContainer)
@@ -203,10 +157,7 @@ class Titlebar: NSView {
     } else {
       container.setVisibilityPriority(.notVisible, for: oscContainer)
     }
-    // show systsem titlebar when in fullscreen
-    if !useSystemTitle {
-      window?.titleVisibility = inFullScreen ? .visible : .hidden
-    }
+    window?.titleVisibility = .visible
     // update vertical constraint
     updateVerticalConstraint(isDisplaying: !inFullScreen || hasOSC)
   }
@@ -219,25 +170,10 @@ class Titlebar: NSView {
       .sf("pin", withConfiguration: accessoryIconConfig)
   }
 
-  func updateTitle() {
-    guard let titleTextField,
-          let docIcon,
-          let sysTitle = mainWindow.titleTextField else { return }
-
-    titleTextField.stringValue = sysTitle.stringValue
-    if let fileName = mainWindow.window?.representedFilename {
-      docIcon.image = NSWorkspace.shared.icon(forFile: fileName)
-    } else {
-      docIcon.image = nil
-    }
-  }
-
   func setLeadingConstraint(_ constant: CGFloat, animated: Bool = true) {
     if animated {
-      titleLeadingConstraint.animator().constant = constant == 0 ? 0 : constant + 8
       oscLeadingConstraint.animator().constant = constant + 6
     } else {
-      titleLeadingConstraint.constant = constant == 0 ? 0 : constant + 8
       oscLeadingConstraint.constant = constant + 6
     }
   }
@@ -247,69 +183,6 @@ class Titlebar: NSView {
       trailingConstraint.animator().constant = constant
     } else {
       trailingConstraint.constant = constant
-    }
-  }
-
-  override func rightMouseDown(with event: NSEvent) {
-    // docIcon/titleTextField are children of titlebarContainer, so their frames are in the
-    // container's coordinate space — not the titlebar's. Convert the click into the container
-    // before hit-testing.
-    let point = titlebarContainer.convert(event.locationInWindow, from: nil)
-
-    if docIcon.frame.contains(point) || titleTextField.frame.contains(point) {
-      showPathMenu()
-    }
-  }
-
-  override func rightMouseUp(with event: NSEvent) {}
-
-  private func showPathMenu() {
-    guard let filename = mainWindow.window?.representedFilename else { return }
-
-    let menu = NSMenu()
-    menu.autoenablesItems = false
-
-    let url = URL(fileURLWithPath: filename)
-    let point = NSPoint(x: -30, y: 0)  // make sure the first menu item is at the title's position
-
-    var current = url.standardizedFileURL
-    var components: [URL] = []
-
-    while true {
-      components.append(current)
-      let parent = current.deletingLastPathComponent()
-      if parent.path == "/" { break }  // reached root
-      current = parent
-    }
-
-    for pathURL in components {
-      let item = NSMenuItem()
-      item.title = FileManager.default.displayName(atPath: pathURL.path)
-      item.image = NSWorkspace.shared.icon(forFile: pathURL.path)
-      item.image?.size = NSSize(width: 16, height: 16)
-      item.representedObject = pathURL
-      item.target = self
-      item.action = #selector(revealInFinder(_:))
-      menu.addItem(item)
-    }
-
-    menu.popUp(positioning: nil, at: point, in: titleTextField)
-  }
-
-  @objc private func revealInFinder(_ sender: NSMenuItem) {
-    guard let url = sender.representedObject as? URL else { return }
-    NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: url.path)
-  }
-
-  private func updateShadow() {
-    if isTransparent {
-      let shadow = NSShadow()
-      shadow.shadowColor = .black
-      shadow.shadowBlurRadius = 8
-      shadow.shadowOffset = .zero
-      titleTextField.shadow = shadow
-    } else {
-      titleTextField.shadow = nil
     }
   }
 
@@ -327,6 +200,10 @@ class Titlebar: NSView {
 
 
 /// Keeps the titlebar in sync while the OSC lays out.
+fileprivate class NativeTitlebarSpacerView: NSView {
+  override func hitTest(_ point: NSPoint) -> NSView? { nil }
+}
+
 fileprivate class TitlebarInnerView: NSView {
   weak var titlebar: Titlebar!
 
