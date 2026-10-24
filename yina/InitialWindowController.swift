@@ -192,10 +192,6 @@ class InitialWindowController: NSWindowController {
                                            name: .yinaHistoryUpdated, object: nil)
     NotificationCenter.default.addObserver(self, selector: #selector(initialWindowWillClose),
                                            name: NSWindow.willCloseNotification, object: window)
-    NotificationCenter.default.addObserver(self, selector: #selector(parentWindowGeometryDidChange),
-                                           name: NSWindow.didResizeNotification, object: window)
-    NotificationCenter.default.addObserver(self, selector: #selector(parentWindowGeometryDidChange),
-                                           name: NSWindow.didMoveNotification, object: window)
     NotificationCenter.default.addObserver(self, selector: #selector(availabilityDidChange),
                                            name: NSApplication.didBecomeActiveNotification, object: nil)
     NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(availabilityDidChange),
@@ -254,7 +250,10 @@ class InitialWindowController: NSWindowController {
     recentScrollView.hasHorizontalScroller = false
     recentScrollView.hasVerticalScroller = false
     recentScrollView.autohidesScrollers = true
-    recentScrollView.automaticallyAdjustsContentInsets = true
+    // This transparent full-size window manages the overlap itself so list rows
+    // can scroll behind the titlebar accessory's native soft edge.
+    recentScrollView.automaticallyAdjustsContentInsets = false
+    recentScrollView.contentInsets = NSEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
     recentScrollView.scrollerStyle = .overlay
     recentScrollView.verticalScrollElasticity = .allowed
     recentScrollView.setContentHuggingPriority(.defaultLow, for: .vertical)
@@ -262,7 +261,7 @@ class InitialWindowController: NSWindowController {
     recentScrollView.documentView = recentDocumentView
     mainView.addSubview(recentScrollView)
 
-    nativeScrollEdgeAccessory.layoutAttribute = .top
+    nativeScrollEdgeAccessory.layoutAttribute = .bottom
     nativeScrollEdgeAccessory.automaticallyAdjustsSize = false
     nativeScrollEdgeAccessory.preferredScrollEdgeEffectStyle = .soft
     nativeScrollEdgeAccessory.view = NSView(frame: NSRect(x: 0, y: 0,
@@ -368,12 +367,7 @@ class InitialWindowController: NSWindowController {
   @objc private func initialWindowWillClose() {
     openRequestGeneration &+= 1
     mediaOpenQueue.cancelAllOperations()
-    shelfWindow?.orderOut(nil)
     stopAvailabilityRefresh()
-  }
-
-  @objc private func parentWindowGeometryDidChange() {
-    updateShelfWindowFrame()
   }
 
   private func centerWelcomeComposition() {
@@ -392,7 +386,7 @@ class InitialWindowController: NSWindowController {
   private func updateShelfWindowFrame() {
     guard let parentWindow = window, let shelfWindow else { return }
     guard !showFolders.isEmpty else {
-      shelfWindow.orderOut(nil)
+      updateShelfWindowVisibility()
       return
     }
 
@@ -406,17 +400,20 @@ class InitialWindowController: NSWindowController {
                        y: parentFrame.maxY - ShowFolderShelfView.height / 2,
                        width: width,
                        height: ShowFolderShelfView.height)
-    shelfWindow.setFrame(frame, display: parentWindow.isVisible)
-    showFolderShelf.layoutSubtreeIfNeeded()
+    if shelfWindow.frame != frame {
+      shelfWindow.setFrame(frame, display: false)
+      showFolderShelf.layoutSubtreeIfNeeded()
+    }
     updateShelfWindowVisibility()
   }
 
   private func updateShelfWindowVisibility() {
     guard let shelfWindow else { return }
-    if window?.isVisible == true && !showFolders.isEmpty {
+    let shouldShow = window?.isVisible == true && !showFolders.isEmpty
+    shelfWindow.alphaValue = shouldShow ? 1 : 0
+    shelfWindow.ignoresMouseEvents = !shouldShow
+    if shouldShow && !shelfWindow.isVisible {
       shelfWindow.orderFront(nil)
-    } else {
-      shelfWindow.orderOut(nil)
     }
   }
 
@@ -1001,6 +998,7 @@ extension InitialWindowController: NSTableViewDelegate, NSTableViewDataSource {
 }
 
 private final class InitialWindowRecentCell: NSTableCellView {
+  private static let horizontalInset: CGFloat = 16
   private let titleLabel = NSTextField(labelWithString: "")
   private let fileIcon = NSImageView()
 
@@ -1020,12 +1018,12 @@ private final class InitialWindowRecentCell: NSTableCellView {
     textField = titleLabel
     imageView = fileIcon
     NSLayoutConstraint.activate([
-      fileIcon.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 9),
+      fileIcon.leadingAnchor.constraint(equalTo: leadingAnchor, constant: Self.horizontalInset),
       fileIcon.centerYAnchor.constraint(equalTo: centerYAnchor),
       fileIcon.widthAnchor.constraint(equalToConstant: 16),
       fileIcon.heightAnchor.constraint(equalToConstant: 16),
       titleLabel.leadingAnchor.constraint(equalTo: fileIcon.trailingAnchor, constant: 2),
-      titleLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -2),
+      titleLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -Self.horizontalInset),
       titleLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
     ])
   }
