@@ -12,6 +12,10 @@ start = source.index("  private func setToneMappingForHDR(passthrough: Bool) {")
 end = source.index("\n  /// Return the output peak", start)
 policy = source[start:end].replace("private func", "func", 1)
 
+start = source.index('    let transfer = mpv.getString(MPVProperty.videoParamsGamma)')
+end = source.index('\n#else', start)
+transfer_policy = "  func applyTransfer() { let mpv = player.mpv!\n" + source[start:end] + "\n  }\n"
+
 harness = r'''
 import Foundation
 
@@ -21,7 +25,7 @@ enum MPVProperty {
 }
 enum MPVOption {
   enum GPURendererOptions {
-    static let inverseToneMapping = "inverse", targetPeak = "peak", toneMapping = "algorithm"
+    static let inverseToneMapping = "inverse", targetPeak = "peak", toneMapping = "algorithm", targetTrc = "transfer"
   }
 }
 enum Preference {
@@ -50,7 +54,7 @@ final class Probe {
   init(_ gamma: String?, _ primaries: String?) { player = Player(MPV(gamma, primaries)) }
   func logHDR(_ value: String, level: Level = .warning) { }
   func toneMappingTargetPeak() -> String { "1600" }
-''' + classification + policy + r'''
+''' + classification + policy + transfer_policy + r'''
 }
 for (gamma, primaries) in [("pq", "bt.2020"), ("pq", "bt.709"),
                            ("hlg", "bt.2020"), ("hlg", "unknown")] {
@@ -60,6 +64,8 @@ for (gamma, primaries) in [("pq", "bt.2020"), ("pq", "bt.709"),
   probe.player.mpv!.options = ["inverse": "yes", "peak": "1600", "algorithm": "reinhard"]
   probe.setToneMappingForHDR(passthrough: true)
   precondition(probe.player.mpv!.options == ["inverse": "no", "peak": "default", "algorithm": "default"])
+  probe.applyTransfer()
+  precondition(probe.player.mpv!.options["transfer"] == gamma, "Metal needs an explicit source PQ/HLG transfer")
 }
 precondition(!Probe("bt.1886", "bt.2020").isHDRVideo())
 precondition(!Probe(nil, nil).isHDRVideo())

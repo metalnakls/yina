@@ -608,8 +608,11 @@ extension VideoView {
 #if IINA_ENABLE_METAL_RENDERER
     mpv.setString(MPVOption.GPURendererOptions.targetPrim,
                   primaries == "display-p3" ? "display-p3" : "bt.2020")
-    // Preserve PQ/HLG source encoding and metadata for macOS's display mapping.
-    mpv.setString(MPVOption.GPURendererOptions.targetTrc, "auto")
+    // The pinned libmpv Metal backend selects its swapchain from target-trc;
+    // it does not implement target-colorspace-hint-mode. Explicitly preserve
+    // the source transfer instead of falling back to an SDR swapchain.
+    let transfer = mpv.getString(MPVProperty.videoParamsGamma) == "hlg" ? "hlg" : "pq"
+    mpv.setString(MPVOption.GPURendererOptions.targetTrc, transfer)
 #else
     mpv.setString(MPVOption.GPURendererOptions.targetPrim, primaries)
     mpv.setString(MPVOption.GPURendererOptions.targetTrc, "pq")
