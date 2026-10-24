@@ -273,7 +273,8 @@ class OSCFloatingView: TranslucentView {
     self.oscBottomView = TimeLabelOverflowedStackView()
     oscBottomView.translatesAutoresizingMaskIntoConstraints = false
     container.addSubview(oscBottomView)
-    oscBottomView.padding(.vertical(8), .horizontal(8))
+    oscBottomView.padding(.vertical(8),
+                          .horizontal(OSCDesignMetrics.floatingHorizontalInset))
 
     setContent(container)
 

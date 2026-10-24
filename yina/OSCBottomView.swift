@@ -6,9 +6,15 @@
 //  Copyright © 2026 lhc. All rights reserved.
 //
 
+enum OSCDesignMetrics {
+  /// The docked OSC's existing leading inset, shared with its trailing edge.
+  static let dockedHorizontalInset = LayoutValue(16, 12)
+  /// The floating OSC keeps its existing compact inset on both sides.
+  static let floatingHorizontalInset: CGFloat = 8
+}
+
 fileprivate extension LayoutValue {
-  static let oscPadding = LayoutValue(12, 8)
-  static let oscPaddingLeading = LayoutValue(16, 12)
+  static let oscVerticalPadding = LayoutValue(12, 8)
 }
 
 
@@ -38,7 +44,8 @@ class OSCBottomView: NSView {
     self.oscView = TimeLabelOverflowedStackView()
     oscView.translatesAutoresizingMaskIntoConstraints = false
     container.addSubview(oscView)
-    oscView.padding(.vertical(.oscPadding), .trailing(.oscPadding), .leading(.oscPaddingLeading))
+    oscView.padding(.vertical(.oscVerticalPadding),
+                    .horizontal(OSCDesignMetrics.dockedHorizontalInset))
     translucentView.setContent(container)
 
     addSubview(translucentView)

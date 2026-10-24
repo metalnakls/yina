@@ -10,10 +10,6 @@ import Cocoa
 
 class TimeLabelOverflowedStackView: NSStackView {
 
-  override var alignmentRectInsets: NSEdgeInsets {
-    return NSEdgeInsets(top: 6, left: 0, bottom: 0, right: 0)
-  }
-
   /// Informs the receiver that the user has pressed the left mouse button.
   ///
   /// This is a workaround for YINA issue #5768 where starting with macOS Tahoe AppKit is miss-handling mouse events in certain
