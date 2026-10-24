@@ -440,13 +440,10 @@ final class ShowFolderCardView: NSView {
       artworkLegibilityEffect.trailingAnchor.constraint(equalTo: cardContentView.trailingAnchor),
       artworkLegibilityEffect.topAnchor.constraint(equalTo: cardContentView.topAnchor),
       artworkLegibilityEffect.bottomAnchor.constraint(equalTo: cardContentView.bottomAnchor),
-      // Give the drawing view room for the native Core Graphics shadow. The
-      // path itself stays on the card perimeter, but its soft halo must not be
-      // clipped at the card's rectangular backing store.
-      progressView.leadingAnchor.constraint(equalTo: cardContentView.leadingAnchor, constant: -12),
-      progressView.trailingAnchor.constraint(equalTo: cardContentView.trailingAnchor, constant: 12),
-      progressView.topAnchor.constraint(equalTo: cardContentView.topAnchor, constant: -12),
-      progressView.bottomAnchor.constraint(equalTo: cardContentView.bottomAnchor, constant: 12),
+      progressView.leadingAnchor.constraint(equalTo: cardContentView.leadingAnchor),
+      progressView.trailingAnchor.constraint(equalTo: cardContentView.trailingAnchor),
+      progressView.topAnchor.constraint(equalTo: cardContentView.topAnchor),
+      progressView.bottomAnchor.constraint(equalTo: cardContentView.bottomAnchor),
       titleLabel.leadingAnchor.constraint(equalTo: cardContentView.leadingAnchor,
                                           constant: ShowFolderCardMetrics.contentInset),
       titleLabel.trailingAnchor.constraint(lessThanOrEqualTo: playButton.leadingAnchor,
@@ -536,115 +533,26 @@ final class ShowFolderCardView: NSView {
 }
 
 enum ShowFolderProgressGeometry {
-  struct StrokeSegment {
-    let start: CGPoint
-    let end: CGPoint
-    let width: CGFloat
-  }
-
   struct Result {
-    let trackPath: CGPath
     let valuePath: CGPath?
-    let valueSegments: [StrokeSegment]
-    let valueLength: CGFloat
-    let leadingCurveLength: CGFloat
-    let straightLength: CGFloat
-
-    var isVisible: Bool { valuePath != nil }
   }
 
   static func make(in bounds: CGRect, cornerRadius: CGFloat, progress: Double,
                    isEligible: Bool) -> Result {
-    let inset = ShowFolderCardMetrics.progressLineWidth
-    let radius = max(0, min(cornerRadius - inset, (bounds.height / 2) - inset))
-    let centerY = radius + inset
-    let leftCenterX = radius + inset
-    let rightCenterX = bounds.width - radius - inset
-    let straightLength = max(0, rightCenterX - leftCenterX)
-    let leadingCurveLength = .pi * radius / 2
-    let totalLength = max(1, straightLength + (2 * leadingCurveLength))
-    let valueLength = CGFloat(min(max(progress, 0), 1)) * totalLength
+    let lineWidth = ShowFolderCardMetrics.progressLineWidth
+    let horizontalInset = min(cornerRadius + lineWidth / 2, bounds.width / 2)
+    let lineY = bounds.minY + lineWidth / 2 + 1
+    let startX = bounds.minX + horizontalInset
+    let endX = max(startX, bounds.maxX - horizontalInset)
+    let valueEndX = startX + (endX - startX) * CGFloat(min(max(progress, 0), 1))
 
-    let trackPath = CGMutablePath()
-    trackPath.move(to: CGPoint(x: inset, y: centerY))
-    trackPath.addArc(center: CGPoint(x: leftCenterX, y: centerY), radius: radius,
-                     startAngle: .pi, endAngle: .pi * 1.5, clockwise: false)
-    trackPath.addLine(to: CGPoint(x: rightCenterX, y: inset))
-    trackPath.addArc(center: CGPoint(x: rightCenterX, y: centerY), radius: radius,
-                     startAngle: -.pi / 2, endAngle: 0, clockwise: false)
-
-    guard isEligible, valueLength > leadingCurveLength else {
-      return Result(trackPath: trackPath, valuePath: nil, valueSegments: [], valueLength: valueLength,
-                    leadingCurveLength: leadingCurveLength, straightLength: straightLength)
+    guard isEligible, valueEndX > startX else {
+      return Result(valuePath: nil)
     }
-
     let valuePath = CGMutablePath()
-    valuePath.move(to: CGPoint(x: inset, y: centerY))
-    valuePath.addArc(center: CGPoint(x: leftCenterX, y: centerY), radius: radius,
-                     startAngle: .pi, endAngle: .pi * 1.5, clockwise: false)
-    let remaining = valueLength - leadingCurveLength
-    if remaining <= straightLength {
-      valuePath.addLine(to: CGPoint(x: leftCenterX + remaining, y: inset))
-    } else {
-      valuePath.addLine(to: CGPoint(x: rightCenterX, y: inset))
-      let rightCurveFraction = min(1, (remaining - straightLength) / max(leadingCurveLength, 1))
-      valuePath.addArc(center: CGPoint(x: rightCenterX, y: centerY), radius: radius,
-                       startAngle: -.pi / 2,
-                       endAngle: (-.pi / 2) + ((.pi / 2) * rightCurveFraction),
-                       clockwise: false)
-    }
-    // Sample the same perimeter into short segments so the trace can taper as
-    // it enters/leaves the vertical portions of the rounded corners. A single
-    // stroked path cannot express that width change and makes the old hard
-    // blue border look especially heavy at the ends.
-    var points = [CGPoint(x: inset, y: centerY)]
-    let leftFraction = min(1, valueLength / max(leadingCurveLength, 1))
-    let leftSamples = max(2, Int(ceil(12 * leftFraction)))
-    for index in 1...leftSamples {
-      let fraction = leftFraction * CGFloat(index) / CGFloat(leftSamples)
-      let angle = CGFloat.pi + (CGFloat.pi / 2 * fraction)
-      points.append(CGPoint(x: leftCenterX + cos(angle) * radius,
-                            y: centerY + sin(angle) * radius))
-    }
-    let remainingForSegments = valueLength - leadingCurveLength
-    if remainingForSegments > 0 {
-      let lineFraction = min(1, remainingForSegments / max(straightLength, 1))
-      let lineSamples = max(1, Int(ceil(16 * lineFraction)))
-      for index in 1...lineSamples {
-        let fraction = lineFraction * CGFloat(index) / CGFloat(lineSamples)
-        points.append(CGPoint(x: leftCenterX + straightLength * fraction, y: inset))
-      }
-      if remainingForSegments > straightLength {
-        let rightFraction = min(1, (remainingForSegments - straightLength) / max(leadingCurveLength, 1))
-        let rightSamples = max(2, Int(ceil(12 * rightFraction)))
-        for index in 1...rightSamples {
-          let fraction = rightFraction * CGFloat(index) / CGFloat(rightSamples)
-          let angle = -CGFloat.pi / 2 + (CGFloat.pi / 2 * fraction)
-          points.append(CGPoint(x: rightCenterX + cos(angle) * radius,
-                                y: centerY + sin(angle) * radius))
-        }
-      }
-    }
-    var distances = [CGFloat](repeating: 0, count: points.count)
-    for index in 1..<points.count {
-      let previousPoint = points[index - 1]
-      let point = points[index]
-      let segmentLength = hypot(point.x - previousPoint.x, point.y - previousPoint.y)
-      distances[index] = distances[index - 1] + segmentLength
-    }
-    let sampledLength = max(distances.last ?? 1, 1)
-    let taperLength = min(12, sampledLength / 3)
-    let segments = zip(points, points.dropFirst()).enumerated().map { index, pair in
-      let midpoint = (distances[index] + distances[index + 1]) / 2
-      let leading = min(1, midpoint / max(taperLength, 1))
-      let trailing = min(1, (sampledLength - midpoint) / max(taperLength, 1))
-      return StrokeSegment(start: pair.0, end: pair.1,
-                           width: ShowFolderCardMetrics.progressLineWidth *
-                            max(0.22, min(1, min(leading, trailing))))
-    }
-    return Result(trackPath: trackPath, valuePath: valuePath, valueSegments: segments,
-                  valueLength: valueLength, leadingCurveLength: leadingCurveLength,
-                  straightLength: straightLength)
+    valuePath.move(to: CGPoint(x: startX, y: lineY))
+    valuePath.addLine(to: CGPoint(x: valueEndX, y: lineY))
+    return Result(valuePath: valuePath)
   }
 }
 
@@ -670,40 +578,20 @@ private final class ShowFolderCardProgressView: NSView {
 
   override func draw(_ dirtyRect: NSRect) {
     super.draw(dirtyRect)
-    let cardBounds = bounds.insetBy(dx: 12, dy: 12)
-    let geometry = ShowFolderProgressGeometry.make(in: cardBounds,
+    let geometry = ShowFolderProgressGeometry.make(in: bounds,
                                                     cornerRadius: ShowFolderCardMetrics.cornerRadius,
                                                     progress: progress,
                                                     isEligible: isEligible)
     guard isEligible,
+          let valuePath = geometry.valuePath,
           let context = NSGraphicsContext.current?.cgContext else { return }
     context.saveGState()
     context.setLineCap(.round)
-    guard geometry.valuePath != nil else {
-      context.restoreGState()
-      return
-    }
-
-    // A continuous wide pass establishes the diffuse trace. It is intentionally
-    // not followed by an opaque one-pixel core: that is what made the previous
-    // indicator read as a border rather than light reflected in the glass.
-    context.saveGState()
-    context.setLineWidth(ShowFolderCardMetrics.progressLineWidth * 4.5)
-    context.setStrokeColor(NSColor.white.withAlphaComponent(0.13).cgColor)
-    context.setShadow(offset: .zero, blur: 7,
-                      color: NSColor.white.withAlphaComponent(0.58).cgColor)
-    context.addPath(geometry.valuePath!)
+    let lineColor = usesLightTrack ? NSColor.white : NSColor.labelColor
+    context.setLineWidth(ShowFolderCardMetrics.progressLineWidth)
+    context.setStrokeColor(lineColor.withAlphaComponent(0.42).cgColor)
+    context.addPath(valuePath)
     context.strokePath()
-    context.restoreGState()
-    // The tapered overlay only softens the two vertical ends; the full trace
-    // above remains one uninterrupted path, eliminating segment seams.
-    for segment in geometry.valueSegments {
-      context.setLineWidth(segment.width)
-      context.setStrokeColor(NSColor.white.withAlphaComponent(0.42).cgColor)
-      context.move(to: segment.start)
-      context.addLine(to: segment.end)
-      context.strokePath()
-    }
     context.restoreGState()
   }
 
