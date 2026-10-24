@@ -526,10 +526,17 @@ extension VideoView {
       NSScreen.logEDR("Refreshing HDR for \(player.subsystem.rawValue) on display\(displayId)",
                       screen, subsystem: hdrSubsystem)
     }
+    // Missing source metadata is not proof of SDR. Never enable expansion while
+    // opening/seeking between sources before mpv has reported the transfer function.
+    guard let gamma = player.mpv?.getString(MPVProperty.videoParamsGamma),
+          !gamma.isEmpty, gamma != "unknown", gamma != "auto" else {
+      player.mpv?.setFlag(MPVOption.GPURendererOptions.inverseToneMapping, false)
+      return
+    }
     let edrEnabled: Bool?
     if isHDRVideo() {
       edrEnabled = requestEdrMode()
-      setToneMappingForHDR()
+      setToneMappingForHDR(passthrough: edrEnabled == true)
     } else {
 #if IINA_ENABLE_METAL_RENDERER
       edrEnabled = Preference.bool(for: .enableToneMapping) ? requestEdrModeForSDR() : false
@@ -552,27 +559,13 @@ extension VideoView {
   ///     available.
   private func isHDRVideo() -> Bool {
     guard let mpv = player.mpv else { return false }
-    guard let primaries = mpv.getString(MPVProperty.videoParamsPrimaries), let gamma = mpv.getString(MPVProperty.videoParamsGamma) else {
-      logHDR("Video gamma and primaries not available")
-      return false
-    }
+    guard let gamma = mpv.getString(MPVProperty.videoParamsGamma) else { return false }
+    let primaries = mpv.getString(MPVProperty.videoParamsPrimaries) ?? "unknown"
     let peak = mpv.getDouble(MPVProperty.videoParamsSigPeak)
     logHDR("Video gamma=\(gamma), primaries=\(primaries), sig_peak=\(peak)")
-
-    // HDR videos use a Hybrid Log Gamma (HLG) or a Perceptual Quantization (PQ) transfer function.
-    guard gamma == "hlg" || gamma == "pq" else { return false }
-
-    switch primaries {
-    case "bt.2020", "display-p3":
-      return true
-
-    case "bt.709":
-      return false // SDR
-
-    default:
-      logHDR("Unsupported color space: gamma=\(gamma) primaries=\(primaries)", level: .warning)
-      return false
-    }
+    // Transfer, not gamut, identifies PQ/HLG. HDR can use BT.709 primaries;
+    // treating that as SDR would enable inverse tone mapping on native HDR.
+    return gamma == "hlg" || gamma == "pq"
   }
 
   func requestEdrMode() -> Bool? {
@@ -585,7 +578,7 @@ extension VideoView {
 
     guard player.info.hdrEnabled else { return nil }
 
-    guard let primaries = mpv.getString(MPVProperty.videoParamsPrimaries) else { return false }
+    let primaries = mpv.getString(MPVProperty.videoParamsPrimaries) ?? "bt.2020"
     let name: CFString
     switch primaries {
     case "display-p3":
@@ -595,9 +588,9 @@ extension VideoView {
       name = CGColorSpace.itur_2100_PQ
 
     default:
-      // Since isHDRVideo checked the primaries this should not occur.
-      logHDR("Unsupported color space: primaries=\(primaries)", level: .error)
-      return false
+      // The Metal swapchain supports BT.2020/P3 containers; gamut conversion
+      // into BT.2020 does not change the source's HDR dynamic range.
+      name = CGColorSpace.itur_2100_PQ
     }
 
     logHDR("Using HDR color space instead of ICC profile")
@@ -609,12 +602,18 @@ extension VideoView {
     mpv.setFlag(MPVOption.GPURendererOptions.iccProfileAuto, false)
 #if IINA_ENABLE_METAL_RENDERER
     mpv.setFlag(MPVOption.GPURendererOptions.targetColorspaceHint, true)
-    mpv.setString(MPVOption.GPURendererOptions.targetColorspaceHintMode, "target")
+    mpv.setString(MPVOption.GPURendererOptions.targetColorspaceHintMode, "source")
     mpv.setString(MPVOption.GPURendererOptions.iccProfile, "")
 #endif
+#if IINA_ENABLE_METAL_RENDERER
+    mpv.setString(MPVOption.GPURendererOptions.targetPrim,
+                  primaries == "display-p3" ? "display-p3" : "bt.2020")
+    // Preserve PQ/HLG source encoding and metadata for macOS's display mapping.
+    mpv.setString(MPVOption.GPURendererOptions.targetTrc, "auto")
+#else
     mpv.setString(MPVOption.GPURendererOptions.targetPrim, primaries)
-    // PQ videos will be display as it was, HLG videos will be converted to PQ
     mpv.setString(MPVOption.GPURendererOptions.targetTrc, "pq")
+#endif
     mpv.setFlag(MPVOption.Screenshot.screenshotTagColorspace, true)
     return true
   }
@@ -653,10 +652,12 @@ extension VideoView {
   /// - [tone-mapping](https://mpv.io/manual/stable/#options-tone-mapping)
   ///
   /// Otherwise these options will be set to their default values.
-  private func setToneMappingForHDR() {
+  private func setToneMappingForHDR(passthrough: Bool) {
     guard let mpv = player.mpv else { return }
     mpv.setFlag(MPVOption.GPURendererOptions.inverseToneMapping, false)
-    guard Preference.bool(for: .enableToneMapping) else {
+    // Native HDR uses source metadata. Do not remap it to an inferred display
+    // peak here and then have ColorSync map that output to the display again.
+    guard !passthrough, Preference.bool(for: .enableToneMapping) else {
       // Reset options to their defaults.
       mpv.setStringToDefault(MPVOption.GPURendererOptions.targetPeak)
       mpv.setStringToDefault(MPVOption.GPURendererOptions.toneMapping)
