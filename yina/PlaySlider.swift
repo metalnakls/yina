@@ -39,6 +39,26 @@ private final class SliderChapterMarks: NSView {
 private final class FloatingPlaySliderCell: NSSliderCell {
   var extendedDynamicRangeHeadroom: CGFloat = 1
 
+  override func drawKnob(_ knobRect: NSRect) {
+    guard extendedDynamicRangeHeadroom > 1,
+          let context = NSGraphicsContext.current?.cgContext else {
+      super.drawKnob(knobRect)
+      return
+    }
+
+    // Isolate AppKit's own thumb rendering, then tint only its existing alpha silhouette.
+    // This keeps the system geometry and hit area while allowing an EDR fill color.
+    NSGraphicsContext.saveGraphicsState()
+    context.beginTransparencyLayer(auxiliaryInfo: nil)
+    super.drawKnob(knobRect)
+    context.setBlendMode(.sourceAtop)
+    NSColor.hdrWhite(intensity: 0.96, headroom: extendedDynamicRangeHeadroom).setFill()
+    NSBezierPath(rect: knobRect).fill()
+    context.setBlendMode(.normal)
+    context.endTransparencyLayer()
+    NSGraphicsContext.restoreGraphicsState()
+  }
+
   // AppKit draws the same thumb and owns its tracking geometry in SDR and HDR.
   override func drawBar(inside rect: NSRect, flipped: Bool) {
     let knob = knobRect(flipped: flipped)
@@ -55,7 +75,7 @@ private final class FloatingPlaySliderCell: NSSliderCell {
     NSGraphicsContext.saveGraphicsState()
     NSBezierPath(rect: NSRect(x: progress, y: rect.minY,
                               width: rect.maxX - progress, height: rect.height)).addClip()
-    NSColor(white: 0.3, alpha: 1).setFill()
+    NSColor(white: 0.3, alpha: 0.5).setFill()
     path.fill()
     NSGraphicsContext.restoreGraphicsState()
   }

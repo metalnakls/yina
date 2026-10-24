@@ -42,7 +42,7 @@ class PlaySliderCell: NSSliderCell {
     usesExtendedDynamicRange ? .hdrWhite(intensity: 0.45, headroom: extendedDynamicRangeHeadroom) : .mainSliderBarLeft
   }
   private var barColorRight: NSColor {
-    NSColor(white: 0.3, alpha: 1)
+    NSColor(white: 0.3, alpha: 0.5)
   }
 
   var drawChapters = Preference.bool(for: .showChapterPos)

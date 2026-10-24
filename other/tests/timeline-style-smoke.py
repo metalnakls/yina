@@ -21,15 +21,22 @@ for value in [10.0,35,60,85,110] {
   precondition(cell.knobRect(flipped:false)==expected,"HDR moved or resized the thumb")
   let image=NSImage(size:NSSize(width:300,height:24));image.lockFocus()
   cell.drawBar(inside:NSRect(x:5,y:10,width:290,height:4),flipped:false)
+  cell.drawKnob(expected)
   image.unlockFocus()
   let pixels=NSBitmapImageRep(data:image.tiffRepresentation!)!
+  if headroom > 1 {
+   let thumb=pixels.colorAt(x:Int(expected.midX),y:Int(expected.midY))!.usingColorSpace(.genericGray)!.whiteComponent
+   precondition(thumb >= 0.95,"HDR thumb tint must stay at least as bright as the played track")
+  }
   if value < 85 {
-   let gray=pixels.colorAt(x:285,y:12)!.usingColorSpace(.genericGray)!.whiteComponent
+   let unwatched=pixels.colorAt(x:285,y:12)!.usingColorSpace(.genericGray)!
+   let gray=unwatched.whiteComponent
    precondition(abs(gray-0.3)<0.025,"Unwatched track is not gray")
+   precondition(abs(unwatched.alphaComponent-0.5)<0.025,"Unwatched track is not translucent")
   }
  }
 }
-print("PASS: SDR/HDR share native knob geometry and the unwatched track stays gray at all headrooms")
+print("PASS: HDR tint preserves native knob geometry, and the unwatched track stays gray and translucent")
 '''
 with tempfile.TemporaryDirectory(prefix='yina-timeline-style-') as d:
  p=pathlib.Path(d)/'main.swift';p.write_text(code);binary=pathlib.Path(d)/'probe'
