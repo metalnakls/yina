@@ -39,25 +39,8 @@ private final class SliderChapterMarks: NSView {
 private final class FloatingPlaySliderCell: NSSliderCell {
   var extendedDynamicRangeHeadroom: CGFloat = 1
 
-  private var usesExtendedDynamicRange: Bool { extendedDynamicRangeHeadroom > 1 }
-
-  override func drawKnob(_ knobRect: NSRect) {
-    guard usesExtendedDynamicRange else {
-      super.drawKnob(knobRect)
-      return
-    }
-    NSColor.hdrWhite(headroom: extendedDynamicRangeHeadroom).setFill()
-    let diameter = min(knobRect.width, knobRect.height)
-    let circle = NSRect(x: knobRect.midX - diameter / 2, y: knobRect.midY - diameter / 2,
-                        width: diameter, height: diameter)
-    NSBezierPath(ovalIn: circle).fill()
-  }
-
+  // AppKit draws the same thumb and owns its tracking geometry in SDR and HDR.
   override func drawBar(inside rect: NSRect, flipped: Bool) {
-    guard usesExtendedDynamicRange else {
-      super.drawBar(inside: rect, flipped: flipped)
-      return
-    }
     let knob = knobRect(flipped: flipped)
     let progress = min(max(knob.midX, rect.minX), rect.maxX)
     let path = NSBezierPath(roundedRect: rect, xRadius: rect.height / 2, yRadius: rect.height / 2)
@@ -72,7 +55,7 @@ private final class FloatingPlaySliderCell: NSSliderCell {
     NSGraphicsContext.saveGraphicsState()
     NSBezierPath(rect: NSRect(x: progress, y: rect.minY,
                               width: rect.maxX - progress, height: rect.height)).addClip()
-    NSColor.hdrWhite(intensity: 0.18, headroom: extendedDynamicRangeHeadroom).setFill()
+    NSColor(white: 0.3, alpha: 1).setFill()
     path.fill()
     NSGraphicsContext.restoreGraphicsState()
   }

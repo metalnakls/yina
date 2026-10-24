@@ -42,7 +42,7 @@ class PlaySliderCell: NSSliderCell {
     usesExtendedDynamicRange ? .hdrWhite(intensity: 0.45, headroom: extendedDynamicRangeHeadroom) : .mainSliderBarLeft
   }
   private var barColorRight: NSColor {
-    usesExtendedDynamicRange ? .hdrWhite(intensity: 0.18, headroom: extendedDynamicRangeHeadroom) : .mainSliderBarRight
+    NSColor(white: 0.3, alpha: 1)
   }
 
   var drawChapters = Preference.bool(for: .showChapterPos)
@@ -99,7 +99,8 @@ class PlaySliderCell: NSSliderCell {
   override func knobRect(flipped: Bool) -> NSRect {
     let slider = self.controlView as! NSSlider
     let barRect = barRect(flipped: flipped)
-    let percentage = slider.doubleValue / (slider.maxValue - slider.minValue)
+    let span = slider.maxValue - slider.minValue
+    let percentage = span > 0 ? ((slider.doubleValue - slider.minValue) / span).clamped(to: 0...1) : 0
     // The usable width of the bar is reduced by the width of the knob.
     let effectiveBarWidth = barRect.width - knobWidth
     let pos = barRect.origin.x + CGFloat(percentage) * effectiveBarWidth
@@ -117,18 +118,8 @@ class PlaySliderCell: NSSliderCell {
     /// The position of the knob, rounded for cleaner drawing
     let knobPos = round(knobRect(flipped: flipped).minX)
 
-    /// How far progressed the current video is, used for drawing the bar background
-    var progress : CGFloat = 0;
-
-    if info.isNetworkResource,
-      info.cacheTime != 0,
-      let duration = info.videoDuration,
-      duration.second != 0 {
-      let pos = Double(info.cacheTime) / Double(duration.second) * 100
-      progress = round(rect.width * CGFloat(pos / (slider.maxValue - slider.minValue))) + 2;
-    } else {
-      progress = knobPos;
-    }
+    // The played region ends at the playback thumb, never at the download buffer.
+    let progress = (knobRect(flipped: flipped).midX - rect.minX).clamped(to: 0...rect.width)
 
     NSGraphicsContext.saveGraphicsState()
     let barRect: NSRect = rect
@@ -144,7 +135,7 @@ class PlaySliderCell: NSSliderCell {
         let chapters = info.chapters
         if chapters.count > 1 {
           for chapt in chapters[1...] {
-            let chapPos = CGFloat(chapt.time.second) / CGFloat(totalSec) * barRect.width
+            let chapPos = barRect.minX + CGFloat(chapt.time.second) / CGFloat(totalSec) * barRect.width
             let rect = NSRect(x: chapPos - 0.5, y: barRect.origin.y, width: 1, height: barRect.height)
             chapterClip.append(NSBezierPath(rect: rect))
           }
