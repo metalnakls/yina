@@ -1093,18 +1093,41 @@ private struct WelcomeRecentScrollView: View {
         .frame(width: model.listWidth, height: model.layout.documentHeight,
                alignment: .topLeading)
     }
-    .scrollIndicators(.hidden)
     .scrollEdgeEffectStyle(.soft, for: .top)
     .scrollEdgeEffectHidden(true, for: .bottom)
     .ignoresSafeArea(.container, edges: .top)
     .safeAreaBar(edge: .top, spacing: 0) {
-      Color.clear
+      WelcomeRecentEdgeSurface()
         .frame(height: model.layout.topEdgeHeight)
         .allowsHitTesting(false)
     }
     .id(model.layout.resetGeneration)
     .background(Color.clear)
   }
+}
+
+/// Native, hit-test-through surface for SwiftUI's scroll-edge material.
+/// Keeping this as an AppKit view lets the system attach the same native edge
+/// treatment used by Glass to the top of the scrolling content.
+private struct WelcomeRecentEdgeSurface: NSViewRepresentable {
+  func makeNSView(context: Context) -> NSView {
+    WelcomeRecentEdgeSurfaceView()
+  }
+
+  func updateNSView(_ nsView: NSView, context: Context) {}
+}
+
+private final class WelcomeRecentEdgeSurfaceView: NSView {
+  override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+  override init(frame frameRect: NSRect) {
+    super.init(frame: frameRect)
+    wantsLayer = true
+    layer?.backgroundColor = NSColor.clear.cgColor
+    layer?.masksToBounds = false
+  }
+
+  required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 }
 
 private struct WelcomeRecentDocumentRepresentable: NSViewRepresentable {
