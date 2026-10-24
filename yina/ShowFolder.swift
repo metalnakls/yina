@@ -280,7 +280,6 @@ private enum ShowFolderCardMetrics {
   // A taller card needs a larger radius to carry the same visual curvature as the 24-point floating OSC.
   static let cornerRadius: CGFloat = 32
   static let contentInset: CGFloat = 20
-  static let controlSpacing: CGFloat = 12
   static let playButtonSize: CGFloat = 48
   static let progressLineWidth: CGFloat = 2
 }
@@ -325,6 +324,9 @@ final class ShowFolderCardView: NSView {
   private let playButton = NSButton()
   private let button = NSButton()
   private let progressView = ShowFolderCardProgressView()
+  private var cardTrackingArea: NSTrackingArea?
+  private var playButtonVisibilityGeneration = 0
+  private var isPointerInside = false
   private(set) var show: ShowFolder
   private(set) var hasThumbnail = false
   var isKeyboardSelected = false {
@@ -372,9 +374,12 @@ final class ShowFolderCardView: NSView {
     episodeLabel.font = .preferredFont(forTextStyle: .footnote)
     episodeLabel.textColor = .secondaryLabelColor
     episodeLabel.lineBreakMode = .byTruncatingTail
+    episodeLabel.alignment = .right
     episodeLabel.stringValue = show.secondaryTitle
 
     playButton.translatesAutoresizingMaskIntoConstraints = false
+    playButton.isHidden = true
+    playButton.alphaValue = 0
     playButton.isBordered = false
     playButton.focusRingType = .none
     let playConfiguration = NSImage.SymbolConfiguration(
@@ -446,17 +451,18 @@ final class ShowFolderCardView: NSView {
       progressView.bottomAnchor.constraint(equalTo: cardContentView.bottomAnchor),
       titleLabel.leadingAnchor.constraint(equalTo: cardContentView.leadingAnchor,
                                           constant: ShowFolderCardMetrics.contentInset),
-      titleLabel.trailingAnchor.constraint(lessThanOrEqualTo: playButton.leadingAnchor,
-                                           constant: -ShowFolderCardMetrics.controlSpacing),
-      episodeLabel.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor),
-      episodeLabel.trailingAnchor.constraint(equalTo: titleLabel.trailingAnchor),
-      episodeLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 2),
-      episodeLabel.bottomAnchor.constraint(equalTo: cardContentView.bottomAnchor,
+      titleLabel.trailingAnchor.constraint(equalTo: cardContentView.trailingAnchor,
                                            constant: -ShowFolderCardMetrics.contentInset),
-      playButton.trailingAnchor.constraint(equalTo: cardContentView.trailingAnchor,
-                                           constant: -ShowFolderCardMetrics.contentInset),
-      playButton.bottomAnchor.constraint(equalTo: cardContentView.bottomAnchor,
+      titleLabel.bottomAnchor.constraint(equalTo: cardContentView.bottomAnchor,
                                          constant: -ShowFolderCardMetrics.contentInset),
+      episodeLabel.leadingAnchor.constraint(greaterThanOrEqualTo: cardContentView.leadingAnchor,
+                                           constant: ShowFolderCardMetrics.contentInset),
+      episodeLabel.trailingAnchor.constraint(equalTo: cardContentView.trailingAnchor,
+                                             constant: -ShowFolderCardMetrics.contentInset),
+      episodeLabel.topAnchor.constraint(equalTo: cardContentView.topAnchor,
+                                        constant: ShowFolderCardMetrics.contentInset),
+      playButton.centerXAnchor.constraint(equalTo: cardContentView.centerXAnchor),
+      playButton.centerYAnchor.constraint(equalTo: cardContentView.centerYAnchor),
       playButton.widthAnchor.constraint(equalToConstant: ShowFolderCardMetrics.playButtonSize),
       playButton.heightAnchor.constraint(equalToConstant: ShowFolderCardMetrics.playButtonSize),
       button.leadingAnchor.constraint(equalTo: cardContentView.leadingAnchor),
@@ -465,6 +471,73 @@ final class ShowFolderCardView: NSView {
       button.bottomAnchor.constraint(equalTo: cardContentView.bottomAnchor),
     ])
     updateThumbnailPresentation()
+  }
+
+  override func updateTrackingAreas() {
+    super.updateTrackingAreas()
+    if let cardTrackingArea { removeTrackingArea(cardTrackingArea) }
+    let trackingArea = NSTrackingArea(rect: .zero,
+                                      options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+                                      owner: self,
+                                      userInfo: nil)
+    addTrackingArea(trackingArea)
+    cardTrackingArea = trackingArea
+  }
+
+  override func mouseEntered(with event: NSEvent) {
+    super.mouseEntered(with: event)
+    isPointerInside = true
+    showPlayButton()
+  }
+
+  override func mouseExited(with event: NSEvent) {
+    super.mouseExited(with: event)
+    isPointerInside = false
+    hidePlayButton()
+  }
+
+  private func showPlayButton() {
+    playButtonVisibilityGeneration &+= 1
+    playButton.isEnabled = true
+    if playButton.isHidden {
+      playButton.isHidden = false
+      playButton.alphaValue = 0
+    }
+    animatePlayButton(to: 1,
+                      duration: TimeInterval(min(max(Preference.float(for: .oscDissolveAppearDuration), 0.05), 0.75)))
+  }
+
+  private func hidePlayButton() {
+    playButtonVisibilityGeneration &+= 1
+    let generation = playButtonVisibilityGeneration
+    playButton.isEnabled = false
+    animatePlayButton(to: 0,
+                      duration: TimeInterval(min(max(Preference.float(for: .oscDissolveDisappearDuration), 0.05), 1.0))) {
+      [weak self] in
+      guard let self, generation == self.playButtonVisibilityGeneration, !self.isPointerInside else { return }
+      self.playButton.isHidden = true
+    }
+  }
+
+  private func animatePlayButton(to alpha: CGFloat,
+                                 duration: TimeInterval,
+                                 completion: (() -> Void)? = nil) {
+    let duration = AccessibilityPreferences.adjustedDuration(duration)
+    let easing = DissolveEasing(rawValue: Preference.integer(for: .oscDissolveEasing)) ?? .easeInOut
+    let timingFunction: CAMediaTimingFunction
+    switch easing {
+    case .linear: timingFunction = CAMediaTimingFunction(name: .linear)
+    case .easeIn: timingFunction = CAMediaTimingFunction(name: .easeIn)
+    case .easeOut: timingFunction = CAMediaTimingFunction(name: .easeOut)
+    case .easeInOut: timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+    }
+    NSAnimationContext.runAnimationGroup { context in
+      context.duration = duration
+      context.timingFunction = timingFunction
+      playButton.animator().alphaValue = alpha
+    } completionHandler: {
+      completion?()
+    }
   }
 
   func setThumbnail(_ artwork: ShowFolderCardArtwork) {
