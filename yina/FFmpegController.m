@@ -28,6 +28,15 @@
 
 #define THUMB_COUNT_DEFAULT 100
 
+// All card controllers share a small decode budget. A shelf refresh must not
+// launch twenty decoders (and twenty simultaneous SMB reads) at interactive QoS.
+static dispatch_semaphore_t ThumbnailDecodeSlots(void) {
+  static dispatch_semaphore_t slots;
+  static dispatch_once_t once;
+  dispatch_once(&once, ^{ slots = dispatch_semaphore_create(2); });
+  return slots;
+}
+
 #define CHECK_NOTNULL(ptr,msg) if (ptr == NULL) {\
 LOG_ERROR(@"Error when getting thumbnails: %@", msg);\
 return -1;\
@@ -75,6 +84,7 @@ return -1;\
     _addedTimestamps = [[NSMutableSet alloc] init];
     _queue = [[NSOperationQueue alloc] init];
     _queue.maxConcurrentOperationCount = 1;
+    _queue.qualityOfService = NSQualityOfServiceUtility;
   }
   return self;
 }
@@ -98,7 +108,12 @@ return -1;\
     if ([weakOp isCancelled]) {
       return;
     }
+    dispatch_semaphore_t slots = ThumbnailDecodeSlots();
+    while (dispatch_semaphore_wait(slots, dispatch_time(DISPATCH_TIME_NOW, 50 * NSEC_PER_MSEC)) != 0) {
+      if ([weakOp isCancelled]) { return; }
+    }
     @try {
+      if ([weakOp isCancelled]) { return; }
       self->_timestamp = CACurrentMediaTime();
       int success = [self getPeeksForFile:file thumbnailsWidth:thumbWidth requestedTime:time operation:weakOp];
       if (![weakOp isCancelled] && self.delegate) {
@@ -108,6 +123,7 @@ return -1;\
       }
     } @finally {
       [self releaseThumbnailResults];
+      dispatch_semaphore_signal(slots);
     }
   }];
   [_queue addOperation:op];

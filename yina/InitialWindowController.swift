@@ -32,6 +32,16 @@ class InitialWindowController: NSWindowController {
   private let observedPrefKeys: [Preference.Key] = [.themeMaterial]
   private let availabilityQueue = DispatchQueue(label: "YINAInitialWindowAvailability", qos: .utility)
   private let recentDocumentsQueue = DispatchQueue(label: "YINAInitialWindowRecents", qos: .utility)
+  private let mediaOpenQueue: OperationQueue = {
+    let queue = OperationQueue()
+    queue.name = "YINAWelcomeMediaOpen"
+    queue.qualityOfService = .userInitiated
+    queue.maxConcurrentOperationCount = 2
+    return queue
+  }()
+  private var openRequestGeneration = 0
+  private let iconQueue = DispatchQueue(label: "YINAInitialWindowIcons", qos: .utility)
+  private var pendingIconExtensions = Set<String>()
   private let coordinator = WelcomeWindowCoordinator()
   private let folderClassificationCache = WelcomeFolderClassificationCache()
   private var isCheckingAvailability = false
@@ -82,7 +92,7 @@ class InitialWindowController: NSWindowController {
   }
 
   private func documentIdentity(_ url: URL) -> String {
-    url.isFileURL ? url.standardizedFileURL.path : url.absoluteString
+    url.isFileURL ? url.path : url.absoluteString
   }
 
   private static func isDocumentAvailable(_ url: URL) -> Bool {
@@ -370,6 +380,8 @@ class InitialWindowController: NSWindowController {
   }
 
   @objc private func initialWindowWillClose() {
+    openRequestGeneration &+= 1
+    mediaOpenQueue.cancelAllOperations()
     stopAvailabilityRefresh()
   }
 
@@ -412,7 +424,6 @@ class InitialWindowController: NSWindowController {
         }
         guard !changedRows.isEmpty else { return }
         for row in changedRows {
-          self.documentIconCache.removeValue(forKey: self.documentIdentity(self.recentDocuments[row].url))
           self.recentFilesTableView.rowView(atRow: row, makeIfNecessary: false)?.alphaValue =
             self.recentDocuments[row].isAvailable ? 1 : 0.45
         }
@@ -505,19 +516,22 @@ class InitialWindowController: NSWindowController {
         // Publish the stable shelf before doing any thumbnail I/O or image
         // processing. The serial utility queue then fills these existing
         // cards; it never changes their count or geometry.
+        let cachedArtwork = self.showFolderArtworkCache
         self.availabilityQueue.async { [weak self] in
-          self?.loadShowFolderArtwork(for: cards, generation: generation)
+          self?.loadShowFolderArtwork(for: cards, generation: generation, cachedArtwork: cachedArtwork)
         }
       }
     }
   }
 
-  private func loadShowFolderArtwork(for cards: [ShowFolder], generation: Int) {
+  private func loadShowFolderArtwork(for cards: [ShowFolder], generation: Int,
+                                     cachedArtwork: [String: (position: Double, artwork: ShowFolderCardArtwork)]) {
+    var preparedCache: [String: (position: Double, artwork: ShowFolderCardArtwork)] = [:]
     var artworkByPath: [String: ShowFolderCardArtwork] = [:]
     var artworkRequests: [ShowFolder] = []
     for show in cards {
       let cacheKey = WelcomeArtworkRequest.cacheName(for: show)
-      if let cached = showFolderArtworkCache[cacheKey], abs(cached.position - show.position) <= 1 {
+      if let cached = cachedArtwork[cacheKey], abs(cached.position - show.position) <= 1 {
         artworkByPath[show.identityPath] = cached.artwork
         continue
       }
@@ -536,7 +550,7 @@ class InitialWindowController: NSWindowController {
          let artwork = ShowFolderCardArtwork.make(from: thumbnail) {
         artworkByPath[show.identityPath] = artwork
         if highResolutionThumbnail != nil && Self.isBackingScaleSufficient(thumbnail) {
-          showFolderArtworkCache[cacheKey] = (show.position, artwork)
+          preparedCache[cacheKey] = (show.position, artwork)
         } else {
           // Show the available preview now and upgrade it without leaving the card blank.
           artworkRequests.append(show)
@@ -548,6 +562,7 @@ class InitialWindowController: NSWindowController {
 
     DispatchQueue.main.async { [weak self] in
       guard let self, self.coordinator.isCurrent(generation) else { return }
+      self.showFolderArtworkCache.merge(preparedCache) { _, prepared in prepared }
       for show in cards where self.showFolders.contains(where: {
         $0.identityPath == show.identityPath && $0.resumeURL == show.resumeURL && $0.position == show.position
       }) {
@@ -577,7 +592,7 @@ class InitialWindowController: NSWindowController {
       artworkRequests.removeValue(forKey: show.identityPath)
     }
     let requestID = UUID()
-    let request = WelcomeArtworkRequest(id: requestID, show: show) { [weak self] thumbnail in
+    let request = WelcomeArtworkRequest(id: requestID, show: show) { [weak self] artwork in
       guard let self else { return }
       guard self.artworkRequests[show.identityPath]?.id == requestID else { return }
       defer { self.artworkRequests.removeValue(forKey: show.identityPath) }
@@ -585,8 +600,7 @@ class InitialWindowController: NSWindowController {
             self.showFolders.contains(where: {
               $0.identityPath == show.identityPath && $0.resumeURL == show.resumeURL && $0.position == show.position
             }),
-            let thumbnail,
-            let artwork = ShowFolderCardArtwork.make(from: thumbnail) else { return }
+            let artwork else { return }
       self.showFolderArtworkCache[cacheName] = (show.position, artwork)
       self.showFolderShelf.setThumbnail(artwork, for: show)
     }
@@ -597,7 +611,25 @@ class InitialWindowController: NSWindowController {
   @objc private func openShowFolderCard(_ sender: NSButton) {
     guard let identifier = sender.identifier?.rawValue,
           let show = showFolders.first(where: { $0.identityPath == identifier }) else { return }
-    player.openURL(show.resumeURL)
+    openMedia(show.resumeURL)
+  }
+
+  private func openMedia(_ url: URL) {
+    openRequestGeneration &+= 1
+    let generation = openRequestGeneration
+    let player = self.player!
+    mediaOpenQueue.cancelAllOperations()
+    let operation = BlockOperation()
+    operation.addExecutionBlock { [weak self, weak operation] in
+      guard operation?.isCancelled == false,
+            let media = player.prepareWelcomeMedia(url), operation?.isCancelled == false else { return }
+      DispatchQueue.main.async { [weak self] in
+        guard let self, self.openRequestGeneration == generation,
+              self.window?.isVisible == true else { return }
+        player.openPreparedWelcomeMedia(media)
+      }
+    }
+    mediaOpenQueue.addOperation(operation)
   }
 
   private func selectRecentDocument(at index: Int) {
@@ -626,8 +658,9 @@ class InitialWindowController: NSWindowController {
                                  dismissAction: #selector(self.dismissShowFolderCard(_:)))
       let generation = self.coordinator.currentGeneration
       let cards = self.showFolders
+      let cachedArtwork = self.showFolderArtworkCache
       self.availabilityQueue.async { [weak self] in
-        self?.loadShowFolderArtwork(for: cards, generation: generation)
+        self?.loadShowFolderArtwork(for: cards, generation: generation, cachedArtwork: cachedArtwork)
       }
       self.reloadRecents()
       self.updateRecentLayout(resetScrollPosition: true)
@@ -647,7 +680,7 @@ class InitialWindowController: NSWindowController {
 
   private func openRecentItemFromTable(_ rowIndex: Int) {
     if let document = recentDocuments[at: rowIndex], document.isAvailable {
-      player.openURL(document.url)
+      openMedia(document.url)
     }
   }
 
@@ -668,21 +701,22 @@ class InitialWindowController: NSWindowController {
     if !cachedCards.isEmpty {
       displayShowFolders(cachedCards, saveSnapshot: false)
       let generation = coordinator.currentGeneration
+      let cachedArtwork = showFolderArtworkCache
       availabilityQueue.async { [weak self] in
-        self?.loadShowFolderArtwork(for: cachedCards, generation: generation)
+        self?.loadShowFolderArtwork(for: cachedCards, generation: generation, cachedArtwork: cachedArtwork)
       }
     }
 
     let cardsForExclusion = cachedCards.isEmpty ? showFolders : cachedCards
     let collapsedFolderPaths = Set(cardsForExclusion.compactMap {
-      $0.kind == .folder ? $0.folderURL.standardizedFileURL.path : nil
+      $0.kind == .folder ? $0.folderURL.path : nil
     })
     let collapsedDocumentIdentities = Set(cardsForExclusion.compactMap {
       $0.kind == .file ? documentIdentity($0.resumeURL) : nil
     })
     let cachedURLs = recentDocuments.isEmpty ? WelcomeRecentSnapshotStore.load().filter { url in
       if url.isFileURL,
-         collapsedFolderPaths.contains(url.deletingLastPathComponent().standardizedFileURL.path) {
+         collapsedFolderPaths.contains(url.deletingLastPathComponent().path) {
         return false
       }
       return !collapsedDocumentIdentities.contains(documentIdentity(url))
@@ -729,7 +763,7 @@ class InitialWindowController: NSWindowController {
     }
     let generation = coordinator.currentGeneration
     let collapsedFolderPaths = Set(showFolders.compactMap {
-      $0.kind == .folder ? $0.folderURL.standardizedFileURL.path : nil
+      $0.kind == .folder ? $0.folderURL.path : nil
     })
     let collapsedDocumentIdentities = Set(showFolders.compactMap {
       $0.kind == .file ? documentIdentity($0.resumeURL) : nil
@@ -766,7 +800,7 @@ class InitialWindowController: NSWindowController {
 
         if Logger.isEmitting(.verbose) {
           for (index, url) in appKitRecents.enumerated() {
-            Logger.log("InitialWindow.reloadData(): RecentDocuments_Unfiltered[\(index)]: \(url.resolvingSymlinksInPath().path)", level: .verbose)
+            Logger.log("InitialWindow.reloadData(): RecentDocuments_Unfiltered[\(index)]: \(url.path)", level: .verbose)
           }
           for (index, document) in documents.enumerated() {
             Logger.log("InitialWindow.reloadData(): Loaded RecentDocuments[\(index)]: \(document.url.path), available: \(document.isAvailable)", level: .verbose)
@@ -834,12 +868,29 @@ extension InitialWindowController: NSTableViewDelegate, NSTableViewDataSource {
   }
 
   private func documentIcon(for document: RecentDocument) -> NSImage {
-    let identity = documentIdentity(document.url)
-    if let icon = documentIconCache[identity] { return icon }
-    // Never ask Icon Services to inspect a mounted file while drawing a row.
-    let icon = NSWorkspace.shared.icon(for: UTType(filenameExtension: document.url.pathExtension) ?? .data)
-    documentIconCache[identity] = icon
-    return icon
+    let ext = document.url.pathExtension.lowercased()
+    if let icon = documentIconCache[ext] { return icon }
+    // Row drawing must never wait on Launch Services or Icon Services IPC.
+    let placeholder = NSImage(size: NSSize(width: 16, height: 16))
+    guard pendingIconExtensions.insert(ext).inserted else { return placeholder }
+    iconQueue.async { [weak self] in
+      let source = NSWorkspace.shared.icon(for: UTType(filenameExtension: ext) ?? .data)
+      var rect = NSRect(x: 0, y: 0, width: 32, height: 32)
+      let icon = source.cgImage(forProposedRect: &rect, context: nil, hints: nil)
+        .map { NSImage(cgImage: $0, size: NSSize(width: 16, height: 16)) } ?? source
+      DispatchQueue.main.async { [weak self] in
+        guard let self else { return }
+        self.pendingIconExtensions.remove(ext)
+        self.documentIconCache[ext] = icon
+        let rows = IndexSet(self.recentDocuments.indices.filter {
+          self.recentDocuments[$0].url.pathExtension.lowercased() == ext
+        })
+        if !rows.isEmpty {
+          self.recentFilesTableView.reloadData(forRowIndexes: rows, columnIndexes: IndexSet(integer: 0))
+        }
+      }
+    }
+    return placeholder
   }
 
   override func keyDown(with event: NSEvent) {
@@ -851,9 +902,9 @@ extension InitialWindowController: NSTableViewDelegate, NSTableViewDataSource {
             openRecentItemFromTable(recentFilesTableView.selectedRow)
           }
         } else if let show = showFolders.first {
-          player.openURL(show.resumeURL)
+          openMedia(show.resumeURL)
         } else if let firstAvailable = recentDocuments.firstIndex(where: \.isAvailable) {
-          player.openURL(recentDocuments[firstAvailable].url)
+          openMedia(recentDocuments[firstAvailable].url)
         }
       case "DOWN":  // DOWN arrow
         if !isRecentListKeyboardActive {
@@ -1039,10 +1090,11 @@ private final class WelcomeFolderClassificationCache {
 private final class WelcomeArtworkRequest: NSObject, FFmpegControllerDelegate {
   let id: UUID
   private let show: ShowFolder
-  private let completion: (NSImage?) -> Void
+  private let completion: (ShowFolderCardArtwork?) -> Void
   private let controller = FFmpegController()
+  private let lifecycleQueue = DispatchQueue(label: "YINAWelcomeArtworkLifecycle", qos: .utility)
 
-  init(id: UUID, show: ShowFolder, completion: @escaping (NSImage?) -> Void) {
+  init(id: UUID, show: ShowFolder, completion: @escaping (ShowFolderCardArtwork?) -> Void) {
     self.id = id
     self.show = show
     self.completion = completion
@@ -1060,11 +1112,13 @@ private final class WelcomeArtworkRequest: NSObject, FFmpegControllerDelegate {
   }
 
   func start() {
-    controller.generateThumbnail(forFile: show.resumeURL.path, atTime: show.position, thumbWidth: 960)
+    lifecycleQueue.async { [self] in
+      controller.generateThumbnail(forFile: show.resumeURL.path, atTime: show.position, thumbWidth: 960)
+    }
   }
 
   func cancel() {
-    controller.cancelThumbnailGeneration()
+    lifecycleQueue.async { [self] in controller.cancelThumbnailGeneration() }
   }
 
   func didUpdate(_ thumbnails: [FFThumbnail]?, forFile filename: String, withProgress progress: Int) {
@@ -1076,8 +1130,10 @@ private final class WelcomeArtworkRequest: NSObject, FFmpegControllerDelegate {
     if let thumbnail {
       ThumbnailCache.write([thumbnail], forName: Self.cacheName(for: show), forVideo: show.resumeURL)
     }
+    // Finish image preparation before handing immutable pixels to AppKit.
+    let artwork = thumbnail?.image.flatMap { ShowFolderCardArtwork.make(from: $0) }
     DispatchQueue.main.async { [completion] in
-      completion(thumbnail?.image)
+      completion(artwork)
     }
   }
 }

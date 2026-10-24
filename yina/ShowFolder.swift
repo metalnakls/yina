@@ -35,8 +35,10 @@ struct ShowFolder: Equatable {
 
   var identityPath: String {
     switch kind {
-    case .folder: folderURL.standardizedFileURL.path
-    case .file: resumeURL.standardizedFileURL.path
+    // Models arrive from the background scan or its persisted snapshot.
+    // Re-standardizing here can stat an SMB path while AppKit draws a card.
+    case .folder: folderURL.path
+    case .file: resumeURL.path
     }
   }
 
@@ -230,7 +232,7 @@ enum ShowFolderSnapshotStore {
       defaults.set(data, forKey: cardsKey)
     }
     save(Set(shows.compactMap {
-      $0.kind == .folder ? $0.folderURL.standardizedFileURL.path : nil
+      $0.kind == .folder ? $0.folderURL.path : nil
     }), defaults: defaults)
   }
 }

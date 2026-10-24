@@ -307,6 +307,7 @@ class PlayerCore: NSObject {
 
   /// URL to open once an outstanding mpv stop command completes.
   private var pendingUrl: URL?
+  private var pendingKnownRemoteFile: Bool?
 
   /// Media waiting for the initial player window to finish creating its render context
   /// and controls. Loading starts after that setup so callbacks see initialized views.
@@ -404,7 +405,7 @@ class PlayerCore: NSObject {
 
   // MARK: - Control
 
-  private func open(_ url: URL?, shouldAutoLoad: Bool = false) {
+  private func open(_ url: URL?, shouldAutoLoad: Bool = false, knownRemoteFile: Bool? = nil) {
     guard let url else {
       log("empty file path or url", level: .error)
       return
@@ -417,11 +418,12 @@ class PlayerCore: NSObject {
       log("Waiting for stop command to finish before opening: \(url.absoluteString)")
       pendingAutoLoad = shouldAutoLoad
       pendingUrl = url
+      pendingKnownRemoteFile = knownRemoteFile
       return
     }
     let isNetwork = !url.isFileURL || url.pathExtension.starts(with: "m3u")
-    let isRemoteFile = url.isFileURL &&
-      (try? url.resourceValues(forKeys: [.volumeIsLocalKey]).volumeIsLocal) == false
+    let isRemoteFile = knownRemoteFile ?? (url.isFileURL &&
+      (try? url.resourceValues(forKeys: [.volumeIsLocalKey]).volumeIsLocal) == false)
     if isNetwork, info.state != .idle, let currentWindow {
       // Replace the player window with the loading window. Closing the player window will result in
       // an asynchronous stop command being sent to mpv. As described above, delay sending the
@@ -429,6 +431,7 @@ class PlayerCore: NSObject {
       log("Closing window before opening: \(url.absoluteString)")
       pendingAutoLoad = shouldAutoLoad
       pendingUrl = url
+      pendingKnownRemoteFile = knownRemoteFile
       currentWindow.close()
       return
     }
@@ -495,6 +498,38 @@ class PlayerCore: NSObject {
       sendOSD(.addToPlaylist(count))
     }
     return count
+  }
+
+  struct PreparedWelcomeMedia {
+    let urls: [URL]
+    let autoLoad: Bool
+    let isRemoteFile: Bool
+  }
+
+  /// Alias resolution, directory scans and volume metadata can block on SMB.
+  /// The welcome window calls this only on its I/O queue, before touching player UI.
+  func prepareWelcomeMedia(_ original: URL) -> PreparedWelcomeMedia? {
+    precondition(!Thread.isMainThread)
+    guard let url = Utility.resolveURLs([original]).first else { return nil }
+    let isContainer = Utility.playlistFileExt.contains(url.pathExtension.lowercased()) ||
+      (url.hasDirectoryPath && isBDFolder(url))
+    let urls = isContainer ? [url] : getPlayableFiles(in: [url])
+    guard let first = urls.first else { return nil }
+    let remote = first.isFileURL &&
+      (try? first.resourceValues(forKeys: [.volumeIsLocalKey]).volumeIsLocal) == false
+    return PreparedWelcomeMedia(urls: urls, autoLoad: !isContainer && urls.count == 1,
+                                isRemoteFile: remote)
+  }
+
+  func openPreparedWelcomeMedia(_ media: PreparedWelcomeMedia) {
+    precondition(Thread.isMainThread)
+    info.shouldAutoLoadFiles = media.autoLoad
+    open(media.urls[0], knownRemoteFile: media.isRemoteFile)
+    for url in media.urls.dropFirst() {
+      mpv.playlistAppend(url.isFileURL ? url.path : url.absoluteString)
+    }
+    postNotification(.yinaPlaylistChanged)
+    if media.urls.count > 1 { sendOSD(.addToPlaylist(media.urls.count)) }
   }
 
   func openURL(_ url: URL, shouldAutoLoad: Bool = true) {
@@ -2482,7 +2517,9 @@ class PlayerCore: NSObject {
       if let pendingUrl {
         self.pendingUrl = nil
         log("Processing pending open")
-        open(pendingUrl, shouldAutoLoad: pendingAutoLoad)
+        let knownRemoteFile = pendingKnownRemoteFile
+        pendingKnownRemoteFile = nil
+        open(pendingUrl, shouldAutoLoad: pendingAutoLoad, knownRemoteFile: knownRemoteFile)
       }
     }
   }
