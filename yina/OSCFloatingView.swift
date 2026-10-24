@@ -208,7 +208,7 @@ private final class OSCFloatingDragSurface: NSView {
 
 class OSCFloatingView: TranslucentView {
   static let preferredWidth: CGFloat = 460
-  static let horizontalInset: CGFloat = 48
+  static let horizontalInset: CGFloat = 16
   /// Distance kept between the bar and the bottom of the video.
   static let verticalMargin: CGFloat = 25
   /// Fallback height used for clamping before the bar has been laid out.
@@ -358,7 +358,8 @@ class OSCFloatingView: TranslucentView {
     let preferredWidth = widthAnchor.constraint(equalToConstant: Self.preferredWidth)
     preferredWidth.priority = .defaultHigh
     preferredWidth.isActive = true
-    widthAnchor.constraint(lessThanOrEqualTo: videoView.widthAnchor, multiplier: 0.7).isActive = true
+    widthAnchor.constraint(lessThanOrEqualTo: videoView.widthAnchor,
+                           constant: -2 * Self.horizontalInset).isActive = true
     centerXAnchor.constraint(equalTo: videoView.centerXAnchor).isActive = true
     leadingAnchor.constraint(greaterThanOrEqualTo: videoView.leadingAnchor,
                              constant: Self.horizontalInset).isActive = true

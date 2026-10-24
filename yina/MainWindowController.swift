@@ -472,7 +472,6 @@ class MainWindowController: PlayerWindowController {
   }()
 
   private var oscSliderLabelConstraints: [NSLayoutConstraint] = []
-  private var oscSliderOnlyConstraints: [NSLayoutConstraint] = []
 
   private var videoViewConstraints: [NSLayoutConstraint.Attribute: NSLayoutConstraint] = [:]
   private var videoContainerConstraints: [NSLayoutConstraint.Attribute: NSLayoutConstraint] = [:]
@@ -629,12 +628,16 @@ class MainWindowController: PlayerWindowController {
     oscToolbarView.spacing = 0
     oscToolbarView.size(height: 24)
 
+    playSlider.setContentHuggingPriority(.defaultLow, for: .horizontal)
+    playSlider.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+    playSlider.widthAnchor.constraint(greaterThanOrEqualToConstant: 20).isActive = true
     self.oscSliderView = TimeLabelOverflowedView()
     [leftLabel, rightLabel].forEach { label in
       label!.textColor = .secondaryLabelColor
       label!.alignment = .center
       label!.font = .monospacedDigitSystemFont(ofSize: 11, weight: .regular)
       label!.widthAnchor.constraint(greaterThanOrEqualToConstant: 46).isActive = true
+      label!.setContentCompressionResistancePriority(.required, for: .horizontal)
     }
     oscSliderView.translatesAutoresizingMaskIntoConstraints = false
     oscSliderView.addSubview(leftLabel)
@@ -650,10 +653,6 @@ class MainWindowController: PlayerWindowController {
       rightLabel.leadingAnchor.constraint(equalTo: playSlider.trailingAnchor, constant: 2)
     ]
     NSLayoutConstraint.activate(oscSliderLabelConstraints)
-    oscSliderOnlyConstraints = [
-      playSlider.leadingAnchor.constraint(equalTo: oscSliderView.leadingAnchor, constant: 8),
-      playSlider.trailingAnchor.constraint(equalTo: oscSliderView.trailingAnchor, constant: -8)
-    ]
     oscPlaySliderTopConstraint = playSlider.topAnchor.constraint(equalTo: oscSliderView.topAnchor,
                                                                  constant: DockedOSCLayout.playSliderInset)
     oscPlaySliderBottomConstraint = oscSliderView.bottomAnchor.constraint(equalTo: playSlider.bottomAnchor,
@@ -1143,10 +1142,9 @@ class MainWindowController: PlayerWindowController {
     (playButton as? OSCButton)?.setQuickTimeStyle(enabled, role: .primary)
     (rightArrowButton as? OSCButton)?.setQuickTimeStyle(enabled, role: .transport)
     playSlider.setQuickTimeStyle(enabled)
-    NSLayoutConstraint.deactivate(enabled ? oscSliderLabelConstraints : oscSliderOnlyConstraints)
-    NSLayoutConstraint.activate(enabled ? oscSliderOnlyConstraints : oscSliderLabelConstraints)
-    leftLabel.isHidden = enabled
-    rightLabel.isHidden = enabled
+    // Keep both time labels in every OSC layout; only the timeline compresses.
+    leftLabel.isHidden = false
+    rightLabel.isHidden = false
     oscPlaySliderTopConstraint.constant = DockedOSCLayout.playSliderInset
     oscPlaySliderBottomConstraint.constant = DockedOSCLayout.playSliderInset
 
