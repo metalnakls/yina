@@ -7,6 +7,7 @@
 //
 
 import Cocoa
+import SwiftUI
 import UniformTypeIdentifiers
 
 class InitialWindowController: NSWindowController {
@@ -17,7 +18,7 @@ class InitialWindowController: NSWindowController {
   private static let maximumRecentWindowHeight: CGFloat = 560
   private static let minimumVisibleRecentRows = 4
   private static let recentListBottomInset: CGFloat = 16
-  private static let nativeTopEdgeHeight: CGFloat = 32
+  private static let recentListTopInset: CGFloat = 32
 
   private struct RecentDocument {
     let url: URL
@@ -29,12 +30,12 @@ class InitialWindowController: NSWindowController {
   var loaded = false
 
   let recentFilesTableView = NSTableView()
-  private let recentScrollView = NSScrollView()
   private lazy var recentDocumentView = WelcomeRecentDocumentView(tableView: recentFilesTableView)
+  private var recentListModel: WelcomeRecentScrollModel?
+  private var recentListHost: NSHostingView<WelcomeRecentScrollView>?
   private let visualEffectView = NSVisualEffectView()
   private let mainView = InitialWindowContentView()
   private let emptyStateView = NSStackView()
-  private let nativeScrollEdgeAccessory = NSTitlebarAccessoryViewController()
 
   private let observedPrefKeys: [Preference.Key] = [.themeMaterial]
   private let availabilityQueue = DispatchQueue(label: "YINAInitialWindowAvailability", qos: .utility)
@@ -244,33 +245,22 @@ class InitialWindowController: NSWindowController {
     visualEffectView.state = .active
     mainView.addSubview(visualEffectView)
 
-    recentScrollView.translatesAutoresizingMaskIntoConstraints = false
-    recentScrollView.drawsBackground = false
-    recentScrollView.borderType = .noBorder
-    recentScrollView.hasHorizontalScroller = false
-    recentScrollView.hasVerticalScroller = false
-    recentScrollView.autohidesScrollers = true
-    // This transparent full-size window manages the overlap itself so list rows
-    // can scroll behind the titlebar accessory's native soft edge.
-    recentScrollView.automaticallyAdjustsContentInsets = false
-    recentScrollView.contentInsets = NSEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
-    recentScrollView.scrollerStyle = .overlay
-    recentScrollView.verticalScrollElasticity = .allowed
-    recentScrollView.setContentHuggingPriority(.defaultLow, for: .vertical)
-    recentScrollView.setContentCompressionResistancePriority(.defaultLow, for: .vertical)
-    recentScrollView.documentView = recentDocumentView
-    mainView.addSubview(recentScrollView)
-
-    nativeScrollEdgeAccessory.layoutAttribute = .bottom
-    nativeScrollEdgeAccessory.automaticallyAdjustsSize = false
-    nativeScrollEdgeAccessory.preferredScrollEdgeEffectStyle = .soft
-    nativeScrollEdgeAccessory.view = NSView(frame: NSRect(x: 0, y: 0,
-                                                         width: Self.recentListWidth,
-                                                         height: Self.nativeTopEdgeHeight))
-    window.addTitlebarAccessoryViewController(nativeScrollEdgeAccessory)
+    let recentListModel = WelcomeRecentScrollModel(
+      documentView: recentDocumentView,
+      listWidth: Self.recentListWidth,
+      layout: .init(documentHeight: recentDocumentView.frame.height,
+                    topEdgeHeight: Self.recentListTopInset,
+                    resetGeneration: 0))
+    self.recentListModel = recentListModel
+    let recentListHost = NSHostingView(rootView: WelcomeRecentScrollView(model: recentListModel))
+    recentListHost.translatesAutoresizingMaskIntoConstraints = false
+    recentListHost.wantsLayer = true
+    recentListHost.layer?.backgroundColor = NSColor.clear.cgColor
+    self.recentListHost = recentListHost
+    mainView.addSubview(recentListHost)
 
     let rowHeight = recentFilesTableView.rowHeight + recentFilesTableView.intercellSpacing.height
-    let initialHeight = Self.nativeTopEdgeHeight +
+    let initialHeight = Self.recentListTopInset +
       rowHeight * CGFloat(Self.minimumVisibleRecentRows) + Self.recentListBottomInset
     let heightConstraint = mainView.heightAnchor.constraint(equalToConstant: initialHeight)
     mainViewHeightConstraint = heightConstraint
@@ -281,10 +271,10 @@ class InitialWindowController: NSWindowController {
       visualEffectView.trailingAnchor.constraint(equalTo: mainView.trailingAnchor),
       visualEffectView.topAnchor.constraint(equalTo: mainView.topAnchor),
       visualEffectView.bottomAnchor.constraint(equalTo: mainView.bottomAnchor),
-      recentScrollView.leadingAnchor.constraint(equalTo: mainView.leadingAnchor),
-      recentScrollView.trailingAnchor.constraint(equalTo: mainView.trailingAnchor),
-      recentScrollView.topAnchor.constraint(equalTo: mainView.topAnchor),
-      recentScrollView.bottomAnchor.constraint(equalTo: mainView.bottomAnchor),
+      recentListHost.leadingAnchor.constraint(equalTo: mainView.leadingAnchor),
+      recentListHost.trailingAnchor.constraint(equalTo: mainView.trailingAnchor),
+      recentListHost.topAnchor.constraint(equalTo: mainView.topAnchor),
+      recentListHost.bottomAnchor.constraint(equalTo: mainView.bottomAnchor),
     ])
     mainView.layoutSubtreeIfNeeded()
     updateRecentLayout(resetScrollPosition: true)
@@ -338,7 +328,7 @@ class InitialWindowController: NSWindowController {
   private func updateEmptyState() {
     let isEmpty = showFolders.isEmpty && recentDocuments.isEmpty
     emptyStateView.isHidden = !isEmpty
-    recentScrollView.isHidden = recentDocuments.isEmpty
+    recentListHost?.isHidden = recentDocuments.isEmpty
     showFolderShelf.isHidden = showFolders.isEmpty
     updateShelfWindowVisibility()
   }
@@ -847,7 +837,7 @@ class InitialWindowController: NSWindowController {
   private func updateRecentLayout(resetScrollPosition: Bool = false, preserveTop: Bool = true) {
     let rowHeight = recentFilesTableView.rowHeight + recentFilesTableView.intercellSpacing.height
     let documentTopInset = showFolders.isEmpty
-      ? Self.nativeTopEdgeHeight
+      ? Self.recentListTopInset
       : ShowFolderShelfView.height / 2
     let rowCount = recentDocuments.count
     let visibleRowCount = max(Self.minimumVisibleRecentRows, rowCount)
@@ -862,6 +852,12 @@ class InitialWindowController: NSWindowController {
                               rowHeight: rowHeight,
                               rowCount: rowCount,
                               bottomInset: Self.recentListBottomInset)
+    if let recentListModel {
+      recentListModel.layout = .init(documentHeight: recentDocumentView.frame.height,
+                                     topEdgeHeight: documentTopInset,
+                                     resetGeneration: recentListModel.layout.resetGeneration +
+                                       (resetScrollPosition ? 1 : 0))
+    }
     window?.contentMinSize = NSSize(width: Self.recentListWidth, height: minimumHeight)
     window?.contentMaxSize = NSSize(width: Self.recentListWidth,
                                     height: Self.maximumRecentWindowHeight)
@@ -873,10 +869,6 @@ class InitialWindowController: NSWindowController {
     if preserveTop, let window, let oldFrame, window.isVisible {
       window.setFrameOrigin(NSPoint(x: oldFrame.minX,
                                     y: oldFrame.maxY - window.frame.height))
-    }
-    if resetScrollPosition {
-      recentScrollView.contentView.scroll(to: .zero)
-      recentScrollView.reflectScrolledClipView(recentScrollView.contentView)
     }
     updateShelfWindowFrame()
   }
@@ -922,14 +914,13 @@ extension InitialWindowController: NSTableViewDelegate, NSTableViewDataSource {
   private func documentIcon(for document: RecentDocument) -> NSImage {
     let ext = document.url.pathExtension.lowercased()
     if let icon = documentIconCache[ext] { return icon }
-    // Row drawing must never wait on Launch Services or Icon Services IPC.
-    let placeholder = NSImage(size: NSSize(width: 16, height: 16))
-    guard pendingIconExtensions.insert(ext).inserted else { return placeholder }
+    // Use a visible system document symbol until Launch Services resolves the
+    // extension's associated file icon in the background.
+    let placeholder = NSImage(systemSymbolName: "doc", accessibilityDescription: nil)
+      ?? NSWorkspace.shared.icon(for: .data)
+    guard !ext.isEmpty, pendingIconExtensions.insert(ext).inserted else { return placeholder }
     iconQueue.async { [weak self] in
-      let source = NSWorkspace.shared.icon(for: UTType(filenameExtension: ext) ?? .data)
-      var rect = NSRect(x: 0, y: 0, width: 32, height: 32)
-      let icon = source.cgImage(forProposedRect: &rect, context: nil, hints: nil)
-        .map { NSImage(cgImage: $0, size: NSSize(width: 16, height: 16)) } ?? source
+      let icon = NSWorkspace.shared.icon(for: UTType(filenameExtension: ext) ?? .data)
       DispatchQueue.main.async { [weak self] in
         guard let self else { return }
         self.pendingIconExtensions.remove(ext)
@@ -999,6 +990,7 @@ extension InitialWindowController: NSTableViewDelegate, NSTableViewDataSource {
 
 private final class InitialWindowRecentCell: NSTableCellView {
   private static let horizontalInset: CGFloat = 16
+  private static let iconTextSpacing: CGFloat = 8
   private let titleLabel = NSTextField(labelWithString: "")
   private let fileIcon = NSImageView()
 
@@ -1013,6 +1005,7 @@ private final class InitialWindowRecentCell: NSTableCellView {
     titleLabel.translatesAutoresizingMaskIntoConstraints = false
     fileIcon.translatesAutoresizingMaskIntoConstraints = false
     fileIcon.imageScaling = .scaleProportionallyUpOrDown
+    fileIcon.contentTintColor = .secondaryLabelColor
     addSubview(fileIcon)
     addSubview(titleLabel)
     textField = titleLabel
@@ -1022,7 +1015,8 @@ private final class InitialWindowRecentCell: NSTableCellView {
       fileIcon.centerYAnchor.constraint(equalTo: centerYAnchor),
       fileIcon.widthAnchor.constraint(equalToConstant: 16),
       fileIcon.heightAnchor.constraint(equalToConstant: 16),
-      titleLabel.leadingAnchor.constraint(equalTo: fileIcon.trailingAnchor, constant: 2),
+      titleLabel.leadingAnchor.constraint(equalTo: fileIcon.trailingAnchor,
+                                          constant: Self.iconTextSpacing),
       titleLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -Self.horizontalInset),
       titleLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
     ])
@@ -1067,6 +1061,67 @@ private final class WelcomeRecentDocumentView: NSView {
   }
 
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+}
+
+@MainActor
+private final class WelcomeRecentScrollModel: ObservableObject {
+  struct Layout {
+    var documentHeight: CGFloat
+    var topEdgeHeight: CGFloat
+    var resetGeneration: Int
+  }
+
+  let documentView: WelcomeRecentDocumentView
+  let listWidth: CGFloat
+  @Published var layout: Layout
+
+  init(documentView: WelcomeRecentDocumentView, listWidth: CGFloat, layout: Layout) {
+    self.documentView = documentView
+    self.listWidth = listWidth
+    self.layout = layout
+  }
+}
+
+private struct WelcomeRecentScrollView: View {
+  @ObservedObject var model: WelcomeRecentScrollModel
+
+  var body: some View {
+    ScrollView(.vertical) {
+      WelcomeRecentDocumentRepresentable(documentView: model.documentView,
+                                         width: model.listWidth,
+                                         height: model.layout.documentHeight)
+        .frame(width: model.listWidth, height: model.layout.documentHeight,
+               alignment: .topLeading)
+    }
+    .scrollIndicators(.hidden)
+    .scrollEdgeEffectStyle(.soft, for: .top)
+    .scrollEdgeEffectHidden(true, for: .bottom)
+    .ignoresSafeArea(.container, edges: .top)
+    .safeAreaBar(edge: .top, spacing: 0) {
+      Color.clear
+        .frame(height: model.layout.topEdgeHeight)
+        .allowsHitTesting(false)
+    }
+    .id(model.layout.resetGeneration)
+    .background(Color.clear)
+  }
+}
+
+private struct WelcomeRecentDocumentRepresentable: NSViewRepresentable {
+  let documentView: WelcomeRecentDocumentView
+  let width: CGFloat
+  let height: CGFloat
+
+  func makeNSView(context: Context) -> WelcomeRecentDocumentView {
+    documentView.setFrameSize(NSSize(width: width, height: height))
+    return documentView
+  }
+
+  func updateNSView(_ nsView: WelcomeRecentDocumentView, context: Context) {
+    if nsView.frame.size != NSSize(width: width, height: height) {
+      nsView.setFrameSize(NSSize(width: width, height: height))
+    }
+  }
 }
 
 /// Main-actor ownership boundary for every asynchronous welcome-surface result.
