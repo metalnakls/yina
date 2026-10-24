@@ -87,6 +87,7 @@ class MainWindowController: PlayerWindowController {
 
 
   var videoViewContainer: NSView!
+  private let videoBackdropView = VideoBackdropView()
   var titleBarView: Titlebar!
   var titleBarHeightConstraint: NSLayoutConstraint!
   var oscBottomView: OSCBottomView!
@@ -687,7 +688,9 @@ class MainWindowController: PlayerWindowController {
 
     // video view
 
-    cv.addSubview(videoViewContainer, positioned: .below, relativeTo: nil)
+    cv.addSubview(videoBackdropView, positioned: .below, relativeTo: nil)
+    videoBackdropView.padding(.all)
+    videoBackdropView.documentView = videoViewContainer
     setupVideoContainerConstraints()
 
     addVideoViewToWindow()
@@ -951,7 +954,7 @@ class MainWindowController: PlayerWindowController {
   }
 
   private func setupVideoContainerConstraints() {
-    guard let cv = window?.contentView else { return }
+    let cv = videoBackdropView.contentView
 
     layoutSides.forEach { videoContainerConstraints[$0].flatMap(cv.removeConstraint) }
     // Chrome and sidebars overlay the video; the frame always follows its aspect.

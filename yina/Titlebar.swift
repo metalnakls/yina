@@ -30,11 +30,16 @@ class Titlebar: NSView {
 
   weak var mainWindow: MainWindowController!
 
-  private var backgroundMaskSize = NSSize.zero
-  private var background: NSVisualEffectView
-  private var titleBarBottomBorder: NSBox
-  private var backgroundLeadingConstraint: NSLayoutConstraint!
-  private var backgroundTrailingConstraint: NSLayoutConstraint!
+  // A registered native accessory lets NSScrollView provide the system's variable blur.
+  private let edgeAccessory = NSTitlebarAccessoryViewController()
+
+  override var alphaValue: CGFloat {
+    didSet { edgeAccessory.view.alphaValue = alphaValue }
+  }
+
+  override var isHidden: Bool {
+    didSet { edgeAccessory.isHidden = isHidden }
+  }
 
   private var onTopButton: NSButton
 
@@ -57,12 +62,6 @@ class Titlebar: NSView {
 
     let window = mainWindow.window!
 
-    self.background = NSVisualEffectView()
-    background.translatesAutoresizingMaskIntoConstraints = false
-
-    self.titleBarBottomBorder = NSBox()
-    titleBarBottomBorder.translatesAutoresizingMaskIntoConstraints = false
-
     self.onTopButton = NSButton(
       image: .sf("pin", withConfiguration: accessoryIconConfig)!,
       target: mainWindow,
@@ -73,24 +72,12 @@ class Titlebar: NSView {
 
     translatesAutoresizingMaskIntoConstraints = false
 
-    background.blendingMode = .withinWindow
-    background.material = .titlebar
-    background.wantsLayer = true
-    background.layerContentsRedrawPolicy = .onSetNeedsDisplay
-    background.state = .followsWindowActiveState
-    addSubview(background)
-    // Extend native blur beyond the controls so it can fade into the video.
-    background.padding(.top, .bottom(-24))
-    backgroundLeadingConstraint = background.leadingAnchor.constraint(equalTo: leadingAnchor)
-    backgroundLeadingConstraint.isActive = true
-    backgroundTrailingConstraint = trailingAnchor.constraint(equalTo: background.trailingAnchor)
-    backgroundTrailingConstraint.isActive = true
-
-    titleBarBottomBorder.isHidden = true
-    titleBarBottomBorder.boxType = .separator
-    addSubview(titleBarBottomBorder)
-    titleBarBottomBorder.fillColor = .titleBarBorder
-    titleBarBottomBorder.padding(.horizontal, .bottom).size(height: 1)
+    edgeAccessory.layoutAttribute = .top
+    edgeAccessory.automaticallyAdjustsSize = false
+    edgeAccessory.preferredScrollEdgeEffectStyle = .soft
+    edgeAccessory.view = NSView(frame: NSRect(x: 0, y: 0, width: window.frame.width,
+                                             height: TitleBarHeightNormal))
+    window.addTitlebarAccessoryViewController(edgeAccessory)
 
     onTopButton.size(height: 16)
     onTopButton.imageScaling = .scaleProportionallyDown
@@ -135,6 +122,7 @@ class Titlebar: NSView {
       titleHeightConstraint = titlebarContainer.heightAnchor.constraint(equalToConstant: 0)
       LayoutValue.titlebarHeight.use { [weak self] value in
         self?.titleHeightConstraint.constant = value
+        self?.edgeAccessory.view.setFrameSize(NSSize(width: self?.bounds.width ?? 0, height: value))
       }
       titleHeightConstraint.isActive = true
 
@@ -248,21 +236,17 @@ class Titlebar: NSView {
     if animated {
       titleLeadingConstraint.animator().constant = constant == 0 ? 0 : constant + 8
       oscLeadingConstraint.animator().constant = constant + 6
-      backgroundLeadingConstraint.animator().constant = constant
     } else {
       titleLeadingConstraint.constant = constant == 0 ? 0 : constant + 8
       oscLeadingConstraint.constant = constant + 6
-      backgroundLeadingConstraint.constant = constant
     }
   }
 
   func setTrailingConstraint(_ constant: CGFloat, animated: Bool = true) {
     if animated {
       trailingConstraint.animator().constant = constant
-      backgroundTrailingConstraint.animator().constant = constant
     } else {
       trailingConstraint.constant = constant
-      backgroundTrailingConstraint.constant = constant
     }
   }
 
@@ -317,30 +301,6 @@ class Titlebar: NSView {
     NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: url.path)
   }
 
-  override func layout() {
-    super.layout()
-    let size = background.bounds.size
-    guard size.width > 0, size.height > 0, size != backgroundMaskSize else { return }
-    backgroundMaskSize = size
-    background.maskImage = Self.progressiveMask(size: size)
-  }
-
-  /// Alpha-only mask for AppKit's material; the video is never copied or blurred on the CPU.
-  static func progressiveMask(size: NSSize) -> NSImage {
-    NSImage(size: size, flipped: false) { rect in
-      guard let context = NSGraphicsContext.current?.cgContext,
-            let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceGray(),
-              colors: [NSColor(white: 1, alpha: 0.9).cgColor,
-                       NSColor(white: 1, alpha: 0.75).cgColor,
-                       NSColor(white: 1, alpha: 0).cgColor] as CFArray,
-              locations: [0, 0.4, 1]) else { return false }
-      context.drawLinearGradient(gradient,
-        start: CGPoint(x: rect.midX, y: rect.maxY),
-        end: CGPoint(x: rect.midX, y: rect.minY), options: [])
-      return true
-    }
-  }
-
   private func updateShadow() {
     if isTransparent {
       let shadow = NSShadow()
@@ -366,7 +326,7 @@ class Titlebar: NSView {
 }
 
 
-/// Calls titlebar's updateLayer() to make sure the mask is redrawn during the animation.
+/// Keeps the titlebar in sync while the OSC lays out.
 fileprivate class TitlebarInnerView: NSView {
   weak var titlebar: Titlebar!
 

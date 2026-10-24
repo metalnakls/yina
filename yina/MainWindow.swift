@@ -61,3 +61,39 @@ class MainWindowContentView: NSView {
   /// Invoked automatically when the view’s geometry changes such that its tracking areas need to be recalculated.
   ///
 }
+
+/// Hosts the video beneath AppKit's native soft titlebar edge effect. The video
+/// fills the clip view and never scrolls; wheel events still reach the player.
+final class VideoBackdropView: NSScrollView {
+  private final class FixedClipView: NSClipView {
+    override func scroll(to newOrigin: NSPoint) {
+      super.scroll(to: .zero)
+    }
+
+    override func constrainBoundsRect(_ proposedBounds: NSRect) -> NSRect {
+      NSRect(origin: .zero, size: proposedBounds.size)
+    }
+  }
+
+  override init(frame frameRect: NSRect) {
+    super.init(frame: frameRect)
+    contentView = FixedClipView()
+    contentView.drawsBackground = false
+    drawsBackground = false
+    borderType = .noBorder
+    hasHorizontalScroller = false
+    hasVerticalScroller = false
+    horizontalScrollElasticity = .none
+    verticalScrollElasticity = .none
+    allowsMagnification = false
+    isTouchScrollingEnabled = false
+    automaticallyAdjustsContentInsets = true
+    translatesAutoresizingMaskIntoConstraints = false
+  }
+
+  override func scrollWheel(with event: NSEvent) {
+    nextResponder?.scrollWheel(with: event)
+  }
+
+  required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+}
