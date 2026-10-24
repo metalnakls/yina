@@ -3048,6 +3048,11 @@ class PlayerCore: NSObject {
   }
 
   func generateThumbnails() {
+#if IINA_ENABLE_METAL_RENDERER
+    // Timeline previews seek on demand through the playback renderer. Never feed
+    // an independently decoded HDR image cache into the Metal preview surface.
+    return
+#else
     log("Getting thumbnails")
     info.thumbnailsReady = false
     info.$thumbnails.withLock { $0.removeAll(keepingCapacity: true) }
@@ -3085,6 +3090,7 @@ class PlayerCore: NSObject {
         )
       }
     }
+#endif
   }
 
   // MARK: - Getting info

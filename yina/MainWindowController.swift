@@ -2986,16 +2986,28 @@ class MainWindowController: PlayerWindowController {
     }
 
     let mouseXPos = playSlider.convert(posInWindow, from: nil).x
-    let percentage = max(0, Double((mouseXPos - 3) / (playSlider.bounds.width - 6)))
+    let bar = playSlider.sliderCell.barRect(flipped: playSlider.isFlipped)
+    let knob = playSlider.sliderCell.knobRect(flipped: playSlider.isFlipped)
+    let travel = max(1, bar.width - knob.width)
+    let percentage = Double((mouseXPos - bar.minX - knob.width / 2) / travel).clamped(to: 0...1)
 
     timePreviewView.isHidden = false
     let previewTime = duration * percentage
     updateTimePreview(percentage)
-    let sliderFrameInWindow = playSlider.convert(playSlider.frame, to: nil)
+    let sliderFrameInWindow = playSlider.convert(playSlider.bounds, to: nil)
 
-    if player.info.thumbnailsReady, let image = player.info.getThumbnail(forSecond: previewTime.second)?.image {
-      thumbnailPeekView.setImage(image, rotation: rotation, hdrEnabled: player.info.hdrEnabled)
-      thumbnailPeekView.isHidden = false
+#if IINA_ENABLE_METAL_RENDERER
+    let canPreview = Preference.bool(for: .enableThumbnailPreview) && !player.info.isNetworkResource
+#else
+    let canPreview = player.info.thumbnailsReady && player.info.getThumbnail(forSecond: previewTime.second) != nil
+#endif
+    if canPreview {
+#if !IINA_ENABLE_METAL_RENDERER
+      if let image = player.info.getThumbnail(forSecond: previewTime.second)?.image {
+        thumbnailPeekView.setImage(image, rotation: rotation, hdrEnabled: player.info.hdrEnabled)
+        thumbnailPeekView.isHidden = false
+      }
+#endif
 
       // In some formats (like most of Japanese TV video formats), display aspect ratios (DAR) are different from the
       // sample aspect ratio (SAR). A typical configuration is SAR 1440x1080i (4:3) w/ DAR 1920x1080 (16:9). We use video
@@ -3013,6 +3025,9 @@ class MainWindowController: PlayerWindowController {
       }
       thumbnailPeekView.frame.size = NSSize(width: width, height: height)
       thumbnailPeekView.frame.origin = NSPoint(x: round(posInWindow.x - thumbnailPeekView.frame.width / 2), y: yPos)
+#if IINA_ENABLE_METAL_RENDERER
+      thumbnailPeekView.renderPreview(player: player, seconds: previewTime.second)
+#endif
     } else {
       thumbnailPeekView.isHidden = true
     }
