@@ -1642,7 +1642,7 @@ class MainWindowController: PlayerWindowController {
       view.alphaValue = 1
       view.isHidden = false
     }
-    window?.titlebarAppearsTransparent = false
+    window?.titlebarAppearsTransparent = true
 
     liveText.requestAnalysis()
 

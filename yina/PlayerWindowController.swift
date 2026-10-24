@@ -202,6 +202,7 @@ class PlayerWindowController: NSWindowController, NSWindowDelegate {
     
     window.initialFirstResponder = nil
     window.titlebarAppearsTransparent = true
+    window.titlebarSeparatorStyle = .none
     
     setMaterial(Preference.enum(for: .themeMaterial))
     

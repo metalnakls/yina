@@ -30,6 +30,7 @@ class Titlebar: NSView {
 
   weak var mainWindow: MainWindowController!
 
+  private var backgroundMaskSize = NSSize.zero
   private var background: NSVisualEffectView
   private var titleBarBottomBorder: NSBox
   private var backgroundLeadingConstraint: NSLayoutConstraint!
@@ -78,12 +79,14 @@ class Titlebar: NSView {
     background.layerContentsRedrawPolicy = .onSetNeedsDisplay
     background.state = .followsWindowActiveState
     addSubview(background)
-    background.padding(.top, .bottom(1))
+    // Extend native blur beyond the controls so it can fade into the video.
+    background.padding(.top, .bottom(-24))
     backgroundLeadingConstraint = background.leadingAnchor.constraint(equalTo: leadingAnchor)
     backgroundLeadingConstraint.isActive = true
     backgroundTrailingConstraint = trailingAnchor.constraint(equalTo: background.trailingAnchor)
     backgroundTrailingConstraint.isActive = true
 
+    titleBarBottomBorder.isHidden = true
     titleBarBottomBorder.boxType = .separator
     addSubview(titleBarBottomBorder)
     titleBarBottomBorder.fillColor = .titleBarBorder
@@ -312,6 +315,30 @@ class Titlebar: NSView {
   @objc private func revealInFinder(_ sender: NSMenuItem) {
     guard let url = sender.representedObject as? URL else { return }
     NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: url.path)
+  }
+
+  override func layout() {
+    super.layout()
+    let size = background.bounds.size
+    guard size.width > 0, size.height > 0, size != backgroundMaskSize else { return }
+    backgroundMaskSize = size
+    background.maskImage = Self.progressiveMask(size: size)
+  }
+
+  /// Alpha-only mask for AppKit's material; the video is never copied or blurred on the CPU.
+  static func progressiveMask(size: NSSize) -> NSImage {
+    NSImage(size: size, flipped: false) { rect in
+      guard let context = NSGraphicsContext.current?.cgContext,
+            let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceGray(),
+              colors: [NSColor(white: 1, alpha: 0.9).cgColor,
+                       NSColor(white: 1, alpha: 0.75).cgColor,
+                       NSColor(white: 1, alpha: 0).cgColor] as CFArray,
+              locations: [0, 0.4, 1]) else { return false }
+      context.drawLinearGradient(gradient,
+        start: CGPoint(x: rect.midX, y: rect.maxY),
+        end: CGPoint(x: rect.midX, y: rect.minY), options: [])
+      return true
+    }
   }
 
   private func updateShadow() {
