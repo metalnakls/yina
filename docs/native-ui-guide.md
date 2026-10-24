@@ -1,0 +1,62 @@
+# Native UI guide
+
+Use these steps for AppKit and SwiftUI interface changes.
+
+## Implementation steps
+
+1. **Record the current behavior.** Identify the system controls, window chrome,
+   layout constraints, and user-visible states the change touches. Preserve
+   native controls, titlebar, traffic lights, toolbar, proxy icon, materials,
+   keyboard behavior, and accessibility unless the request says otherwise.
+   **Done when** the existing behavior and the requested difference are clear.
+
+2. **Choose a documented native API.** Use AppKit or SwiftUI controls, layout
+   guides, constraints, and materials that provide the requested behavior. For
+   content under a titlebar, use the documented full-size content layout guides.
+   If a native implementation is unavailable or uncertain, ask the user before
+   writing custom code. **Done when** the chosen API and its expected behavior
+   are documented, or the user has answered the question about custom code.
+
+3. **Keep metrics local and sourced.** Preserve existing app-specific metrics
+   when they still fit. Group values with their owning surface and reuse a value
+   only when it represents the same design decision. Use system sizing and
+   spacing behavior where available. Get user approval before adding invented
+   spacing or sizing values; never present yina-specific values as Apple
+   standards. **Done when** every changed metric has an identified source and
+   no unapproved value was added.
+
+   Current OSC reference: `OSCDesignMetrics.dockedHorizontalInset` is
+   `LayoutValue(16, 12)` and is shared by both docked horizontal edges;
+   `floatingHorizontalInset` is 8 points. Docked vertical padding remains
+   `LayoutValue(12, 8)`, floating vertical padding remains 8 points, and the
+   docked slider uses `DockedOSCLayout.playSliderInset` at 6 points on top and
+   bottom. These preserve existing yina design values.
+
+4. **Implement and check the requested states.** Keep content aligned with
+   constraints and layout guides. Check minimum, typical, and maximum supported
+   sizes, appearance changes, keyboard navigation, VoiceOver order, resizing,
+   and full-screen transitions when relevant. **Done when** each relevant state
+   has been checked and the changed controls remain usable and aligned.
+
+5. **Respect runtime limits and report evidence.** Follow any task restriction
+   on launching yina or accessing personal media. When runtime validation is
+   allowed, use fixtures only. A build or structural check does not prove live
+   appearance or interaction. **Done when** the report names the checks run and
+   explicitly marks unverified runtime, appearance, or accessibility behavior.
+
+## Settled behavior and exception
+
+- The welcome window uses native content-fit sizing based on recent-row count,
+  with a four-row minimum and the existing maximum height. It does not resize
+  from scroll offsets or alter native scroll gestures or range. Revisit
+  scroll-follow sizing only with a documented native implementation; if native
+  support is unavailable or uncertain, ask the user before custom behavior.
+- HDR may tint the native slider-thumb silhouette. Preserve the system thumb
+  shape; do not replace it with a custom shape.
+
+## References
+
+- [Apple HIG: Designing for macOS](https://developer.apple.com/design/human-interface-guidelines/designing-for-macos/)
+- [Apple HIG: Layout](https://developer.apple.com/design/human-interface-guidelines/layout/)
+- [AppKit `NSWindow` style masks](https://developer.apple.com/documentation/appkit/nswindow/stylemask-swift.struct)
+- [AppKit `NSWindow.titlebarAppearsTransparent`](https://developer.apple.com/documentation/appkit/nswindow/titlebarappearstransparent)
