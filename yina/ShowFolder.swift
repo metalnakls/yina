@@ -737,6 +737,7 @@ final class ShowFolderShelfView: NSView {
   private var cards: [String: ShowFolderCardView] = [:]
   private var items: [String: ShowFolderShelfItemView] = [:]
   private var dismissingPaths = Set<String>()
+  private var scrollEndObserver: NSObjectProtocol?
 
   override init(frame frameRect: NSRect) {
     super.init(frame: frameRect)
@@ -751,6 +752,13 @@ final class ShowFolderShelfView: NSView {
     scrollView.horizontalScrollElasticity = .allowed
     scrollView.verticalScrollElasticity = .none
     scrollView.usesPredominantAxisScrolling = true
+    scrollEndObserver = NotificationCenter.default.addObserver(
+      forName: NSScrollView.didEndLiveScrollNotification,
+      object: scrollView,
+      queue: .main
+    ) { [weak self] _ in
+      self?.snapToCardPosition()
+    }
 
     glassContainer.translatesAutoresizingMaskIntoConstraints = false
     glassContainer.spacing = 0
@@ -790,14 +798,38 @@ final class ShowFolderShelfView: NSView {
   override func layout() {
     super.layout()
     let contentWidth = CGFloat(items.count) * Self.cardSlotWidth
-    let edgeSpace = max(0, (bounds.width - contentWidth) / 2)
+    let edgeSpace = contentWidth <= bounds.width
+      ? (bounds.width - contentWidth) / 2
+      : max(0, (bounds.width - Self.cardSlotWidth) / 2)
     leadingSpacerWidth.constant = edgeSpace
     trailingSpacerWidth.constant = edgeSpace
+  }
+
+  deinit {
+    if let scrollEndObserver {
+      NotificationCenter.default.removeObserver(scrollEndObserver)
+    }
   }
 
   func resetHorizontalScrollPosition() {
     scrollView.contentView.scroll(to: .zero)
     scrollView.reflectScrolledClipView(scrollView.contentView)
+  }
+
+  private func snapToCardPosition() {
+    guard items.count > Self.maximumCenteredCardCount else { return }
+    let clipView = scrollView.contentView
+    let slotWidth = Self.cardSlotWidth
+    let maximumOrigin = max(0, glassContainer.frame.width - clipView.bounds.width)
+    let proposedOrigin = (clipView.bounds.origin.x / slotWidth).rounded() * slotWidth
+    let targetOrigin = min(max(proposedOrigin, 0), maximumOrigin)
+    guard abs(targetOrigin - clipView.bounds.origin.x) > 0.5 else { return }
+
+    NSAnimationContext.runAnimationGroup { context in
+      context.duration = 0.16
+      context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+      clipView.animator().setBoundsOrigin(NSPoint(x: targetOrigin, y: clipView.bounds.origin.y))
+    }
   }
 
   func reload(shows: [ShowFolder], target: AnyObject, openAction: Selector, dismissAction: Selector) {
