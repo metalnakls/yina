@@ -630,8 +630,8 @@ class MenuController: NSObject, NSMenuDelegate {
     let isOntop = player.isInMiniPlayer ? player.miniPlayer.isOntop : player.mainWindow.isOntop
     let isDelogo = player.info.delogoFilter != nil
     alwaysOnTop.state = isOntop ? .on : .off
-    lockAspectRatio.state = Preference.unlockWindowAspectRatio ? .off : .on
-    lockAspectRatio.isEnabled = Preference.bool(for: .edgeToEdgeVideo)
+    lockAspectRatio.state = .on
+    lockAspectRatio.isEnabled = false
     liveText.state = Preference.isLiveTextEnabled ? .on : .off
     deinterlace.state = player.info.deinterlace ? .on : .off
     fullScreen.title = isInFullScreen ? Constants.String.exitFullScreen : Constants.String.fullScreen

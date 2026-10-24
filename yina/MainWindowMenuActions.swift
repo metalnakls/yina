@@ -72,8 +72,8 @@ extension MainWindowController {
   }
 
   @objc func menuLockAspectRatio(_ sender: NSMenuItem) {
-    let unlock = Preference.bool(for: .unlockWindowAspectRatio)
-    Preference.set(!unlock, for: .unlockWindowAspectRatio)
+    // Playback windows always retain the displayed video aspect ratio.
+    Preference.set(false, for: .unlockWindowAspectRatio)
   }
 
   @objc func menuTogglePIP(_ sender: NSMenuItem) {

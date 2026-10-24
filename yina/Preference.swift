@@ -1042,11 +1042,12 @@ struct Preference {
   // MARK: - Getters
 
   static var unlockWindowAspectRatio: Bool {
-    Preference.bool(for: .unlockWindowAspectRatio) || !Preference.bool(for: .edgeToEdgeVideo)
+    // Retain legacy keys for profile compatibility; playback geometry is always locked.
+    false
   }
 
   static var isDocked: Bool {
-    !Preference.bool(for: .edgeToEdgeVideo) && Preference.bool(for: .dockedControlBarAndTitlebar)
+    false
   }
 
   enum LiquidGlassOption {

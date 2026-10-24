@@ -36,7 +36,6 @@ class Titlebar: NSView {
   private var backgroundTrailingConstraint: NSLayoutConstraint!
 
   private var onTopButton: NSButton
-  private var removeBlackBarButton: NSButton
 
   private var container: NSStackView!
   private var titlebarContainer: NSView!
@@ -69,12 +68,6 @@ class Titlebar: NSView {
       action: #selector(MainWindowController.ontopButtonAction)
     )
 
-    self.removeBlackBarButton = NSButton(
-      image: .sf("remove.blackbars", withConfiguration: accessoryIconConfig)!,
-      target: mainWindow,
-      action: #selector(MainWindowController.removeVideoViewBlackBars)
-    )
-
     super.init(frame: .zero)
 
     translatesAutoresizingMaskIntoConstraints = false
@@ -102,13 +95,6 @@ class Titlebar: NSView {
     onTopButton.bezelStyle = .smallSquare
     onTopButton.isBordered = false
     updateOnTopIcon()
-
-    removeBlackBarButton.size(height: 16)
-    removeBlackBarButton.imageScaling = .scaleProportionallyDown
-    removeBlackBarButton.translatesAutoresizingMaskIntoConstraints = false
-    removeBlackBarButton.bezelStyle = .smallSquare
-    removeBlackBarButton.isBordered = false
-    updateRemoveBlackBarButton()
 
     if useSystemTitle {
       let titlebarAccessoryViewController = NSTitlebarAccessoryViewController()
@@ -169,7 +155,7 @@ class Titlebar: NSView {
       titleLeadingConstraint.priority = .defaultHigh
       titleLeadingConstraint.isActive = true
 
-      let accessoryView = NSStackView(views: [removeBlackBarButton, onTopButton])
+      let accessoryView = NSStackView(views: [onTopButton])
       accessoryView.translatesAutoresizingMaskIntoConstraints = false
       accessoryView.orientation = .horizontal
       accessoryView.spacing = 8
@@ -240,11 +226,6 @@ class Titlebar: NSView {
     onTopButton.image = isOntop ?
       .sf("pin.fill", withConfiguration: accessoryIconConfig) :
       .sf("pin", withConfiguration: accessoryIconConfig)
-  }
-
-  func updateRemoveBlackBarButton() {
-    let shouldShow = Preference.unlockWindowAspectRatio
-    removeBlackBarButton.isHidden = !shouldShow
   }
 
   func updateTitle() {

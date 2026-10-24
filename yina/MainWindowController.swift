@@ -378,7 +378,6 @@ class MainWindowController: PlayerWindowController {
       fallthrough
     case PK.unlockWindowAspectRatio.rawValue:
       fadeableViews.update()
-      titleBarView.updateRemoveBlackBarButton()
       handleVideoSizeChange(keepWindowSize: true)
     case PK.compactUI.rawValue:
       setWindowToolbar()
@@ -956,21 +955,10 @@ class MainWindowController: PlayerWindowController {
     guard let cv = window?.contentView else { return }
 
     layoutSides.forEach { videoContainerConstraints[$0].flatMap(cv.removeConstraint) }
-    if Preference.bool(for: .edgeToEdgeVideo) {
-      layoutSides.forEach { attr in
-        videoContainerConstraints[attr] = NSLayoutConstraint(item: videoViewContainer!, attribute: attr, relatedBy: .equal,
-                                                        toItem: cv, attribute: attr, multiplier: 1, constant: 0)
-      }
-    } else {
-      let docked = Preference.bool(for: .dockedControlBarAndTitlebar)
-      videoContainerConstraints[.top] = videoViewContainer.topAnchor
-        .constraint(equalTo: docked ? titleBarView.bottomAnchor : cv.topAnchor)
-      videoContainerConstraints[.bottom] = videoViewContainer.bottomAnchor
-        .constraint(equalTo: docked ? oscBottomView.topAnchor : cv.bottomAnchor)
-      videoContainerConstraints[.leading] = videoViewContainer.leadingAnchor
-        .constraint(equalTo: sidebars.leadingSidebar.view.trailingAnchor)
-      videoContainerConstraints[.trailing] = videoViewContainer.trailingAnchor
-        .constraint(equalTo: sidebars.trailingSidebar.view.leadingAnchor)
+    // Chrome and sidebars overlay the video; the frame always follows its aspect.
+    layoutSides.forEach { attr in
+      videoContainerConstraints[attr] = NSLayoutConstraint(item: videoViewContainer!, attribute: attr,
+        relatedBy: .equal, toItem: cv, attribute: attr, multiplier: 1, constant: 0)
     }
     layoutSides.forEach { videoContainerConstraints[$0]?.isActive = true }
   }
@@ -979,21 +967,6 @@ class MainWindowController: PlayerWindowController {
     for (attr, value) in constraints {
       videoContainerConstraints[attr]?.constant = value
     }
-  }
-
-  @objc func removeVideoViewBlackBars() {
-    guard let window, Preference.unlockWindowAspectRatio else { return }
-
-    let currentSize = videoViewContainer.frame.size
-    let videoSize = player.videoSizeForDisplay
-    let newSize = currentSize.crop(withAspect: CGFloat(videoSize.0) / CGFloat(videoSize.1))
-    let dw = newSize.width - currentSize.width
-    let dh = newSize.height - currentSize.height
-    let currWindowSize = window.frame.size
-    let newWindowSize = NSSize(width: currWindowSize.width + dw, height: currWindowSize.height + dh)
-    let newFrame = window.frame.centeredResize(to: newWindowSize)
-
-    window.setFrame(newFrame, display: true, animate: true)
   }
 
   private func setupOSCToolbarButtons(_ buttons: [Preference.ToolBarButton]) {
@@ -2332,17 +2305,13 @@ class MainWindowController: PlayerWindowController {
 
   private var currentWindowAspectRatio: NSSize {
     guard let window else { return .zero }
-    return Preference.unlockWindowAspectRatio ? window.frame.size : window.aspectRatio
+    return window.aspectRatio
   }
 
   private func setWindowAspectRatio(_ aspectRatio: NSSize) {
     guard let window else { return }
-    if Preference.unlockWindowAspectRatio {
-      window.aspectRatio = .zero
-      window.resizeIncrements = .init(width: 1, height: 1)
-    } else {
-      window.aspectRatio = aspectRatio
-    }
+    guard aspectRatio.width > 0, aspectRatio.height > 0 else { return }
+    window.aspectRatio = aspectRatio
   }
 
   /// Calculate the window frame from a parsed struct of mpv's `geometry` option.
@@ -2564,14 +2533,10 @@ class MainWindowController: PlayerWindowController {
       log("Constrained window frame to be in screen: \(rect)")
     }
 
-    if player.info.justOpenedFile && !Preference.bool(for: .edgeToEdgeVideo) {
-      rect.size.height += titleBarView.frame.height
-    }
+    // Geometry options, saved sizes and screen constraints must not distort video.
+    rect = rect.centeredResize(to: originalVideoSize.shrink(toSize: rect.size))
 
-    if Preference.unlockWindowAspectRatio && !player.info.justOpenedFile {
-      // do nothing when window aspect ratio is unlocked
-      // however, if this is the first time opening the window, still apply the sizing logic
-    } else if fsState.isFullscreen {
+    if fsState.isFullscreen {
       log("In full screen mode, setting prior window frame")
       fsState.priorWindowedFrame = rect
     } else {

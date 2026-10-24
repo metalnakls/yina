@@ -20,13 +20,8 @@ class SidebarLayoutPane: SidebarScrollView {
   let prefObserver = Preference.Observer()
   weak var player: PlayerCore!
 
-  private var videoSettingsStack: NSStackView!
   private var themeSettingStack: NSStackView!
-  private var lockAspectSwitch: NSSwitch!
-  private var lockWindowAspectStack: NSStackView!
-  private var dockedUIStack: NSStackView!
   private var oscLayoutSelector: OSCLayoutSelector!
-  private var removeBlackBarBtn: SideBarButton!
 
   init(player: PlayerCore) {
     self.player = player
@@ -90,56 +85,9 @@ class SidebarLayoutPane: SidebarScrollView {
       $0.padding(.all(.sidebarContainerPadding))
     })
 
-    videoSettingsStack = ui.vStack(spacing: .sidebarItemSpacing)
-
-    videoSettingsStack.addArrangedSubview(ui.hStack(
-      ui.image("custom.arrow.up.left.and.down.right.and.arrow.up.right.and.down.left.rectangle",
-               size: 20, config: .sidebarIconConfig),
-      ui.label("sidebar.edge_to_edge_video"),
-      ui.flexibleSpace(),
-      ui.toggleButton(bindTo: .edgeToEdgeVideo, size: .small)
-    ))
-
-    self.lockWindowAspectStack = ui.hStack(
-      ui.image("custom.lock.rectangle", size: 20, config: .sidebarIconConfig),
-      ui.label("sidebar.lock_window_aspect"),
-      ui.flexibleSpace(),
-      ui.toggleButton(bindTo: .unlockWindowAspectRatio, size: .small, inverted: true)
-    )
-    videoSettingsStack.addArrangedSubview(lockWindowAspectStack)
-
-    self.dockedUIStack = ui.hStack(
-      ui.image("dock.arrow.down.rectangle", size: 20, config: .sidebarIconConfig),
-      ui.label("sidebar.docked"),
-      ui.flexibleSpace(),
-      ui.toggleButton(bindTo: .dockedControlBarAndTitlebar, size: .small)
-    )
-    videoSettingsStack.addArrangedSubview(dockedUIStack)
-
-    self.removeBlackBarBtn = SideBarButton(ui.localized("sidebar.fit_window_to_video"), image: .removeBlackbars)
-    removeBlackBarBtn.target = self
-    removeBlackBarBtn.action = #selector(removeBlackBars)
-    removeBlackBarBtn.size(height: 32)
-    videoSettingsStack.addArrangedSubview(removeBlackBarBtn)
-    removeBlackBarBtn.padding(.horizontal)
-
-    updateVideoSettingsStack()
-
-    stack.addArrangedSubview(Container(videoSettingsStack) {
-      $0.padding(.all(.sidebarContainerPadding))
-    })
-
     stack.addArrangedSubview(createOSCSettingsView())
 
     stack.addArrangedSubview(createSidebarSettingsView())
-
-    prefObserver.addAll(
-      .edgeToEdgeVideo,
-      .unlockWindowAspectRatio,
-      .dockedControlBarAndTitlebar,
-    ) { [unowned self] _ in
-      updateVideoSettingsStack()
-    }
 
     documentView!.addSubview(stack)
     stack.padding(.horizontal(.sidebarMargin), .vertical(4))
@@ -147,26 +95,6 @@ class SidebarLayoutPane: SidebarScrollView {
   
   @MainActor required init?(coder: NSCoder) {
     fatalError("init(coder:) has not been implemented")
-  }
-
-  func updateVideoSettingsStack() {
-    if Preference.bool(for: .edgeToEdgeVideo) {
-      videoSettingsStack.setVisibilityPriority(.mustHold, for: lockWindowAspectStack)
-      videoSettingsStack.setVisibilityPriority(.notVisible, for: dockedUIStack)
-    } else {
-      videoSettingsStack.setVisibilityPriority(.notVisible, for: lockWindowAspectStack)
-      videoSettingsStack.setVisibilityPriority(.mustHold, for: dockedUIStack)
-    }
-    // remove black bar button
-    if Preference.unlockWindowAspectRatio {
-      videoSettingsStack.setVisibilityPriority(.mustHold, for: removeBlackBarBtn)
-    } else {
-      videoSettingsStack.setVisibilityPriority(.notVisible, for: removeBlackBarBtn)
-    }
-  }
-
-  @objc private func removeBlackBars(_ sender: AnyObject) {
-    player.mainWindow.removeVideoViewBlackBars()
   }
 
   private func createOSCSettingsView() -> NSView {
