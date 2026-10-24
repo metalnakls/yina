@@ -499,6 +499,8 @@ class MainWindowController: PlayerWindowController {
 
   override func windowDidLoad() {
     super.windowDidLoad()
+    NotificationCenter.default.addObserver(self, selector: #selector(showExtensionsDidChange),
+                                           name: Preference.showExtensionsDidChange, object: nil)
     MemoryUsage.shared.logUsage("after window loaded")
 
     guard let window, let cv = window.contentView else { return }
@@ -2167,7 +2169,15 @@ class MainWindowController: PlayerWindowController {
       window?.title = player.getMediaTitle()
     } else {
       window?.representedURL = player.info.currentURL
-      window?.setTitleWithRepresentedFilename(player.info.currentURL?.path ?? "")
+      if let currentURL = player.info.currentURL {
+        window?.setTitleWithRepresentedFilename(currentURL.path)
+        let fileName = Preference.bool(for: .showExtensions)
+          ? currentURL.lastPathComponent
+          : currentURL.deletingPathExtension().lastPathComponent
+        window?.title = fileName
+      } else {
+        window?.setTitleWithRepresentedFilename("")
+      }
     }
     // Sometimes the doc icon may not be available, eg. when opened an online video.
     // We should try to add it every time when window title changed.
@@ -2694,6 +2704,10 @@ class MainWindowController: PlayerWindowController {
 
   @objc func menuToggleLiveText(_ item: NSMenuItem) {
     Preference.set(!Preference.bool(for: .enableLiveText), for: .enableLiveText)
+  }
+
+  @objc private func showExtensionsDidChange() {
+    updateTitle()
   }
 
   // MARK: - Sync UI with playback

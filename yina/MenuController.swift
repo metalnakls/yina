@@ -126,6 +126,7 @@ class MenuController: NSObject, NSMenuDelegate {
   // Video
   var videoMenu: NSMenu!
   var quickSettingsVideo: NSMenuItem!
+  var showExtensions: NSMenuItem!
   var cycleVideoTracks: NSMenuItem!
   var videoTrack: NSMenuItem!
   var videoTrackMenu: NSMenu!
@@ -295,6 +296,7 @@ class MenuController: NSObject, NSMenuDelegate {
     quickSettingsAudio = menus.item("quickSettingsAudio")
     quickSettingsSub = menus.item("quickSettingsSub")
     quickSettingsVideo = menus.item("quickSettingsVideo")
+    showExtensions = menus.item("showExtensions")
     resetAudioDelay = menus.item("resetAudioDelay")
     resetSubDelay = menus.item("resetSubDelay")
     resetTextSize = menus.item("resetTextSize")
@@ -398,6 +400,8 @@ class MenuController: NSObject, NSMenuDelegate {
     videoMenu.delegate = self
 
     quickSettingsVideo.action = #selector(MainWindowController.menuShowVideoQuickSettings(_:))
+    showExtensions.target = self
+    showExtensions.action = #selector(menuToggleShowExtensions(_:))
     videoTrackMenu.delegate = self
 
     // -- window size
@@ -625,6 +629,7 @@ class MenuController: NSObject, NSMenuDelegate {
           player.mainWindow.sidebars.quickSettingView.currentTab == .video
     quickSettingsVideo?.title = isDisplayingSettings ? Constants.String.hideVideoPanel :
         Constants.String.videoPanel
+    showExtensions?.state = Preference.bool(for: .showExtensions) ? .on : .off
     let isInFullScreen = player.mainWindow.fsState.isFullscreen
     let isInPIP = player.mainWindow.pipStatus == .inPIP
     let isOntop = player.isInMiniPlayer ? player.miniPlayer.isOntop : player.mainWindow.isOntop
@@ -638,6 +643,11 @@ class MenuController: NSObject, NSMenuDelegate {
     pictureInPicture?.title = isInPIP ? Constants.String.exitPIP : Constants.String.pip
     miniPlayer.title = player.isInMiniPlayer ? Constants.String.exitMiniPlayer : Constants.String.miniPlayer
     delogo.state = isDelogo ? .on : .off
+  }
+
+  @objc private func menuToggleShowExtensions(_ sender: NSMenuItem) {
+    Preference.set(!Preference.bool(for: .showExtensions), for: .showExtensions)
+    NotificationCenter.default.post(name: Preference.showExtensionsDidChange, object: nil)
   }
 
   private func updateAudioMenu() {

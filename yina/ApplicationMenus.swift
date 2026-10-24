@@ -209,6 +209,7 @@ final class ApplicationMenus {
       .item("Video", modifiers: [], submenu:
         .menu("Video", binding: "videoMenu", items: [
           .item("Show Video Panel", binding: "quickSettingsVideo", modifiers: []),
+          .item("Show Extensions", binding: "showExtensions", modifiers: []),
           .separator(),
           .item("Cycle Video Tracks", binding: "cycleVideoTracks", modifiers: []),
           .item("Video Track", binding: "videoTrack", modifiers: [], submenu:

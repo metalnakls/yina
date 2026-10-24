@@ -191,6 +191,8 @@ class InitialWindowController: NSWindowController {
     }
     NotificationCenter.default.addObserver(self, selector: #selector(historyDidUpdate),
                                            name: .yinaHistoryUpdated, object: nil)
+    NotificationCenter.default.addObserver(self, selector: #selector(showExtensionsDidChange),
+                                           name: Preference.showExtensionsDidChange, object: nil)
     NotificationCenter.default.addObserver(self, selector: #selector(initialWindowWillClose),
                                            name: NSWindow.willCloseNotification, object: window)
     NotificationCenter.default.addObserver(self, selector: #selector(availabilityDidChange),
@@ -346,6 +348,10 @@ class InitialWindowController: NSWindowController {
   @objc private func historyDidUpdate() {
     guard window?.isVisible == true else { return }
     reloadData()
+  }
+
+  @objc private func showExtensionsDidChange() {
+    recentFilesTableView.reloadData()
   }
 
   @objc private func availabilityDidChange() {
@@ -906,7 +912,10 @@ extension InitialWindowController: NSTableViewDelegate, NSTableViewDataSource {
     let cell = tableView.makeView(withIdentifier: identifier, owner: self) as? InitialWindowRecentCell
       ?? InitialWindowRecentCell(identifier: identifier)
     let document = recentDocuments[row]
-    cell.update(title: document.url.lastPathComponent,
+    let title = Preference.bool(for: .showExtensions)
+      ? document.url.lastPathComponent
+      : document.url.deletingPathExtension().lastPathComponent
+    cell.update(title: title,
                 icon: documentIcon(for: document))
     return cell
   }

@@ -28,21 +28,22 @@ private struct Contract: Decodable {
     let delegate = MenuTarget(), updater = NSObject(), fonts = NSObject()
     let menus = ApplicationMenus(applicationDelegate: delegate, updater: updater, fontManager: fonts)
     let contract = try JSONDecoder().decode([Contract].self, from: Data(contentsOf: URL(fileURLWithPath: CommandLine.arguments[1])))
-    precondition(contract.count == 193)
+    precondition(contract.count == 195)
     var actualCount = 0
     func count(_ menu: NSMenu) {
       actualCount += menu.numberOfItems
       menu.items.forEach { if let submenu = $0.submenu { count(submenu) } }
     }
     count(menus.mainMenu); count(menus.dockMenu)
-    precondition(actualCount == contract.count)
+    precondition(actualCount == contract.count,
+                 "Menu item count mismatch: expected \(contract.count), actual \(actualCount)")
     let flags: [String: NSEvent.ModifierFlags] = ["command": .command, "option": .option, "shift": .shift, "control": .control]
     for entry in contract {
       var menu = entry.route[0] == 0 ? menus.mainMenu! : menus.dockMenu!
       let route = Array(entry.route.dropFirst())
       for index in route.dropLast() { menu = menu.item(at: index)!.submenu! }
       let item = menu.item(at: route.last!)!
-      let label = "Menu contract mismatch: \(entry.title) at \(entry.route)"
+      let label = "Menu contract mismatch: expected \(entry.title) at \(entry.route), got \(item.title), hidden=\(item.isHidden), alternate=\(item.isAlternate), tag=\(item.tag)"
       precondition(item.title == entry.title && item.keyEquivalent == entry.key, label)
       precondition(item.tag == entry.tag && item.isHidden == entry.hidden && item.isAlternate == entry.alternate, label)
       precondition(item.isSeparatorItem == entry.separator, label)
@@ -86,6 +87,6 @@ private struct Contract: Decodable {
     precondition(delegate.recentURL == urls[1])
     recent.performActionForItem(at: 3)
     precondition(clears == 1 && recent.numberOfItems == 1 && !recent.items[0].isEnabled)
-    print("PASS: All 193 original menu entries, targets, shortcuts, bindings, system menus, Dock actions, and recents.")
+    print("PASS: All 195 expected menu entries, targets, shortcuts, bindings, system menus, Dock actions, and recents.")
   }
 }

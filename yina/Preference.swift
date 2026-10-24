@@ -33,6 +33,8 @@ protocol InitializingFromKey: CustomStringConvertible {
 
 struct Preference {
 
+  static let showExtensionsDidChange = Notification.Name("yinaShowExtensionsDidChange")
+
   // MARK: - Keys
 
   // consider using RawRepresentable, but also need to extend UserDefaults
@@ -208,6 +210,7 @@ struct Preference {
     static let compactUI = Key("compactUI")
     static let edgeToEdgeVideo = Key("edgeToEdgeVideo")
     static let dockedControlBarAndTitlebar = Key("dockedControlBarAndTitlebar")
+    static let showExtensions = Key("showExtensions")
 
     static let sidebarSettingsDisplayAtLeading = Key("sidebarSettingsDisplayAtLeading")
     static let sidebarPlaylistDisplayAtLeading = Key("sidebarPlaylistDisplayAtLeading")
@@ -1178,6 +1181,7 @@ struct Preference {
     .compactUI: false,
     .edgeToEdgeVideo: true,
     .dockedControlBarAndTitlebar: false,
+    .showExtensions: false,
 
     .sidebarSettingsDisplayAtLeading: false,
     .sidebarPlaylistDisplayAtLeading: true,
