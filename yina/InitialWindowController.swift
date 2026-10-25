@@ -389,10 +389,11 @@ class InitialWindowController: NSWindowController {
 
     let screen = parentWindow.screen ?? NSScreen.main
     let availableWidth = screen?.visibleFrame.width ?? ShowFolderShelfView.cardSlotWidth
-    let centeredCardCount = min(showFolders.count, ShowFolderShelfView.maximumCenteredCardCount)
-    let desiredWidth = CGFloat(centeredCardCount) * ShowFolderShelfView.cardSlotWidth
-    let width = min(desiredWidth, availableWidth)
     let parentFrame = parentWindow.frame
+    let centeredCardCount = min(showFolders.count, ShowFolderShelfView.maximumCenteredCardCount)
+    let desiredWidth = max(parentFrame.width,
+                           CGFloat(centeredCardCount) * ShowFolderShelfView.cardSlotWidth)
+    let width = min(desiredWidth, availableWidth)
     let frame = NSRect(x: parentFrame.midX - width / 2,
                        y: parentFrame.maxY - ShowFolderShelfView.height / 2,
                        width: width,
