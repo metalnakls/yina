@@ -364,6 +364,7 @@ class InitialWindowController: NSWindowController {
     openRequestGeneration &+= 1
     mediaOpenQueue.cancelAllOperations()
     stopAvailabilityRefresh()
+    shelfWindow?.orderOut(nil)
   }
 
   private func centerWelcomeComposition() {
