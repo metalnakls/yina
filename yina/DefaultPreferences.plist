@@ -55,11 +55,11 @@
 	<key>hardwareDecoder</key>
 	<integer>1</integer>
 	<key>horizontalScrollAction</key>
-	<integer>2</integer>
-	<key>initialWindowSizePosition</key>
-	<string></string>
+	<integer>1</integer>
 	<key>initialVolume</key>
 	<integer>100</integer>
+	<key>initialWindowSizePosition</key>
+	<string></string>
 	<key>lockVolumeAt100</key>
 	<true/>
 	<key>musicModeShowPlaylist</key>
@@ -155,7 +155,7 @@
 	<key>usePhysicalResolution</key>
 	<false/>
 	<key>verticalScrollAction</key>
-	<integer>2</integer>
+	<integer>1</integer>
 	<key>videoViewAcceptsFirstMouse</key>
 	<true/>
 	<key>windowBehaviorWhenPip</key>

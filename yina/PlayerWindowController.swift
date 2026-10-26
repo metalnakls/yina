@@ -507,6 +507,14 @@ class PlayerWindowController: NSWindowController, NSWindowDelegate {
   }
   
   override func scrollWheel(with event: NSEvent) {
+    guard event.modifierFlags.contains(.command) else {
+      if wasPlayingBeforeSeeking {
+        player.resume()
+        wasPlayingBeforeSeeking = false
+      }
+      scrollDirection = nil
+      return
+    }
     let isMouse = event.phase.isEmpty
     let isTrackpadBegan = event.phase.contains(.began)
     let isTrackpadEnd = event.phase.contains(.ended)

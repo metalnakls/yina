@@ -38,8 +38,8 @@ class VolumeSlider: NSSlider {
   /// position within the slider.
   /// - Parameter event: Event indicating the scroll wheel position changed.
   override func scrollWheel(with event: NSEvent) {
-    guard !Preference.bool(for: .disableVolumeSliderScrolling) else { return }
-    super.scrollWheel(with: event)
+    // The window owns Command-modified seeking/volume and gesture completion.
+    (window?.windowController as? PlayerWindowController)?.scrollWheel(with: event)
   }
 }
 

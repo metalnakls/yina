@@ -72,6 +72,9 @@ class VideoView: NSView {
     videoLayer.contentsScale = NSScreen.main!.backingScaleFactor
     wantsLayer = true
 
+    allowedTouchTypes = [.indirect]
+    wantsRestingTouches = false
+
     // other settings
     autoresizingMask = [.width, .height]
 #if !IINA_ENABLE_METAL_RENDERER
@@ -135,6 +138,35 @@ class VideoView: NSView {
     player.mainWindow.rightMouseDown(with: event)
     super.rightMouseDown(with: event)
   }
+
+  private var commandTouchPosition: NSPoint?
+
+  override func touchesBegan(with event: NSEvent) {
+    let touches = event.touches(matching: .touching, in: self).filter { !$0.isResting }
+    commandTouchPosition = event.modifierFlags.contains(.command) && touches.count == 1
+      ? touches.first?.normalizedPosition : nil
+  }
+
+  override func touchesMoved(with event: NSEvent) {
+    let touches = event.touches(matching: .touching, in: self).filter { !$0.isResting }
+    guard event.modifierFlags.contains(.command), touches.count == 1,
+          let touch = touches.first, player.info.state.active,
+          !player.mainWindow.interactiveMode.isActive else {
+      commandTouchPosition = nil
+      return
+    }
+    let position = touch.normalizedPosition
+    defer { commandTouchPosition = position }
+    guard let previous = commandTouchPosition else { return }
+    let dx = (position.x - previous.x) * touch.deviceSize.width
+    let dy = (position.y - previous.y) * touch.deviceSize.height
+    let delta = abs(dx) >= abs(dy) ? dx : dy
+    let amount = AppData.seekAmountMap[Preference.integer(for: .relativeSeekAmount)] * Double(delta)
+    player.seek(relativeSecond: amount, option: .exact)
+  }
+
+  override func touchesEnded(with event: NSEvent) { commandTouchPosition = nil }
+  override func touchesCancelled(with event: NSEvent) { commandTouchPosition = nil }
 
   // MARK: Drag and drop
 

@@ -1348,6 +1348,10 @@ class MainWindowController: PlayerWindowController {
   }
 
   override func scrollWheel(with event: NSEvent) {
+    if !event.modifierFlags.contains(.command) {
+      super.scrollWheel(with: event) // Ends an in-progress seek if Command was released first.
+      return
+    }
     guard !interactiveMode.isActive else { return }
     if !isMomentumScrollingAllowed && !event.momentumPhase.isEmpty {
       // ignore delta caused by abrupt momentum phases

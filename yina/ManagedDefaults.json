@@ -17,7 +17,7 @@
     "enableToneMappingTargetPeakOverride": 0,
     "forceTouchAction": 1,
     "fullScreenWhenOpen": true,
-    "horizontalScrollAction": 2,
+    "horizontalScrollAction": 1,
     "lockVolumeAt100": true,
     "musicModeShowPlaylist": true,
     "oscDissolveAppearDuration": 0.4000000059604645,
@@ -59,7 +59,7 @@
     "useLiquidGlassOSC": 1,
     "useLiquidGlassOSD": 1,
     "useLiquidGlassSidebar": 1,
-    "verticalScrollAction": 2,
+    "verticalScrollAction": 1,
     "videoViewAcceptsFirstMouse": true,
     "windowBehaviorWhenPip": 1
   },
