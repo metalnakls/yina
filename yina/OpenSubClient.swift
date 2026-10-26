@@ -163,7 +163,7 @@ class OpenSubClient {
   /// [Important-HTTP Request Headers](https://opensubtitles.stoplight.io/docs/opensubtitles-api/e3750fd63a100-getting-started#important-http-request-headers).
   private let userAgent: String = {
     let (version, build) = InfoDictionary.shared.version
-    return "YINA v\(version)"
+    return "yina v\(version)"
   }()
 
   // MARK: - REST API Methods

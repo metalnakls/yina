@@ -1836,7 +1836,7 @@ class MainWindowController: PlayerWindowController {
       // after having called windowDidFailToExitFullScreen. As we think this is triggered when the
       // app starts terminating we only change fsState to indicate YINA was animating to windowed
       // mode. If this is not done the call to finishAnimating below will trigger a fatal error.
-      log("AppKit exited full screen mode without informing YINA", level: .warning)
+      log("AppKit exited full screen mode without informing yina", level: .warning)
       fsState.startAnimatingToWindow()
     }
 

@@ -218,7 +218,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     // Start the log file by logging the version of YINA producing the log file.
     let (version, build) = InfoDictionary.shared.version
     let type = InfoDictionary.shared.buildTypeIdentifier
-    Logger.log("YINA \(version) Build \(build)" + (type == nil ? "" : " " + type!))
+    Logger.log("yina \(version) Build \(build)" + (type == nil ? "" : " " + type!))
 
     // The copyright is used in the Finder "Get Info" window which is a narrow window so the
     // copyright consists of multiple lines.
@@ -346,7 +346,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     Logger.log("Filenames from args: \(yinaArgFilenames)")
     Logger.log("Derived mpv properties from args: \(commandLineStatus.mpvArguments)")
 
-    print("YINA \(version) Build \(build)")
+    print("yina \(version) Build \(build)")
 
     guard !yinaArgFilenames.isEmpty || commandLineStatus.isStdin else {
       print("This binary is not intended for being used as a command line tool. Please use the bundled yina-cli.")

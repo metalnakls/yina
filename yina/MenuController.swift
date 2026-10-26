@@ -762,7 +762,7 @@ class MenuController: NSObject, NSMenuDelegate {
 
         for item in menuItems {
           if counter == 5 {
-            Logger.log("Please avoid adding too much first-level menu items. YINA will only display the first 5 of them.",
+            Logger.log("Please avoid adding too much first-level menu items. yina will only display the first 5 of them.",
                        level: .warning, subsystem: instance.subsystem)
             let moreItem = NSMenuItem()
             moreItem.title = NSLocalizedString("menu.more_plugin", comment: "More…")

@@ -23,13 +23,13 @@ fileprivate let defaultPlugins = [
     "name": "Userscript",
     "url": "https://github.com/iina/plugin-userscript",
     "id": "io.yina.user-script",
-    "desc": "User Scripts for YINA"
+    "desc": "User Scripts for yina"
   ],
   [
     "name": "Online Subtitles",
     "url": "https://github.com/iina/plugin-opensub",
     "id": "io.yina.opensub",
-    "desc": "Official OpenSubtitles plugin for YINA"
+    "desc": "Official OpenSubtitles plugin for yina"
   ],
 ]
 
