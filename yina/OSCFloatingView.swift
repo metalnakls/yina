@@ -228,6 +228,7 @@ class OSCFloatingView: TranslucentView {
   var oscBottomView: TimeLabelOverflowedStackView!
 
   private var yConstraint: NSLayoutConstraint!
+  private var xConstraint: NSLayoutConstraint!
 
   var mousePosRelatedToView: CGPoint?
 
@@ -361,7 +362,9 @@ class OSCFloatingView: TranslucentView {
     preferredWidth.isActive = true
     widthAnchor.constraint(lessThanOrEqualTo: videoView.widthAnchor,
                            constant: -2 * Self.horizontalInset).isActive = true
-    centerXAnchor.constraint(equalTo: videoView.centerXAnchor).isActive = true
+    xConstraint = leftAnchor.constraint(equalTo: videoView.leftAnchor, constant: Self.horizontalInset)
+    xConstraint.priority = .defaultHigh
+    xConstraint.isActive = true
     leadingAnchor.constraint(greaterThanOrEqualTo: videoView.leadingAnchor,
                              constant: Self.horizontalInset).isActive = true
     trailingAnchor.constraint(lessThanOrEqualTo: videoView.trailingAnchor,
@@ -376,6 +379,7 @@ class OSCFloatingView: TranslucentView {
     let videoView = mainWindow.videoViewContainer!
     let cpv = Preference.float(for: .controlBarPositionVertical)
     yConstraint.constant = clampedY(videoView.frame.height * CGFloat(cpv), inHeight: videoView.frame.height)
+    updateHorizontalPosition()
   }
 
   func updatePosition() {
@@ -383,6 +387,19 @@ class OSCFloatingView: TranslucentView {
     let windowHeight = videoView.frame.height
     let cpv = Preference.float(for: .controlBarPositionVertical)
     yConstraint.constant = clampedY(windowHeight * CGFloat(cpv), inHeight: windowHeight)
+    updateHorizontalPosition()
+  }
+
+  private func clampedX(_ proposed: CGFloat) -> CGFloat {
+    let width = mainWindow.videoViewContainer.bounds.width
+    let barWidth = min(Self.preferredWidth, max(0, width - 2 * Self.horizontalInset))
+    return proposed.clamped(to: Self.horizontalInset...max(Self.horizontalInset, width - barWidth - Self.horizontalInset))
+  }
+
+  private func updateHorizontalPosition() {
+    let width = mainWindow.videoViewContainer.bounds.width
+    let barWidth = min(Self.preferredWidth, max(0, width - 2 * Self.horizontalInset))
+    xConstraint.constant = clampedX(width * CGFloat(Preference.double(for: .controlBarPositionHorizontal)) - barWidth / 2)
   }
 
   /// Keeps the bar fully on screen with the bottom margin intact.
@@ -393,8 +410,7 @@ class OSCFloatingView: TranslucentView {
   }
 
   override func mouseDown(with event: NSEvent) {
-    mousePosRelatedToView = NSEvent.mouseLocation
-    mousePosRelatedToView!.y -= frame.origin.y
+    mousePosRelatedToView = convert(event.locationInWindow, from: nil)
     didDrag = false
     isDragging = true
   }
@@ -402,9 +418,11 @@ class OSCFloatingView: TranslucentView {
   override func mouseDragged(with event: NSEvent) {
     guard let mousePos = mousePosRelatedToView else { return }
     didDrag = true
-    let windowFrame = mainWindow.videoViewContainer.frame
-    let proposed = NSEvent.mouseLocation.y - mousePos.y
-    yConstraint.constant = clampedY(proposed, inHeight: windowFrame.height)
+    let videoView = mainWindow.videoViewContainer!
+    let point = videoView.convert(event.locationInWindow, from: nil)
+    xConstraint.constant = clampedX(point.x - mousePos.x)
+    let proposed = videoView.bounds.height - frame.height - (point.y - mousePos.y)
+    yConstraint.constant = clampedY(proposed, inHeight: videoView.bounds.height)
   }
 
   override func mouseUp(with event: NSEvent) {
@@ -412,7 +430,10 @@ class OSCFloatingView: TranslucentView {
     guard didDrag else { return }
     let windowHeight = mainWindow.videoViewContainer.frame.height
     guard windowHeight > 0 else { return }
-    // Only the vertical position is remembered. The bar is always centred.
+    let width = mainWindow.videoViewContainer.bounds.width
+    if width > 0 {
+      Preference.set((xConstraint.constant + frame.width / 2) / width, for: .controlBarPositionHorizontal)
+    }
     Preference.set(yConstraint.constant / windowHeight, for: .controlBarPositionVertical)
   }
 
