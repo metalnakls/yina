@@ -2423,13 +2423,7 @@ class PlayerCore: NSObject {
   func fullscreenChanged() {
     guard mainWindow.loaded, info.state.active else { return }
     let fs = mpv.getFlag(MPVOption.Window.fullscreen)
-    if keepCurrentFileWindowed {
-      if mainWindow.fsState.isFullscreen {
-        mainWindow.toggleWindowFullScreen()
-      } else if fs {
-        mpv.setFlag(MPVOption.Window.fullscreen, false)
-      }
-    } else if fs != mainWindow.fsState.isFullscreen {
+    if fs != mainWindow.fsState.isFullscreen {
       mainWindow.toggleWindowFullScreen()
     }
   }
@@ -2741,7 +2735,8 @@ class PlayerCore: NSObject {
     if keepCurrentFileWindowed {
       if mainWindow.fsState.isFullscreen {
         mainWindow.toggleWindowFullScreen()
-      } else if fs {
+      }
+      if fs {
         mpv.setFlag(MPVOption.Window.fullscreen, false)
       }
     } else if fs != mainWindow.fsState.isFullscreen {
@@ -2864,11 +2859,17 @@ class PlayerCore: NSObject {
       }
       info.state = Preference.bool(for: .pauseWhenOpen) ? .paused : .playing
       syncUI(.playButton)
-      if Preference.bool(for: .fullScreenWhenOpen) && !keepCurrentFileWindowed &&
-          !mainWindow.fsState.isFullscreen && !isInMiniPlayer {
-        mainWindow.toggleWindowFullScreen()
-      }
+      applyFullScreenWhenOpenPreference()
     }
+  }
+
+  /// Applies the startup fullscreen preference once, then releases the short-file window policy.
+  private func applyFullScreenWhenOpenPreference() {
+    if Preference.bool(for: .fullScreenWhenOpen) && !keepCurrentFileWindowed &&
+        !mainWindow.fsState.isFullscreen && !isInMiniPlayer {
+      mainWindow.toggleWindowFullScreen()
+    }
+    keepCurrentFileWindowed = false
   }
 
   /// Synchronize the video position cached in the `info.videoPosition` property.
