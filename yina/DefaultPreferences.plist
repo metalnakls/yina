@@ -47,11 +47,15 @@
 	<key>enableToneMapping</key>
 	<integer>1</integer>
 	<key>enableToneMappingTargetPeakOverride</key>
-	<integer>0</integer>
+	<false/>
 	<key>forceTouchAction</key>
 	<integer>1</integer>
 	<key>fullScreenWhenOpen</key>
 	<true/>
+	<key>gaplessAudio</key>
+	<integer>0</integer>
+	<key>groupSimultaneousOpensInPlaylist</key>
+	<integer>1</integer>
 	<key>hardwareDecoder</key>
 	<integer>1</integer>
 	<key>horizontalScrollAction</key>
@@ -90,6 +94,8 @@
 	<true/>
 	<key>secPrefech</key>
 	<integer>8200</integer>
+	<key>secondarySubOverrideLevel</key>
+	<integer>1</integer>
 	<key>showChapterPos</key>
 	<true/>
 	<key>showOSCVolumeControls</key>
@@ -102,10 +108,14 @@
 	<real>100.0</real>
 	<key>subBlur</key>
 	<real>0.42</real>
+	<key>subBold</key>
+	<false/>
 	<key>subBorderColorString</key>
 	<string>1.0/1.0/1.0/1.0</string>
 	<key>subBorderSize</key>
 	<real>0.0</real>
+	<key>subBorderStyle</key>
+	<integer>1</integer>
 	<key>subDissolveAppearDuration</key>
 	<real>1.2000000476837158</real>
 	<key>subDissolveDisappearDuration</key>
@@ -114,6 +124,8 @@
 	<integer>2</integer>
 	<key>subDissolveOvershoot</key>
 	<real>0.0</real>
+	<key>subItalic</key>
+	<false/>
 	<key>subLang</key>
 	<string>eng</string>
 	<key>subMarginX</key>
@@ -124,16 +136,22 @@
 	<real>85.0</real>
 	<key>subScale</key>
 	<real>1.0</real>
+	<key>subShadowColorString</key>
+	<string>0.0/0.0/0.0/0.0</string>
 	<key>subShadowSize</key>
 	<real>0.2</real>
+	<key>subSpacing</key>
+	<real>0.0</real>
+	<key>subStyle</key>
+	<integer>0</integer>
 	<key>subTextColorString</key>
 	<string>1.0/1.0/1.0/1.0</string>
 	<key>subTextFont</key>
 	<string>AppleGaramond</string>
 	<key>subTextSize</key>
-	<integer>42</integer>
+	<real>42.0</real>
 	<key>subVisibility</key>
-	<false/>
+	<true/>
 	<key>themeMaterial</key>
 	<integer>4</integer>
 	<key>toneMappingAlgorithm</key>

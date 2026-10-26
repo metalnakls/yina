@@ -209,7 +209,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
   func applicationWillFinishLaunching(_ notification: Notification) {
     // Must setup preferences before logging so log level is set correctly.
     IdentityMigration.shared.migrateLegacyIdentityIfNeeded()
-    ManagedDefaultsUpdater.applyStartupDefaults()
     registerUserDefaultValues()
 
     observedPrefKeys.forEach { key in
@@ -371,7 +370,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
   func applicationDidFinishLaunching(_ aNotification: Notification) {
     Logger.log("App launched")
 
-    Task { await ManagedDefaultsUpdater.shared.refreshIfDue() }
 
     if !isReady {
       getReady()
@@ -464,7 +462,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
   }
 
   func applicationDidBecomeActive(_ notification: Notification) {
-    Task { await ManagedDefaultsUpdater.shared.refreshIfDue() }
   }
 
   private func showWelcomeWindow(checkingForUpdatedData: Bool = false) {
@@ -1111,6 +1108,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
 
   private func registerUserDefaultValues() {
     AppEnvironment.defaults.register(defaults: [String: Any](uniqueKeysWithValues: Preference.defaultPreference.map { ($0.0.rawValue, $0.1) }))
+    let defaults = AppEnvironment.defaults
+    if !defaults.bool(forKey: "PlaybackDefaultsApplied") {
+      defaults.set(Preference.ScrollAction.seek.rawValue, forKey: Preference.Key.horizontalScrollAction.rawValue)
+      defaults.set(Preference.ScrollAction.seek.rawValue, forKey: Preference.Key.verticalScrollAction.rawValue)
+      defaults.set(false, forKey: Preference.Key.autoSwitchToMusicMode.rawValue)
+      defaults.set(false, forKey: Preference.Key.enableOSD.rawValue)
+      defaults.set(false, forKey: Preference.Key.useMpvOsd.rawValue)
+      defaults.set(true, forKey: "PlaybackDefaultsApplied")
+    }
   }
 
   // MARK: - FFmpeg version parsing
