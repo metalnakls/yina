@@ -228,12 +228,12 @@ class OSCFloatingView: TranslucentView {
   var oscBottomView: TimeLabelOverflowedStackView!
 
   private var yConstraint: NSLayoutConstraint!
-  private var xConstraint: NSLayoutConstraint!
-
-  var mousePosRelatedToView: CGPoint?
 
   var isDragging: Bool = false
   private var didDrag = false
+  private var dragStartPointerInVideo: NSPoint?
+  private var dragStartOriginInVideo: NSPoint?
+  private var xConstraint: NSLayoutConstraint!
 
   @discardableResult
   func routeMouseDown(_ event: NSEvent) -> Bool {
@@ -362,13 +362,15 @@ class OSCFloatingView: TranslucentView {
     preferredWidth.isActive = true
     widthAnchor.constraint(lessThanOrEqualTo: videoView.widthAnchor,
                            constant: -2 * Self.horizontalInset).isActive = true
-    xConstraint = leftAnchor.constraint(equalTo: videoView.leftAnchor, constant: Self.horizontalInset)
-    xConstraint.priority = .defaultHigh
-    xConstraint.isActive = true
     leadingAnchor.constraint(greaterThanOrEqualTo: videoView.leadingAnchor,
                              constant: Self.horizontalInset).isActive = true
     trailingAnchor.constraint(lessThanOrEqualTo: videoView.trailingAnchor,
                               constant: -Self.horizontalInset).isActive = true
+
+    xConstraint = leftAnchor.constraint(equalTo: videoView.leftAnchor,
+                                        constant: Self.horizontalInset)
+    xConstraint.priority = .defaultHigh
+    xConstraint.isActive = true
 
     yConstraint = videoView.bottomAnchor.constraint(equalTo: bottomAnchor)
     yConstraint.priority = .defaultHigh
@@ -377,64 +379,73 @@ class OSCFloatingView: TranslucentView {
 
   func initPosition() {
     let videoView = mainWindow.videoViewContainer!
-    let cpv = Preference.float(for: .controlBarPositionVertical)
-    yConstraint.constant = clampedY(videoView.frame.height * CGFloat(cpv), inHeight: videoView.frame.height)
-    updateHorizontalPosition()
+    let horizontal = CGFloat(Preference.float(for: .controlBarPositionHorizontal))
+    let vertical = CGFloat(Preference.float(for: .controlBarPositionVertical))
+    xConstraint.constant = clampedX(videoView.bounds.width * horizontal - barSize.width / 2,
+                                    inWidth: videoView.bounds.width)
+    yConstraint.constant = clampedY(videoView.bounds.height * vertical,
+                                    inHeight: videoView.bounds.height)
   }
 
   func updatePosition() {
-    let videoView = mainWindow.videoViewContainer!
-    let windowHeight = videoView.frame.height
-    let cpv = Preference.float(for: .controlBarPositionVertical)
-    yConstraint.constant = clampedY(windowHeight * CGFloat(cpv), inHeight: windowHeight)
-    updateHorizontalPosition()
+    initPosition()
   }
 
-  private func clampedX(_ proposed: CGFloat) -> CGFloat {
-    let width = mainWindow.videoViewContainer.bounds.width
-    let barWidth = min(Self.preferredWidth, max(0, width - 2 * Self.horizontalInset))
-    return proposed.clamped(to: Self.horizontalInset...max(Self.horizontalInset, width - barWidth - Self.horizontalInset))
+  private var barSize: NSSize {
+    let measured = bounds.size
+    let fitting = fittingSize
+    return NSSize(width: measured.width > 0 ? measured.width : fitting.width,
+                  height: measured.height > 0 ? measured.height : fitting.height)
   }
 
-  private func updateHorizontalPosition() {
-    let width = mainWindow.videoViewContainer.bounds.width
-    let barWidth = min(Self.preferredWidth, max(0, width - 2 * Self.horizontalInset))
-    xConstraint.constant = clampedX(width * CGFloat(Preference.double(for: .controlBarPositionHorizontal)) - barWidth / 2)
+  /// Keeps the bar fully inside the video area with its horizontal and bottom margins intact.
+  private func clampedX(_ proposed: CGFloat, inWidth videoWidth: CGFloat) -> CGFloat {
+    let maximum = max(videoWidth - barSize.width - Self.horizontalInset, Self.horizontalInset)
+    return proposed.clamped(to: Self.horizontalInset...maximum)
   }
 
-  /// Keeps the bar fully on screen with the bottom margin intact.
   private func clampedY(_ proposed: CGFloat, inHeight windowHeight: CGFloat) -> CGFloat {
-    let height = fittingSize.height > 0 ? fittingSize.height : Self.assumedHeight
+    let height = barSize.height > 0 ? barSize.height : Self.assumedHeight
     let maximum = max(windowHeight - height - Self.verticalMargin, 0)
     return proposed.clamped(to: 0...maximum)
   }
 
   override func mouseDown(with event: NSEvent) {
-    mousePosRelatedToView = convert(event.locationInWindow, from: nil)
+    let videoView = mainWindow.videoViewContainer!
+    dragStartPointerInVideo = videoView.convert(event.locationInWindow, from: nil)
+    dragStartOriginInVideo = convert(.zero, to: videoView)
     didDrag = false
     isDragging = true
   }
 
   override func mouseDragged(with event: NSEvent) {
-    guard let mousePos = mousePosRelatedToView else { return }
+    guard let dragStartPointerInVideo, let dragStartOriginInVideo else { return }
     didDrag = true
     let videoView = mainWindow.videoViewContainer!
-    let point = videoView.convert(event.locationInWindow, from: nil)
-    xConstraint.constant = clampedX(point.x - mousePos.x)
-    let proposed = videoView.bounds.height - frame.height - (point.y - mousePos.y)
-    yConstraint.constant = clampedY(proposed, inHeight: videoView.bounds.height)
+    let pointer = videoView.convert(event.locationInWindow, from: nil)
+    let deltaX = pointer.x - dragStartPointerInVideo.x
+    let deltaY = pointer.y - dragStartPointerInVideo.y
+    xConstraint.constant = clampedX(dragStartOriginInVideo.x + deltaX,
+                                    inWidth: videoView.bounds.width)
+    yConstraint.constant = clampedY(dragStartOriginInVideo.y + deltaY,
+                                    inHeight: videoView.bounds.height)
   }
 
   override func mouseUp(with event: NSEvent) {
     isDragging = false
+    dragStartPointerInVideo = nil
+    dragStartOriginInVideo = nil
     guard didDrag else { return }
-    let windowHeight = mainWindow.videoViewContainer.frame.height
-    guard windowHeight > 0 else { return }
-    let width = mainWindow.videoViewContainer.bounds.width
-    if width > 0 {
-      Preference.set((xConstraint.constant + frame.width / 2) / width, for: .controlBarPositionHorizontal)
+    let videoView = mainWindow.videoViewContainer!
+    let videoWidth = videoView.bounds.width
+    let videoHeight = videoView.bounds.height
+    if videoWidth > 0 {
+      Preference.set((xConstraint.constant + barSize.width / 2) / videoWidth,
+                     for: .controlBarPositionHorizontal)
     }
-    Preference.set(yConstraint.constant / windowHeight, for: .controlBarPositionVertical)
+    if videoHeight > 0 {
+      Preference.set(yConstraint.constant / videoHeight, for: .controlBarPositionVertical)
+    }
   }
 
   @MainActor required init?(coder: NSCoder) {
