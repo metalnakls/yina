@@ -1,0 +1,18 @@
+#include "../Configs/Deployment.xcconfig"
+
+// QuickLookVideo's Media Extensions share the FFmpeg libraries already in yina.
+HEADER_SEARCH_PATHS = $(SRCROOT)/deps/include $(SRCROOT)/QuickLook/include
+LIBRARY_SEARCH_PATHS = $(SRCROOT)/deps/lib
+OTHER_LDFLAGS = -lavformat.63 -lavcodec.63 -lavutil.61 -lswscale.10 -lswresample.7 -lavfilter.12 -framework Cocoa -framework CoreMedia -framework CoreVideo -framework CoreServices -framework AudioToolbox -framework VideoToolbox -framework Accelerate -framework MediaExtension -framework AVFoundation
+LD_RUNPATH_SEARCH_PATHS = @executable_path/../../../../Frameworks @loader_path/../../../../Frameworks
+SWIFT_VERSION = 5.0
+SWIFT_STRICT_CONCURRENCY = minimal
+SWIFT_DEFAULT_ACTOR_ISOLATION = nonisolated
+SWIFT_OBJC_INTERFACE_HEADER_NAME = $(PRODUCT_MODULE_NAME)-Swift.h
+CLANG_ENABLE_MODULES = YES
+CLANG_ENABLE_OBJC_ARC = YES
+GENERATE_INFOPLIST_FILE = NO
+INFOPLIST_KEY_NSHumanReadableCopyright = Copyright © 2014-2026 Jonathan Harris. Modified for yina. GPL-2.0-or-later.
+SKIP_INSTALL = YES
+CODE_SIGN_STYLE = Manual
+ENABLE_HARDENED_RUNTIME = YES

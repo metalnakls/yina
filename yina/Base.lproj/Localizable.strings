@@ -1049,3 +1049,9 @@
 "sidebar.sub_tuning" = "Subtitle dissolve";
 "settings.show_file_extensions" = "Show File Extensions";
 "sidebar.audio_device" = "Audio Device";
+
+/* Quick Look media extension setup */
+"quicklook.setup.title" = "Enable Quick Look previews";
+"quicklook.setup.message" = "In Media Extensions, turn on “yina media formats” and “yina video codecs” to preview more video formats in Finder. You only need to do this once.";
+"quicklook.setup.open_settings" = "Open System Settings";
+"quicklook.setup.not_now" = "Not Now";

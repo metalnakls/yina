@@ -25,7 +25,17 @@ readonly REMOTE="${YINA_RELEASE_REMOTE:-yina}"
 readonly DERIVED_DATA="${YINA_RELEASE_DERIVED:-/tmp/yina-release}"
 readonly SPARKLE_BIN="$REPO_DIR/SourcePackages/artifacts/sparkle/Sparkle/bin"
 readonly RELEASE_OUT="$DERIVED_DATA/release"
+readonly MEDIA_SIGNING_DIR="$DERIVED_DATA/MediaExtensionSigning"
+readonly RELEASE_SIGN_IDENTITY="${YINA_RELEASE_CODESIGN_IDENTITY:-}"
+readonly LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
 source "$SCRIPT_DIR/even-git-time.sh"
+
+unregister_release_app() {
+  if [[ -d "$DERIVED_DATA/Build/Products/Release/yina.app" ]]; then
+    "$LSREGISTER" -u "$DERIVED_DATA/Build/Products/Release/yina.app" >/dev/null 2>&1 || true
+  fi
+}
+trap unregister_release_app EXIT
 
 DRY_RUN=0
 for arg in "$@"; do
@@ -37,6 +47,16 @@ for arg in "$@"; do
 done
 
 cd "$REPO_DIR"
+
+# Media Extensions use restricted entitlements. Ad-hoc signing produces an app
+# that verifies locally but macOS refuses to load, so never publish that artifact.
+if [[ ! "$RELEASE_SIGN_IDENTITY" =~ ^[[:xdigit:]]{40}$ ]] ||
+   ! security find-identity -v -p codesigning | awk -v identity="$RELEASE_SIGN_IDENTITY" 'index($0, identity) && index($0, "Developer ID Application:") { found = 1 } END { exit !found }'; then
+  echo "Set YINA_RELEASE_CODESIGN_IDENTITY to an explicit valid Developer ID Application certificate SHA-1. Media Extensions cannot be distributed with ad-hoc signing." >&2
+  exit 65
+fi
+python3 "$SCRIPT_DIR/prepare_media_extension_signing.py" \
+  --identity "$RELEASE_SIGN_IDENTITY" --output "$MEDIA_SIGNING_DIR"
 
 # The release version is the single VERSION file. Never guess it.
 VERSION_FILE="$REPO_DIR/VERSION"
@@ -129,17 +149,19 @@ xcodebuild \
 
 APP="$DERIVED_DATA/Build/Products/Release/yina.app"
 test -d "$APP" || { echo "Build did not produce $APP" >&2; exit 1; }
+cp "$MEDIA_SIGNING_DIR/formatreader.provisionprofile" "$APP/Contents/Extensions/yinaFormats.appex/Contents/embedded.provisionprofile"
+cp "$MEDIA_SIGNING_DIR/videodecoder.provisionprofile" "$APP/Contents/Extensions/yinaCodecs.appex/Contents/embedded.provisionprofile"
 
 # vtool rewrites every Mach-O, so normalize and verify before anything is signed.
 "$SCRIPT_DIR/modernize_arm64_bundle.sh" "$APP"
 "$SCRIPT_DIR/verify_arm64_bundle.sh" "$APP"
 
-# Release builds are ad-hoc signed (CODE_SIGN_IDENTITY = - in Deployment.xcconfig).
-# Sparkle's update signature is independent of this and is what clients verify.
-echo "==> Signing bundle (ad-hoc)"
+# Sparkle's update signature is independent of the Developer ID signature and
+# the embedded Media Extension provisioning profiles required by macOS.
+echo "==> Signing bundle (Developer ID)"
 while IFS= read -r -d '' path; do
   if file -b "$path" | grep -q "Mach-O"; then
-    codesign --force --sign - "$path"
+    codesign --force --sign "$RELEASE_SIGN_IDENTITY" --options runtime "$path"
   fi
 done < <(find "$APP" -type f -print0)
 
@@ -147,15 +169,21 @@ while IFS= read -r -d '' path; do
   case "$path" in
     "$APP") ;;
     */OpenInYINA.appex)
-      codesign --force --sign - --entitlements "$REPO_DIR/OpenInYINA/OpenInYINA.entitlements" "$path"
+      codesign --force --sign "$RELEASE_SIGN_IDENTITY" --options runtime --entitlements "$REPO_DIR/OpenInYINA/OpenInYINA.entitlements" "$path"
       ;;
-    *.app|*.appex|*.framework|*.xpc|*.bundle)
-      codesign --force --sign - "$path"
+    */yinaFormats.appex)
+      codesign --force --sign "$RELEASE_SIGN_IDENTITY" --options runtime --entitlements "$MEDIA_SIGNING_DIR/formatreader.entitlements" "$path"
+      ;;
+    */yinaCodecs.appex)
+      codesign --force --sign "$RELEASE_SIGN_IDENTITY" --options runtime --entitlements "$MEDIA_SIGNING_DIR/videodecoder.entitlements" "$path"
+      ;;
+    *.app|*.appex|*.framework|*.xpc|*.bundle|*.mdimporter)
+      codesign --force --sign "$RELEASE_SIGN_IDENTITY" --options runtime "$path"
       ;;
   esac
 done < <(find "$APP" -depth -type d -print0)
 
-codesign --force --sign - --entitlements "$REPO_DIR/yina/yina.entitlements" "$APP"
+codesign --force --sign "$RELEASE_SIGN_IDENTITY" --options runtime --entitlements "$REPO_DIR/yina/yina.entitlements" "$APP"
 codesign --verify --deep --strict --verbose=2 "$APP"
 
 for key in CFBundleVersion CFBundleShortVersionString; do

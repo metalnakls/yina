@@ -1,0 +1,351 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>CFBundleDisplayName</key>
+	<string>$(INFOPLIST_KEY_CFBundleDisplayName)</string>
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>MDImporter</string>
+			<key>LSItemContentTypes</key>	<!-- Keep in sync with qlgenerator -->
+			<array>
+				<!-- schema:start - pull following UTIs into schema.xml for display in Get Info dialog -->
+
+				<!-- Try to handle everything; CoreMedia importers will grab the more specific UTIs that it wants to handle -->
+				<string>public.audiovisual-content</string>
+				<string>public.movie</string>
+
+				<!-- CoreTypes not handled by CoreMedia importer -->
+				<string>com.adobe.flash.video</string>
+				<string>com.microsoft.advanced-systems-format</string>
+				<string>com.microsoft.windows-media-wm</string>
+				<string>com.microsoft.windows-media-wmp</string>
+				<string>com.microsoft.windows-media-wmv</string>
+				<string>com.real.realmedia</string>
+				<string>com.real.realmedia-vbr</string>
+				<string>org.smpte.mxf</string>
+				<string>public.avi</string>
+				<string>public.dv-movie</string>
+				<string>public.flc-animation</string>
+				<string>public.mpeg-2-transport-stream</string>
+				<string>public.mpeg-2-video</string>
+
+				<!-- Handled by CoreMedia importer, but we'll offer to handle them anyway for consistency -->
+				<string>com.apple.quicktime-movie</string>
+				<string>public.mpeg-4</string>
+				<string>com.apple.protected-mpeg-4-video</string>
+				<string>com.apple.m4v-video</string>
+				<string>public.mpeg-4-audio</string>
+				<string>public.3gpp</string>
+				<string>public.3gpp2</string>
+				<string>public.mpeg</string>
+				<string>com.apple.mediaextension-content</string>
+
+				<!-- defined by formatreader -->
+				<string>org.matroska.mkv</string>
+				<string>org.webmproject.webm</string>
+				<string>jp.co.dvdfllc.vob</string>
+				<string>org.smpte.gxf</string>
+				<string>org.mythtv.nuppelvideo</string>
+				<string>org.xiph.ogv</string>
+				<string>public.ivf</string>
+				<string>com.blu-raydisc.bdav</string>
+				<string>com.divx.divx</string>
+				<string>com.google.webm</string>	<!-- we prefer org.webmproject.webm -->
+				<string>com.microsoft.wtv</string>
+				<string>com.microsoft.xesc</string>
+				<string>com.real.realvideo</string>
+				<string>com.wavpack.wv</string>
+
+				<!-- defined by VLC.app >= 2.2 -->
+				<string>org.videolan.flash</string>
+				<string>org.videolan.xesc</string>
+				<string>org.videolan.realmedia</string>
+				<string>org.videolan.ogg-video</string>
+				<string>org.videolan.axv</string>
+				<string>org.videolan.gxf</string>
+				<string>org.videolan.mxf</string>
+				<string>org.videolan.avi</string>
+				<string>org.videolan.quicktime</string>
+				<string>org.videolan.divx</string>
+				<string>org.videolan.dv</string>
+				<string>org.videolan.asf</string>
+				<string>org.videolan.wmv</string>
+				<string>org.videolan.wtv</string>
+				<string>org.videolan.mpeg-video</string>
+				<string>org.videolan.mpeg-stream</string>
+				<string>org.videolan.3gp</string>
+				<string>org.videolan.mkv</string>
+				<string>org.videolan.webm</string>
+				<string>org.videolan.rec</string>
+				<string>org.videolan.vob</string>
+				<string>org.videolan.vro</string>
+				<string>org.videolan.tod</string>
+				<string>org.videolan.nsv</string>
+				<string>org.videolan.nuv</string>
+				<string>org.videolan.wv</string>
+
+				<!-- defined by MPlayerX.app -->
+				<string>org.niltsh.mplayerx-divx</string>
+				<string>org.niltsh.mplayerx-dv</string>
+				<string>org.niltsh.mplayerx-flash-video</string>
+				<string>org.niltsh.mplayerx-mts</string>
+				<string>org.niltsh.mplayerx-matroska-video</string>
+				<string>org.niltsh.mplayerx-mxf</string>
+				<string>org.niltsh.mplayerx-ogg-video</string>
+				<string>org.niltsh.mplayerx-rmvb</string>
+				<string>org.niltsh.mplayerx-xvid</string>
+
+				<!-- defined by NicePlayer.app -->
+				<string>indy.jt.niceplayer.divx</string>
+				<string>indy.jt.niceplayer.mkv</string>
+
+				<!-- defined by Blu-ray Player.app -->
+				<string>com.macblurayplayer.matroska</string>
+				<string>com.macblurayplayer.nuppelvideo</string>
+				<string>com.macblurayplayer.ogv</string>
+				<string>com.macblurayplayer.divx</string>
+
+				<!-- defined by mpv.app -->
+				<string>io.mpv.wma</string>
+				<string>io.mpv.avi</string>
+				<string>io.mpv.divx</string>
+				<string>io.mpv.dv</string>
+				<string>io.mpv.flv</string>
+				<string>io.mpv.mkv</string>
+				<string>io.mpv.ogv</string>
+				<string>io.mpv.rmvb</string>
+				<string>io.mpv.wmv</string>
+				<string>io.mpv.xvid</string>
+				<string>io.mpv.webm</string>
+
+				<!-- defined by Media Inspector -->
+				<string>com.massanti.mediainfomac.ogv</string>
+				<string>com.massanti.mediainfomac.nuppelvideo</string>
+				<string>com.massanti.mediainfomac.matroska</string>
+				<string>com.massanti.mediainfomac.flash-video</string>
+				<string>com.massanti.mediainfomac.mpeg2TS</string>
+				<string>com.massanti.mediainfomac.mpeg2</string>
+
+				<!-- defined by Aurora Blu-ray Player for Mac -->
+				<string>com.blurayplayersoftware.matroska</string>
+				<string>com.blurayplayersoftware.nuppelvideo</string>
+				<string>com.blurayplayersoftware.divx</string>
+				<string>com.blurayplayersoftware.ogv</string>
+
+				<!-- defined by IINA -->
+				<string>io.iina.flash</string>
+			<string>io.yina.flash</string>
+				<string>io.iina.realmedia</string>
+			<string>io.yina.realmedia</string>
+				<string>io.iina.vob</string>
+			<string>io.yina.vob</string>
+				<string>io.iina.ogg-video</string>
+			<string>io.yina.ogg-video</string>
+				<string>io.iina.avi</string>
+			<string>io.yina.avi</string>
+				<string>io.iina.quicktime</string>
+			<string>io.yina.quicktime</string>
+				<string>io.iina.divx</string>
+			<string>io.yina.divx</string>
+				<string>io.iina.dv</string>
+			<string>io.yina.dv</string>
+				<string>io.iina.asf</string>
+			<string>io.yina.asf</string>
+				<string>io.iina.wmv</string>
+			<string>io.yina.wmv</string>
+				<string>io.iina.wtv</string>
+			<string>io.yina.wtv</string>
+				<string>io.iina.mpeg-video</string>
+			<string>io.yina.mpeg-video</string>
+				<string>io.iina.mpeg4-video</string>
+			<string>io.yina.mpeg4-video</string>
+				<string>io.iina.mpeg-stream</string>
+			<string>io.yina.mpeg-stream</string>
+				<string>io.iina.3gpp</string>
+			<string>io.yina.3gpp</string>
+				<string>io.iina.3gpp2</string>
+			<string>io.yina.3gpp2</string>
+				<string>io.iina.mkv</string>
+			<string>io.yina.mkv</string>
+				<string>io.iina.webm</string>
+			<string>io.yina.webm</string>
+				<string>io.iina.wv</string>
+			<string>io.yina.wv</string>
+
+				<!-- defined by Canon RAW Development -->
+				<string>com.canon.raw.movie</string>
+
+				<!-- defined by Infuse.app -->
+				<string>com.firecore.fileformat.dvr-ms</string>
+				<string>com.firecore.fileformat.flv</string>
+				<string>com.firecore.fileformat.mpg</string>
+				<string>com.firecore.fileformat.wmv</string>
+				<string>com.firecore.fileformat.mkv</string>
+				<string>com.firecore.fileformat.ts</string>
+				<string>com.firecore.fileformat.m2ts</string>
+				<string>com.firecore.fileformat.mts</string>
+				<string>com.firecore.fileformat.avi</string>
+				<string>com.firecore.fileformat.m4v</string>
+				<string>com.firecore.fileformat.mov</string>
+				<string>com.firecore.fileformat.mp4</string>
+				<string>com.firecore.fileformat.mpeg</string>
+				<string>com.firecore.fileformat.mod</string>
+				<string>com.firecore.fileformat.wtv</string>
+				<string>com.firecore.fileformat.ogm</string>
+				<string>com.firecore.fileformat.ogv</string>
+				<string>com.firecore.fileformat.webm</string>
+				<string>com.firecore.fileformat.asf</string>
+				<string>com.firecore.fileformat.rmvb</string>
+				<string>com.firecore.fileformat.vob</string>
+				<string>com.firecore.fileformat.mxf</string>
+				<string>com.firecore.fileformat.dvdmedia</string>
+
+				<!-- schema:stop - stop pulling UTIs into schema.xml -->
+
+				<!-- Try to handle everything; Audio importer will grab the more specific UTIs that it wants to handle -->
+				<string>public.audio</string>
+
+				<!-- CoreTypes not handled by Audio importer -->
+				<string>com.microsoft.windows-media-wma</string>
+				<string>com.real.realaudio</string>
+				<string>com.soundblaster.soundfont</string>
+				<string>public.mp2</string>
+				<string>org.xiph.ogg-audio</string>
+
+				<!-- Audio defined by formatreader -->
+				<string>org.matroska.mka</string>
+				<string>com.monkeysaudio.ape</string>
+				<string>com.meridian-audio.mlp</string>
+
+				<!-- Audio defined by VLC.app >= 2.2 -->
+				<string>org.videolan.ape</string>
+				<string>org.videolan.flac</string>
+				<string>org.videolan.wv</string>
+				<string>org.videolan.tta</string>
+				<string>org.videolan.mpc</string>
+				<string>org.videolan.mod</string>
+				<string>org.videolan.it</string>
+				<string>org.videolan.xm</string>
+				<string>org.videolan.aiff</string>
+				<string>org.videolan.amr</string>
+				<string>org.videolan.dts</string>
+				<string>org.videolan.spx</string>
+				<string>org.videolan.wav</string>
+				<string>org.videolan.ac3</string>
+				<string>org.videolan.aac</string>
+				<string>org.videolan.opus</string>
+				<string>org.videolan.ogg-audio</string>
+				<string>org.videolan.oma</string>
+				<string>org.videolan.voc</string>
+				<string>org.videolan.vqf</string>
+				<string>org.videolan.axa</string>
+				<string>org.videolan.wma</string>
+				<string>org.videolan.mpeg-audio</string>
+				<string>org.videolan.mid</string>
+				<string>org.videolan.mlp</string>
+				<string>org.videolan.mka</string>
+				<string>org.videolan.rmi</string>
+				<string>org.videolan.s3m</string>
+
+				<!-- Audio defined by MPlayerX.app -->
+				<string>org.niltsh.mplayerx-aac</string>
+				<string>org.niltsh.mplayerx-ac3</string>
+				<string>org.niltsh.mplayerx-flac</string>
+				<string>org.niltsh.mplayerx-matroska-audio</string>
+				<string>org.niltsh.mplayerx-ogg</string>
+
+				<!-- Audio defined by Blu-ray Player.app -->
+				<string>com.macblurayplayer.ogg</string>
+
+				<!-- Audio defined by mpv.app -->
+				<string>io.mpv.ac3</string>
+				<string>io.mpv.flac</string>
+				<string>io.mpv.mka</string>
+				<string>io.mpv.ogg-audio</string>
+				<string>io.mpv.wma</string>
+
+				<!-- Audio defined by Media Inspector -->
+				<string>com.massanti.mediainfomac.ogg</string>
+				<string>com.massanti.mediainfomac.flac</string>
+				<string>com.massanti.mediainfomac.ac3</string>
+				<string>com.massanti.mediainfomac.true-audio</string>
+
+				<!-- Audio defined by Aurora Blu-ray Player for Mac -->
+				<string>com.blurayplayersoftware.ogg</string>
+
+				<!-- Audio defined by IINA -->
+				<string>io.iina.ape</string>
+			<string>io.yina.ape</string>
+				<string>io.iina.flac</string>
+			<string>io.yina.flac</string>
+				<string>io.iina.wv</string>
+			<string>io.yina.wv</string>
+				<string>io.iina.xm</string>
+			<string>io.yina.xm</string>
+				<string>io.iina.aiff</string>
+			<string>io.yina.aiff</string>
+				<string>io.iina.wav</string>
+			<string>io.yina.wav</string>
+				<string>io.iina.ac3</string>
+			<string>io.yina.ac3</string>
+				<string>io.iina.aac</string>
+			<string>io.yina.aac</string>
+				<string>io.iina.opus</string>
+			<string>io.yina.opus</string>
+				<string>io.iina.ogg-audio</string>
+			<string>io.yina.ogg-audio</string>
+				<string>io.iina.wma</string>
+			<string>io.yina.wma</string>
+				<string>io.iina.mpeg-audio</string>
+			<string>io.yina.mpeg-audio</string>
+				<string>io.iina.mpeg4-audio</string>
+			<string>io.yina.mpeg4-audio</string>
+				<string>io.iina.mpeg3-audio</string>
+			<string>io.yina.mpeg3-audio</string>
+				<string>io.iina.mid</string>
+			<string>io.yina.mid</string>
+				<string>io.iina.mka</string>
+			<string>io.yina.mka</string>
+
+			</array>
+		</dict>
+	</array>
+	<key>CFBundleExecutable</key>
+	<string>${EXECUTABLE_NAME}</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>${PRODUCT_NAME}</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleVersion</key>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>CFPlugInDynamicRegisterFunction</key>
+	<string></string>
+	<key>CFPlugInDynamicRegistration</key>
+	<false/>
+	<key>CFPlugInFactories</key>
+	<dict>
+		<key>A347F2AE-5B72-48B7-9329-B5E2678F736A</key>
+		<string>MetadataImporterPluginFactory</string>
+	</dict>
+	<key>CFPlugInTypes</key>
+	<dict>
+		<key>8B08C4BF-415B-11D8-B3F9-0003936726FC</key>
+		<array>
+			<string>A347F2AE-5B72-48B7-9329-B5E2678F736A</string>
+		</array>
+	</dict>
+	<key>LSMinimumSystemVersion</key>
+	<string>${MACOSX_DEPLOYMENT_TARGET}</string>
+	<key>NSHumanReadableCopyright</key>
+	<string>${INFOPLIST_KEY_NSHumanReadableCopyright}</string>
+</dict>
+</plist>

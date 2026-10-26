@@ -1,0 +1,402 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>CFBundleDisplayName</key>
+	<string>$(INFOPLIST_KEY_CFBundleDisplayName)</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleVersion</key>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>EXAppExtensionAttributes</key>
+	<dict>
+		<key>ClassImplementationID</key>
+		<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+		<key>CodecInfo</key>
+		<array>
+			<dict>
+				<key>CodecName</key>
+				<string>QuickTime Animation</string>
+				<key>CodecType</key>
+				<string>rle </string>
+			</dict>
+			<dict>
+				<key>CodecName</key>
+				<string>QuickTime Video</string>
+				<key>CodecType</key>
+				<string>rpza</string>
+			</dict>
+			<dict>
+				<key>CodecName</key>
+				<string>Apple Intermediate Codec</string>
+				<key>CodecType</key>
+				<string>icod</string>
+			</dict>
+			<dict>
+				<key>CodecName</key>
+				<string>Cinepak</string>
+				<key>CodecType</key>
+				<string>cvid</string>
+			</dict>
+			<dict>
+				<key>CodecName</key>
+				<string>HAP</string>
+				<key>CodecType</key>
+				<string>Hap1</string>
+			</dict>
+			<dict>
+				<key>CodecName</key>
+				<string>HAP Alpha</string>
+				<key>CodecType</key>
+				<string>Hap5</string>
+			</dict>
+			<dict>
+				<key>CodecName</key>
+				<string>HAP Q</string>
+				<key>CodecType</key>
+				<string>HapY</string>
+			</dict>
+			<dict>
+				<key>CodecName</key>
+				<string>HAP Q Alpha</string>
+				<key>CodecType</key>
+				<string>HapM</string>
+			</dict>
+			<dict>
+				<key>CodecName</key>
+				<string>HAP Alpha Only</string>
+				<key>CodecType</key>
+				<string>HapA</string>
+			</dict>
+			<dict>
+				<key>CodecName</key>
+				<string>DXV 1</string>
+				<key>CodecType</key>
+				<string>DXDI</string>
+			</dict>
+			<dict>
+				<key>CodecName</key>
+				<string>DXV 3</string>
+				<key>CodecType</key>
+				<string>DXD3</string>
+			</dict>
+			<dict>
+				<key>CodecName</key>
+				<string>FLIC animation</string>
+				<key>CodecType</key>
+				<string>flic</string>
+			</dict>
+			<dict>
+				<key>CodecName</key>
+				<string>FLIC animation</string>
+				<key>CodecType</key>
+				<string>AFLC</string>
+			</dict>
+			<dict>
+				<key>CodecName</key>
+				<string>NotchLC</string>
+				<key>CodecType</key>
+				<string>nclc</string>
+			</dict>
+			<dict>
+				<key>CodecName</key>
+				<string>Indeo 2</string>
+				<key>CodecType</key>
+				<string>RT21</string>
+			</dict>
+			<dict>
+				<key>CodecName</key>
+				<string>Indeo 3</string>
+				<key>CodecType</key>
+				<string>IV31</string>
+			</dict>
+			<dict>
+				<key>CodecName</key>
+				<string>Indeo 3</string>
+				<key>CodecType</key>
+				<string>IV32</string>
+			</dict>
+			<dict>
+				<key>CodecName</key>
+				<string>Indeo 4</string>
+				<key>CodecType</key>
+				<string>IV41</string>
+			</dict>
+			<dict>
+				<key>CodecName</key>
+				<string>Indeo 5</string>
+				<key>CodecType</key>
+				<string>IV50</string>
+			</dict>
+			<dict>
+				<key>CodecName</key>
+				<string>Sorenson Video 1</string>
+				<key>CodecType</key>
+				<string>SVQ1</string>
+			</dict>
+			<dict>
+				<key>CodecName</key>
+				<string>Sorenson Video 3</string>
+				<key>CodecType</key>
+				<string>SVQ3</string>
+			</dict>
+			<dict>
+				<key>CodecName</key>
+				<string>MPEG-4 Video (MEncoder)</string>
+				<key>CodecType</key>
+				<string>FMP4</string>
+			</dict>
+			<dict>
+				<key>CodecName</key>
+				<string>DivX</string>
+				<key>CodecType</key>
+				<string>DIVX</string>
+			</dict>
+			<dict>
+				<key>CodecName</key>
+				<string>DivX</string>
+				<key>CodecType</key>
+				<string>XVID</string>
+			</dict>
+			<dict>
+				<key>CodecName</key>
+				<string>DivX</string>
+				<key>CodecType</key>
+				<string>DX50</string>
+			</dict>
+			<dict>
+				<key>CodecName</key>
+				<string>MPEG-4 Video (MS)</string>
+				<key>CodecType</key>
+				<string>MP41</string>
+			</dict>
+			<dict>
+				<key>CodecName</key>
+				<string>MPEG-4 Video (MS)</string>
+				<key>CodecType</key>
+				<string>MPG4</string>
+			</dict>
+			<dict>
+				<key>CodecName</key>
+				<string>MPEG-4 Video (MS)</string>
+				<key>CodecType</key>
+				<string>MP42</string>
+			</dict>
+			<dict>
+				<key>CodecName</key>
+				<string>DivX</string>
+				<key>CodecType</key>
+				<string>DIV2</string>
+			</dict>
+			<dict>
+				<key>CodecName</key>
+				<string>MPEG-4 Video (MS)</string>
+				<key>CodecType</key>
+				<string>MP43</string>
+			</dict>
+			<dict>
+				<key>CodecName</key>
+				<string>DivX</string>
+				<key>CodecType</key>
+				<string>DIV3</string>
+			</dict>
+			<dict>
+				<key>CodecName</key>
+				<string>DivX</string>
+				<key>CodecType</key>
+				<string>DIV4</string>
+			</dict>
+			<dict>
+				<key>CodecName</key>
+				<string>DivX</string>
+				<key>CodecType</key>
+				<string>DIV5</string>
+			</dict>
+			<dict>
+				<key>CodecName</key>
+				<string>DivX</string>
+				<key>CodecType</key>
+				<string>DIV6</string>
+			</dict>
+			<dict>
+				<key>CodecName</key>
+				<string>MPEG-1 Video</string>
+				<key>CodecType</key>
+				<string>MP1V</string>
+			</dict>
+			<dict>
+				<key>CodecName</key>
+				<string>MPEG-2 Video</string>
+				<key>CodecType</key>
+				<string>MP2V</string>
+			</dict>
+			<dict>
+				<key>CodecName</key>
+				<string>MPEG-4 Video</string>
+				<key>CodecType</key>
+				<string>MP4V</string>
+			</dict>
+			<dict>
+				<key>CodecName</key>
+				<string>H.264</string>
+				<key>CodecType</key>
+				<string>H264</string>
+			</dict>
+			<dict>
+				<key>CodecName</key>
+				<string>HEVC</string>
+				<key>CodecType</key>
+				<string>HEVC</string>
+			</dict>
+			<dict>
+				<key>CodecName</key>
+				<string>On2 VP6</string>
+				<key>CodecType</key>
+				<string>VP6 </string>
+			</dict>
+			<dict>
+				<key>CodecName</key>
+				<string>On2 VP8</string>
+				<key>CodecType</key>
+				<string>VP8 </string>
+			</dict>
+			<dict>
+				<key>CodecName</key>
+				<string>Google VP9</string>
+				<key>CodecType</key>
+				<string>VP9 </string>
+			</dict>
+			<dict>
+				<key>CodecName</key>
+				<string>AOMedia AV1</string>
+				<key>CodecType</key>
+				<string>AV1 </string>
+			</dict>
+			<dict>
+				<key>CodecName</key>
+				<string>Theora</string>
+				<key>CodecType</key>
+				<string>theo</string>
+			</dict>
+			<dict>
+				<key>CodecName</key>
+				<string>Versatile Video Coding</string>
+				<key>CodecType</key>
+				<string>vvc1</string>
+			</dict>
+			<dict>
+				<key>CodecName</key>
+				<string>VC-1</string>
+				<key>CodecType</key>
+				<string>vc-1</string>
+			</dict>
+			<dict>
+				<key>CodecName</key>
+				<string>Chinese AVS video</string>
+				<key>CodecType</key>
+				<string>avs2</string>
+			</dict>
+			<dict>
+				<key>CodecName</key>
+				<string>Advanced Professional Video</string>
+				<key>CodecType</key>
+				<string>apv1</string>
+			</dict>
+			<dict>
+				<key>CodecName</key>
+				<string>Flash Video</string>
+				<key>CodecType</key>
+				<string>FLV1</string>
+			</dict>
+			<dict>
+				<key>CodecName</key>
+				<string>Flash Video</string>
+				<key>CodecType</key>
+				<string>FSV1</string>
+			</dict>
+			<dict>
+				<key>CodecName</key>
+				<string>Windows Media Video 1</string>
+				<key>CodecType</key>
+				<string>WMV1</string>
+			</dict>
+			<dict>
+				<key>CodecName</key>
+				<string>Windows Media Video 2</string>
+				<key>CodecType</key>
+				<string>WMV2</string>
+			</dict>
+			<dict>
+				<key>CodecName</key>
+				<string>Windows Media Video 3</string>
+				<key>CodecType</key>
+				<string>WMV3</string>
+			</dict>
+			<dict>
+				<key>CodecName</key>
+				<string>RealVideo 1</string>
+				<key>CodecType</key>
+				<string>RV10</string>
+			</dict>
+			<dict>
+				<key>CodecName</key>
+				<string>RealVideo G2</string>
+				<key>CodecType</key>
+				<string>RV20</string>
+			</dict>
+			<dict>
+				<key>CodecName</key>
+				<string>RealVideo 8</string>
+				<key>CodecType</key>
+				<string>RV30</string>
+			</dict>
+			<dict>
+				<key>CodecName</key>
+				<string>RealVideo 9</string>
+				<key>CodecType</key>
+				<string>RV40</string>
+			</dict>
+			<dict>
+				<key>CodecName</key>
+				<string>RealVideo HD</string>
+				<key>CodecType</key>
+				<string>RV60</string>
+			</dict>
+			<dict>
+				<key>CodecName</key>
+				<string>ClearVideo</string>
+				<key>CodecType</key>
+				<string>CLV1</string>
+			</dict>
+			<dict>
+				<key>CodecName</key>
+				<string>QuickLook Video</string>
+				<key>CodecType</key>
+				<string>QLV </string>
+			</dict>
+		</array>
+		<key>EXExtensionPointIdentifier</key>
+		<string>com.apple.mediaextension.videodecoder</string>
+		<key>EXPrincipalClass</key>
+		<string>$(PRODUCT_MODULE_NAME).VideoDecoderFactory</string>
+		<key>ObjectName</key>
+		<string>Support for non-native video codecs</string>
+	</dict>
+	<key>LSMinimumSystemVersion</key>
+	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
+	<key>NSHumanReadableCopyright</key>
+	<string>${INFOPLIST_KEY_NSHumanReadableCopyright}</string>
+</dict>
+</plist>
