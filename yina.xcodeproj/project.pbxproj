@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A73B00AA2026102600000004 /* SubtitleLanguagePairing.swift in Sources */ = {isa = PBXBuildFile; fileRef = A73B00AA2026102600000003 /* SubtitleLanguagePairing.swift */; };
 		A10F517E000000000000000B /* ApplicationMain.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10F517E000000000000000C /* ApplicationMain.swift */; };
 		A10F517E0000000000000009 /* ApplicationMenus.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10F517E000000000000000A /* ApplicationMenus.swift */; };
 		A10F517E0000000000000007 /* InspectorWindowViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10F517E0000000000000008 /* InspectorWindowViews.swift */; };
@@ -520,6 +521,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		A73B00AA2026102600000003 /* SubtitleLanguagePairing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubtitleLanguagePairing.swift; sourceTree = "<group>"; };
 		A10F517E000000000000000C /* ApplicationMain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationMain.swift; sourceTree = "<group>"; };
 		A10F517E000000000000000A /* ApplicationMenus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationMenus.swift; sourceTree = "<group>"; };
 		A10F517E0000000000000008 /* InspectorWindowViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InspectorWindowViews.swift; sourceTree = "<group>"; };
@@ -1601,6 +1603,7 @@
 				E3D94E7F2FD0519600B08618 /* SidebarLayoutPane.swift */,
 				E3C228062FDF4E02009A1A89 /* SidebarVideoPane.swift */,
 				E3C2280A2FDFB7C1009A1A89 /* SidebarAudioPane.swift */,
+				A73B00AA2026102600000003 /* SubtitleLanguagePairing.swift */,
 				E318D9082FE096960025DBC5 /* SidebarSubtitlesPane.swift */,
 				E318D90E2FE5C8500025DBC5 /* SidebarPlaylistPane.swift */,
 				E318D9102FE5E2670025DBC5 /* SidebarChaptersPane.swift */,
@@ -2007,6 +2010,7 @@
 				E3AD62792FF8C19A00D2CAC5 /* VolumeButton.swift in Sources */,
 				E3A239AC2FC70EC300CE6ACC /* AdditionalInfoView.swift in Sources */,
 				E3C2280B2FDFB7C7009A1A89 /* SidebarAudioPane.swift in Sources */,
+				A73B00AA2026102600000004 /* SubtitleLanguagePairing.swift in Sources */,
 				E31E63012FDB96F0005527B2 /* FadeableViewController.swift in Sources */,
 				E3BBBBBB0000000000000002 /* SettingsPageVideo.swift in Sources */,
 				E3BBBBBB0000000000000004 /* SettingsPageAudio.swift in Sources */,

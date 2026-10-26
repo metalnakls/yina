@@ -158,6 +158,9 @@ class PlayerCore: NSObject {
 
   var label: String!
   var isManagedByPlugin = false
+  private var lastPairedAudioID: Int?
+  private var explicitlySelectedSubtitleID: Int?
+  private var pendingAutomaticSubtitleID: Int?
   var userLabel: String?
   var disableUI = false
   var disableWindowAnimation = false
@@ -1340,7 +1343,11 @@ class PlayerCore: NSObject {
     }
   }
 
-  func setTrack(_ index: Int, forType: MPVTrack.TrackType) {
+  func setTrack(_ index: Int, forType: MPVTrack.TrackType, automatic: Bool = false) {
+    if forType == .sub {
+      if automatic { pendingAutomaticSubtitleID = index }
+      else { rememberSubtitleSelection(index) }
+    }
     if forType == .video {
       os_log("player=%{public}d requested_video_track=%{public}d",
              log: Self.mediaOpeningLog, type: .default, playerNumber, index)
@@ -1359,6 +1366,7 @@ class PlayerCore: NSObject {
     }
     mpv.setInt(name, index)
     getSelectedTracks()
+    if forType == .audio { pairSubtitlesWithAudio() }
   }
 
   func setSpeed(_ speed: Double) {
@@ -2167,6 +2175,9 @@ class PlayerCore: NSObject {
   /// - Important: The event may be received after YINA has started to stop and shutdown the core. The event must be ignored if
   ///         the player is no longer active.
   func fileStarted(path: String) {
+    lastPairedAudioID = nil
+    explicitlySelectedSubtitleID = nil
+    pendingAutomaticSubtitleID = nil
     guard info.state.active else { return }
     finishSubtitleDissolve()
     log("File started")
@@ -2389,9 +2400,39 @@ class PlayerCore: NSObject {
     postNotification(.yinaAFChanged)
   }
 
+  private func rememberSubtitleSelection(_ index: Int) {
+    pendingAutomaticSubtitleID = nil
+    explicitlySelectedSubtitleID = index
+    guard let audio = SubtitleLanguagePairing.language(info.currentTrack(.audio)?.lang) else { return }
+    var pairs = Preference.dictionary(for: .subtitleLanguagePairs) as? [String: String] ?? [:]
+    if index == 0 { pairs[audio] = "off" }
+    else if let language = SubtitleLanguagePairing.language(info.subTracks.first { $0.id == index }?.lang) {
+      pairs[audio] = language
+    }
+    Preference.set(pairs, for: .subtitleLanguagePairs)
+  }
+
+  private func pairSubtitlesWithAudio() {
+    guard info.state.active else { return }
+    let changedAudio = lastPairedAudioID != info.aid
+    if changedAudio { explicitlySelectedSubtitleID = nil }
+    lastPairedAudioID = info.aid
+    guard explicitlySelectedSubtitleID == nil else { return }
+    let candidates = info.subTracks.filter { $0.id != info.secondSid }.map {
+      SubtitleLanguagePairing.Candidate(id: $0.id, language: $0.lang,
+                                        isDefault: $0.isDefault, isForced: $0.isForced)
+    }
+    let pairs = Preference.dictionary(for: .subtitleLanguagePairs) as? [String: String] ?? [:]
+    guard let selection = SubtitleLanguagePairing.selection(audioLanguage: info.currentTrack(.audio)?.lang,
+                                                           overrides: pairs, candidates: candidates),
+          selection != info.sid else { return }
+    setTrack(selection, forType: .sub, automatic: true)
+  }
+
   func aidChanged() {
     guard info.state.active else { return }
     info.aid = Int(mpv.getInt(MPVOption.TrackSelection.aid))
+    pairSubtitlesWithAudio()
     guard mainWindow.loaded else { return }
     mainWindow?.muteButton.isHidden = (info.aid == 0)
     mainWindow?.volumeSlider.isHidden = (info.aid == 0)
@@ -2615,7 +2656,14 @@ class PlayerCore: NSObject {
   func sidChanged() {
     finishSubtitleDissolve()
     guard info.state.active else { return }
+    let previous = info.sid
     info.sid = Int(mpv.getInt(MPVOption.TrackSelection.sid))
+    if pendingAutomaticSubtitleID == info.sid {
+      pendingAutomaticSubtitleID = nil
+    } else if pendingAutomaticSubtitleID == nil, previous != info.sid,
+              !info.justOpenedFile, !info.justStartedFile, lastPairedAudioID == info.aid {
+      rememberSubtitleSelection(info.sid ?? 0)
+    }
     postNotification(.yinaSIDChanged)
     sendOSD(.track(info.currentTrack(.sub) ?? .noneSubTrack))
     if isInMiniPlayer {
@@ -2687,6 +2735,7 @@ class PlayerCore: NSObject {
         switchBackFromMiniPlayer(automatically: true, showMainWindow: false)
       }
     }
+    pairSubtitlesWithAudio()
 
     if isInMiniPlayer {
       miniPlayer.refreshArtworkVisibility()

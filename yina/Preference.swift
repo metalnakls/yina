@@ -211,6 +211,7 @@ struct Preference {
     static let edgeToEdgeVideo = Key("edgeToEdgeVideo")
     static let dockedControlBarAndTitlebar = Key("dockedControlBarAndTitlebar")
     static let showExtensions = Key("showExtensions")
+    static let subtitleLanguagePairs = Key("subtitleLanguagePairs")
 
     static let sidebarSettingsDisplayAtLeading = Key("sidebarSettingsDisplayAtLeading")
     static let sidebarPlaylistDisplayAtLeading = Key("sidebarPlaylistDisplayAtLeading")
@@ -1182,6 +1183,7 @@ struct Preference {
     .edgeToEdgeVideo: true,
     .dockedControlBarAndTitlebar: false,
     .showExtensions: false,
+    .subtitleLanguagePairs: [String: String](),
 
     .sidebarSettingsDisplayAtLeading: false,
     .sidebarPlaylistDisplayAtLeading: true,
