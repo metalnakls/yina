@@ -97,6 +97,7 @@ class MainWindowController: PlayerWindowController {
 
   var oscPlayControlView: NSStackView!
   var oscPlayControlMiddleView: NSStackView!
+  private var oscTransportView: NSStackView!
   var leftArrowButton: NSButton!
   var rightArrowButton: NSButton!
   var oscSpeedLabelLeftContainer: NSView!
@@ -662,6 +663,13 @@ class MainWindowController: PlayerWindowController {
                                                                           constant: DockedOSCLayout.playSliderInset)
     NSLayoutConstraint.activate([oscPlaySliderTopConstraint, oscPlaySliderBottomConstraint])
 
+    self.oscTransportView = NSStackView()
+    oscTransportView.translatesAutoresizingMaskIntoConstraints = false
+    oscTransportView.orientation = .horizontal
+    oscTransportView.alignment = .centerY
+    oscTransportView.spacing = 0
+    oscTransportView.detachesHiddenViews = false
+
     // osd
 
     osdView.padding(.trailing(greaterThan: 8), .bottom(greaterThan: 8))
@@ -1081,7 +1089,8 @@ class MainWindowController: PlayerWindowController {
         stackView!.removeView($0)
       }
     }
-    [playButton, oscSliderView, oscPlayControlView, oscToolbarView, oscVolumeView].forEach {
+    resetTransportHierarchyForLayoutChange()
+    [oscToolbarView, oscVolumeView].forEach {
         $0!.removeFromSuperview()
     }
 
@@ -1095,6 +1104,8 @@ class MainWindowController: PlayerWindowController {
     oscBottomView.updateVerticalConstraint(isDisplaying: newPosition == .bottom)
 
     oscPosition = newPosition
+    oscPlayControlMiddleView.spacing = isFloating ? 4 : DockedOSCLayout.transportSpacing
+    configureTransportHierarchy(isFloating)
 
     // add fragment views
     switch oscPosition {
@@ -1104,16 +1115,9 @@ class MainWindowController: PlayerWindowController {
       oscPlayControlView.setVisibilityPriority(.notVisible, for: oscSpeedLabelRightContainer)
       oscPlayControlView.setVisibilityPriority(.mustHold, for: oscPlayControlMiddleView)
       let floating = oscFloatingView.oscBottomView!
-      floating.orientation = .horizontal
-      floating.alignment = .centerY
-      floating.spacing = OSCDesignMetrics.floatingHorizontalInset
-      floating.addView(playButton, in: .leading)
-      floating.addView(oscSliderView, in: .leading)
-      floating.setVisibilityPriority(.mustHold, for: playButton)
-      floating.setVisibilityPriority(.mustHold, for: oscSliderView)
+      attachTransportToFloatingView(floating)
       oscFloatingView.initPosition()
     case .top:
-      oscPlayControlMiddleView.insertArrangedSubview(playButton, at: 1)
       let oscTopMainView = titleBarView.oscView!
       currentControlBar = nil
       oscPlayControlView.setVisibilityPriority(.notVisible, for: oscSpeedLabelLeftContainer)
@@ -1127,7 +1131,6 @@ class MainWindowController: PlayerWindowController {
       oscTopMainView.setVisibilityPriority(.detachEarly, for: oscVolumeView)
       oscTopMainView.setVisibilityPriority(.detachEarlier, for: oscToolbarView)
     case .bottom:
-      oscPlayControlMiddleView.insertArrangedSubview(playButton, at: 1)
       oscBottomView.isHidden = false
       let oscBottomMainView = oscBottomView.oscView!
       currentControlBar = oscBottomView
@@ -1143,11 +1146,55 @@ class MainWindowController: PlayerWindowController {
       oscBottomMainView.setVisibilityPriority(.detachEarlier, for: oscToolbarView)
     }
 
-    oscPlayControlMiddleView.spacing = isFloating ? 4 : DockedOSCLayout.transportSpacing
     configureQuickTimeOSC(isFloating)
 
     fadeableViews.update()
     showUI()
+  }
+
+  private func configureTransportHierarchy(_ isFloating: Bool) {
+    if isFloating {
+      if playButton.superview !== oscTransportView {
+        oscPlayControlMiddleView.removeArrangedSubview(playButton)
+        playButton.removeFromSuperview()
+        oscTransportView.addArrangedSubview(playButton)
+      }
+      if oscSliderView.superview !== oscTransportView {
+        oscSliderView.removeFromSuperview()
+        oscTransportView.addArrangedSubview(oscSliderView)
+      }
+      oscTransportView.spacing = OSCDesignMetrics.floatingHorizontalInset
+      oscTransportView.setVisibilityPriority(.mustHold, for: playButton)
+      oscTransportView.setVisibilityPriority(.mustHold, for: oscSliderView)
+    } else {
+      if playButton.superview === oscTransportView {
+        oscTransportView.removeArrangedSubview(playButton)
+        playButton.removeFromSuperview()
+        oscPlayControlMiddleView.insertArrangedSubview(playButton, at: 1)
+      }
+      if oscSliderView.superview === oscTransportView {
+        oscTransportView.removeArrangedSubview(oscSliderView)
+        oscSliderView.removeFromSuperview()
+      }
+    }
+  }
+
+  private func resetTransportHierarchyForLayoutChange() {
+    configureTransportHierarchy(false)
+    [oscSliderView, oscTransportView, oscPlayControlView].forEach {
+      if let stackView = $0!.superview as? NSStackView {
+        stackView.removeArrangedSubview($0!)
+      }
+      $0!.removeFromSuperview()
+    }
+  }
+
+  private func attachTransportToFloatingView(_ floating: TimeLabelOverflowedStackView) {
+    floating.orientation = .horizontal
+    floating.alignment = .centerY
+    floating.spacing = OSCDesignMetrics.floatingHorizontalInset
+    floating.addView(oscTransportView, in: .leading)
+    floating.setVisibilityPriority(.mustHold, for: oscTransportView)
   }
 
   private func configureQuickTimeOSC(_ enabled: Bool) {

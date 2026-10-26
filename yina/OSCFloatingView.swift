@@ -155,12 +155,10 @@ class OSCButton: NSButton {
 }
 
 private final class OSCFloatingContentView: NSView {
-  private weak var mainWindow: MainWindowController?
   weak var dragSurface: NSView?
 
-  init(mainWindow: MainWindowController) {
-    self.mainWindow = mainWindow
-    super.init(frame: .zero)
+  override init(frame frameRect: NSRect) {
+    super.init(frame: frameRect)
   }
 
   required init?(coder: NSCoder) {
@@ -168,17 +166,16 @@ private final class OSCFloatingContentView: NSView {
   }
 
   override func hitTest(_ point: NSPoint) -> NSView? {
-    guard bounds.contains(point), let mainWindow else { return nil }
+    guard let hit = super.hitTest(point) else { return nil }
+    guard hit !== self else { return dragSurface }
 
-    let controls: [NSView] = [mainWindow.playSlider, mainWindow.playButton, mainWindow.rightLabel].compactMap { $0 }
-    for control in controls.reversed()
-      where control.isDescendant(of: self) && !control.isHiddenOrHasHiddenAncestor {
-      let localPoint = control.convert(point, from: self)
-      if control.bounds.contains(localPoint) {
-        return control.hitTest(localPoint) ?? control
+    var candidate: NSView? = hit
+    while let view = candidate, view !== self {
+      if view is NSControl {
+        return hit
       }
+      candidate = view.superview
     }
-
     return dragSurface
   }
 
@@ -237,22 +234,20 @@ class OSCFloatingView: TranslucentView {
 
   @discardableResult
   func routeMouseDown(_ event: NSEvent) -> Bool {
-    let point = convert(event.locationInWindow, from: nil)
-    guard bounds.contains(point), let content else { return false }
-    let contentPoint = content.convert(point, from: self)
+    let pointInWindow = event.locationInWindow
+    guard bounds.contains(convert(pointInWindow, from: nil)),
+          let content,
+          let contentSuperview = content.superview else { return false }
+    let contentPoint = contentSuperview.convert(pointInWindow, from: nil)
     guard let targetView = content.hitTest(contentPoint) else { return false }
-    if targetView === content {
-      mouseDown(with: event)
-    } else {
-      targetView.mouseDown(with: event)
-    }
+    targetView.mouseDown(with: event)
     return true
   }
 
   init(mainWindow: MainWindowController) {
     self.mainWindow = mainWindow
 
-    let container = OSCFloatingContentView(mainWindow: mainWindow)
+    let container = OSCFloatingContentView(frame: .zero)
     container.translatesAutoresizingMaskIntoConstraints = false
 
     super.init(liquidGlassCornerRadius: 24, vevCornerRadius: 20, padding: (0, 0),
