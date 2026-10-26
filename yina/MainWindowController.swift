@@ -1081,7 +1081,7 @@ class MainWindowController: PlayerWindowController {
         stackView!.removeView($0)
       }
     }
-    [oscSliderView, oscPlayControlView, oscToolbarView, oscVolumeView].forEach {
+    [playButton, oscSliderView, oscPlayControlView, oscToolbarView, oscVolumeView].forEach {
         $0!.removeFromSuperview()
     }
 
@@ -1103,10 +1103,17 @@ class MainWindowController: PlayerWindowController {
       oscPlayControlView.setVisibilityPriority(.notVisible, for: oscSpeedLabelLeftContainer)
       oscPlayControlView.setVisibilityPriority(.notVisible, for: oscSpeedLabelRightContainer)
       oscPlayControlView.setVisibilityPriority(.mustHold, for: oscPlayControlMiddleView)
-      oscFloatingView.oscBottomView.addSubview(oscSliderView)
-      Utility.quickConstraints(["H:|[v]|", "V:|[v]|"], ["v": oscSliderView])
+      let floating = oscFloatingView.oscBottomView!
+      floating.orientation = .horizontal
+      floating.alignment = .centerY
+      floating.spacing = OSCDesignMetrics.floatingHorizontalInset
+      floating.addView(playButton, in: .leading)
+      floating.addView(oscSliderView, in: .leading)
+      floating.setVisibilityPriority(.mustHold, for: playButton)
+      floating.setVisibilityPriority(.mustHold, for: oscSliderView)
       oscFloatingView.initPosition()
     case .top:
+      oscPlayControlMiddleView.insertArrangedSubview(playButton, at: 1)
       let oscTopMainView = titleBarView.oscView!
       currentControlBar = nil
       oscPlayControlView.setVisibilityPriority(.notVisible, for: oscSpeedLabelLeftContainer)
@@ -1120,6 +1127,7 @@ class MainWindowController: PlayerWindowController {
       oscTopMainView.setVisibilityPriority(.detachEarly, for: oscVolumeView)
       oscTopMainView.setVisibilityPriority(.detachEarlier, for: oscToolbarView)
     case .bottom:
+      oscPlayControlMiddleView.insertArrangedSubview(playButton, at: 1)
       oscBottomView.isHidden = false
       let oscBottomMainView = oscBottomView.oscView!
       currentControlBar = oscBottomView
@@ -1144,7 +1152,7 @@ class MainWindowController: PlayerWindowController {
 
   private func configureQuickTimeOSC(_ enabled: Bool) {
     (leftArrowButton as? OSCButton)?.setQuickTimeStyle(enabled, role: .transport)
-    (playButton as? OSCButton)?.setQuickTimeStyle(enabled, role: .primary)
+    (playButton as? OSCButton)?.setQuickTimeStyle(enabled, role: enabled ? .standard : .primary)
     (rightArrowButton as? OSCButton)?.setQuickTimeStyle(enabled, role: .transport)
     playSlider.setQuickTimeStyle(enabled)
     // Keep both time labels in every OSC layout; only the timeline compresses.

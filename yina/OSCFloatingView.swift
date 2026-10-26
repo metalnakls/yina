@@ -170,7 +170,7 @@ private final class OSCFloatingContentView: NSView {
   override func hitTest(_ point: NSPoint) -> NSView? {
     guard bounds.contains(point), let mainWindow else { return nil }
 
-    let controls: [NSView] = [mainWindow.playSlider].compactMap { $0 }
+    let controls: [NSView] = [mainWindow.playSlider, mainWindow.playButton, mainWindow.rightLabel].compactMap { $0 }
     for control in controls.reversed()
       where control.isDescendant(of: self) && !control.isHiddenOrHasHiddenAncestor {
       let localPoint = control.convert(point, from: self)
