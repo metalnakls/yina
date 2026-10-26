@@ -40,6 +40,10 @@ class SidebarAudioPane: SidebarScrollView {
       $0.padding(.all(.sidebarContainerPadding))
     })
 
+    stack.addArrangedSubview(Container(AudioDeviceView(player: player)) {
+      $0.padding(.all(.sidebarContainerPadding))
+    })
+
     stack.addArrangedSubview(Container(AudioDelayView(player: player)) {
       $0.padding(.all(.sidebarContainerPadding))
     })
@@ -70,6 +74,57 @@ class SidebarAudioPane: SidebarScrollView {
   }
 }
 
+
+/// Selects the output for this player, without changing the preferred device in Settings.
+fileprivate class AudioDeviceView: NSView, NSMenuDelegate {
+  private unowned let player: PlayerCore
+  private let popup = NSPopUpButton()
+
+  init(player: PlayerCore) {
+    self.player = player
+    super.init(frame: .zero)
+    popup.target = self
+    popup.action = #selector(selectDevice(_:))
+    popup.menu?.delegate = self
+    popup.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+    let label = ui.label("sidebar.audio_device")
+    popup.setAccessibilityLabel(label.stringValue)
+    let stack = ui.vStack(label, popup)
+    addSubview(stack)
+    stack.padding(.all)
+    updateDevices()
+  }
+
+  override func viewDidMoveToWindow() {
+    super.viewDidMoveToWindow()
+    if window != nil { updateDevices() }
+  }
+
+  func menuNeedsUpdate(_ menu: NSMenu) {
+    updateDevices()
+  }
+
+  private func updateDevices() {
+    let current = player.mpv.getString(MPVProperty.audioDevice) ?? "auto"
+    popup.removeAllItems()
+    for device in player.getAudioDevices() {
+      let item = NSMenuItem(title: device.desc.isEmpty ? device.name : device.desc, action: nil, keyEquivalent: "")
+      item.representedObject = device.name
+      popup.menu?.addItem(item)
+      if device.name == current { popup.select(item) }
+    }
+    popup.isEnabled = popup.numberOfItems > 0
+  }
+
+  @objc private func selectDevice(_ sender: NSPopUpButton) {
+    guard let name = sender.selectedItem?.representedObject as? String else { return }
+    player.setAudioDevice(name)
+  }
+
+  required init?(coder: NSCoder) {
+    fatalError("init(coder:) has not been implemented")
+  }
+}
 
 fileprivate class AudioDelayView: SidebarSliderView {
   override var titleImage: NSImage? {
