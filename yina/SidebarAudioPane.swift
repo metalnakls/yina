@@ -63,7 +63,7 @@ class SidebarAudioPane: SidebarScrollView {
       chooseDir: false,
       dir: currentDir,
       sheetWindow: player.currentWindow,
-      allowedFileTypes: Utility.playableFileExt
+      allowedFileTypes: Utility.supportedFileExt[.audio]!
     ) { url in
       self.player.loadExternalAudioFile(url)
     }

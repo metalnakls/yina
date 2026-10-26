@@ -41,7 +41,7 @@ class AutoFileMatcher {
   }
 
   private var mediaFiles: [FileInfo] {
-    filesGroupedByMediaType[.video]! + filesGroupedByMediaType[.audio]!
+    filesGroupedByMediaType[.video]!
   }
 
   private var mediaFilesForSubtitleMatching: [FileInfo] {
@@ -129,7 +129,7 @@ class AutoFileMatcher {
 
     log("Adding files to playlist")
     // add videos
-    for video in filesGroupedByMediaType[.video]! + filesGroupedByMediaType[.audio]! {
+    for video in filesGroupedByMediaType[.video]! {
       // add to playlist
       if video.url.path == player.info.currentURL?.path {
         addedCurrentVideo = true

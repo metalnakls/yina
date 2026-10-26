@@ -31,7 +31,8 @@ extension PlayerCore {
         }
       } else {
         // is file, check extension
-        if !Utility.blacklistExt.contains(path.lowercasedPathExtension) {
+        if !Utility.blacklistExt.contains(path.lowercasedPathExtension),
+           !Utility.supportedFileExt[.audio]!.contains(path.lowercasedPathExtension) {
           return true
         }
       }
@@ -49,6 +50,7 @@ extension PlayerCore {
   func getPlayableFiles(in urls: [URL]) -> [URL] {
     var playableFiles: [URL] = []
     for url in urls {
+      guard !Utility.supportedFileExt[.audio]!.contains(url.pathExtension.lowercased()) else { continue }
       if !url.isFileURL {
         playableFiles.append(url)
         continue

@@ -20,7 +20,6 @@
 			<key>CFBundleTypeExtensions</key>
 			<array>
 				<string>mkv</string>
-				<string>mka</string>
 				<string>mk3d</string>
 				<string>mks</string>
 			</array>
@@ -37,32 +36,12 @@
 			<key>NSPersistentStoreTypeKey</key>
 			<string>XML</string>
 		</dict>
-		<dict>
-			<key>CFBundleTypeExtensions</key>
-			<array>
-				<string>mka</string>
-			</array>
-			<key>CFBundleTypeIconSystemGenerated</key>
-			<integer>1</integer>
-			<key>CFBundleTypeName</key>
-			<string>Matroska audio</string>
-			<key>CFBundleTypeRole</key>
-			<string>Viewer</string>
-			<key>LSHandlerRank</key>
-			<string>Default</string>
-			<key>LSItemContentTypes</key>
-			<array>
-				<string></string>
-			</array>
-			<key>LSTypeIsPackage</key>
-			<false/>
-		</dict>
+
 		<dict>
 			<key>CFBundleTypeExtensions</key>
 			<array>
 				<string>rm</string>
 				<string>rmvb</string>
-				<string>ra</string>
 			</array>
 			<key>CFBundleTypeIconSystemGenerated</key>
 			<integer>1</integer>
@@ -95,32 +74,13 @@
 			<key>NSPersistentStoreTypeKey</key>
 			<string>XML</string>
 		</dict>
-		<dict>
-			<key>CFBundleTypeExtensions</key>
-			<array>
-				<string>aac</string>
-			</array>
-			<key>CFBundleTypeIconSystemGenerated</key>
-			<integer>1</integer>
-			<key>CFBundleTypeName</key>
-			<string>Advanced Audio Coding (AAC) media</string>
-			<key>CFBundleTypeRole</key>
-			<string>Viewer</string>
-			<key>LSHandlerRank</key>
-			<string>Default</string>
-			<key>LSTypeIsPackage</key>
-			<false/>
-			<key>NSPersistentStoreTypeKey</key>
-			<string>XML</string>
-		</dict>
+
 		<dict>
 			<key>CFBundleTypeExtensions</key>
 			<array>
 				<string>flv</string>
 				<string>f4v</string>
 				<string>f4p</string>
-				<string>f4a</string>
-				<string>f4b</string>
 			</array>
 			<key>CFBundleTypeIconSystemGenerated</key>
 			<integer>1</integer>
@@ -190,43 +150,8 @@
 			<key>NSPersistentStoreTypeKey</key>
 			<string>XML</string>
 		</dict>
-		<dict>
-			<key>CFBundleTypeExtensions</key>
-			<array>
-				<string>mp3</string>
-			</array>
-			<key>CFBundleTypeIconSystemGenerated</key>
-			<integer>1</integer>
-			<key>CFBundleTypeName</key>
-			<string>MPEG Layer III (MP3) audio</string>
-			<key>CFBundleTypeRole</key>
-			<string>Viewer</string>
-			<key>LSHandlerRank</key>
-			<string>Default</string>
-			<key>LSTypeIsPackage</key>
-			<false/>
-			<key>NSPersistentStoreTypeKey</key>
-			<string>XML</string>
-		</dict>
-		<dict>
-			<key>CFBundleTypeExtensions</key>
-			<array>
-				<string>ogg</string>
-				<string>oga</string>
-			</array>
-			<key>CFBundleTypeIconSystemGenerated</key>
-			<integer>1</integer>
-			<key>CFBundleTypeName</key>
-			<string>OGG audio</string>
-			<key>CFBundleTypeRole</key>
-			<string>Viewer</string>
-			<key>LSHandlerRank</key>
-			<string>Default</string>
-			<key>LSTypeIsPackage</key>
-			<false/>
-			<key>NSPersistentStoreTypeKey</key>
-			<string>XML</string>
-		</dict>
+
+
 		<dict>
 			<key>CFBundleTypeExtensions</key>
 			<array>
@@ -284,53 +209,17 @@
 			<key>NSPersistentStoreTypeKey</key>
 			<string>XML</string>
 		</dict>
-		<dict>
-			<key>CFBundleTypeExtensions</key>
-			<array>
-				<string>wav</string>
-			</array>
-			<key>CFBundleTypeIconSystemGenerated</key>
-			<integer>1</integer>
-			<key>CFBundleTypeName</key>
-			<string>Waveform Audio File (WAV) audio</string>
-			<key>CFBundleTypeRole</key>
-			<string>Viewer</string>
-			<key>LSHandlerRank</key>
-			<string>Default</string>
-			<key>LSTypeIsPackage</key>
-			<false/>
-			<key>NSPersistentStoreTypeKey</key>
-			<string>XML</string>
-		</dict>
-		<dict>
-			<key>CFBundleTypeExtensions</key>
-			<array>
-				<string>m4a</string>
-				<string>m4b</string>
-			</array>
-			<key>CFBundleTypeIconSystemGenerated</key>
-			<integer>1</integer>
-			<key>CFBundleTypeName</key>
-			<string>MPEG-4 audio</string>
-			<key>CFBundleTypeRole</key>
-			<string>Viewer</string>
-			<key>LSHandlerRank</key>
-			<string>Default</string>
-			<key>LSTypeIsPackage</key>
-			<false/>
-			<key>NSPersistentStoreTypeKey</key>
-			<string>XML</string>
-		</dict>
+
+
 		<dict>
 			<key>CFBundleTypeExtensions</key>
 			<array>
 				<string>wmv</string>
-				<string>wma</string>
 			</array>
 			<key>CFBundleTypeIconSystemGenerated</key>
 			<integer>1</integer>
 			<key>CFBundleTypeName</key>
-			<string>Windows Media Video/Audio (WMV/WMA) media</string>
+			<string>Windows Media Video (WMV)</string>
 			<key>CFBundleTypeRole</key>
 			<string>Viewer</string>
 			<key>LSHandlerRank</key>
@@ -359,24 +248,7 @@
 			<key>NSPersistentStoreTypeKey</key>
 			<string>XML</string>
 		</dict>
-		<dict>
-			<key>CFBundleTypeExtensions</key>
-			<array>
-				<string>flac</string>
-			</array>
-			<key>CFBundleTypeIconSystemGenerated</key>
-			<integer>1</integer>
-			<key>CFBundleTypeName</key>
-			<string>Free Lossless Audio Codec (FLAC) audio</string>
-			<key>CFBundleTypeRole</key>
-			<string>Viewer</string>
-			<key>LSHandlerRank</key>
-			<string>Default</string>
-			<key>LSTypeIsPackage</key>
-			<false/>
-			<key>NSPersistentStoreTypeKey</key>
-			<string>XML</string>
-		</dict>
+
 		<dict>
 			<key>CFBundleTypeExtensions</key>
 			<array>
@@ -401,7 +273,6 @@
 			<array>
 				<string>mp4</string>
 				<string>m4v</string>
-				<string>m4b</string>
 			</array>
 			<key>CFBundleTypeIconSystemGenerated</key>
 			<integer>1</integer>
@@ -429,7 +300,6 @@
 				<string>xvid</string>
 				<string>yuv</string>
 				<string>dv</string>
-				<string>wv</string>
 				<string>*</string>
 			</array>
 			<key>CFBundleTypeIconSystemGenerated</key>
@@ -445,36 +315,7 @@
 			<key>NSPersistentStoreTypeKey</key>
 			<string>XML</string>
 		</dict>
-		<dict>
-			<key>CFBundleTypeExtensions</key>
-			<array>
-				<string>aa3</string>
-				<string>ac3</string>
-				<string>acm</string>
-				<string>aif</string>
-				<string>aiff</string>
-				<string>ape</string>
-				<string>caf</string>
-				<string>pcm</string>
-				<string>vox</string>
-				<string>tta</string>
-				<string>tak</string>
-				<string>opus</string>
-				<string>cue</string>
-			</array>
-			<key>CFBundleTypeIconSystemGenerated</key>
-			<integer>1</integer>
-			<key>CFBundleTypeName</key>
-			<string>Audio file</string>
-			<key>CFBundleTypeRole</key>
-			<string>Viewer</string>
-			<key>LSHandlerRank</key>
-			<string>Default</string>
-			<key>LSTypeIsPackage</key>
-			<false/>
-			<key>NSPersistentStoreTypeKey</key>
-			<string>XML</string>
-		</dict>
+
 		<dict>
 			<key>CFBundleTypeExtensions</key>
 			<array>

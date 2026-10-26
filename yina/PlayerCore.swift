@@ -413,6 +413,7 @@ class PlayerCore: NSObject {
       log("empty file path or url", level: .error)
       return
     }
+    guard !Utility.supportedFileExt[.audio]!.contains(url.pathExtension.lowercased()) else { return }
     guard info.state != .stopping else {
       // The mpv core is currently processing an asynchronous stop command. To avoid the complexity
       // of coordinating two mpv commands executing at the same time, wait until the stop command
@@ -658,6 +659,9 @@ class PlayerCore: NSObject {
   }
 
   static private func filterSectionBindings(_ kb: KeyMapping) -> KeyMapping? {
+    if kb.isYINACommand && ["toggle-music-mode"].contains(kb.action.first ?? "") {
+      return nil
+    }
     guard let section = kb.section else {
       return kb
     }
@@ -808,93 +812,9 @@ class PlayerCore: NSObject {
   /// 2) On user initiated button actions
   ///
   func switchToMiniPlayer(automatically: Bool = false, showMiniPlayer: Bool = true) {
-    log("Switch to mini player, automatically=\(automatically)")
-    if !automatically {
-      // Toggle manual override
-      overrideAutoSwitchToMusicMode = !overrideAutoSwitchToMusicMode
-      Logger.log("Changed overrideAutoSwitchToMusicMode to \(overrideAutoSwitchToMusicMode)",
-                 level: .verbose, subsystem: subsystem)
-    }
-
-    // hide main window
-    mainWindow.window?.orderOut(self)
-
-    let needRestoreLayout = !miniPlayer.loaded
-    let _ = miniPlayer.window
-
-    miniPlayer.updateTitle()
-    refreshSyncUITimer()
-    let playlistView = mainWindow.sidebars.playlistView
-    // force initialize the view
-    let _ = playlistView.view
-    let videoView = mainWindow.videoView
-    // reset down shift for playlistView
-    mainWindow.sidebars.playlistView.downShift = 0
-    // hide sidebar
-    if mainWindow.sidebars.isAnyVisible {
-      mainWindow.sidebars.hideAllSideBars(animate: false)
-    }
-
-    // move playlist view
-    playlistView.view.removeFromSuperview()
-    miniPlayer.playlistWrapperView.addSubview(playlistView.view)
-    playlistView.view.padding(.all)
-    // move video view
-    mainWindow.liveText.clearAnalysis()
-    videoView.removeFromSuperview()
-    miniPlayer.videoWrapperView.addSubview(videoView, positioned: .below, relativeTo: nil)
-    Utility.quickConstraints(["H:|[v]|", "V:|[v]|"], ["v": videoView])
-
-    miniPlayer.refreshArtworkVisibility()
-    let (width, height) = miniPlayer.videoSizeForDisplayInMusicMode()
-    let aspect = CGFloat(width) / CGFloat(height)
-    miniPlayer.updateVideoViewAspectConstraint(withAspect: aspect)
-    miniPlayer.window?.layoutIfNeeded()
-
-    // in case of video size changed, reset mini player window size if playlist is folded
-    if !miniPlayer.isPlaylistVisible {
-      miniPlayer.setToInitialWindowSize(display: true, animate: false)
-    }
-
-    isInMiniPlayer = true
-
-    // restore layout
-    if needRestoreLayout {
-      if !Preference.bool(for: .musicModeShowAlbumArt) {
-        miniPlayer.toggleVideoView(self)
-        if let origin = miniPlayer.window?.frame.origin {
-          miniPlayer.window?.setFrameOrigin(.init(x: origin.x, y: origin.y + miniPlayer.videoView.frame.height))
-        }
-      }
-      if Preference.bool(for: .musicModeShowPlaylist) {
-        miniPlayer.togglePlaylist(self)
-      }
-    }
-
-    currentController.setupUI()
-
-    miniPlayer.pendingShow = true
-    if showMiniPlayer {
-      notifyWindowVideoSizeChanged()
-    }
-    mainWindow.forceDraw("entered music mode")
-    postNotification(.yinaMusicModeChanged)
-    events.emit(.musicModeChanged, data: true)
+    // Music mode is retired.
   }
 
-  /// Switch the current player to main player from the mini player.
-  ///
-  /// - Parameters:
-  ///     - showMainWindow: set to false when this function is called when tracklist is changed.
-  ///     In this case, wait for `MPV_EVENT_VIDEO_RECONFIG` to show the main window. Also set to false
-  ///     when the mini player is closed.
-  ///
-  /// This function is called:
-  /// 1) On `trackListChanged`, it will check the current media and settings to determine whether
-  /// or not to switch to main window automatically
-  /// 2) On user initiated button actions
-  /// 3) When closing the mini player
-  ///
   func switchBackFromMiniPlayer(automatically: Bool = false, showMainWindow: Bool = true) {
     log("Switch to normal window from mini player, automatically=\(automatically)")
     if !automatically {
@@ -2260,6 +2180,11 @@ class PlayerCore: NSObject {
   ///         the player is no longer active.
   func fileLoaded() {
     guard info.state.active else { return }
+    getTrackInfo()
+    guard info.audioTracks.isEmpty || info.videoTracks.contains(where: { !$0.isAlbumart }) else {
+      stop()
+      return
+    }
     recordMediaOpeningStage("file loaded")
     os_log("player=%{public}d vid=%{public}@ aid=%{public}@ video_codec=%{public}@ audio_codec=%{public}@ width=%{public}d height=%{public}d paused=%{public}d",
            log: Self.mediaOpeningLog, type: .default, playerNumber,
@@ -2721,20 +2646,7 @@ class PlayerCore: NSObject {
     log("Track list changed")
     getTrackInfo()
     getSelectedTracks()
-    let audioStatus = info.isAudio
-
-    // if need to switch to music mode
-    if Preference.bool(for: .autoSwitchToMusicMode) {
-      if overrideAutoSwitchToMusicMode {
-        log("Skipping music mode auto-switch because overrideAutoSwitchToMusicMode is true", level: .verbose)
-      } else if audioStatus == .isAudio && !isInMiniPlayer && !mainWindow.fsState.isFullscreen {
-        log("Current media is audio: auto-switching to mini player")
-        switchToMiniPlayer(automatically: true, showMiniPlayer: false)
-      } else if audioStatus == .notAudio && isInMiniPlayer {
-        log("Current media is not audio: auto-switching to normal window")
-        switchBackFromMiniPlayer(automatically: true, showMainWindow: false)
-      }
-    }
+    guard info.isAudio != .isAudio else { stop(); return }
     pairSubtitlesWithAudio()
 
     if isInMiniPlayer {
