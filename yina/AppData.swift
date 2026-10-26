@@ -52,7 +52,7 @@ struct AppData {
   static let screenshotCacheFolder = "screenshot_cache"
   static let networkMediaCacheFolder = "network_media_cache"
 
-  static let githubLink = "https://github.com/iina/iina"
+  static let githubLink = "https://github.com/metalnakls/yina"
   static let contributorsLink = "https://github.com/iina/iina/graphs/contributors"
   static let crowdinMembersLink = "https://crowdin.com/project/iina"
   static let wikiLink = "https://github.com/iina/iina/wiki"

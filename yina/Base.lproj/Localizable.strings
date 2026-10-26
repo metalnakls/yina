@@ -1047,3 +1047,5 @@
 "sidebar.sub_fade_in" = "Fade in";
 "sidebar.sub_fade_out" = "Fade out";
 "sidebar.sub_tuning" = "Subtitle dissolve";
+"settings.show_file_extensions" = "Show File Extensions";
+"sidebar.audio_device" = "Audio Device";

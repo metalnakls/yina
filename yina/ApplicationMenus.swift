@@ -49,12 +49,82 @@ final class ApplicationMenus {
   init(applicationDelegate: AnyObject, updater: AnyObject, fontManager: AnyObject) {
     targets = [.applicationDelegate: applicationDelegate, .updater: updater, .fontManager: fontManager]
     mainMenu = build(Self.mainDefinition)
+    organizeMainMenu()
 #if DEBUG
     itemBindings["exportManagedDefaults"]?.isHidden = false
 #endif
     dockMenu = build(Self.dockDefinition)
     // Menu items retain neither their targets nor their delegates.
     targets.removeAll()
+  }
+
+  /// Keep detached command objects for existing shortcut bindings and context-menu actions.
+  /// Only the curated menus below are installed in the menu bar.
+  private func organizeMainMenu() {
+    func move(_ item: NSMenuItem, to menu: NSMenu) {
+      item.menu?.removeItem(item)
+      menu.addItem(item)
+    }
+    let file = menu("fileMenu")
+    let recent = file.items.first { $0.submenu === menu("recentDocumentsMenu") }!
+    let close = file.items.first { $0.action == #selector(NSWindow.performClose(_:)) }!
+    let shortcuts = file.items.first { $0.submenu === menu("otherKeyBindingsMenu") }!
+    file.removeAllItems()
+    item("open").title = "Open File…"
+    for command in [item("open"), item("openURL"), recent] { move(command, to: file) }
+    file.addItem(.separator())
+    for binding in ["jumpTo", "screenshot", "playlist", "pluginMenuItem"] {
+      move(item(binding), to: file)
+    }
+    item("screenshot").title = "Screenshot"
+    item("pluginMenuItem").title = "Plugins"
+    file.addItem(.separator())
+    move(close, to: file)
+    move(shortcuts, to: file)
+
+    let view = menu("videoMenu")
+    view.removeAllItems()
+    move(item("quickSettingsVideo"), to: view)
+    item("quickSettingsVideo").title = "Video Settings"
+    let speed = NSMenu(title: "Speed")
+    menuBindings["speedMenu"] = speed
+    for binding in ["speedUp", "speedDown", "speedReset"] { move(item(binding), to: speed) }
+    item("speedUp").title = "Speed Up"
+    item("speedDown").title = "Speed Down"
+    item("speedReset").title = "Normal Speed"
+    let speedItem = NSMenuItem(title: "Speed", action: nil, keyEquivalent: "")
+    speedItem.submenu = speed
+    view.addItem(speedItem)
+    move(item("fileLoop"), to: view)
+    item("fileLoop").title = "Loop"
+    view.addItem(.separator())
+    move(item("hideSubtitles"), to: view)
+    item("hideSubtitles").title = "Show Subtitles"
+
+    let windows = menu("windowsMenu")
+    item("alwaysOnTop").menu?.removeItem(item("alwaysOnTop"))
+    windows.insertItem(item("alwaysOnTop"), at: 0)
+    windows.insertItem(.separator(), at: 1)
+
+    let help = menu("helpMenu")
+    for command in help.items where command.isSeparatorItem ||
+      !["githubAction:", "dumpDebugInfo:"].contains(command.action.map(NSStringFromSelector) ?? "") {
+      help.removeItem(command)
+    }
+
+    let application = mainMenu.items[0]
+    let edit = mainMenu.items.first { $0.title == "Edit" }!
+    let fileItem = mainMenu.items.first { $0.submenu === file }!
+    let viewItem = mainMenu.items.first { $0.submenu === view }!
+    let chapters = item("chapter")
+    let windowItem = mainMenu.items.first { $0.submenu === windows }!
+    let helpItem = mainMenu.items.first { $0.submenu === help }!
+    viewItem.title = "View"
+    view.title = "View"
+    mainMenu.removeAllItems()
+    for command in [application, fileItem, edit, viewItem, chapters, windowItem, helpItem] {
+      move(command, to: mainMenu)
+    }
   }
 
   func menu(_ binding: String) -> NSMenu { menuBindings[binding]! }

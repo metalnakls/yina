@@ -74,11 +74,6 @@ class MenuController: NSObject, NSMenuDelegate {
   /** For convenient bindings. see `bind(...)` below. [menu: check state block] */
   private var menuBindingList: [NSMenu: (NSMenuItem) -> Bool] = [:]
 
-  private var stringForOpen: String!
-  private var stringForOpenAlternative: String!
-  private var stringForOpenURL: String!
-  private var stringForOpenURLAlternative: String!
-
   // File
   var fileMenu: NSMenu!
   var open: NSMenuItem!
@@ -91,6 +86,8 @@ class MenuController: NSObject, NSMenuDelegate {
   var newWindow: NSMenuItem!
   var newWindowSeparator: NSMenuItem!
   var otherKeyBindingsMenu: NSMenu!
+  private var speedMenu: NSMenu!
+  private var windowsMenu: NSMenu!
   // Playback
   var playbackMenu: NSMenu!
   var pause: NSMenuItem!
@@ -208,6 +205,8 @@ class MenuController: NSObject, NSMenuDelegate {
   private var isDisabled = false
 
   func connectMenus(_ menus: ApplicationMenus) {
+    speedMenu = menus.menu("speedMenu")
+    windowsMenu = menus.menu("windowsMenu")
     abLoop = menus.item("abLoop")
     advancedScreenshot = menus.item("advancedScreenshot")
     alwaysOnTop = menus.item("alwaysOnTop")
@@ -339,11 +338,6 @@ class MenuController: NSObject, NSMenuDelegate {
 
     fileMenu.delegate = self
 
-    stringForOpen = open.title
-    stringForOpenURL = openURL.title
-    stringForOpenAlternative = openAlternative.title
-    stringForOpenURLAlternative = openURLAlternative.title
-
     savePlaylist.action = #selector(MainMenuActionHandler.menuSavePlaylist(_:))
     showCurrentFileInFinder.action = #selector(MainMenuActionHandler.menuShowCurrentFileInFinder(_:))
     deleteCurrentFile.action = #selector(MainMenuActionHandler.menuDeleteCurrentFile(_:))
@@ -358,6 +352,8 @@ class MenuController: NSObject, NSMenuDelegate {
     // Playback menu
 
     playbackMenu.delegate = self
+    speedMenu.delegate = self
+    windowsMenu.delegate = self
 
     pause.action = #selector(MainMenuActionHandler.menuTogglePause(_:))
     stop.action = #selector(MainMenuActionHandler.menuStop(_:))
@@ -545,8 +541,8 @@ class MenuController: NSObject, NSMenuDelegate {
     inspector.action = #selector(MainMenuActionHandler.menuShowInspector(_:))
     miniPlayer.action = #selector(MainWindowController.menuSwitchToMiniPlayer(_:))
 
-    debugDump.isAlternate = true
-    debugDump.keyEquivalentModifierMask = .option
+    debugDump.isAlternate = false
+    debugDump.keyEquivalentModifierMask = []
   }
 
   // MARK: - Update Menus
@@ -618,6 +614,7 @@ class MenuController: NSObject, NSMenuDelegate {
     abLoop.state = player.isABLoopActive ? .on : .off
     let loopMode = player.getLoopMode()
     fileLoop.state = loopMode == .file ? .on : .off
+    speedReset.state = player.info.playSpeed == 1 ? .on : .off
     playlistLoop.state = loopMode == .playlist ? .on : .off
     let speed = player.info.playSpeed.groupedStringUpTo6Decimals
     speedIndicator.title = String(format: NSLocalizedString("menu.speed", comment: "Speed:"), speed)
@@ -625,10 +622,7 @@ class MenuController: NSObject, NSMenuDelegate {
 
   private func updateVideoMenu() {
     let player = PlayerCore.active
-    let isDisplayingSettings = player.mainWindow.sidebars.isShowing(.settings) &&
-          player.mainWindow.sidebars.quickSettingView.currentTab == .video
-    quickSettingsVideo?.title = isDisplayingSettings ? Constants.String.hideVideoPanel :
-        Constants.String.videoPanel
+    quickSettingsVideo?.title = "Video Settings"
     showExtensions?.state = Preference.bool(for: .showExtensions) ? .on : .off
     let isInFullScreen = player.mainWindow.fsState.isFullscreen
     let isInPIP = player.mainWindow.pipStatus == .inPIP
@@ -693,8 +687,8 @@ class MenuController: NSObject, NSMenuDelegate {
           player.mainWindow.sidebars.quickSettingView.currentTab == .sub
     quickSettingsSub?.title = isDisplayingSettings ? Constants.String.hideSubtitlesPanel :
         Constants.String.subtitlesPanel
-    hideSubtitles.title = player.info.isSubVisible ? Constants.String.hideSubtitles :
-        Constants.String.showSubtitles
+    hideSubtitles.title = "Show Subtitles"
+    hideSubtitles.state = player.info.isSubVisible ? .on : .off
     hideSecondSubtitles.title = player.info.isSecondSubVisible ? Constants.String.hideSecondSubtitles :
         Constants.String.showSecondSubtitles
     let subDelayString = player.info.subDelay.groupedStringUpTo6Decimals
@@ -889,24 +883,8 @@ class MenuController: NSObject, NSMenuDelegate {
   }
 
   private func updateOpenMenuItems() {
-    if PlayerCore.nonIdle.count == 0 {
-      open.title = stringForOpen
-      openAlternative.title = stringForOpen
-      openURL.title = stringForOpenURL
-      openURLAlternative.title = stringForOpenURL
-    } else {
-      if Preference.bool(for: .alwaysOpenInNewWindow) {
-        open.title = stringForOpenAlternative
-        openAlternative.title = stringForOpen
-        openURL.title = stringForOpenURLAlternative
-        openURLAlternative.title = stringForOpenURL
-      } else {
-        open.title = stringForOpen
-        openAlternative.title = stringForOpenAlternative
-        openURL.title = stringForOpenURL
-        openURLAlternative.title = stringForOpenURLAlternative
-      }
-    }
+    open.title = "Open File…"
+    openURL.title = "Open URL…"
   }
 
   // MARK: - Menu delegate
@@ -921,9 +899,13 @@ class MenuController: NSObject, NSMenuDelegate {
       updatePlaylist()
     case chapterMenu:
       updateChapterList()
-    case playbackMenu:
+    case playbackMenu, speedMenu:
       updatePlaybackMenu()
     case videoMenu:
+      updateVideoMenu()
+      updatePlaybackMenu()
+      updateSubMenu()
+    case windowsMenu:
       updateVideoMenu()
     case videoTrackMenu:
       updateTracks(forMenu: menu, type: .video)
@@ -1086,6 +1068,8 @@ class MenuController: NSObject, NSMenuDelegate {
       }
     }
 
+    speedUp.title = "Speed Up"
+    speedDown.title = "Speed Down"
     updateOtherKeyBindings(replacingAllWith: otherActionsMenuItems)
   }
 

@@ -28,7 +28,6 @@ private struct Contract: Decodable {
     let delegate = MenuTarget(), updater = NSObject(), fonts = NSObject()
     let menus = ApplicationMenus(applicationDelegate: delegate, updater: updater, fontManager: fonts)
     let contract = try JSONDecoder().decode([Contract].self, from: Data(contentsOf: URL(fileURLWithPath: CommandLine.arguments[1])))
-    precondition(contract.count == 195)
     var actualCount = 0
     func count(_ menu: NSMenu) {
       actualCount += menu.numberOfItems
@@ -61,19 +60,26 @@ private struct Contract: Decodable {
       }
       if let binding = entry.binding { precondition(menus.item(binding) === item, label) }
     }
+    precondition(menus.mainMenu.items.filter { !$0.isHidden }.map(\.title) ==
+                 ["yina", "File", "View", "Chapters", "Window", "Help"])
+    // Removed commands remain available to player shortcuts without appearing in the menu bar.
+    for binding in ["pause", "nextMedia", "previousMedia", "fullScreen", "liveText", "showExtensions"] {
+      precondition(menus.item(binding).menu !== menus.menu("fileMenu"))
+      precondition(menus.item(binding).menu !== menus.menu("videoMenu"))
+    }
     menus.install(in: application)
     precondition(application.mainMenu === menus.mainMenu)
     precondition(application.servicesMenu === menus.menu("servicesMenu"))
     precondition(application.windowsMenu === menus.menu("windowsMenu"))
     precondition(application.helpMenu === menus.menu("helpMenu"))
-    for modifiers: NSEvent.ModifierFlags in [[.command], [.command, .option]] {
+    for modifiers: NSEvent.ModifierFlags in [[.command]] {
       let event = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: modifiers,
         timestamp: 0, windowNumber: 0, context: nil, characters: "o", charactersIgnoringModifiers: "o",
         isARepeat: false, keyCode: 31)!
       precondition(menus.mainMenu.performKeyEquivalent(with: event))
     }
     menus.dockMenu.performActionForItem(at: 0)
-    precondition(delegate.opens == [0, 1, 0])
+    precondition(delegate.opens == [0, 0])
 
     // Exercise native-list adaptation without reading or modifying the user's recent documents.
     var urls = [URL(fileURLWithPath: "/tmp/first/movie.mkv"), URL(fileURLWithPath: "/tmp/second/movie.mkv")]
@@ -87,6 +93,6 @@ private struct Contract: Decodable {
     precondition(delegate.recentURL == urls[1])
     recent.performActionForItem(at: 3)
     precondition(clears == 1 && recent.numberOfItems == 1 && !recent.items[0].isEnabled)
-    print("PASS: All 195 expected menu entries, targets, shortcuts, bindings, system menus, Dock actions, and recents.")
+    print("PASS: All \(contract.count) expected menu entries, targets, shortcuts, bindings, system menus, Dock actions, and recents.")
   }
 }

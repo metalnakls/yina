@@ -9,6 +9,7 @@
 import Foundation
 
 class SettingsPageGeneral: SettingsPage {
+  private let preferenceObserver = Preference.Observer()
   private lazy var fileChooseView: SettingsAccessory.FileChooserView = .init(.screenshotFolder)
 
   override var identifier: String {
@@ -28,6 +29,9 @@ class SettingsPageGeneral: SettingsPage {
   }
 
   override func content() -> [SettingsSection] {
+    preferenceObserver.add(.showExtensions) { _ in
+      NotificationCenter.default.post(name: Preference.showExtensionsDidChange, object: nil)
+    }
     return sections {
       sectionBehavior()
       sectionHistory()
@@ -145,9 +149,9 @@ class SettingsPageGeneral: SettingsPage {
   private func sectionPlayList() -> SettingsSection {
     return section {
       SettingsList(title: .text_Playlist) {
-        SettingsItem.Switch()
-          .image(name: "custom.list.bullet.badge.plus")
-          .bindTo(.playlistAutoAdd)
+        SettingsItem.Switch(title: .general("settings.show_file_extensions"))
+          .image(name: "doc")
+          .bindTo(.showExtensions)
         SettingsItem.Switch()
           .image(name: "custom.list.bullet.badge.play")
           .bindTo(.playlistAutoPlayNext)
