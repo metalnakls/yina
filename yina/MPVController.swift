@@ -267,12 +267,8 @@ class MPVController: NSObject {
     // - Advanced
 
     // disable internal OSD
-    let useMpvOsd = Preference.bool(for: .enableAdvancedSettings) && Preference.bool(for: .useMpvOsd)
-    if !useMpvOsd {
-      chkErr(setOptionString(MPVOption.OSD.osdLevel, "0", level: .verbose))
-    } else {
-      player.displayOSD = false
-    }
+    chkErr(setOptionString(MPVOption.OSD.osdLevel, "0", level: .verbose))
+    player.displayOSD = false
 
     // log
     if Logger.enabled {

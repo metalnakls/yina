@@ -3001,21 +3001,7 @@ class PlayerCore: NSObject {
   }
 
   func sendOSD(_ osd: OSDMessage, autoHide: Bool = true, forcedTimeout: Float? = nil, accessoryView: NSView? = nil, context: Any? = nil, external: Bool = false) {
-    // querying `mainWindow.isWindowLoaded` will initialize mainWindow unexpectedly
-    guard !isInMiniPlayer, mainWindow.loaded, info.state.active,
-          Preference.bool(for: .enableOSD) || osd.alwaysEnabled, !osd.isDisabled else { return }
-    if info.disableOSDForFileLoading && !external {
-      guard case .fileStart = osd else {
-        return
-      }
-    }
-    DispatchQueue.main.async {
-      self.mainWindow.displayOSD(osd,
-                                 autoHide: autoHide,
-                                 forcedTimeout: forcedTimeout,
-                                 accessoryView: accessoryView,
-                                 context: context)
-    }
+    // Playback feedback lives in the controls; application OSD is retired.
   }
 
   func hideOSD() {

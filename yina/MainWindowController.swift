@@ -2207,64 +2207,9 @@ class MainWindowController: PlayerWindowController {
   ///     timeline indicators should not flip in a right-to-left language. Thus OSD messages referencing a position within the video
   ///     must always use a left to right layout.
   func displayOSD(_ message: OSDMessage, autoHide: Bool = true, forcedTimeout: Float? = nil, accessoryView: NSView? = nil, context: Any? = nil) {
-    guard player.displayOSD || message.alwaysEnabled, !isShowingPersistentOSD else { return }
-
-    if hideOSDTimer != nil {
-      hideOSDTimer!.invalidate()
-      hideOSDTimer = nil
-    }
-    if osdAnimationState != .shown {
-      osdAnimationState = .shown  /// set this before calling `refreshSyncUITimer()`
-      player.refreshSyncUITimer()
-    } else {
-      osdAnimationState = .shown
-    }
-
-    osdView.updateViews(fromMessage: message, player: player)
-
-    osdView.alphaValue = 1
-    osdView.isHidden = false
-    osdView.layoutSubtreeIfNeeded()
-
-    if let accessoryView {
-      isShowingPersistentOSD = true
-      if context != nil {
-        osdContext = context
-      }
-
-      let heightConstraint = NSLayoutConstraint(item: accessoryView, attribute: .height, relatedBy: .greaterThanOrEqual, toItem: nil, attribute: .notAnAttribute, multiplier: 1, constant: 300)
-      heightConstraint.priority = .defaultLow
-      heightConstraint.isActive = true
-
-      osdView.addAccessoryView(accessoryView)
-
-      // enlarge window if too small
-      let winFrame = window!.frame
-      var newFrame = winFrame
-      if (winFrame.height < 300) {
-        newFrame = winFrame.centeredResize(to: winFrame.size.satisfyMinSizeWithSameAspectRatio(NSSize(width: 500, height: 300)))
-      }
-
-      accessoryView.wantsLayer = true
-      accessoryView.layer?.opacity = 0
-
-      NSAnimationContext.runAnimationGroup({ context in
-        context.duration = AccessibilityPreferences.adjustedDuration(0.3)
-        context.allowsImplicitAnimation = true
-        window!.setFrame(newFrame, display: true)
-        osdView.layoutSubtreeIfNeeded()
-      }, completionHandler: {
-        accessoryView.layer?.opacity = 1
-      })
-    }
-
-    if autoHide {
-      let timeout = forcedTimeout ?? Preference.float(for: .osdAutoHideTimeout)
-      hideOSDTimer = Timer.scheduledTimer(timeInterval: TimeInterval(timeout), target: self, selector: #selector(self.hideOSD), userInfo: nil, repeats: false)
-    }
+    // Playback feedback lives in controls; application OSD is retired.
   }
 
-  @objc
   func hideOSD() {
     NSAnimationContext.runAnimationGroup({ (context) in
       self.osdAnimationState = .willHide

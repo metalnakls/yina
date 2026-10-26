@@ -152,6 +152,8 @@
 	<integer>1</integer>
 	<key>useLiquidGlassSidebar</key>
 	<integer>1</integer>
+	<key>useMpvOsd</key>
+	<false/>
 	<key>usePhysicalResolution</key>
 	<false/>
 	<key>verticalScrollAction</key>
