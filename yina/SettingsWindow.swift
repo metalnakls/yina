@@ -33,6 +33,7 @@ class SettingsWindow: CommonWindow {
     SettingsPagePlugin(),
     SettingsPageUtilities(),
   ])
+  static let keyBindings = SettingsWindow([SettingsPageKeyBindings()])
 
   let sidebarList: NSTableView
   private let sidebarScrollView: NSScrollView
@@ -227,7 +228,7 @@ class SettingsWindow: CommonWindow {
   }
 
   func show() {
-    if !AppEnvironment.isCleanStart { self.setFrameAutosaveName("YINAPreferenceWindowV2") }
+    if !AppEnvironment.isCleanStart { self.setFrameAutosaveName(pages.count == 1 ? "YINAKeyBindingsWindow" : "YINAPreferenceWindowV2") }
     self.makeKeyAndOrderFront(nil)
   }
 
@@ -454,7 +455,7 @@ extension SettingsWindow {
     func reloadData(_ data: [SettingsSearch.Entry]) {
       let dict = Dictionary(grouping: data, by: \.page)
       results = []
-      for page in SettingsWindow.default.pages {
+      for page in window.pages {
         if let entries = dict[page.identifier] {
           entries.forEach { $0.pageTitle = page.title }
           results.append(SettingsSearch.Entry(pageHeader: page.title, icon: page.image))

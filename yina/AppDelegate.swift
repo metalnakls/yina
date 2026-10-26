@@ -980,6 +980,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     SettingsWindow.default.show()
   }
 
+  @IBAction func showKeyBindings(_ sender: AnyObject) {
+    SettingsWindow.keyBindings.show()
+  }
+
   @objc func showPluginPreferences(_ sender: NSMenuItem) {
     SettingsWindow.default.show()
     SettingsWindow.default.navigateTo(page: "plugin")

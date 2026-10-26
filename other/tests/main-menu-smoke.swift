@@ -5,6 +5,10 @@ import Cocoa
 private final class MenuTarget: NSObject {
   var opens: [Int] = []
   var recentURL: URL?
+  var settingsOpens = 0
+  var keyBindingsOpens = 0
+  @objc func showPreferences(_ sender: NSMenuItem) { settingsOpens += 1 }
+  @objc func showKeyBindings(_ sender: NSMenuItem) { keyBindingsOpens += 1 }
   @objc func openFile(_ sender: NSMenuItem) { opens.append(sender.tag) }
   @objc func openRecent(_ sender: NSMenuItem) { recentURL = sender.representedObject as? URL }
 }
@@ -78,6 +82,13 @@ private struct Contract: Decodable {
         isARepeat: false, keyCode: 31)!
       precondition(menus.mainMenu.performKeyEquivalent(with: event))
     }
+    let settingsEvent = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [.command],
+      timestamp: 0, windowNumber: 0, context: nil, characters: ",", charactersIgnoringModifiers: ",",
+      isARepeat: false, keyCode: 43)!
+    precondition(menus.mainMenu.performKeyEquivalent(with: settingsEvent))
+    precondition(delegate.settingsOpens == 1)
+    menus.menu("windowsMenu").performActionForItem(at: 2)
+    precondition(delegate.keyBindingsOpens == 1)
     menus.dockMenu.performActionForItem(at: 0)
     precondition(delegate.opens == [0, 0])
 

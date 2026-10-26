@@ -105,6 +105,9 @@ final class ApplicationMenus {
     item("alwaysOnTop").menu?.removeItem(item("alwaysOnTop"))
     windows.insertItem(item("alwaysOnTop"), at: 0)
     windows.insertItem(.separator(), at: 1)
+    let bindings = NSMenuItem(title: "Key Bindings…", action: NSSelectorFromString("showKeyBindings:"), keyEquivalent: "")
+    bindings.target = targets[.applicationDelegate]
+    windows.insertItem(bindings, at: 2)
 
     let help = menu("helpMenu")
     for command in help.items where command.isSeparatorItem ||
