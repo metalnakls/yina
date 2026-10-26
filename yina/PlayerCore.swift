@@ -446,8 +446,7 @@ class PlayerCore: NSObject {
   }
 
   /**
-   Open a list of urls. If there are more than one urls, add the remaining ones to
-   playlist and disable auto loading.
+   Open the first playable URL. Local media gets its playlist from the containing folder.
 
    - Returns: `nil` if no further action is needed, like opened a BD Folder; otherwise the
    count of playable files.
@@ -478,26 +477,10 @@ class PlayerCore: NSObject {
       return 0
     }
 
-    if !autoLoad {
-      info.shouldAutoLoadFiles = false
-    } else {
-      info.shouldAutoLoadFiles = (count == 1)
-    }
-
-    // open the first file
+    info.shouldAutoLoadFiles = autoLoad
     open(playableFiles[0])
-    // add the remaining to playlist
-    playableFiles[1..<count].forEach { url in
-      mpv.playlistAppend(url.isFileURL ? url.path : url.absoluteString)
-    }
-
-    // refresh playlist
     postNotification(.yinaPlaylistChanged)
-    // send OSD
-    if count > 1 {
-      sendOSD(.addToPlaylist(count))
-    }
-    return count
+    return 1
   }
 
   struct PreparedWelcomeMedia {
@@ -517,7 +500,7 @@ class PlayerCore: NSObject {
     guard let first = urls.first else { return nil }
     let remote = first.isFileURL &&
       (try? first.resourceValues(forKeys: [.volumeIsLocalKey]).volumeIsLocal) == false
-    return PreparedWelcomeMedia(urls: urls, autoLoad: !isContainer && urls.count == 1,
+    return PreparedWelcomeMedia(urls: Array(urls.prefix(1)), autoLoad: !isContainer,
                                 isRemoteFile: remote)
   }
 
@@ -525,11 +508,7 @@ class PlayerCore: NSObject {
     precondition(Thread.isMainThread)
     info.shouldAutoLoadFiles = media.autoLoad
     open(media.urls[0], knownRemoteFile: media.isRemoteFile)
-    for url in media.urls.dropFirst() {
-      mpv.playlistAppend(url.isFileURL ? url.path : url.absoluteString)
-    }
     postNotification(.yinaPlaylistChanged)
-    if media.urls.count > 1 { sendOSD(.addToPlaylist(media.urls.count)) }
   }
 
   func openURL(_ url: URL, shouldAutoLoad: Bool = true) {

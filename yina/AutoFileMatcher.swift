@@ -344,7 +344,7 @@ class AutoFileMatcher {
 
   func startMatching() throws {
     log("**Start matching")
-    let shouldAutoLoad = Preference.bool(for: .playlistAutoAdd)
+    let shouldAutoLoad = true // The playlist is always derived from the current folder.
 
     do {
       guard let folder = player.info.currentURL?.deletingLastPathComponent(), folder.isFileURL else { return }

@@ -863,7 +863,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
    __/open__
    - `url`: a url or string to open.
    - `new_window`: 0 or 1 (default) to indicate whether open the media in a new window.
-   - `enqueue`: 0 (default) or 1 to indicate whether to add the media to the current playlist.
    - `full_screen`: 0 (default) or 1 to indicate whether open the media and enter fullscreen.
    - `pip`: 0 (default) or 1 to indicate whether open the media and enter pip.
    - `mpv_*`: additional mpv options to be passed. e.g. `mpv_volume=20`.
@@ -904,15 +903,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         player = PlayerCore.activeOrNewForMenuAction(isAlternative: false)
       }
 
-      // enqueue
-      let playlistEmpty = PlayerCore.lastActive.info.$playlist.withLock { $0.isEmpty }
-      if let enqueueValue = queryDict["enqueue"], enqueueValue == "1", !playlistEmpty {
-        PlayerCore.lastActive.appendToPlaylist(urlValue)
-        PlayerCore.lastActive.postNotification(.yinaPlaylistChanged)
-        PlayerCore.lastActive.sendOSD(.addToPlaylist(1))
-      } else {
-        player.openURLString(urlValue)
-      }
+      // Opens replace playback; local playlists are derived from the containing folder.
+      player.openURLString(urlValue)
 
       // presentation options
       if let fsValue = queryDict["full_screen"], fsValue == "1" {
