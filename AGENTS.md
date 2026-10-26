@@ -12,6 +12,10 @@ Run this build with approved elevated local/keychain access by default. The sign
 
 For build-script, CI/CD, or local-app-signing changes—or when that script cannot complete—consult `/Users/wsb/.codex/skills/app-build-install-scripts/SKILL.md` and `/Users/wsb/.codex/skills/macos-app-signing/SKILL.md`.
 
+# Commit scope
+
+Hard rule: one feature = one commit. Split independent features into separate commits, even when requested together or touching the same files. Keep each feature's implementation, tests, and documentation together. Before committing, review the staged diff and ensure every change belongs to that single feature. Settings, OSC movement, seeking, and music-mode removal are separate features and must have separate commits.
+
 # Versioning
 
 yina uses one version number for both `CFBundleVersion` and `CFBundleShortVersionString`, set through the `YINA_VERSION` build setting in `Configs/Deployment.xcconfig`. Sparkle compares `CFBundleVersion`, so it must rise for every release or no update is offered.
