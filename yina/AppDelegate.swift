@@ -451,10 +451,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     AppDelegate.shared.menuController?.updatePluginMenu()
 
     MemoryUsage.shared.logUsage("after launching finished")
-
-    if !commandLineStatus.isCommandLine, !AppEnvironment.isCleanStart {
-      QuickLookSetup.shared.checkAtLaunch()
-    }
   }
 
   /** Show welcome window if `application(_:openFiles:)` wasn't called, i.e. launched normally. */
@@ -513,7 +509,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
   func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
     Logger.log("App should terminate")
     isTerminating = true
-    QuickLookSetup.shared.cancel()
     MemoryUsage.shared.logUsage("before terminating")
 
     // Normally termination happens fast enough that the user does not have time to initiate

@@ -367,50 +367,6 @@
 		84EC12861F504D2500137C1E /* FilterPresets.strings in Resources */ = {isa = PBXBuildFile; fileRef = 84EC12871F504D2500137C1E /* Base */; };
 		84F5D49A1E44E9A50060A838 /* KeyBinding.strings in Resources */ = {isa = PBXBuildFile; fileRef = 84F5D49B1E44E9A50060A838 /* Base */; };
 		845AC09C1E1AE6C10080B614 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 845AC09D1E1AE6C10080B614 /* Base */; };
-		14AE29BB4971E1416C117B92 /* yinaFormats formatreader/audiopassthrusamplecursor.swift */ = { isa = "PBXBuildFile"; fileRef = "D922B187CAC6DA39FC036F13"; };
-		72AC45F6F943CB1CB6A36A72 /* yinaFormats formatreader/audiosamplecursor.swift */ = { isa = "PBXBuildFile"; fileRef = "F124535AC6FED74C4C29B569"; };
-		E2D9D9D06CA1557CD30FA158 /* yinaFormats formatreader/audiotrackreader.swift */ = { isa = "PBXBuildFile"; fileRef = "67E1196C75E621B1F460B019"; };
-		B8C2202D6EFB42CC7E81C069 /* yinaFormats formatreader/averror.swift */ = { isa = "PBXBuildFile"; fileRef = "A8AFE74C4FA9B44DEF539351"; };
-		0A2160510EE3473E97B1E67A /* yinaFormats formatreader/callbacks.m */ = { isa = "PBXBuildFile"; fileRef = "1191119D217ADF3E8490330E"; };
-		4E00A08B259B73037CA224CD /* yinaFormats formatreader/cmtime.swift */ = { isa = "PBXBuildFile"; fileRef = "E426C08B86D8B91E384200B4"; };
-		B7C5B46F9624767A573115EC /* yinaFormats formatreader/formatreader.swift */ = { isa = "PBXBuildFile"; fileRef = "C8E7F675E5B66F49264A4DC2"; };
-		897B8EF3E46A05EE81EF23C8 /* yinaFormats formatreader/snapshotter.swift */ = { isa = "PBXBuildFile"; fileRef = "0EEF5053CCB8C228EA08B82A"; };
-		D098E71DED85BC9EB878B560 /* yinaFormats formatreader/formatreaderfactory.swift */ = { isa = "PBXBuildFile"; fileRef = "57CD8F28DF7448CF2653E1F5"; };
-		52623267BEEA6206FDD8ADCE /* yinaFormats formatreader/packetdemuxer.swift */ = { isa = "PBXBuildFile"; fileRef = "23F627756083560B1316D364"; };
-		25DA48A5EF0BEE8165F52E58 /* yinaFormats formatreader/samplecursor.swift */ = { isa = "PBXBuildFile"; fileRef = "46A56C9C414B8A0F9406F154"; };
-		F41B275CB4739BEB3462C151 /* yinaFormats formatreader/trackreader.swift */ = { isa = "PBXBuildFile"; fileRef = "8F7A33672CDE774CD8693FB6"; };
-		68137D2E9C511EB32EAEF062 /* yinaFormats formatreader/videosamplecursor.swift */ = { isa = "PBXBuildFile"; fileRef = "94E59CE3141E28EF99E4B0DC"; };
-		6308BB8143E73CB4FA2EFCE1 /* yinaFormats formatreader/videotrackreader.swift */ = { isa = "PBXBuildFile"; fileRef = "03CEEFCAFB647FDCDAD00078"; };
-		59439A45999504CC4FB11383 /* yinaFormats formatreader/videotrackreaderdv.swift */ = { isa = "PBXBuildFile"; fileRef = "FF5CF91240D2E61BAA54E215"; };
-		11322D3AA4C6D11ADBCEAE10 /* yinaFormats mdimporter/CodecName.swift */ = { isa = "PBXBuildFile"; fileRef = "BA5D2C062701D45E8D723570"; };
-		580FFC43864C0308C1D2CA25 /* yinaFormats embedded */ = { isa = "PBXBuildFile"; fileRef = "12F777FD710627E5CD9790AA"; settings = { ATTRIBUTES = ( "RemoveHeadersOnCopy", ); }; };
-		82B6DF6636C5F008F5158FF4 /* yinaCodecs formatreader/averror.swift */ = { isa = "PBXBuildFile"; fileRef = "A8AFE74C4FA9B44DEF539351"; };
-		281EC8B4E1873CAED6039585 /* yinaCodecs videodecoder/callbacks.m */ = { isa = "PBXBuildFile"; fileRef = "249EDF4E21BF2E8FA54F8333"; };
-		544C14D4161A4893D051DA31 /* yinaCodecs videodecoder/hdr_interleave.c */ = { isa = "PBXBuildFile"; fileRef = "AB38D987E34D661E7615D151"; };
-		A9D0341C7B7F51B9527C6492 /* yinaCodecs videodecoder/videodecoder.swift */ = { isa = "PBXBuildFile"; fileRef = "7E1C3BA1237FF687064C69C4"; };
-		B7964E80773CCD832BCC9FFB /* yinaCodecs videodecoder/videodecoder-hdr.swift */ = { isa = "PBXBuildFile"; fileRef = "443F9331964998F383F6D67A"; };
-		A0DFA0AF2BE8BFF6435AB63C /* yinaCodecs videodecoder/videodecoder-rgb.swift */ = { isa = "PBXBuildFile"; fileRef = "11F2040C068ABA956B723BAE"; };
-		55DDBB80503C582C35CD42B4 /* yinaCodecs videodecoder/videodecoder-vImage.swift */ = { isa = "PBXBuildFile"; fileRef = "60947C43A5569C5E3585FD97"; };
-		8EB678AC02092AB7DD36D784 /* yinaCodecs videodecoder/videodecoder-zscale.swift */ = { isa = "PBXBuildFile"; fileRef = "3F8B8B51FD941ACC59A24103"; };
-		A5C11B3F7C827E2C3D31DEC0 /* yinaCodecs videodecoder/videodecoderfactory.swift */ = { isa = "PBXBuildFile"; fileRef = "A1E80BEEAD1DDE5109608869"; };
-		6DD039E4D3B1019C5F53E9E4 /* yinaCodecs formatreader/cmtime.swift */ = { isa = "PBXBuildFile"; fileRef = "E426C08B86D8B91E384200B4"; };
-		27A2D94E8E2B30E80B28035F /* yinaCodecs embedded */ = { isa = "PBXBuildFile"; fileRef = "27E82B0F5DA75AFB799CD404"; settings = { ATTRIBUTES = ( "RemoveHeadersOnCopy", ); }; };
-		3B9257EEA1E510C2EF6D6924 /* yinaMetadata mdimporter/CodecName.swift */ = { isa = "PBXBuildFile"; fileRef = "BA5D2C062701D45E8D723570"; };
-		86DA932C264D0C16FFFEA823 /* yinaMetadata mdimporter/main.c */ = { isa = "PBXBuildFile"; fileRef = "B6DDB24F3B94707C5BFA15E4"; };
-		66D8BE9D6D454F2FE5F368E0 /* yinaMetadata mdimporter/GetMetadataForFile.swift */ = { isa = "PBXBuildFile"; fileRef = "F145461A574FD26271E5D2F3"; };
-		2F8D1D4257A950423C2B7313 /* yinaMetadata formatreader/averror.swift */ = { isa = "PBXBuildFile"; fileRef = "A8AFE74C4FA9B44DEF539351"; };
-		E165540832A065083E012351 /* yinaMetadata formatreader/cmtime.swift */ = { isa = "PBXBuildFile"; fileRef = "E426C08B86D8B91E384200B4"; };
-		8A2A49394E0852886C51EBD2 /* yinaMetadata schema */ = { isa = "PBXBuildFile"; fileRef = "C190017969A22C9F155EC06E"; };
-		7DA72C2078C57B78EA8539C1 /* yinaMetadata embedded */ = { isa = "PBXBuildFile"; fileRef = "0F5F5156EBC292957BEBDF73"; settings = { ATTRIBUTES = ( "RemoveHeadersOnCopy", ); }; };
-		E48F6F2F5C8DE34BB14803DA /* LICENSE.txt in Resources */ = {isa = PBXBuildFile; fileRef = 5776F1EE51D7FEAB40345D65; };
-		9C96F942F55308294BDE120F /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = 04296B89B301E7CD3D6C3354; };
-		A90104CD4154CF09DE3E456E /* mdimporter/schema.strings in Resources */ = {isa = PBXBuildFile; fileRef = DF9705466C9E11091E7E4E32; };
-		4CDF586AD61696CD92683814 /* LICENSE.txt in Resources */ = {isa = PBXBuildFile; fileRef = 5776F1EE51D7FEAB40345D65; };
-		7F079121EF84730707F31550 /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = 04296B89B301E7CD3D6C3354; };
-		FB892F5E26590A483F7FC398 /* LICENSE.txt in Resources */ = {isa = PBXBuildFile; fileRef = 5776F1EE51D7FEAB40345D65; };
-		F6769E788537B12C12A115B3 /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = 04296B89B301E7CD3D6C3354; };
-		F6E408C99BE834FC884CF403 /* QuickLookSetup.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6E408C99BE834FC884CF401; };
-		F6E408C99BE834FC884CF404 /* quicklook-probe.webm in Resources */ = {isa = PBXBuildFile; fileRef = F6E408C99BE834FC884CF402; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -434,27 +390,6 @@
 			proxyType = 1;
 			remoteGlobalIDString = E38558862A484A2D0083772D;
 			remoteInfo = "yina-plugin";
-		};
-		AA019B60491F4AA1BA0B6AEC /* yinaFormats proxy */ = {
-			isa = "PBXContainerItemProxy";
-			containerPortal = "84EB1ECE1D2F51D3004FA5A1";
-			remoteGlobalIDString = "6C0BF4B536CC8C58BD0F473D";
-			remoteInfo = "yinaFormats";
-			proxyType = "1";
-		};
-		5CA2ABA4616464EE74654245 /* yinaCodecs proxy */ = {
-			isa = "PBXContainerItemProxy";
-			containerPortal = "84EB1ECE1D2F51D3004FA5A1";
-			remoteGlobalIDString = "462A3BABBF3EC83A415F0746";
-			remoteInfo = "yinaCodecs";
-			proxyType = "1";
-		};
-		B3EB0C9DA3C43C1477917279 /* yinaMetadata proxy */ = {
-			isa = "PBXContainerItemProxy";
-			containerPortal = "84EB1ECE1D2F51D3004FA5A1";
-			remoteGlobalIDString = "7FF355F8A571D35E35E116B1";
-			remoteInfo = "yinaMetadata";
-			proxyType = "1";
 		};
 /* End PBXContainerItemProxy section */
 
@@ -582,29 +517,6 @@
 			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 1;
-		};
-		FB55D94ADD95E096564F13CB /* Embed QuickLook media */ = {
-			buildActionMask = "2147483647";
-			dstSubfolderSpec = "1";
-			isa = "PBXCopyFilesBuildPhase";
-			runOnlyForDeploymentPostprocessing = "0";
-			dstPath = "Contents/Extensions";
-			files = (
-				"580FFC43864C0308C1D2CA25",
-				"27A2D94E8E2B30E80B28035F",
-			);
-			name = "Embed QuickLook media";
-		};
-		BB254117903379EB3A94CAF8 /* Embed QuickLook metadata */ = {
-			buildActionMask = "2147483647";
-			dstSubfolderSpec = "1";
-			isa = "PBXCopyFilesBuildPhase";
-			runOnlyForDeploymentPostprocessing = "0";
-			dstPath = "Contents/Library/Spotlight";
-			files = (
-				"7DA72C2078C57B78EA8539C1",
-			);
-			name = "Embed QuickLook metadata";
 		};
 /* End PBXCopyFilesBuildPhase section */
 
@@ -978,54 +890,6 @@
 		E3FC31451FE1501E00B9B86F /* PowerSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PowerSource.swift; sourceTree = "<group>"; };
 		E3FEC1322A30400F00CFD845 /* PluginInputManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginInputManager.swift; sourceTree = "<group>"; };
 		E3FF5ABF2938582F0019CE45 /* JavascriptDevTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JavascriptDevTool.swift; sourceTree = "<group>"; };
-		2C05443D21BE1771F62D7FB6 /* LICENSE.txt */ = { isa = "PBXFileReference"; lastKnownFileType = "text"; path = "QuickLook/LICENSE.txt"; sourceTree = "SOURCE_ROOT"; };
-		EFF3FF7941F6FFCCE46525B6 /* formatreader/Info.plist */ = { isa = "PBXFileReference"; lastKnownFileType = "text.plist.xml"; path = "QuickLook/formatreader/Info.plist"; sourceTree = "SOURCE_ROOT"; };
-		D922B187CAC6DA39FC036F13 /* formatreader/audiopassthrusamplecursor.swift */ = { isa = "PBXFileReference"; lastKnownFileType = "sourcecode.swift"; path = "QuickLook/formatreader/audiopassthrusamplecursor.swift"; sourceTree = "SOURCE_ROOT"; };
-		F124535AC6FED74C4C29B569 /* formatreader/audiosamplecursor.swift */ = { isa = "PBXFileReference"; lastKnownFileType = "sourcecode.swift"; path = "QuickLook/formatreader/audiosamplecursor.swift"; sourceTree = "SOURCE_ROOT"; };
-		67E1196C75E621B1F460B019 /* formatreader/audiotrackreader.swift */ = { isa = "PBXFileReference"; lastKnownFileType = "sourcecode.swift"; path = "QuickLook/formatreader/audiotrackreader.swift"; sourceTree = "SOURCE_ROOT"; };
-		A8AFE74C4FA9B44DEF539351 /* formatreader/averror.swift */ = { isa = "PBXFileReference"; lastKnownFileType = "sourcecode.swift"; path = "QuickLook/formatreader/averror.swift"; sourceTree = "SOURCE_ROOT"; };
-		DE0E44483A86ECBA9085CF01 /* formatreader/callbacks.h */ = { isa = "PBXFileReference"; lastKnownFileType = "sourcecode.c.h"; path = "QuickLook/formatreader/callbacks.h"; sourceTree = "SOURCE_ROOT"; };
-		1191119D217ADF3E8490330E /* formatreader/callbacks.m */ = { isa = "PBXFileReference"; lastKnownFileType = "sourcecode.c.objc"; path = "QuickLook/formatreader/callbacks.m"; sourceTree = "SOURCE_ROOT"; };
-		E426C08B86D8B91E384200B4 /* formatreader/cmtime.swift */ = { isa = "PBXFileReference"; lastKnownFileType = "sourcecode.swift"; path = "QuickLook/formatreader/cmtime.swift"; sourceTree = "SOURCE_ROOT"; };
-		6E735322FABCF1747AA8993E /* formatreader/formatreader-bridge.h */ = { isa = "PBXFileReference"; lastKnownFileType = "sourcecode.c.h"; path = "QuickLook/formatreader/formatreader-bridge.h"; sourceTree = "SOURCE_ROOT"; };
-		BD487F82B9EEACFB34898765 /* formatreader/formatreader.entitlements */ = { isa = "PBXFileReference"; lastKnownFileType = "text.plist.entitlements"; path = "QuickLook/formatreader/formatreader.entitlements"; sourceTree = "SOURCE_ROOT"; };
-		C8E7F675E5B66F49264A4DC2 /* formatreader/formatreader.swift */ = { isa = "PBXFileReference"; lastKnownFileType = "sourcecode.swift"; path = "QuickLook/formatreader/formatreader.swift"; sourceTree = "SOURCE_ROOT"; };
-		57CD8F28DF7448CF2653E1F5 /* formatreader/formatreaderfactory.swift */ = { isa = "PBXFileReference"; lastKnownFileType = "sourcecode.swift"; path = "QuickLook/formatreader/formatreaderfactory.swift"; sourceTree = "SOURCE_ROOT"; };
-		23F627756083560B1316D364 /* formatreader/packetdemuxer.swift */ = { isa = "PBXFileReference"; lastKnownFileType = "sourcecode.swift"; path = "QuickLook/formatreader/packetdemuxer.swift"; sourceTree = "SOURCE_ROOT"; };
-		46A56C9C414B8A0F9406F154 /* formatreader/samplecursor.swift */ = { isa = "PBXFileReference"; lastKnownFileType = "sourcecode.swift"; path = "QuickLook/formatreader/samplecursor.swift"; sourceTree = "SOURCE_ROOT"; };
-		0EEF5053CCB8C228EA08B82A /* formatreader/snapshotter.swift */ = { isa = "PBXFileReference"; lastKnownFileType = "sourcecode.swift"; path = "QuickLook/formatreader/snapshotter.swift"; sourceTree = "SOURCE_ROOT"; };
-		8F7A33672CDE774CD8693FB6 /* formatreader/trackreader.swift */ = { isa = "PBXFileReference"; lastKnownFileType = "sourcecode.swift"; path = "QuickLook/formatreader/trackreader.swift"; sourceTree = "SOURCE_ROOT"; };
-		94E59CE3141E28EF99E4B0DC /* formatreader/videosamplecursor.swift */ = { isa = "PBXFileReference"; lastKnownFileType = "sourcecode.swift"; path = "QuickLook/formatreader/videosamplecursor.swift"; sourceTree = "SOURCE_ROOT"; };
-		03CEEFCAFB647FDCDAD00078 /* formatreader/videotrackreader.swift */ = { isa = "PBXFileReference"; lastKnownFileType = "sourcecode.swift"; path = "QuickLook/formatreader/videotrackreader.swift"; sourceTree = "SOURCE_ROOT"; };
-		FF5CF91240D2E61BAA54E215 /* formatreader/videotrackreaderdv.swift */ = { isa = "PBXFileReference"; lastKnownFileType = "sourcecode.swift"; path = "QuickLook/formatreader/videotrackreaderdv.swift"; sourceTree = "SOURCE_ROOT"; };
-		BA5D2C062701D45E8D723570 /* mdimporter/CodecName.swift */ = { isa = "PBXFileReference"; lastKnownFileType = "sourcecode.swift"; path = "QuickLook/mdimporter/CodecName.swift"; sourceTree = "SOURCE_ROOT"; };
-		F145461A574FD26271E5D2F3 /* mdimporter/GetMetadataForFile.swift */ = { isa = "PBXFileReference"; lastKnownFileType = "sourcecode.swift"; path = "QuickLook/mdimporter/GetMetadataForFile.swift"; sourceTree = "SOURCE_ROOT"; };
-		F27B62AB2DD06A068D480FA0 /* mdimporter/Info.plist */ = { isa = "PBXFileReference"; lastKnownFileType = "text.plist.xml"; path = "QuickLook/mdimporter/Info.plist"; sourceTree = "SOURCE_ROOT"; };
-		B6DDB24F3B94707C5BFA15E4 /* mdimporter/main.c */ = { isa = "PBXFileReference"; lastKnownFileType = "sourcecode.c.c"; path = "QuickLook/mdimporter/main.c"; sourceTree = "SOURCE_ROOT"; };
-		9A09B200984F73F3B4889C79 /* mdimporter/mdimporter-bridge.h */ = { isa = "PBXFileReference"; lastKnownFileType = "sourcecode.c.h"; path = "QuickLook/mdimporter/mdimporter-bridge.h"; sourceTree = "SOURCE_ROOT"; };
-		C190017969A22C9F155EC06E /* mdimporter/schema.xml */ = { isa = "PBXFileReference"; lastKnownFileType = "text.xml"; path = "QuickLook/mdimporter/schema.xml"; sourceTree = "SOURCE_ROOT"; };
-		FD527D4A3F9107D948BA9BF1 /* videodecoder/Info.plist */ = { isa = "PBXFileReference"; lastKnownFileType = "text.plist.xml"; path = "QuickLook/videodecoder/Info.plist"; sourceTree = "SOURCE_ROOT"; };
-		7850A8C9C4A43FD522C708B1 /* videodecoder/callbacks.h */ = { isa = "PBXFileReference"; lastKnownFileType = "sourcecode.c.h"; path = "QuickLook/videodecoder/callbacks.h"; sourceTree = "SOURCE_ROOT"; };
-		249EDF4E21BF2E8FA54F8333 /* videodecoder/callbacks.m */ = { isa = "PBXFileReference"; lastKnownFileType = "sourcecode.c.objc"; path = "QuickLook/videodecoder/callbacks.m"; sourceTree = "SOURCE_ROOT"; };
-		AB38D987E34D661E7615D151 /* videodecoder/hdr_interleave.c */ = { isa = "PBXFileReference"; lastKnownFileType = "sourcecode.c.c"; path = "QuickLook/videodecoder/hdr_interleave.c"; sourceTree = "SOURCE_ROOT"; };
-		31AB8D7D789BB9DD44C59A9B /* videodecoder/hdr_interleave.h */ = { isa = "PBXFileReference"; lastKnownFileType = "sourcecode.c.h"; path = "QuickLook/videodecoder/hdr_interleave.h"; sourceTree = "SOURCE_ROOT"; };
-		EC2B7B3886271BB084B28D1B /* videodecoder/videodecoder-bridge.h */ = { isa = "PBXFileReference"; lastKnownFileType = "sourcecode.c.h"; path = "QuickLook/videodecoder/videodecoder-bridge.h"; sourceTree = "SOURCE_ROOT"; };
-		443F9331964998F383F6D67A /* videodecoder/videodecoder-hdr.swift */ = { isa = "PBXFileReference"; lastKnownFileType = "sourcecode.swift"; path = "QuickLook/videodecoder/videodecoder-hdr.swift"; sourceTree = "SOURCE_ROOT"; };
-		11F2040C068ABA956B723BAE /* videodecoder/videodecoder-rgb.swift */ = { isa = "PBXFileReference"; lastKnownFileType = "sourcecode.swift"; path = "QuickLook/videodecoder/videodecoder-rgb.swift"; sourceTree = "SOURCE_ROOT"; };
-		60947C43A5569C5E3585FD97 /* videodecoder/videodecoder-vImage.swift */ = { isa = "PBXFileReference"; lastKnownFileType = "sourcecode.swift"; path = "QuickLook/videodecoder/videodecoder-vImage.swift"; sourceTree = "SOURCE_ROOT"; };
-		3F8B8B51FD941ACC59A24103 /* videodecoder/videodecoder-zscale.swift */ = { isa = "PBXFileReference"; lastKnownFileType = "sourcecode.swift"; path = "QuickLook/videodecoder/videodecoder-zscale.swift"; sourceTree = "SOURCE_ROOT"; };
-		1B9E318A82B32D8A6027EF3A /* videodecoder/videodecoder.entitlements */ = { isa = "PBXFileReference"; lastKnownFileType = "text.plist.entitlements"; path = "QuickLook/videodecoder/videodecoder.entitlements"; sourceTree = "SOURCE_ROOT"; };
-		7E1C3BA1237FF687064C69C4 /* videodecoder/videodecoder.swift */ = { isa = "PBXFileReference"; lastKnownFileType = "sourcecode.swift"; path = "QuickLook/videodecoder/videodecoder.swift"; sourceTree = "SOURCE_ROOT"; };
-		A1E80BEEAD1DDE5109608869 /* videodecoder/videodecoderfactory.swift */ = { isa = "PBXFileReference"; lastKnownFileType = "sourcecode.swift"; path = "QuickLook/videodecoder/videodecoderfactory.swift"; sourceTree = "SOURCE_ROOT"; };
-		3CD9FCE5DD91E99C410C6C35 /* QuickLook.xcconfig */ = { isa = "PBXFileReference"; lastKnownFileType = "text"; path = "QuickLook/QuickLook.xcconfig"; sourceTree = "SOURCE_ROOT"; };
-		12F777FD710627E5CD9790AA /* yinaFormats.appex */ = { isa = "PBXFileReference"; explicitFileType = "wrapper.app-extension"; includeInIndex = "0"; path = "yinaFormats.appex"; sourceTree = "BUILT_PRODUCTS_DIR"; };
-		27E82B0F5DA75AFB799CD404 /* yinaCodecs.appex */ = { isa = "PBXFileReference"; explicitFileType = "wrapper.app-extension"; includeInIndex = "0"; path = "yinaCodecs.appex"; sourceTree = "BUILT_PRODUCTS_DIR"; };
-		0F5F5156EBC292957BEBDF73 /* yinaMetadata.mdimporter */ = { isa = "PBXFileReference"; explicitFileType = "wrapper.cfbundle"; includeInIndex = "0"; path = "yinaMetadata.mdimporter"; sourceTree = "BUILT_PRODUCTS_DIR"; };
-		5776F1EE51D7FEAB40345D65 /* QuickLook LICENSE.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "QuickLook/LICENSE.txt"; sourceTree = SOURCE_ROOT; };
-		04296B89B301E7CD3D6C3354 /* QuickLook README.md */ = {isa = PBXFileReference; lastKnownFileType = text; path = "QuickLook/README.md"; sourceTree = SOURCE_ROOT; };
-		DF9705466C9E11091E7E4E32 /* QuickLook mdimporter/schema.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; path = "QuickLook/mdimporter/schema.strings"; sourceTree = SOURCE_ROOT; };
-		F6E408C99BE834FC884CF401 /* QuickLookSetup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = yina/QuickLookSetup.swift; sourceTree = SOURCE_ROOT; };
-		F6E408C99BE834FC884CF402 /* quicklook-probe.webm */ = {isa = PBXFileReference; lastKnownFileType = file; path = QuickLook/quicklook-probe.webm; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -1112,27 +976,6 @@
 			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
-		};
-		5BF19EBCF92C177616F8A65B /* yinaFormats Frameworks */ = {
-			isa = "PBXFrameworksBuildPhase";
-			buildActionMask = "2147483647";
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = "0";
-		};
-		515E7FC09836FC698B2CB24D /* yinaCodecs Frameworks */ = {
-			isa = "PBXFrameworksBuildPhase";
-			buildActionMask = "2147483647";
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = "0";
-		};
-		DBCD36B3D4C0DCA46AFAC373 /* yinaMetadata Frameworks */ = {
-			isa = "PBXFrameworksBuildPhase";
-			buildActionMask = "2147483647";
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = "0";
 		};
 /* End PBXFrameworksBuildPhase section */
 
@@ -1576,9 +1419,6 @@
 		84EB1ECD1D2F51D3004FA5A1 = {
 			isa = PBXGroup;
 			children = (
-				F6E408C99BE834FC884CF402,
-				F6E408C99BE834FC884CF401,
-				E4ABC070E216BB1EFE5B0166,
 				496498872919E47900CD61A5 /* Configs */,
 				84EB1ED81D2F51D3004FA5A1 /* yina */,
 				E3DE8DCB1FD8166A0021921C /* yina-cli */,
@@ -1596,9 +1436,6 @@
 		84EB1ED71D2F51D3004FA5A1 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				12F777FD710627E5CD9790AA,
-				27E82B0F5DA75AFB799CD404,
-				0F5F5156EBC292957BEBDF73,
 				84EB1ED61D2F51D3004FA5A1 /* yina.app */,
 				E3DE8DCA1FD8166A0021921C /* yina-cli */,
 				49542973216C34950058F680 /* OpenInYINA.appex */,
@@ -1806,53 +1643,6 @@
 			path = "yina-cli";
 			sourceTree = "<group>";
 		};
-		E4ABC070E216BB1EFE5B0166 /* QuickLook */ = {
-			isa = "PBXGroup";
-			name = "QuickLook";
-			children = (
-				"2C05443D21BE1771F62D7FB6",
-				"EFF3FF7941F6FFCCE46525B6",
-				"D922B187CAC6DA39FC036F13",
-				"F124535AC6FED74C4C29B569",
-				"67E1196C75E621B1F460B019",
-				"A8AFE74C4FA9B44DEF539351",
-				"DE0E44483A86ECBA9085CF01",
-				"1191119D217ADF3E8490330E",
-				"E426C08B86D8B91E384200B4",
-				"6E735322FABCF1747AA8993E",
-				"BD487F82B9EEACFB34898765",
-				"C8E7F675E5B66F49264A4DC2",
-				"57CD8F28DF7448CF2653E1F5",
-				"23F627756083560B1316D364",
-				"46A56C9C414B8A0F9406F154",
-				"0EEF5053CCB8C228EA08B82A",
-				"8F7A33672CDE774CD8693FB6",
-				"94E59CE3141E28EF99E4B0DC",
-				"03CEEFCAFB647FDCDAD00078",
-				"FF5CF91240D2E61BAA54E215",
-				"BA5D2C062701D45E8D723570",
-				"F145461A574FD26271E5D2F3",
-				"F27B62AB2DD06A068D480FA0",
-				"B6DDB24F3B94707C5BFA15E4",
-				"9A09B200984F73F3B4889C79",
-				"C190017969A22C9F155EC06E",
-				"FD527D4A3F9107D948BA9BF1",
-				"7850A8C9C4A43FD522C708B1",
-				"249EDF4E21BF2E8FA54F8333",
-				"AB38D987E34D661E7615D151",
-				"31AB8D7D789BB9DD44C59A9B",
-				"EC2B7B3886271BB084B28D1B",
-				"443F9331964998F383F6D67A",
-				"11F2040C068ABA956B723BAE",
-				"60947C43A5569C5E3585FD97",
-				"3F8B8B51FD941ACC59A24103",
-				"1B9E318A82B32D8A6027EF3A",
-				"7E1C3BA1237FF687064C69C4",
-				"A1E80BEEAD1DDE5109608869",
-				"3CD9FCE5DD91E99C410C6C35",
-			);
-			sourceTree = "<group>";
-		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -1877,8 +1667,6 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 84EB1EF91D2F51D3004FA5A1 /* Build configuration list for PBXNativeTarget "yina" */;
 			buildPhases = (
-				FB55D94ADD95E096564F13CB,
-				BB254117903379EB3A94CAF8,
 				84EB1ED21D2F51D3004FA5A1 /* Sources */,
 				84EB1ED31D2F51D3004FA5A1 /* Frameworks */,
 				84EB1ED41D2F51D3004FA5A1 /* Resources */,
@@ -1894,9 +1682,6 @@
 			buildRules = (
 			);
 			dependencies = (
-				7BA381923325FA0A47AB76FE,
-				329EEAC4F07A4F812143EDDD,
-				F0759C04606B416D647C1DC6,
 				497747EE20D287C1004B243A /* PBXTargetDependency */,
 				5180D7792C17DB0D00CC9C1C /* PBXTargetDependency */,
 				49542985216C34950058F680 /* PBXTargetDependency */,
@@ -1951,57 +1736,6 @@
 			productReference = E3DE8DCA1FD8166A0021921C /* yina-cli */;
 			productType = "com.apple.product-type.tool";
 		};
-		6C0BF4B536CC8C58BD0F473D /* yinaFormats */ = {
-			buildConfigurationList = "DEA128EAF0E0429732159A59";
-			productReference = "12F777FD710627E5CD9790AA";
-			productType = "com.apple.product-type.extensionkit-extension";
-			productName = "yinaFormats";
-			isa = "PBXNativeTarget";
-			buildPhases = (
-				"C1C5B3AA2F81E84B399D4491",
-				"5BF19EBCF92C177616F8A65B",
-				"C8317A67BA7B0CB27BCEB6C6",
-			);
-			dependencies = (
-			);
-			name = "yinaFormats";
-			buildRules = (
-			);
-		};
-		462A3BABBF3EC83A415F0746 /* yinaCodecs */ = {
-			buildConfigurationList = "D97CDDC37B6F2E2B03C66801";
-			productReference = "27E82B0F5DA75AFB799CD404";
-			productType = "com.apple.product-type.extensionkit-extension";
-			productName = "yinaCodecs";
-			isa = "PBXNativeTarget";
-			buildPhases = (
-				"8BEC2908D8FD46AFAAF2B5D6",
-				"515E7FC09836FC698B2CB24D",
-				"A964E9092558B1F32D48C513",
-			);
-			dependencies = (
-			);
-			name = "yinaCodecs";
-			buildRules = (
-			);
-		};
-		7FF355F8A571D35E35E116B1 /* yinaMetadata */ = {
-			buildConfigurationList = "CA1E5979CEE0813212F514BE";
-			productReference = "0F5F5156EBC292957BEBDF73";
-			productType = "com.apple.product-type.bundle";
-			productName = "yinaMetadata";
-			isa = "PBXNativeTarget";
-			buildPhases = (
-				"7EADBBF9C3336ED4A24C613F",
-				"DBCD36B3D4C0DCA46AFAC373",
-				"9CED5765F78FABFB1CC93989",
-			);
-			dependencies = (
-			);
-			name = "yinaMetadata";
-			buildRules = (
-			);
-		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -2054,9 +1788,6 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				6C0BF4B536CC8C58BD0F473D,
-				462A3BABBF3EC83A415F0746,
-				7FF355F8A571D35E35E116B1,
 				84EB1ED51D2F51D3004FA5A1 /* yina */,
 				E3DE8DC91FD8166A0021921C /* yina-cli */,
 				E38558862A484A2D0083772D /* yina-plugin */,
@@ -2079,7 +1810,6 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				F6E408C99BE834FC884CF404,
 				C789872F1E34EF170005769F /* InfoPlist.strings in Resources */,
 				84EC12861F504D2500137C1E /* FilterPresets.strings in Resources */,
 				84C3AB8B1E7BF22300FEFB7A /* MPVCommandFormat.strings in Resources */,
@@ -2095,35 +1825,6 @@
 				6100FF2B1EDF9806002CF0FB /* dsa_pub.pem in Resources */,
 				845AC09C1E1AE6C10080B614 /* Localizable.strings in Resources */,
 				518DB7022FA6A2120024F0B0 /* write_info_plist_header.sh in Resources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		C8317A67BA7B0CB27BCEB6C6 /* yinaFormats Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				4CDF586AD61696CD92683814,
-				7F079121EF84730707F31550,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		A964E9092558B1F32D48C513 /* yinaCodecs Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				FB892F5E26590A483F7FC398,
-				F6769E788537B12C12A115B3,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		9CED5765F78FABFB1CC93989 /* yinaMetadata Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				E48F6F2F5C8DE34BB14803DA,
-				9C96F942F55308294BDE120F,
-				A90104CD4154CF09DE3E456E,
-				8A2A49394E0852886C51EBD2,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2201,7 +1902,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				F6E408C99BE834FC884CF403,
 				E3EC8C432F94330400FBB51E /* Dialog.swift in Sources */,
 				E35306FA214808AB008FE492 /* JavascriptAPIEvent.swift in Sources */,
 				849581F11F02728700D3B359 /* InitialWindowController.swift in Sources */,
@@ -2448,58 +2148,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		C1C5B3AA2F81E84B399D4491 /* yinaFormats Sources */ = {
-			isa = "PBXSourcesBuildPhase";
-			buildActionMask = "2147483647";
-			files = (
-				"14AE29BB4971E1416C117B92",
-				"72AC45F6F943CB1CB6A36A72",
-				"E2D9D9D06CA1557CD30FA158",
-				"B8C2202D6EFB42CC7E81C069",
-				"0A2160510EE3473E97B1E67A",
-				"4E00A08B259B73037CA224CD",
-				"B7C5B46F9624767A573115EC",
-				"897B8EF3E46A05EE81EF23C8",
-				"D098E71DED85BC9EB878B560",
-				"52623267BEEA6206FDD8ADCE",
-				"25DA48A5EF0BEE8165F52E58",
-				"F41B275CB4739BEB3462C151",
-				"68137D2E9C511EB32EAEF062",
-				"6308BB8143E73CB4FA2EFCE1",
-				"59439A45999504CC4FB11383",
-				"11322D3AA4C6D11ADBCEAE10",
-			);
-			runOnlyForDeploymentPostprocessing = "0";
-		};
-		8BEC2908D8FD46AFAAF2B5D6 /* yinaCodecs Sources */ = {
-			isa = "PBXSourcesBuildPhase";
-			buildActionMask = "2147483647";
-			files = (
-				"82B6DF6636C5F008F5158FF4",
-				"281EC8B4E1873CAED6039585",
-				"544C14D4161A4893D051DA31",
-				"A9D0341C7B7F51B9527C6492",
-				"B7964E80773CCD832BCC9FFB",
-				"A0DFA0AF2BE8BFF6435AB63C",
-				"55DDBB80503C582C35CD42B4",
-				"8EB678AC02092AB7DD36D784",
-				"A5C11B3F7C827E2C3D31DEC0",
-				"6DD039E4D3B1019C5F53E9E4",
-			);
-			runOnlyForDeploymentPostprocessing = "0";
-		};
-		7EADBBF9C3336ED4A24C613F /* yinaMetadata Sources */ = {
-			isa = "PBXSourcesBuildPhase";
-			buildActionMask = "2147483647";
-			files = (
-				"3B9257EEA1E510C2EF6D6924",
-				"86DA932C264D0C16FFFEA823",
-				"66D8BE9D6D454F2FE5F368E0",
-				"2F8D1D4257A950423C2B7313",
-				"E165540832A065083E012351",
-			);
-			runOnlyForDeploymentPostprocessing = "0";
-		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -2517,21 +2165,6 @@
 			isa = PBXTargetDependency;
 			target = E38558862A484A2D0083772D /* yina-plugin */;
 			targetProxy = 5180D7782C17DB0D00CC9C1C /* PBXContainerItemProxy */;
-		};
-		7BA381923325FA0A47AB76FE /* yinaFormats dependency */ = {
-			isa = "PBXTargetDependency";
-			target = "6C0BF4B536CC8C58BD0F473D";
-			targetProxy = "AA019B60491F4AA1BA0B6AEC";
-		};
-		329EEAC4F07A4F812143EDDD /* yinaCodecs dependency */ = {
-			isa = "PBXTargetDependency";
-			target = "462A3BABBF3EC83A415F0746";
-			targetProxy = "5CA2ABA4616464EE74654245";
-		};
-		F0759C04606B416D647C1DC6 /* yinaMetadata dependency */ = {
-			isa = "PBXTargetDependency";
-			target = "7FF355F8A571D35E35E116B1";
-			targetProxy = "B3EB0C9DA3C43C1477917279";
 		};
 /* End PBXTargetDependency section */
 
@@ -2958,156 +2591,6 @@
 			};
 			name = Release;
 		};
-		C1DB18EA247582E9D5B621AA /* yinaFormats Debug */ = {
-			baseConfigurationReference = "3CD9FCE5DD91E99C410C6C35";
-			isa = "XCBuildConfiguration";
-			buildSettings = {
-				INFOPLIST_KEY_CFBundleDisplayName = "yina media formats";
-				CODE_SIGN_ENTITLEMENTS = "QuickLook/formatreader/formatreader.entitlements";
-				SWIFT_OBJC_BRIDGING_HEADER = "QuickLook/formatreader/formatreader-bridge.h";
-				INFOPLIST_FILE = "QuickLook/formatreader/Info.plist";
-				PRODUCT_BUNDLE_IDENTIFIER = "tsmc.yina.formatreader";
-				PRODUCT_MODULE_NAME = "yinaFormats";
-				ENABLE_APP_SANDBOX = "YES";
-				APPLICATION_EXTENSION_API_ONLY = "YES";
-				PRODUCT_NAME = "yinaFormats";
-			};
-			name = "Debug";
-		};
-		90D77E257EE166AA4B8D312B /* yinaFormats Release */ = {
-			baseConfigurationReference = "3CD9FCE5DD91E99C410C6C35";
-			isa = "XCBuildConfiguration";
-			buildSettings = {
-				INFOPLIST_KEY_CFBundleDisplayName = "yina media formats";
-				CODE_SIGN_ENTITLEMENTS = "QuickLook/formatreader/formatreader.entitlements";
-				SWIFT_OBJC_BRIDGING_HEADER = "QuickLook/formatreader/formatreader-bridge.h";
-				INFOPLIST_FILE = "QuickLook/formatreader/Info.plist";
-				PRODUCT_BUNDLE_IDENTIFIER = "tsmc.yina.formatreader";
-				PRODUCT_MODULE_NAME = "yinaFormats";
-				ENABLE_APP_SANDBOX = "YES";
-				APPLICATION_EXTENSION_API_ONLY = "YES";
-				PRODUCT_NAME = "yinaFormats";
-			};
-			name = "Release";
-		};
-		8803607AFCAFEBE75CC06961 /* yinaFormats Nightly */ = {
-			baseConfigurationReference = "3CD9FCE5DD91E99C410C6C35";
-			isa = "XCBuildConfiguration";
-			buildSettings = {
-				INFOPLIST_KEY_CFBundleDisplayName = "yina media formats";
-				CODE_SIGN_ENTITLEMENTS = "QuickLook/formatreader/formatreader.entitlements";
-				SWIFT_OBJC_BRIDGING_HEADER = "QuickLook/formatreader/formatreader-bridge.h";
-				INFOPLIST_FILE = "QuickLook/formatreader/Info.plist";
-				PRODUCT_BUNDLE_IDENTIFIER = "tsmc.yina.formatreader";
-				PRODUCT_MODULE_NAME = "yinaFormats";
-				ENABLE_APP_SANDBOX = "YES";
-				APPLICATION_EXTENSION_API_ONLY = "YES";
-				PRODUCT_NAME = "yinaFormats";
-			};
-			name = "Nightly";
-		};
-		6BF5CB21A1CC9217C4F17952 /* yinaCodecs Debug */ = {
-			baseConfigurationReference = "3CD9FCE5DD91E99C410C6C35";
-			isa = "XCBuildConfiguration";
-			buildSettings = {
-				INFOPLIST_KEY_CFBundleDisplayName = "yina video codecs";
-				CODE_SIGN_ENTITLEMENTS = "QuickLook/videodecoder/videodecoder.entitlements";
-				SWIFT_OBJC_BRIDGING_HEADER = "QuickLook/videodecoder/videodecoder-bridge.h";
-				INFOPLIST_FILE = "QuickLook/videodecoder/Info.plist";
-				PRODUCT_BUNDLE_IDENTIFIER = "tsmc.yina.videodecoder";
-				PRODUCT_MODULE_NAME = "yinaCodecs";
-				ENABLE_APP_SANDBOX = "YES";
-				APPLICATION_EXTENSION_API_ONLY = "YES";
-				PRODUCT_NAME = "yinaCodecs";
-			};
-			name = "Debug";
-		};
-		D4BDB1F8AEC48E076F136F7C /* yinaCodecs Release */ = {
-			baseConfigurationReference = "3CD9FCE5DD91E99C410C6C35";
-			isa = "XCBuildConfiguration";
-			buildSettings = {
-				INFOPLIST_KEY_CFBundleDisplayName = "yina video codecs";
-				CODE_SIGN_ENTITLEMENTS = "QuickLook/videodecoder/videodecoder.entitlements";
-				SWIFT_OBJC_BRIDGING_HEADER = "QuickLook/videodecoder/videodecoder-bridge.h";
-				INFOPLIST_FILE = "QuickLook/videodecoder/Info.plist";
-				PRODUCT_BUNDLE_IDENTIFIER = "tsmc.yina.videodecoder";
-				PRODUCT_MODULE_NAME = "yinaCodecs";
-				ENABLE_APP_SANDBOX = "YES";
-				APPLICATION_EXTENSION_API_ONLY = "YES";
-				PRODUCT_NAME = "yinaCodecs";
-			};
-			name = "Release";
-		};
-		919080E9CBEE5375BE53A7E3 /* yinaCodecs Nightly */ = {
-			baseConfigurationReference = "3CD9FCE5DD91E99C410C6C35";
-			isa = "XCBuildConfiguration";
-			buildSettings = {
-				INFOPLIST_KEY_CFBundleDisplayName = "yina video codecs";
-				CODE_SIGN_ENTITLEMENTS = "QuickLook/videodecoder/videodecoder.entitlements";
-				SWIFT_OBJC_BRIDGING_HEADER = "QuickLook/videodecoder/videodecoder-bridge.h";
-				INFOPLIST_FILE = "QuickLook/videodecoder/Info.plist";
-				PRODUCT_BUNDLE_IDENTIFIER = "tsmc.yina.videodecoder";
-				PRODUCT_MODULE_NAME = "yinaCodecs";
-				ENABLE_APP_SANDBOX = "YES";
-				APPLICATION_EXTENSION_API_ONLY = "YES";
-				PRODUCT_NAME = "yinaCodecs";
-			};
-			name = "Nightly";
-		};
-		F52C3BC9694FF70E11402705 /* yinaMetadata Debug */ = {
-			baseConfigurationReference = "3CD9FCE5DD91E99C410C6C35";
-			isa = "XCBuildConfiguration";
-			buildSettings = {
-				GCC_SYMBOLS_PRIVATE_EXTERN = "NO";
-				WRAPPER_EXTENSION = "mdimporter";
-				INFOPLIST_KEY_CFBundleDisplayName = "yina media metadata";
-				SWIFT_OBJC_BRIDGING_HEADER = "QuickLook/mdimporter/mdimporter-bridge.h";
-				INFOPLIST_FILE = "QuickLook/mdimporter/Info.plist";
-				PRODUCT_BUNDLE_IDENTIFIER = "tsmc.yina.mdimporter";
-				PRODUCT_MODULE_NAME = "yinaMetadata";
-				LD_RUNPATH_SEARCH_PATHS = "@loader_path/../../../../../Frameworks";
-				APPLICATION_EXTENSION_API_ONLY = "NO";
-				PRODUCT_NAME = "yinaMetadata";
-				MACH_O_TYPE = "mh_bundle";
-			};
-			name = "Debug";
-		};
-		4F72FEBB0C78483F1AF20FEB /* yinaMetadata Release */ = {
-			baseConfigurationReference = "3CD9FCE5DD91E99C410C6C35";
-			isa = "XCBuildConfiguration";
-			buildSettings = {
-				GCC_SYMBOLS_PRIVATE_EXTERN = "NO";
-				WRAPPER_EXTENSION = "mdimporter";
-				INFOPLIST_KEY_CFBundleDisplayName = "yina media metadata";
-				SWIFT_OBJC_BRIDGING_HEADER = "QuickLook/mdimporter/mdimporter-bridge.h";
-				INFOPLIST_FILE = "QuickLook/mdimporter/Info.plist";
-				PRODUCT_BUNDLE_IDENTIFIER = "tsmc.yina.mdimporter";
-				PRODUCT_MODULE_NAME = "yinaMetadata";
-				LD_RUNPATH_SEARCH_PATHS = "@loader_path/../../../../../Frameworks";
-				APPLICATION_EXTENSION_API_ONLY = "NO";
-				PRODUCT_NAME = "yinaMetadata";
-				MACH_O_TYPE = "mh_bundle";
-			};
-			name = "Release";
-		};
-		D2E126B9755DB44A42BF10DE /* yinaMetadata Nightly */ = {
-			baseConfigurationReference = "3CD9FCE5DD91E99C410C6C35";
-			isa = "XCBuildConfiguration";
-			buildSettings = {
-				GCC_SYMBOLS_PRIVATE_EXTERN = "NO";
-				WRAPPER_EXTENSION = "mdimporter";
-				INFOPLIST_KEY_CFBundleDisplayName = "yina media metadata";
-				SWIFT_OBJC_BRIDGING_HEADER = "QuickLook/mdimporter/mdimporter-bridge.h";
-				INFOPLIST_FILE = "QuickLook/mdimporter/Info.plist";
-				PRODUCT_BUNDLE_IDENTIFIER = "tsmc.yina.mdimporter";
-				PRODUCT_MODULE_NAME = "yinaMetadata";
-				LD_RUNPATH_SEARCH_PATHS = "@loader_path/../../../../../Frameworks";
-				APPLICATION_EXTENSION_API_ONLY = "NO";
-				PRODUCT_NAME = "yinaMetadata";
-				MACH_O_TYPE = "mh_bundle";
-			};
-			name = "Nightly";
-		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -3165,36 +2648,6 @@
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
-		};
-		DEA128EAF0E0429732159A59 /* yinaFormats configurations */ = {
-			isa = "XCConfigurationList";
-			defaultConfigurationIsVisible = "0";
-			defaultConfigurationName = "Release";
-			buildConfigurations = (
-				"C1DB18EA247582E9D5B621AA",
-				"90D77E257EE166AA4B8D312B",
-				"8803607AFCAFEBE75CC06961",
-			);
-		};
-		D97CDDC37B6F2E2B03C66801 /* yinaCodecs configurations */ = {
-			isa = "XCConfigurationList";
-			defaultConfigurationIsVisible = "0";
-			defaultConfigurationName = "Release";
-			buildConfigurations = (
-				"6BF5CB21A1CC9217C4F17952",
-				"D4BDB1F8AEC48E076F136F7C",
-				"919080E9CBEE5375BE53A7E3",
-			);
-		};
-		CA1E5979CEE0813212F514BE /* yinaMetadata configurations */ = {
-			isa = "XCConfigurationList";
-			defaultConfigurationIsVisible = "0";
-			defaultConfigurationName = "Release";
-			buildConfigurations = (
-				"F52C3BC9694FF70E11402705",
-				"4F72FEBB0C78483F1AF20FEB",
-				"D2E126B9755DB44A42BF10DE",
-			);
 		};
 /* End XCConfigurationList section */
 

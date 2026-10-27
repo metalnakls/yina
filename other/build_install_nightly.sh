@@ -15,17 +15,6 @@ readonly DEFAULT_SOURCE_PACKAGES_DIR="$REPO_DIR/SourcePackages"
 readonly IINA_ENTITLEMENTS="$REPO_DIR/yina/yina.entitlements"
 readonly OPEN_IN_IINA_ENTITLEMENTS="$REPO_DIR/OpenInYINA/OpenInYINA.entitlements"
 readonly DEFAULT_SIGN_IDENTITY="919F9538E1E91B7C10FD2556CC9030B76ED39E58"
-readonly MEDIA_SIGNING_DIR="$DERIVED_DATA/MediaExtensionSigning"
-readonly LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
-
-# Xcode registers its temporary .app during a build. Only the installed copy
-# should supply Finder extensions; withdraw the staging copy on success or failure.
-unregister_staging_app() {
-  if [[ -d "$BUILD_APP" ]]; then
-    "$LSREGISTER" -u "$BUILD_APP" >/dev/null 2>&1 || true
-  fi
-}
-trap unregister_staging_app EXIT
 
 SIGN_IDENTITY="${IINA_CODESIGN_IDENTITY:-$DEFAULT_SIGN_IDENTITY}"
 SOURCE_PACKAGES_DIR="${IINA_SOURCE_PACKAGES_DIR:-$DEFAULT_SOURCE_PACKAGES_DIR}"
@@ -47,11 +36,6 @@ if ! security find-identity -v -p codesigning | awk -v identity="$SIGN_IDENTITY"
   echo "Retry this build with approved elevated local/keychain access. Keep the signing private key in the macOS Keychain; do not substitute another identity." >&2
   exit 65
 fi
-
-# codesign --verify does not validate restricted entitlements against an Apple
-# provisioning profile. Check profiles before changing the installed app.
-python3 "$SCRIPT_DIR/prepare_media_extension_signing.py" \
-  --identity "$SIGN_IDENTITY" --output "$MEDIA_SIGNING_DIR"
 
 mkdir -p "$MODULE_CACHE_DIR" "$SWIFTPM_CACHE_DIR"
 
@@ -90,8 +74,13 @@ xcodebuild \
   build
 
 test -d "$BUILD_APP"
-cp "$MEDIA_SIGNING_DIR/formatreader.provisionprofile" "$BUILD_APP/Contents/Extensions/yinaFormats.appex/Contents/embedded.provisionprofile"
-cp "$MEDIA_SIGNING_DIR/videodecoder.provisionprofile" "$BUILD_APP/Contents/Extensions/yinaCodecs.appex/Contents/embedded.provisionprofile"
+
+# Incremental builds may retain products from the removed Quick Look targets.
+# Remove only those obsolete products before validating and signing the bundle.
+rm -rf -- "$BUILD_APP/Contents/Extensions/yinaFormats.appex" \
+  "$BUILD_APP/Contents/Extensions/yinaCodecs.appex" \
+  "$BUILD_APP/Contents/Library/Spotlight/yinaMetadata.mdimporter"
+rm -f -- "$BUILD_APP/Contents/Resources/quicklook-probe.webm"
 "$SCRIPT_DIR/modernize_arm64_bundle.sh" "$BUILD_APP"
 "$SCRIPT_DIR/verify_arm64_bundle.sh" "$BUILD_APP"
 
@@ -110,15 +99,7 @@ while IFS= read -r -d '' path; do
       codesign --force --sign "$SIGN_IDENTITY" --options runtime \
         --entitlements "$OPEN_IN_IINA_ENTITLEMENTS" "$path"
       ;;
-    */yinaFormats.appex)
-      codesign --force --sign "$SIGN_IDENTITY" --options runtime \
-        --entitlements "$MEDIA_SIGNING_DIR/formatreader.entitlements" "$path"
-      ;;
-    */yinaCodecs.appex)
-      codesign --force --sign "$SIGN_IDENTITY" --options runtime \
-        --entitlements "$MEDIA_SIGNING_DIR/videodecoder.entitlements" "$path"
-      ;;
-    *.app|*.appex|*.framework|*.xpc|*.bundle|*.mdimporter)
+    *.app|*.appex|*.framework|*.xpc|*.bundle)
       codesign --force --sign "$SIGN_IDENTITY" --options runtime "$path"
       ;;
   esac
@@ -146,8 +127,6 @@ ditto "$BUILD_APP" "$INSTALL_APP"
 
 codesign --verify --deep --strict "$INSTALL_APP"
 "$SCRIPT_DIR/verify_arm64_bundle.sh" "$INSTALL_APP"
-unregister_staging_app
-"$LSREGISTER" -f "$INSTALL_APP"
 
 # Keep exactly the rotating backup. This runs only after the new installed bundle
 # has verified, so a build or signing failure never removes a recoverable app.
