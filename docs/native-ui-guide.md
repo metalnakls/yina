@@ -46,6 +46,18 @@ Use these steps for AppKit and SwiftUI interface changes.
 
 ## Settled behavior and exception
 
+- Playback overlays must yield to the native window size. Use AppKit's
+  `dragThatCannotResizeWindow` for the OSC's preferred size and saved position;
+  `defaultHigh` can enlarge the window and break portrait video sizing. Retain
+  required viewport bounds. Verify with a real resizable `NSWindow`, because a
+  fixed-parent view test cannot catch this interaction. See
+  [portrait window sizing](portrait-window-sizing.md) for the reproduction and
+  Apple references.
+- Empty titlebar blur accessories must not request the window's initial width.
+  Use the documented `.bottom` placement, leave the initial width at zero, and
+  update only height when metrics change. AppKit owns the remaining dimension.
+  Verify native blur and actual portrait playback together.
+
 - The welcome window uses native content-fit sizing based on recent-row count,
   with a four-row minimum and the existing maximum height. It does not resize
   from scroll offsets or alter native scroll gestures or range. Revisit

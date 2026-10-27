@@ -223,6 +223,44 @@ origin = osc.measuredOriginInVideo
 precondition(abs(origin.x - osc.expectedX) < 0.5 && abs(origin.y - osc.expectedY) < 0.5,
   "Wide resize restore must preserve the established position preferences")
 
+// The real NSWindow resize preference is lower than defaultHigh. A fixed-parent
+// harness cannot catch an OSC that makes its ancestor window grow instead.
+let portraitWindow = NSWindow(contentRect: NSRect(x: 100, y: 100, width: 640, height: 400),
+  styleMask: [.titled, .resizable, .fullSizeContentView], backing: .buffered, defer: false)
+portraitWindow.minSize = NSSize(width: 285, height: 120)
+let portraitRoot = portraitWindow.contentView!
+let portraitVideo = NSView()
+portraitVideo.translatesAutoresizingMaskIntoConstraints = false
+portraitRoot.addSubview(portraitVideo)
+NSLayoutConstraint.activate([
+  portraitVideo.leadingAnchor.constraint(equalTo: portraitRoot.leadingAnchor),
+  portraitVideo.trailingAnchor.constraint(equalTo: portraitRoot.trailingAnchor),
+  portraitVideo.topAnchor.constraint(equalTo: portraitRoot.topAnchor),
+  portraitVideo.bottomAnchor.constraint(equalTo: portraitRoot.bottomAnchor)])
+let portraitController = WindowHarness()
+portraitController.videoViewContainer = portraitVideo
+let portraitOSC = FloatingOSCHarness(mainWindow: portraitController)
+portraitOSC.translatesAutoresizingMaskIntoConstraints = false
+portraitVideo.addSubview(portraitOSC)
+portraitOSC.heightAnchor.constraint(equalToConstant: 44).isActive = true
+portraitOSC.setupConstraints()
+portraitRoot.layoutSubtreeIfNeeded()
+portraitOSC.initPosition()
+portraitRoot.layoutSubtreeIfNeeded()
+portraitWindow.aspectRatio = NSSize(width: 9, height: 16)
+for width: CGFloat in [360, 300, 285, 360, 300] {{
+  portraitWindow.setContentSize(NSSize(width: width, height: width * 16 / 9))
+  portraitRoot.layoutSubtreeIfNeeded()
+  RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.05))
+  portraitRoot.layoutSubtreeIfNeeded()
+  precondition(abs(portraitWindow.frame.width - width) <= 1,
+    "OSC forced portrait window wider than requested: requested \\(width), actual \\(portraitWindow.frame)")
+  precondition(abs(portraitWindow.frame.width - portraitWindow.frame.height * 9 / 16) <= 1,
+    "OSC constraints distorted the native portrait aspect ratio")
+  portraitOSC.updatePosition()
+  portraitRoot.layoutSubtreeIfNeeded()
+}}
+
 print("PASS: production OSC follows pointer in native video coordinates, clamps actual geometry, and restores normalized position")
 '''
 

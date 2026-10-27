@@ -1,13 +1,21 @@
 #!/usr/bin/env python3
 """Exercise the actual AppKit soft edge with a generated checkerboard surface."""
-import pathlib, subprocess, tempfile
+import argparse, pathlib, subprocess, tempfile
+parser=argparse.ArgumentParser();parser.add_argument("--source-ref");args=parser.parse_args()
 s=pathlib.Path('yina/MainWindow.swift').read_text();host=s[s.index('final class VideoBackdropView'):]
-t=pathlib.Path('yina/Titlebar.swift').read_text();a=t.index('    edgeAccessory.layoutAttribute');b=t.index('\n    onTopButton.size',a)
+t=(subprocess.check_output(['git','show',args.source_ref+':yina/Titlebar.swift'],text=True) if args.source_ref else pathlib.Path('yina/Titlebar.swift').read_text());a=t.index('    edgeAccessory.layoutAttribute');b=t.index('\n    onTopButton.size',a)
 accessory=t[a:b].replace('edgeAccessory','accessory').replace('TitleBarHeightNormal','32')
+accessory=accessory.replace('window.addTitlebarAccessoryViewController(accessory)', '''
+precondition(accessory.view.frame.width <= window.minSize.width,
+  "Empty blur accessory must not demand a width larger than the playback minimum")
+precondition(accessory.layoutAttribute == .bottom,
+  "Use AppKit's supported height-based accessory placement")
+window.addTitlebarAccessoryViewController(accessory)''')
 code='''import Cocoa
 '''+host+'''
 NSApplication.shared.setActivationPolicy(.prohibited)
 let window=NSWindow(contentRect:NSRect(x:100,y:100,width:640,height:360),styleMask:[.titled,.closable,.resizable,.fullSizeContentView],backing:.buffered,defer:false)
+window.minSize=NSSize(width:285,height:120)
 window.titlebarAppearsTransparent=true;window.titleVisibility = .hidden;window.titlebarSeparatorStyle = .none
 let root=window.contentView!
 let scroll=VideoBackdropView();root.addSubview(scroll)
@@ -32,7 +40,7 @@ func descendants(_ view:NSView)->[NSView] { [view] + view.subviews.flatMap{desce
 // Observe what AppKit installed; production never accesses these private implementation classes.
 let nativeBlur=descendants(scroll).contains{String(describing:type(of:$0)).contains("PocketBlur")}
 precondition(nativeBlur,"AppKit did not create its native variable blur")
-for size in [NSSize(width:640,height:360),NSSize(width:320,height:180)] {
+for size in [NSSize(width:640,height:360),NSSize(width:320,height:180),NSSize(width:360,height:640),NSSize(width:300,height:534),NSSize(width:285,height:507)] {
  window.setContentSize(size);root.layoutSubtreeIfNeeded()
  RunLoop.main.run(until:Date(timeIntervalSinceNow:0.05));root.layoutSubtreeIfNeeded()
  scroll.contentView.scroll(to:NSPoint(x:40,y:50))

@@ -65,10 +65,10 @@ class Titlebar: NSView {
 
     translatesAutoresizingMaskIntoConstraints = false
 
-    edgeAccessory.layoutAttribute = .top
+    edgeAccessory.layoutAttribute = .bottom
     edgeAccessory.automaticallyAdjustsSize = false
     edgeAccessory.preferredScrollEdgeEffectStyle = .soft
-    edgeAccessory.view = NSView(frame: NSRect(x: 0, y: 0, width: window.frame.width,
+    edgeAccessory.view = NSView(frame: NSRect(x: 0, y: 0, width: 0,
                                              height: TitleBarHeightNormal))
     window.addTitlebarAccessoryViewController(edgeAccessory)
 
@@ -107,7 +107,10 @@ class Titlebar: NSView {
     titleHeightConstraint = titlebarContainer.heightAnchor.constraint(equalToConstant: 0)
     LayoutValue.titlebarHeight.use { [weak self] value in
       self?.titleHeightConstraint.constant = value
-      self?.edgeAccessory.view.setFrameSize(NSSize(width: self?.bounds.width ?? 0, height: value))
+      guard let self else { return }
+      var accessorySize = self.edgeAccessory.view.frame.size
+      accessorySize.height = value
+      self.edgeAccessory.view.setFrameSize(accessorySize)
     }
     titleHeightConstraint.isActive = true
 

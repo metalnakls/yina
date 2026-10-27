@@ -352,8 +352,10 @@ class OSCFloatingView: TranslucentView {
   func setupConstraints() {
     let videoView = mainWindow.videoViewContainer!
 
+    // OSC size and placement must yield to AppKit's window-size constraint.
+    // defaultHigh would let this overlay widen portrait playback windows.
     let preferredWidth = widthAnchor.constraint(equalToConstant: Self.preferredWidth)
-    preferredWidth.priority = .defaultHigh
+    preferredWidth.priority = .dragThatCannotResizeWindow
     preferredWidth.isActive = true
     widthAnchor.constraint(lessThanOrEqualTo: videoView.widthAnchor,
                            constant: -2 * Self.horizontalInset).isActive = true
@@ -364,11 +366,11 @@ class OSCFloatingView: TranslucentView {
 
     xConstraint = leftAnchor.constraint(equalTo: videoView.leftAnchor,
                                         constant: Self.horizontalInset)
-    xConstraint.priority = .defaultHigh
+    xConstraint.priority = .dragThatCannotResizeWindow
     xConstraint.isActive = true
 
     yConstraint = videoView.bottomAnchor.constraint(equalTo: bottomAnchor)
-    yConstraint.priority = .defaultHigh
+    yConstraint.priority = .dragThatCannotResizeWindow
     yConstraint.isActive = true
   }
 
