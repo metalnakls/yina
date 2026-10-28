@@ -868,17 +868,32 @@ class PlayerCore: NSObject {
     mpv.setFlag(MPVOption.PlaybackControl.pause, true, level: .verbose)
   }
 
+  private static let resumeTimingLog = OSLog(subsystem: "tsmc.yina", category: "PlaybackResume")
+
+  /// Keep begin/end records even when session file logging is disabled. No media paths are logged.
+  private func measureResumeStage<T>(_ stage: StaticString, _ operation: () -> T) -> T {
+    let started = ProcessInfo.processInfo.systemUptime
+    os_log("Begin %{public}@", log: Self.resumeTimingLog, type: .default, String(describing: stage))
+    defer {
+      os_log("End %{public}@: %.1f ms", log: Self.resumeTimingLog, type: .default,
+             String(describing: stage), (ProcessInfo.processInfo.systemUptime - started) * 1000)
+    }
+    return operation()
+  }
+
   /// Resume playback.
   /// - Important: Although primary responsibility for ensuring the display link is running when playback is in progress belongs to
   ///     the `pauseChanged` method, this method calls `displayActive` to provide more time for the display link to start up.
   func resume() {
     log("Resuming playback")
-    mainWindow.videoView.displayActive()
+    measureResumeStage("displayActive") { mainWindow.videoView.displayActive() }
     // Restart playback when reached EOF
-    if mpv.getFlag(MPVProperty.eofReached) {
-      seek(absoluteSecond: 0)
+    if measureResumeStage("eofReached", { mpv.getFlag(MPVProperty.eofReached) }) {
+      measureResumeStage("restartSeek") { seek(absoluteSecond: 0) }
     }
-    mpv.setFlag(MPVOption.PlaybackControl.pause, false, level: .verbose)
+    measureResumeStage("unpause") {
+      mpv.setFlag(MPVOption.PlaybackControl.pause, false, level: .verbose)
+    }
   }
 
   /// Stop playback and unload the media.
@@ -2482,9 +2497,11 @@ class PlayerCore: NSObject {
       sendOSD(paused ? .pause : .resume)
       // The NowPlayingInfoManager is notified when playback is paused or resumed. The video
       // position must be updated before notifying the manager.
-      syncUITime()
-      info.state = paused ? .paused : .playing
-      refreshSyncUITimer()
+      measureResumeStage("pauseChanged.syncUITime") { syncUITime() }
+      measureResumeStage("pauseChanged.stateAndTimer") {
+        info.state = paused ? .paused : .playing
+        refreshSyncUITimer()
+      }
       // Follow energy efficiency best practices and ensure YINA is absolutely idle when the video
       // is paused to avoid wasting energy with needless processing. If paused shutdown the timer
       // that synchronizes the UI and the high priority display link thread.
@@ -2973,7 +2990,9 @@ class PlayerCore: NSObject {
 
     case .playButton:
       DispatchQueue.main.async { [self] in
-        currentController.updatePlayButtonState(paused: info.state == .paused)
+        measureResumeStage("playButton") {
+          currentController.updatePlayButtonState(paused: info.state == .paused)
+        }
       }
 
     case .volume:
