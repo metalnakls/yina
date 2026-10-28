@@ -152,9 +152,7 @@ class InitialWindowController: NSWindowController {
   }
 
   private static func folderHasYINAMetadata(_ folderURL: URL) -> Bool {
-    FileManager.default.fileExists(atPath: folderURL
-      .appendingPathComponent(".yina-multiplayer", isDirectory: true)
-      .appendingPathComponent("room.json", isDirectory: false).path)
+    FileManager.default.fileExists(atPath: folderURL.appendingPathComponent(".yina.json").path)
   }
 
   private func makeRecentDocumentsList(excludingFolderPaths: Set<String>,

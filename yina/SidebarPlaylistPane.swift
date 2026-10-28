@@ -29,6 +29,21 @@ class SidebarPlaylistPane: NSView, SidebarPane {
   weak var player: PlayerCore!
 
   private var scrollView: NSScrollView!
+  private let indexTable = NSTableView()
+  private let indexDate = NSTextField(labelWithString: "")
+  private let indexPane = NSStackView()
+  private let playlistColumn = NSStackView()
+  private var indexSnapshot: ShowEpisodeIndexReader.Snapshot?
+  private var indexEpisodes: [ShowEpisodeIndexReader.Episode] = []
+  private var indexExpiry: Timer?
+  private var indexGeneration = 0
+  private let indexReads: OperationQueue = {
+    let queue = OperationQueue()
+    queue.name = "YINAReadShowInventory"
+    queue.qualityOfService = .utility
+    queue.maxConcurrentOperationCount = 1
+    return queue
+  }()
   var tableView: NSTableView!
   private var totalLengthLabel: NSTextField!
 
@@ -76,6 +91,8 @@ class SidebarPlaylistPane: NSView, SidebarPane {
     LayoutValue.tableRowHeight.use { [weak self] val in
       self?.tableView.rowHeight = val
       self?.tableView.reloadData()
+      self?.indexTable.rowHeight = val
+      self?.indexTable.reloadData()
     }
 
     let isChosenColumn = NSTableColumn(identifier: .isChosen)
@@ -95,9 +112,37 @@ class SidebarPlaylistPane: NSView, SidebarPane {
     buttonContainer.addSubview(buttonStack)
     buttonStack.padding(.horizontal(.toolbarPaddingHorizontal), .vertical(.toolbarPaddingVertical))
 
-    addSubview(scrollView)
+    indexTable.headerView = nil
+    indexTable.addTableColumn(NSTableColumn(identifier: NSUserInterfaceItemIdentifier("inventory")))
+    indexTable.delegate = self
+    indexTable.dataSource = self
+    indexTable.rowHeight = LayoutValue.tableRowHeight.get()
+    indexTable.selectionHighlightStyle = .none
+    indexTable.backgroundColor = .clear
+    let indexScroll = NSScrollView()
+    indexScroll.translatesAutoresizingMaskIntoConstraints = false
+    indexScroll.documentView = indexTable
+    indexScroll.drawsBackground = false
+    indexScroll.hasVerticalScroller = true
+    indexScroll.autohidesScrollers = true
+    let heading = NSTextField(labelWithString: NSLocalizedString("playlist.unavailable_episodes", value: "Unavailable Episodes", comment: ""))
+    heading.font = .preferredFont(forTextStyle: .headline)
+    indexDate.font = .preferredFont(forTextStyle: .caption1)
+    indexDate.textColor = .secondaryLabelColor
+    indexPane.translatesAutoresizingMaskIntoConstraints = false
+    indexPane.orientation = .vertical
+    indexPane.alignment = .width
+    [heading, indexDate, indexScroll].forEach { indexPane.addArrangedSubview($0) }
+    indexPane.isHidden = true
+    playlistColumn.orientation = .vertical
+    playlistColumn.alignment = .width
+    playlistColumn.distribution = .fillEqually
+    playlistColumn.detachesHiddenViews = true
+    [scrollView!, indexPane].forEach { playlistColumn.addArrangedSubview($0) }
+    playlistColumn.translatesAutoresizingMaskIntoConstraints = false
+    addSubview(playlistColumn)
     addSubview(buttonContainer)
-    scrollView.padding(.top, .horizontal).spacing(.bottom, to: buttonContainer)
+    playlistColumn.padding(.top, .horizontal).spacing(.bottom, to: buttonContainer)
     buttonContainer.padding(.bottom, .horizontal)
 
     prefObserver.addAll(.playlistShowMetadata, .playlistShowMetadataInMusicMode) { [unowned self] _ in
@@ -106,6 +151,12 @@ class SidebarPlaylistPane: NSView, SidebarPane {
 
     player.observe(.yinaFileLoaded) { [unowned self] _ in
       updateTable()
+      readEpisodeIndex()
+    }
+    player.observe(.yinaPlayerStopped) { [unowned self] _ in
+      indexGeneration &+= 1
+      indexReads.cancelAllOperations()
+      showEpisodeIndex(nil)
     }
 
 
@@ -126,6 +177,80 @@ class SidebarPlaylistPane: NSView, SidebarPane {
     guard player.info.state.active else { return }
     player.getPlaylist()
     tableView.reloadData()
+  }
+
+  override func viewDidMoveToWindow() {
+    super.viewDidMoveToWindow()
+    if window == nil {
+      indexGeneration &+= 1
+      indexReads.cancelAllOperations()
+      indexExpiry?.invalidate()
+    } else { readEpisodeIndex() }
+  }
+
+  override func viewDidUnhide() {
+    super.viewDidUnhide()
+    readEpisodeIndex()
+  }
+
+  private func readEpisodeIndex() {
+    indexGeneration &+= 1
+    indexReads.cancelAllOperations()
+    showEpisodeIndex(nil)
+    guard window != nil, !isHiddenOrHasHiddenAncestor,
+          let media = player.info.currentURL, media.isFileURL else { return }
+    let generation = indexGeneration
+    let operation = BlockOperation()
+    operation.addExecutionBlock { [weak self, weak operation] in
+      guard operation?.isCancelled == false else { return }
+      let snapshot = ShowEpisodeIndexReader.read(for: media)
+      guard operation?.isCancelled == false else { return }
+      DispatchQueue.main.async { [weak self] in
+        guard let self, self.indexGeneration == generation,
+              self.player.info.currentURL == media, self.window != nil else { return }
+        self.showEpisodeIndex(snapshot)
+      }
+    }
+    indexReads.addOperation(operation)
+  }
+
+  private func showEpisodeIndex(_ snapshot: ShowEpisodeIndexReader.Snapshot?) {
+    indexExpiry?.invalidate()
+    indexSnapshot = snapshot
+    let fresh = snapshot?.isFresh() == true
+    indexEpisodes = snapshot?.episodes.filter { episode in
+      !(fresh && episode.size > 0 && episode.received >= episode.size &&
+        episode.exists == true && episode.localSize == episode.size)
+    } ?? []
+    indexPane.isHidden = indexEpisodes.isEmpty
+    indexTable.reloadData()
+    guard let snapshot else { indexDate.stringValue = ""; return }
+    let date = DateFormatter.localizedString(from: snapshot.capturedAt, dateStyle: .short, timeStyle: .short)
+    indexDate.stringValue = snapshot.isFresh() ? "Snapshot from Glass · \(date)" : "Snapshot from Glass · \(date) · status may be out of date"
+    if snapshot.isFresh() {
+      let delay = snapshot.capturedAt.addingTimeInterval(ShowEpisodeIndexReader.freshnessLimit).timeIntervalSinceNow
+      indexExpiry = Timer.scheduledTimer(withTimeInterval: max(0, delay), repeats: false) { [weak self] _ in
+        self?.showEpisodeIndex(snapshot)
+      }
+    }
+  }
+
+  private func episodeCell(at row: Int) -> NSView? {
+    guard indexEpisodes.indices.contains(row), let snapshot = indexSnapshot else { return nil }
+    let episode = indexEpisodes[row]
+    let status: String
+    if episode.exists == false { status = "Missing locally" }
+    else if !snapshot.isFresh() { status = "Status unknown (old snapshot)" }
+    else if episode.size > 0 && episode.received >= episode.size {
+      status = episode.localSize == nil ? "Local availability not checked" : "Local file size differs from snapshot"
+    } else if episode.wanted == false { status = "Not selected" }
+    else if episode.wanted == true { status = episode.received > 0 ? "Incomplete" : "Selected" }
+    else { status = "Status unknown" }
+    let label = NSTextField(labelWithString: "\(episode.path) — \(status)")
+    label.textColor = .secondaryLabelColor
+    label.lineBreakMode = .byTruncatingMiddle
+    label.toolTip = episode.path
+    return label
   }
 
   // MARK: - Total length
@@ -187,6 +312,7 @@ class SidebarPlaylistPane: NSView, SidebarPane {
 
 extension SidebarPlaylistPane: NSTableViewDelegate, NSTableViewDataSource {
   func numberOfRows(in tableView: NSTableView) -> Int {
+    if tableView === indexTable { return indexEpisodes.count }
     return player.info.$playlist.withLock { $0.count }
   }
 
@@ -201,7 +327,10 @@ extension SidebarPlaylistPane: NSTableViewDelegate, NSTableViewDataSource {
 
 
 
+  func tableView(_ tableView: NSTableView, shouldSelectRow row: Int) -> Bool { tableView !== indexTable }
+
   func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView? {
+    if tableView === indexTable { return NSTableRowView() }
     let identifier = NSUserInterfaceItemIdentifier("PlaylistRowView")
     if let rowView = tableView.makeView(withIdentifier: identifier, owner: self) as? PlaylistRowView {
       return rowView
@@ -212,6 +341,7 @@ extension SidebarPlaylistPane: NSTableViewDelegate, NSTableViewDataSource {
   }
 
   func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
+    if tableView === indexTable { return episodeCell(at: row) }
 
     guard let identifier = tableColumn?.identifier else { return nil }
 
