@@ -474,6 +474,9 @@ class MainWindowController: PlayerWindowController {
   }()
 
   private var oscSliderLabelConstraints: [NSLayoutConstraint] = []
+  private var floatingTimelineConstraints: [NSLayoutConstraint] = []
+  private var dockedTimeWidths: [NSLayoutConstraint] = []
+  private var timeLabelHugging: [NSLayoutConstraint.Priority] = []
 
   private var videoViewConstraints: [NSLayoutConstraint.Attribute: NSLayoutConstraint] = [:]
   private var videoContainerConstraints: [NSLayoutConstraint.Attribute: NSLayoutConstraint] = [:]
@@ -640,14 +643,17 @@ class MainWindowController: PlayerWindowController {
       label!.textColor = .secondaryLabelColor
       label!.alignment = .center
       label!.font = .monospacedDigitSystemFont(ofSize: 11, weight: .regular)
-      label!.widthAnchor.constraint(greaterThanOrEqualToConstant: 46).isActive = true
       label!.setContentCompressionResistancePriority(.required, for: .horizontal)
     }
     oscSliderView.translatesAutoresizingMaskIntoConstraints = false
     oscSliderView.addSubview(leftLabel)
     oscSliderView.addSubview(rightLabel)
     oscSliderView.addSubview(playSlider)
-    leftLabel.widthAnchor.constraint(equalTo: rightLabel.widthAnchor).isActive = true
+    dockedTimeWidths = [leftLabel.widthAnchor.constraint(equalTo: rightLabel.widthAnchor),
+                        leftLabel.widthAnchor.constraint(greaterThanOrEqualToConstant: 46),
+                        rightLabel.widthAnchor.constraint(greaterThanOrEqualToConstant: 46)]
+    NSLayoutConstraint.activate(dockedTimeWidths)
+    timeLabelHugging = [leftLabel, rightLabel].map { $0!.contentHuggingPriority(for: .horizontal) }
     leftLabel.center(.y, with: playSlider)
     rightLabel.center(.y, with: playSlider)
     oscSliderLabelConstraints = [
@@ -657,6 +663,12 @@ class MainWindowController: PlayerWindowController {
       rightLabel.leadingAnchor.constraint(equalTo: playSlider.trailingAnchor, constant: 2)
     ]
     NSLayoutConstraint.activate(oscSliderLabelConstraints)
+    floatingTimelineConstraints = [
+      leftLabel.leadingAnchor.constraint(equalTo: oscSliderView.leadingAnchor),
+      playSlider.leadingAnchor.constraint(equalToSystemSpacingAfter: leftLabel.trailingAnchor, multiplier: 1),
+      rightLabel.leadingAnchor.constraint(equalToSystemSpacingAfter: playSlider.trailingAnchor, multiplier: 1),
+      rightLabel.trailingAnchor.constraint(equalTo: oscSliderView.trailingAnchor)
+    ]
     oscPlaySliderTopConstraint = playSlider.topAnchor.constraint(equalTo: oscSliderView.topAnchor,
                                                                  constant: DockedOSCLayout.playSliderInset)
     oscPlaySliderBottomConstraint = oscSliderView.bottomAnchor.constraint(equalTo: playSlider.bottomAnchor,
@@ -1202,6 +1214,15 @@ class MainWindowController: PlayerWindowController {
     (playButton as? OSCButton)?.setQuickTimeStyle(enabled, role: enabled ? .standard : .primary)
     (rightArrowButton as? OSCButton)?.setQuickTimeStyle(enabled, role: .transport)
     playSlider.setQuickTimeStyle(enabled)
+    NSLayoutConstraint.deactivate(enabled ? oscSliderLabelConstraints : floatingTimelineConstraints)
+    NSLayoutConstraint.deactivate(dockedTimeWidths)
+    NSLayoutConstraint.activate(enabled ? floatingTimelineConstraints : oscSliderLabelConstraints)
+    if !enabled { NSLayoutConstraint.activate(dockedTimeWidths) }
+    for (index, label) in [leftLabel, rightLabel].enumerated() {
+      label!.setContentHuggingPriority(enabled ? .required : timeLabelHugging[index], for: .horizontal)
+    }
+    leftLabel.alignment = enabled ? .right : .center
+    rightLabel.alignment = enabled ? .left : .center
     // Keep both time labels in every OSC layout; only the timeline compresses.
     leftLabel.isHidden = false
     rightLabel.isHidden = false
