@@ -978,6 +978,8 @@ final class ShowFolderShelfView: NSView {
       }
       // Remove the invisible slot before reflow. Keeping a zero-width slot
       // conflicts with the fixed-width card inside it and distorts its siblings.
+      self.cards.removeValue(forKey: path)
+      self.items.removeValue(forKey: path)
       NSAnimationContext.runAnimationGroup { context in
         context.duration = reflowDuration
         context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
@@ -986,8 +988,6 @@ final class ShowFolderShelfView: NSView {
         item.removeFromSuperview()
         self.layoutSubtreeIfNeeded()
       } completionHandler: {
-        self.cards.removeValue(forKey: path)
-        self.items.removeValue(forKey: path)
         self.dismissingPaths.remove(path)
         completion()
       }
