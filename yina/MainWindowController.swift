@@ -1244,7 +1244,7 @@ class MainWindowController: PlayerWindowController {
 
   private func quickTimePlayButtonImage(paused: Bool) -> NSImage? {
     .sf(paused ? "play.fill" : "pause.fill",
-        withConfiguration: .init(textStyle: .body, scale: .medium))
+        withConfiguration: .init(scale: .large))
   }
 
   // MARK: - Mouse / Trackpad events

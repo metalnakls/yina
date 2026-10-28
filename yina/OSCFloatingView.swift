@@ -77,9 +77,9 @@ class OSCButton: NSButton {
       bezelStyle = usesNativeBezel ? .glass : .shadowlessSquare
       isBordered = usesNativeBezel
       if usesNativeBezel {
-        controlSize = .regular
+        controlSize = .large
         borderShape = .circle
-        symbolConfiguration = .init(textStyle: .body, scale: .medium)
+        symbolConfiguration = .init(scale: .large)
       }
       contentTintColor = extendedDynamicRangeHeadroom > 1
         ? .hdrWhite(intensity: 0.84, headroom: extendedDynamicRangeHeadroom)
