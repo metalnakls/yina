@@ -9,6 +9,14 @@
 import Cocoa
 
 class TimeLabelOverflowedView: NSView {
+  var usesNativeAlignment = false {
+    didSet {
+      guard usesNativeAlignment != oldValue else { return }
+      invalidateIntrinsicContentSize()
+      needsUpdateConstraints = true
+    }
+  }
+
   override init(frame frameRect: NSRect) {
     super.init(frame: frameRect)
     /// As per Apple's [Internationalization and Localization Guide](https://developer.apple.com/library/archive/documentation/MacOSX/Conceptual/BPInternational/SupportingRight-To-LeftLanguages/SupportingRight-To-LeftLanguages.html)
@@ -21,7 +29,7 @@ class TimeLabelOverflowedView: NSView {
   }
   
   override var alignmentRectInsets: NSEdgeInsets {
-    return NSEdgeInsets(top: 6, left: 0, bottom: 0, right: 0)
+    return usesNativeAlignment ? super.alignmentRectInsets : NSEdgeInsets(top: 6, left: 0, bottom: 0, right: 0)
   }
 
 }
