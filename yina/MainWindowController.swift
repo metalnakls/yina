@@ -107,7 +107,7 @@ class MainWindowController: PlayerWindowController {
 
   var oscVolumeView: NSView!
   var oscToolbarView: NSStackView!
-  var oscSliderView: TimeLabelOverflowedView!
+  var oscSliderView: NSView!
   private var oscPlaySliderTopConstraint: NSLayoutConstraint!
   private var oscPlaySliderBottomConstraint: NSLayoutConstraint!
   private var oscEDREnabled = false
@@ -1210,7 +1210,6 @@ class MainWindowController: PlayerWindowController {
   }
 
   private func configureQuickTimeOSC(_ enabled: Bool) {
-    oscSliderView.usesNativeAlignment = enabled
     (leftArrowButton as? OSCButton)?.setQuickTimeStyle(enabled, role: .transport)
     (rightArrowButton as? OSCButton)?.setQuickTimeStyle(enabled, role: .transport)
     playSlider.setQuickTimeStyle(enabled)
