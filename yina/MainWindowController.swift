@@ -1211,7 +1211,6 @@ class MainWindowController: PlayerWindowController {
 
   private func configureQuickTimeOSC(_ enabled: Bool) {
     (leftArrowButton as? OSCButton)?.setQuickTimeStyle(enabled, role: .transport)
-    (playButton as? OSCButton)?.setQuickTimeStyle(enabled, role: enabled ? .standard : .primary)
     (rightArrowButton as? OSCButton)?.setQuickTimeStyle(enabled, role: .transport)
     playSlider.setQuickTimeStyle(enabled)
     NSLayoutConstraint.deactivate(enabled ? oscSliderLabelConstraints : floatingTimelineConstraints)
@@ -1238,13 +1237,14 @@ class MainWindowController: PlayerWindowController {
     } else {
       playButton.image = NSImage(named: player.info.state == .playing ? "pause" : "play")
     }
+    (playButton as? OSCButton)?.setQuickTimeStyle(enabled, role: enabled ? .standard : .primary)
     updateArrowButtons()
     updateOSCExtendedDynamicRange(force: true)
   }
 
   private func quickTimePlayButtonImage(paused: Bool) -> NSImage? {
     .sf(paused ? "play.fill" : "pause.fill",
-        withConfiguration: .init(pointSize: 32, weight: .medium))
+        withConfiguration: .init(textStyle: .body, scale: .medium))
   }
 
   // MARK: - Mouse / Trackpad events

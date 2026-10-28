@@ -28,6 +28,10 @@ class OSCButton: NSButton {
   private var originalImagePosition: NSControl.ImagePosition?
   private var originalBezelStyle: NSButton.BezelStyle?
   private var originalIsBordered: Bool?
+  private var originalBorderShape: NSControl.BorderShape?
+  private var originalControlSize: NSControl.ControlSize?
+  private var originalSymbolConfiguration: NSImage.SymbolConfiguration?
+  private var usesNativeBezel = false
   private var originalContentTintColor: NSColor?
   private var originalConstraintSizes: [ObjectIdentifier: CGFloat] = [:]
   private var usesQuickTimeStyle = false
@@ -59,15 +63,24 @@ class OSCButton: NSButton {
       originalImagePosition = imagePosition
       originalBezelStyle = bezelStyle
       originalIsBordered = isBordered
+      originalBorderShape = borderShape
+      originalControlSize = controlSize
+      originalSymbolConfiguration = symbolConfiguration
       originalContentTintColor = contentTintColor
     }
 
     usesQuickTimeStyle = enabled
+    usesNativeBezel = enabled && role == .standard
     if enabled {
       imagePosition = .imageOnly
       imageScaling = .scaleProportionallyDown
-      bezelStyle = .shadowlessSquare
-      isBordered = false
+      bezelStyle = usesNativeBezel ? .glass : .shadowlessSquare
+      isBordered = usesNativeBezel
+      if usesNativeBezel {
+        controlSize = .regular
+        borderShape = .circle
+        symbolConfiguration = .init(textStyle: .body, scale: .medium)
+      }
       contentTintColor = extendedDynamicRangeHeadroom > 1
         ? .hdrWhite(intensity: 0.84, headroom: extendedDynamicRangeHeadroom)
         : .white.withAlphaComponent(0.84)
@@ -76,10 +89,19 @@ class OSCButton: NSButton {
       imageScaling = originalImageScaling!
       bezelStyle = originalBezelStyle!
       isBordered = originalIsBordered!
+      borderShape = originalBorderShape!
+      controlSize = originalControlSize!
+      symbolConfiguration = originalSymbolConfiguration
       contentTintColor = originalContentTintColor
       setPressed(false)
     }
 
+    // Fix both dimensions at the native bezel's fitting size. Releasing these
+    // constraints lets the button absorb the timeline's remaining width.
+    let fitting = intrinsicContentSize
+    let nativeSide = max(fitting.width, fitting.height)
+    let side = usesNativeBezel && nativeSide.isFinite && nativeSide > 0
+      ? nativeSide : role.floatingSize
     for constraint in constraints where (constraint.firstItem as? NSButton) === self {
       guard constraint.secondItem == nil,
             constraint.firstAttribute == .width || constraint.firstAttribute == .height else { continue }
@@ -87,12 +109,12 @@ class OSCButton: NSButton {
       if originalConstraintSizes[key] == nil {
         originalConstraintSizes[key] = constraint.constant
       }
-      constraint.constant = enabled ? role.floatingSize : originalConstraintSizes[key]!
+      constraint.constant = enabled ? side : originalConstraintSizes[key]!
     }
   }
 
   override func mouseDown(with event: NSEvent) {
-    if usesQuickTimeStyle {
+    if usesQuickTimeStyle && !usesNativeBezel {
       setPressed(true)
       super.mouseDown(with: event)
       setPressed(false)
@@ -102,7 +124,7 @@ class OSCButton: NSButton {
   }
 
   override func draw(_ dirtyRect: NSRect) {
-    guard usesQuickTimeStyle else {
+    guard usesQuickTimeStyle && !usesNativeBezel else {
       super.draw(dirtyRect)
       return
     }
