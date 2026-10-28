@@ -163,12 +163,16 @@ class InitialWindowController: NSWindowController {
                                        previousAvailability: [String: Bool]) -> [RecentDocument] {
     let now = Date()
     let cutoffDate = now.addingTimeInterval(-ShowFolder.inactivityInterval)
+    let dismissed = WelcomeRecentDismissals.dates
     var seen = Set<String>()
     var urls: [URL] = []
 
-    func append(_ url: URL) {
+    func append(_ url: URL, playedAt: Date? = nil) {
       guard urls.count < Self.maximumRecentDocumentCount else { return }
       let identity = documentIdentity(url)
+      if let date = dismissed[identity] {
+        guard let playedAt, playedAt > date else { return }
+      }
       if url.isFileURL,
          excludingFolderPaths.contains(url.deletingLastPathComponent().standardizedFileURL.path) {
         return
@@ -179,15 +183,15 @@ class InitialWindowController: NSWindowController {
 
     if Preference.bool(for: .recordRecentFiles) {
       let history = HistoryController.shared.$history.withLock { $0.map { $0.detachedCopy() } }
-      do {
-        for entry in history.lazy
-          .filter({ $0.addedDate >= cutoffDate })
-          .prefix(Self.maximumRecentDocumentCount) {
-          append(entry.resolvedURL())
-        }
+      for entry in history where entry.addedDate >= cutoffDate {
+        append(entry.resolvedURL(), playedAt: entry.addedDate)
+        if urls.count == Self.maximumRecentDocumentCount { break }
       }
     } else {
-      appKitRecents.prefix(Self.maximumRecentDocumentCount).forEach(append)
+      for url in appKitRecents {
+        append(url)
+        if urls.count == Self.maximumRecentDocumentCount { break }
+      }
     }
 
     return urls.map { url in
@@ -265,6 +269,7 @@ class InitialWindowController: NSWindowController {
       self.isRecentListKeyboardActive = selection != nil
       self.showFolderShelf.setKeyboardSelectedCard(identityPath: selection == nil ? self.showFolders.first?.identityPath : nil)
     }
+    recentListModel.dismiss = { [weak self] id in self?.dismissRecent(id) }
     recentListModel.scrolled = { [weak self] offset in self?.recentListDidScroll(offset) }
     let recentListHost = NSHostingView(rootView: WelcomeRecentsView(model: recentListModel))
     recentListHost.safeAreaRegions = []
@@ -676,6 +681,17 @@ class InitialWindowController: NSWindowController {
     mediaOpenQueue.addOperation(operation)
   }
 
+  private func dismissRecent(_ id: String) {
+    guard recentDocuments.contains(where: { documentIdentity($0.url) == id }) else { return }
+    WelcomeRecentDismissals.hide(id)
+    recentDocuments.removeAll { documentIdentity($0.url) == id }
+    WelcomeRecentSnapshotStore.save(recentDocuments.map(\.url))
+    publishRecentItems()
+    updateRecentLayout()
+    updateEmptyState()
+    reloadData()
+  }
+
   private func selectRecentDocument(at index: Int) {
     guard recentDocuments.indices.contains(index), recentDocuments[index].isAvailable else { return }
     isRecentListKeyboardActive = true
@@ -760,7 +776,7 @@ class InitialWindowController: NSWindowController {
          collapsedFolderPaths.contains(url.deletingLastPathComponent().path) {
         return false
       }
-      return !collapsedDocumentIdentities.contains(documentIdentity(url))
+      return !collapsedDocumentIdentities.contains(documentIdentity(url)) && WelcomeRecentDismissals.dates[documentIdentity(url)] == nil
     } : []
     guard !cachedURLs.isEmpty else { return }
     recentDocuments = cachedURLs.prefix(Self.maximumRecentDocumentCount).map {
@@ -1010,6 +1026,19 @@ extension InitialWindowController {
 
 }
 
+private enum WelcomeRecentDismissals {
+  // Keep the existing persistence key so already-dismissed items stay dismissed.
+  private static let key = "YINADismissedWelcomeRecentDocuments"
+  static var dates: [String: Date] {
+    (AppEnvironment.defaults.dictionary(forKey: key) ?? [:]).compactMapValues { $0 as? Date }
+  }
+  static func hide(_ id: String) {
+    var saved = dates
+    saved[id] = Date()
+    AppEnvironment.defaults.set(saved, forKey: key)
+  }
+}
+
 private struct WelcomeRecentItem: Identifiable {
   let id: String
   let title: String
@@ -1026,6 +1055,7 @@ private final class WelcomeRecentsModel: ObservableObject {
   @Published var coveredTop: CGFloat = 0
   @Published var resetID = 0
   var open: ((String) -> Void)?
+  var dismiss: ((String) -> Void)?
   var scrolled: ((CGFloat) -> Void)?
   var selectionChanged: ((String?) -> Void)?
 }
@@ -1059,6 +1089,7 @@ private struct WelcomeRecentsView: View {
           .listRowInsets(EdgeInsets(top: 1, leading: 0, bottom: 1, trailing: 0))
           .listRowBackground(Color.clear)
           .listRowSeparator(.hidden)
+          .contextMenu { Button("Dismiss") { model.dismiss?(item.id) } }
         }
       }
       .listStyle(.plain)
