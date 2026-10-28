@@ -250,6 +250,7 @@ class OSCFloatingView: TranslucentView {
 
   var isDragging: Bool = false
   private var didDrag = false
+  private var isAlignFeedbackSent = false
   private var dragStartPointerInVideo: NSPoint?
   private var dragStartOriginInVideo: NSPoint?
   private var xConstraint: NSLayoutConstraint!
@@ -433,6 +434,7 @@ class OSCFloatingView: TranslucentView {
     let videoView = mainWindow.videoViewContainer!
     dragStartPointerInVideo = videoView.convert(event.locationInWindow, from: nil)
     dragStartOriginInVideo = convert(.zero, to: videoView)
+    isAlignFeedbackSent = abs(xConstraint.constant - (videoView.bounds.width - barSize.width) / 2) <= 5
     didDrag = false
     isDragging = true
   }
@@ -444,8 +446,21 @@ class OSCFloatingView: TranslucentView {
     let pointer = videoView.convert(event.locationInWindow, from: nil)
     let deltaX = pointer.x - dragStartPointerInVideo.x
     let deltaY = pointer.y - dragStartPointerInVideo.y
-    xConstraint.constant = clampedX(dragStartOriginInVideo.x + deltaX,
-                                    inWidth: videoView.bounds.width)
+    var proposedX = dragStartOriginInVideo.x + deltaX
+    // Restore the original center detent and alignment feedback.
+    if Preference.bool(for: .controlBarStickToCenter) {
+      let centeredX = (videoView.bounds.width - barSize.width) / 2
+      if abs(proposedX - centeredX) <= 5 {
+        proposedX = centeredX
+        if !isAlignFeedbackSent {
+          NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .default)
+          isAlignFeedbackSent = true
+        }
+      } else {
+        isAlignFeedbackSent = false
+      }
+    }
+    xConstraint.constant = clampedX(proposedX, inWidth: videoView.bounds.width)
     yConstraint.constant = clampedY(dragStartOriginInVideo.y + deltaY,
                                     inHeight: videoView.bounds.height)
   }
