@@ -246,6 +246,12 @@ class OSCFloatingView: TranslucentView {
 
   var oscBottomView: TimeLabelOverflowedStackView!
 
+  /// Share AppKit's outer content margin with the timeline gaps without copying its value.
+  var horizontalContentMargin: NSLayoutDimension {
+    content!.leadingAnchor.anchorWithOffset(to: content!.layoutMarginsGuide.leadingAnchor)
+  }
+
+
   private var yConstraint: NSLayoutConstraint!
 
   var isDragging: Bool = false

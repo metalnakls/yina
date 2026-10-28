@@ -665,8 +665,10 @@ class MainWindowController: PlayerWindowController {
     NSLayoutConstraint.activate(oscSliderLabelConstraints)
     floatingTimelineConstraints = [
       leftLabel.leadingAnchor.constraint(equalTo: oscSliderView.leadingAnchor),
-      playSlider.leadingAnchor.constraint(equalToSystemSpacingAfter: leftLabel.trailingAnchor, multiplier: 1),
-      rightLabel.leadingAnchor.constraint(equalToSystemSpacingAfter: playSlider.trailingAnchor, multiplier: 1),
+      leftLabel.trailingAnchor.anchorWithOffset(to: playSlider.leadingAnchor)
+        .constraint(equalTo: oscFloatingView.horizontalContentMargin),
+      playSlider.trailingAnchor.anchorWithOffset(to: rightLabel.leadingAnchor)
+        .constraint(equalTo: oscFloatingView.horizontalContentMargin),
       rightLabel.trailingAnchor.constraint(equalTo: oscSliderView.trailingAnchor)
     ]
     oscPlaySliderTopConstraint = playSlider.topAnchor.constraint(equalTo: oscSliderView.topAnchor,
