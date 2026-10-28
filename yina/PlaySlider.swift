@@ -59,26 +59,7 @@ private final class FloatingPlaySliderCell: NSSliderCell {
     NSGraphicsContext.restoreGraphicsState()
   }
 
-  // AppKit draws the same thumb and owns its tracking geometry in SDR and HDR.
-  override func drawBar(inside rect: NSRect, flipped: Bool) {
-    let knob = knobRect(flipped: flipped)
-    let progress = min(max(knob.midX, rect.minX), rect.maxX)
-    let path = NSBezierPath(roundedRect: rect, xRadius: rect.height / 2, yRadius: rect.height / 2)
 
-    NSGraphicsContext.saveGraphicsState()
-    NSBezierPath(rect: NSRect(x: rect.minX, y: rect.minY,
-                              width: progress - rect.minX, height: rect.height)).addClip()
-    NSColor.hdrWhite(intensity: 0.45, headroom: extendedDynamicRangeHeadroom).setFill()
-    path.fill()
-    NSGraphicsContext.restoreGraphicsState()
-
-    NSGraphicsContext.saveGraphicsState()
-    NSBezierPath(rect: NSRect(x: progress, y: rect.minY,
-                              width: rect.maxX - progress, height: rect.height)).addClip()
-    NSColor(white: 0.3, alpha: 0.5).setFill()
-    path.fill()
-    NSGraphicsContext.restoreGraphicsState()
-  }
 }
 
 extension NSSlider {
