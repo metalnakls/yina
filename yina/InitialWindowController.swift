@@ -10,6 +10,26 @@ import Cocoa
 import SwiftUI
 import UniformTypeIdentifiers
 
+private final class WelcomeShelfDrawingView: NSView {
+  let shelf: ShowFolderShelfView
+
+  init(shelf: ShowFolderShelfView) {
+    self.shelf = shelf
+    super.init(frame: .zero)
+    clipsToBounds = false
+    shelf.translatesAutoresizingMaskIntoConstraints = true
+    shelf.autoresizingMask = []
+    addSubview(shelf)
+  }
+
+  required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+  override func hitTest(_ point: NSPoint) -> NSView? {
+    guard shelf.frame.contains(convert(point, from: superview)) else { return nil }
+    return super.hitTest(point)
+  }
+}
+
 class InitialWindowController: NSWindowController {
 
   private static let maximumShowFolderCount = 20
@@ -282,7 +302,9 @@ class InitialWindowController: NSWindowController {
     shelf.hasShadow = false
     shelf.isReleasedWhenClosed = false
     shelf.level = window.level
-    shelf.contentView = showFolderShelf
+    shelf.collectionBehavior = [.transient, .auxiliary, .ignoresCycle]
+    shelf.isExcludedFromWindowsMenu = true
+    shelf.contentView = WelcomeShelfDrawingView(shelf: showFolderShelf)
     shelf.appearance = window.appearance
     shelfWindow = shelf
     window.addChildWindow(shelf, ordered: .above)
@@ -391,10 +413,16 @@ class InitialWindowController: NSWindowController {
                        y: parentFrame.maxY - ShowFolderShelfView.height / 2 + ShowFolderCardView.size.height / 4,
                        width: width,
                        height: ShowFolderShelfView.height)
-    if shelfWindow.frame != frame {
-      shelfWindow.setFrame(frame, display: false)
-      showFolderShelf.layoutSubtreeIfNeeded()
-    }
+    // Extend only the drawing strip horizontally; the native scroll viewport
+    // retains its original size and stays clear of the recent-list rows.
+    let screenFrame = screen?.frame ?? frame
+    let drawingFrame = NSRect(x: min(frame.minX, screenFrame.minX), y: frame.minY,
+                              width: max(frame.maxX, screenFrame.maxX) - min(frame.minX, screenFrame.minX),
+                              height: frame.height)
+    if shelfWindow.frame != drawingFrame { shelfWindow.setFrame(drawingFrame, display: false) }
+    showFolderShelf.frame = frame.offsetBy(dx: -drawingFrame.minX, dy: -drawingFrame.minY)
+    showFolderShelf.needsLayout = true
+    showFolderShelf.layoutSubtreeIfNeeded()
     updateShelfWindowVisibility()
   }
 

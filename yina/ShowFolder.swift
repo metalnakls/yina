@@ -339,6 +339,7 @@ final class ShowFolderCardView: NSView {
   init(show: ShowFolder, target: AnyObject, openAction: Selector, dismissAction: Selector) {
     self.show = show
     super.init(frame: NSRect(origin: .zero, size: Self.size))
+    clipsToBounds = false
     translatesAutoresizingMaskIntoConstraints = false
     wantsLayer = true
     layer?.masksToBounds = false
@@ -778,6 +779,7 @@ private final class ShowFolderShelfItemView: NSView {
   init(card: ShowFolderCardView) {
     self.card = card
     super.init(frame: .zero)
+    clipsToBounds = false
     translatesAutoresizingMaskIntoConstraints = false
     card.translatesAutoresizingMaskIntoConstraints = false
     addSubview(card)
@@ -814,8 +816,13 @@ final class ShowFolderShelfView: NSView {
 
   override init(frame frameRect: NSRect) {
     super.init(frame: frameRect)
+    clipsToBounds = false
     translatesAutoresizingMaskIntoConstraints = false
 
+    scrollView.clipsToBounds = false
+    scrollView.contentView.clipsToBounds = false
+    glassContainer.clipsToBounds = false
+    stackView.clipsToBounds = false
     scrollView.translatesAutoresizingMaskIntoConstraints = false
     scrollView.drawsBackground = false
     scrollView.borderType = .noBorder
