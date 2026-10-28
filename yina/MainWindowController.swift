@@ -2143,6 +2143,7 @@ class MainWindowController: PlayerWindowController {
           }
         }
         self.animationState = .hidden
+        self.window?.titleVisibility = .hidden
       }
     }
   }
@@ -2157,6 +2158,7 @@ class MainWindowController: PlayerWindowController {
     let previousAnimationState = animationState
     let isStartingShowTransition = previousAnimationState == .hidden || previousAnimationState == .willHide
     animationState = .willShow
+    window?.titleVisibility = .visible
     fadeableViews.forEach { (v) in
       v.isHidden = false
     }

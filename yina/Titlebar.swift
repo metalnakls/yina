@@ -160,7 +160,7 @@ class Titlebar: NSView {
     } else {
       container.setVisibilityPriority(.notVisible, for: oscContainer)
     }
-    window?.titleVisibility = .visible
+    window?.titleVisibility = mainWindow.animationState == .hidden ? .hidden : .visible
     // update vertical constraint
     updateVerticalConstraint(isDisplaying: !inFullScreen || hasOSC)
   }
