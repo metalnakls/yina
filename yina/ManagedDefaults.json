@@ -49,7 +49,6 @@
     "subTextColorString": "1.0/1.0/1.0/1.0",
     "subTextFont": "AppleGaramond",
     "subTextSize": 42.0,
-    "subVisibility": false,
     "themeMaterial": 4,
     "toneMappingAlgorithm": 3,
     "toneMappingTargetPeak": 1600,
