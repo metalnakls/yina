@@ -190,6 +190,8 @@ class InitialWindowController: NSWindowController {
                                            name: .yinaHistoryUpdated, object: nil)
     NotificationCenter.default.addObserver(self, selector: #selector(showExtensionsDidChange),
                                            name: Preference.showExtensionsDidChange, object: nil)
+    NotificationCenter.default.addObserver(self, selector: #selector(welcomeWindowMoved),
+                                           name: NSWindow.didMoveNotification, object: window)
     NotificationCenter.default.addObserver(self, selector: #selector(initialWindowWillClose),
                                            name: NSWindow.willCloseNotification, object: window)
     NotificationCenter.default.addObserver(self, selector: #selector(availabilityDidChange),
@@ -358,12 +360,16 @@ class InitialWindowController: NSWindowController {
     guard let window, let screen = window.screen ?? NSScreen.main else { return }
     let visibleFrame = screen.visibleFrame
     let windowFrame = window.frame
-    let cardOverflow = showFolders.isEmpty ? 0 : ShowFolderCardView.size.height / 2
+    let cardOverflow = showFolders.isEmpty ? 0 : ShowFolderCardView.size.height * 3 / 4
     let lowerBound = visibleFrame.minY
     let upperBound = max(lowerBound, visibleFrame.maxY - windowFrame.height - cardOverflow)
     let originY = min(max(visibleFrame.midY - (windowFrame.height + cardOverflow) / 2,
                           lowerBound), upperBound)
     window.setFrameOrigin(NSPoint(x: visibleFrame.midX - windowFrame.width / 2, y: originY))
+    updateShelfWindowFrame()
+  }
+
+  @objc private func welcomeWindowMoved(_ notification: Notification) {
     updateShelfWindowFrame()
   }
 
@@ -382,7 +388,7 @@ class InitialWindowController: NSWindowController {
                            CGFloat(centeredCardCount) * ShowFolderShelfView.cardSlotWidth)
     let width = min(desiredWidth, availableWidth)
     let frame = NSRect(x: parentFrame.midX - width / 2,
-                       y: parentFrame.maxY - ShowFolderShelfView.height / 2,
+                       y: parentFrame.maxY - ShowFolderShelfView.height / 2 + ShowFolderCardView.size.height / 4,
                        width: width,
                        height: ShowFolderShelfView.height)
     if shelfWindow.frame != frame {
@@ -819,7 +825,7 @@ class InitialWindowController: NSWindowController {
     let rowHeight = CGFloat(32 + 2)
     let documentTopInset = showFolders.isEmpty
       ? Self.recentListTopInset
-      : ShowFolderShelfView.height / 2
+      : ShowFolderShelfView.height / 2 - ShowFolderCardView.size.height / 4
     let rowCount = recentDocuments.count
     let visibleRowCount = max(Self.minimumVisibleRecentRows, rowCount)
     let minimumHeight = documentTopInset +
