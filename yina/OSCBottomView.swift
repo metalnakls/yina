@@ -9,7 +9,7 @@
 enum OSCDesignMetrics {
   /// The docked OSC's existing leading inset, shared with its trailing edge.
   static let dockedHorizontalInset = LayoutValue(16, 12)
-  /// The floating OSC keeps its existing compact inset on both sides.
+  /// Existing spacing between floating OSC items; outer padding uses AppKit layout margins.
   static let floatingHorizontalInset: CGFloat = 8
 }
 

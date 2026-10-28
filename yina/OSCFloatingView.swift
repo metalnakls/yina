@@ -292,8 +292,11 @@ class OSCFloatingView: TranslucentView {
     self.oscBottomView = TimeLabelOverflowedStackView()
     oscBottomView.translatesAutoresizingMaskIntoConstraints = false
     container.addSubview(oscBottomView)
-    oscBottomView.padding(.vertical(8),
-                          .horizontal(OSCDesignMetrics.floatingHorizontalInset))
+    oscBottomView.padding(.vertical(8))
+    NSLayoutConstraint.activate([
+      oscBottomView.leadingAnchor.constraint(equalTo: container.layoutMarginsGuide.leadingAnchor),
+      oscBottomView.trailingAnchor.constraint(equalTo: container.layoutMarginsGuide.trailingAnchor),
+    ])
 
     setContent(container)
 

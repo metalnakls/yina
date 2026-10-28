@@ -27,7 +27,8 @@ Use these steps for AppKit and SwiftUI interface changes.
 
    Current OSC reference: `OSCDesignMetrics.dockedHorizontalInset` is
    `LayoutValue(16, 12)` and is shared by both docked horizontal edges;
-   `floatingHorizontalInset` is 8 points. Docked vertical padding remains
+   `floatingHorizontalInset` is 8 points between items. Floating outer horizontal
+   padding follows AppKit’s `layoutMarginsGuide`. Docked vertical padding remains
    `LayoutValue(12, 8)`, floating vertical padding remains 8 points, and the
    docked slider uses `DockedOSCLayout.playSliderInset` at 6 points on top and
    bottom. These preserve existing yina design values.
