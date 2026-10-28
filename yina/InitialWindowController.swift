@@ -29,10 +29,8 @@ class InitialWindowController: NSWindowController {
 
   var loaded = false
 
-  let recentFilesTableView = NSTableView()
-  private lazy var recentDocumentView = WelcomeRecentDocumentView(tableView: recentFilesTableView)
-  private var recentListModel: WelcomeRecentScrollModel?
-  private var recentListHost: NSHostingView<WelcomeRecentScrollView>?
+  private let recentListModel = WelcomeRecentsModel()
+  private var recentListHost: NSHostingView<WelcomeRecentsView>?
   private let visualEffectView = NSVisualEffectView()
   private let mainView = InitialWindowContentView()
   private let emptyStateView = NSStackView()
@@ -179,7 +177,6 @@ class InitialWindowController: NSWindowController {
   private func configureWelcomeWindow() {
     loaded = true
     configureWindowAppearance()
-    configureRecentTableView()
     configureCenteredLayout()
     configureShelfWindow()
     configureEmptyState()
@@ -204,20 +201,7 @@ class InitialWindowController: NSWindowController {
     reloadData()
   }
 
-  private func configureRecentTableView() {
-    recentFilesTableView.addTableColumn(NSTableColumn(identifier: NSUserInterfaceItemIdentifier("recent")))
-    recentFilesTableView.columnAutoresizingStyle = .lastColumnOnlyAutoresizingStyle
-    recentFilesTableView.delegate = self
-    recentFilesTableView.dataSource = self
-    recentFilesTableView.target = self
-    recentFilesTableView.action = #selector(self.onTableClicked)
-    recentFilesTableView.style = .plain
-    recentFilesTableView.headerView = nil
-    recentFilesTableView.backgroundColor = .clear
-    recentFilesTableView.selectionHighlightStyle = .regular
-    recentFilesTableView.rowHeight = 32
-    recentFilesTableView.intercellSpacing = NSSize(width: 0, height: 2)
-  }
+
 
   private func configureWindowAppearance() {
     guard let window else { return }
@@ -247,21 +231,24 @@ class InitialWindowController: NSWindowController {
     visualEffectView.state = .active
     mainView.addSubview(visualEffectView)
 
-    let recentListModel = WelcomeRecentScrollModel(
-      documentView: recentDocumentView,
-      listWidth: Self.recentListWidth,
-      layout: .init(documentHeight: recentDocumentView.frame.height,
-                    topEdgeHeight: Self.recentListTopInset,
-                    resetGeneration: 0))
-    self.recentListModel = recentListModel
-    let recentListHost = NSHostingView(rootView: WelcomeRecentScrollView(model: recentListModel))
+    recentListModel.open = { [weak self] identity in
+      guard let self, let row = self.recentDocuments.firstIndex(where: { self.documentIdentity($0.url) == identity }) else { return }
+      self.openRecentItemFromTable(row)
+    }
+    recentListModel.selectionChanged = { [weak self] selection in
+      guard let self else { return }
+      self.isRecentListKeyboardActive = selection != nil
+      self.showFolderShelf.setKeyboardSelectedCard(identityPath: selection == nil ? self.showFolders.first?.identityPath : nil)
+    }
+    let recentListHost = NSHostingView(rootView: WelcomeRecentsView(model: recentListModel))
+    recentListHost.safeAreaRegions = []
     recentListHost.translatesAutoresizingMaskIntoConstraints = false
     recentListHost.wantsLayer = true
     recentListHost.layer?.backgroundColor = NSColor.clear.cgColor
     self.recentListHost = recentListHost
     mainView.addSubview(recentListHost)
 
-    let rowHeight = recentFilesTableView.rowHeight + recentFilesTableView.intercellSpacing.height
+    let rowHeight = CGFloat(32 + 2)
     let initialHeight = Self.recentListTopInset +
       rowHeight * CGFloat(Self.minimumVisibleRecentRows) + Self.recentListBottomInset
     let heightConstraint = mainView.heightAnchor.constraint(equalToConstant: initialHeight)
@@ -351,7 +338,7 @@ class InitialWindowController: NSWindowController {
   }
 
   @objc private func showExtensionsDidChange() {
-    recentFilesTableView.reloadData()
+    publishRecentItems()
   }
 
   @objc private func availabilityDidChange() {
@@ -453,18 +440,7 @@ class InitialWindowController: NSWindowController {
           changedRows.insert(index)
         }
         guard !changedRows.isEmpty else { return }
-        for row in changedRows {
-          self.recentFilesTableView.rowView(atRow: row, makeIfNecessary: false)?.alphaValue =
-            self.recentDocuments[row].isAvailable ? 1 : 0.45
-        }
-        self.recentFilesTableView.reloadData(forRowIndexes: changedRows,
-                                             columnIndexes: IndexSet(integersIn: 0..<self.recentFilesTableView.numberOfColumns))
-        if self.recentDocuments.indices.contains(self.recentFilesTableView.selectedRow),
-           !self.recentDocuments[self.recentFilesTableView.selectedRow].isAvailable {
-          self.recentFilesTableView.deselectAll(nil)
-          self.isRecentListKeyboardActive = false
-          self.showFolderShelf.setKeyboardSelectedCard(identityPath: self.showFolders.first?.identityPath)
-        }
+        self.publishRecentItems()
         self.updateEmptyState()
       }
     }
@@ -666,8 +642,9 @@ class InitialWindowController: NSWindowController {
     guard recentDocuments.indices.contains(index), recentDocuments[index].isAvailable else { return }
     isRecentListKeyboardActive = true
     showFolderShelf.setKeyboardSelectedCard(identityPath: nil)
-    recentFilesTableView.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
-    recentFilesTableView.scrollRowToVisible(index)
+    let id = documentIdentity(recentDocuments[index].url)
+    recentListModel.selection = id
+    recentListModel.revealID = id
   }
 
   @objc private func dismissShowFolderCard(_ sender: NSMenuItem) {
@@ -702,11 +679,7 @@ class InitialWindowController: NSWindowController {
     shelfWindow?.appearance = window.appearance
   }
 
-  @objc func onTableClicked() {
-    isRecentListKeyboardActive = true
-    showFolderShelf.setKeyboardSelectedCard(identityPath: nil)
-    openRecentItemFromTable(recentFilesTableView.clickedRow)
-  }
+
 
   private func openRecentItemFromTable(_ rowIndex: Int) {
     if let document = recentDocuments[at: rowIndex], document.isAvailable {
@@ -755,7 +728,7 @@ class InitialWindowController: NSWindowController {
     recentDocuments = cachedURLs.prefix(Self.maximumRecentDocumentCount).map {
       RecentDocument(url: $0, isAvailable: true)
     }
-    recentFilesTableView.reloadData()
+    publishRecentItems()
     updateRecentLayout(resetScrollPosition: true)
     updateEmptyState()
   }
@@ -789,7 +762,7 @@ class InitialWindowController: NSWindowController {
 
   private func reloadRecents() {
     if !isRecentListKeyboardActive {
-      recentFilesTableView.deselectAll(nil)
+      recentListModel.selection = nil
       showFolderShelf.setKeyboardSelectedCard(identityPath: showFolders.first?.identityPath)
     }
     let generation = coordinator.currentGeneration
@@ -822,7 +795,7 @@ class InitialWindowController: NSWindowController {
               old.isAvailable != new.isAvailable
           }
         if documentListChanged {
-          self.recentFilesTableView.reloadData()
+          self.publishRecentItems()
         }
         self.updateRecentLayout()
         self.updateEmptyState()
@@ -843,7 +816,7 @@ class InitialWindowController: NSWindowController {
   }
 
   private func updateRecentLayout(resetScrollPosition: Bool = false, preserveTop: Bool = true) {
-    let rowHeight = recentFilesTableView.rowHeight + recentFilesTableView.intercellSpacing.height
+    let rowHeight = CGFloat(32 + 2)
     let documentTopInset = showFolders.isEmpty
       ? Self.recentListTopInset
       : ShowFolderShelfView.height / 2
@@ -855,17 +828,9 @@ class InitialWindowController: NSWindowController {
       rowHeight * CGFloat(visibleRowCount) + Self.recentListBottomInset
     let windowHeight = min(Self.maximumRecentWindowHeight, max(minimumHeight, desiredHeight))
 
-    recentDocumentView.update(width: Self.recentListWidth,
-                              topInset: documentTopInset,
-                              rowHeight: rowHeight,
-                              rowCount: rowCount,
-                              bottomInset: Self.recentListBottomInset)
-    if let recentListModel {
-      recentListModel.layout = .init(documentHeight: recentDocumentView.frame.height,
-                                     topEdgeHeight: documentTopInset,
-                                     resetGeneration: recentListModel.layout.resetGeneration +
-                                       (resetScrollPosition ? 1 : 0))
-    }
+    recentListModel.topInset = documentTopInset
+    recentListModel.coveredTop = showFolders.isEmpty ? 0 : ShowFolderCardView.size.height / 4
+    if resetScrollPosition { recentListModel.resetID += 1 }
     window?.contentMinSize = NSSize(width: Self.recentListWidth, height: minimumHeight)
     window?.contentMaxSize = NSSize(width: Self.recentListWidth,
                                     height: Self.maximumRecentWindowHeight)
@@ -887,39 +852,22 @@ class InitialWindowController: NSWindowController {
   }
 }
 
-extension InitialWindowController: NSTableViewDelegate, NSTableViewDataSource {
-
-  func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView? {
-    let rowView = InitialWindowRecentRowView()
-    rowView.alphaValue = recentDocuments[row].isAvailable ? 1 : 0.45
-    return rowView
+extension InitialWindowController {
+  private var selectedRecentRow: Int {
+    guard let id = recentListModel.selection else { return -1 }
+    return recentDocuments.firstIndex { documentIdentity($0.url) == id } ?? -1
   }
 
-  func tableView(_ tableView: NSTableView, selectionIndexesForProposedSelection proposedSelectionIndexes: IndexSet) -> IndexSet {
-    IndexSet(proposedSelectionIndexes.filter { recentDocuments[$0].isAvailable })
-  }
-
-  func tableViewSelectionDidChange(_ notification: Notification) {
-    guard recentFilesTableView.selectedRow >= 0 else { return }
-    isRecentListKeyboardActive = true
-    showFolderShelf.setKeyboardSelectedCard(identityPath: nil)
-  }
-
-  func numberOfRows(in tableView: NSTableView) -> Int {
-    return recentDocuments.count
-  }
-
-  func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
-    let identifier = NSUserInterfaceItemIdentifier("InitialWindowRecentCell")
-    let cell = tableView.makeView(withIdentifier: identifier, owner: self) as? InitialWindowRecentCell
-      ?? InitialWindowRecentCell(identifier: identifier)
-    let document = recentDocuments[row]
-    let title = Preference.bool(for: .showExtensions)
-      ? document.url.lastPathComponent
-      : document.url.deletingPathExtension().lastPathComponent
-    cell.update(title: title,
-                icon: documentIcon(for: document))
-    return cell
+  private func publishRecentItems() {
+    recentListModel.items = recentDocuments.map { document in
+      WelcomeRecentItem(id: documentIdentity(document.url),
+                        title: Preference.bool(for: .showExtensions) ? document.url.lastPathComponent : document.url.deletingPathExtension().lastPathComponent,
+                        icon: documentIcon(for: document), available: document.isAvailable)
+    }
+    if let id = recentListModel.selection,
+       !recentListModel.items.contains(where: { $0.id == id && $0.available }) {
+      recentListModel.selection = nil
+    }
   }
 
   private func documentIcon(for document: RecentDocument) -> NSImage {
@@ -940,7 +888,7 @@ extension InitialWindowController: NSTableViewDelegate, NSTableViewDataSource {
           self.recentDocuments[$0].url.pathExtension.lowercased() == ext
         })
         if !rows.isEmpty {
-          self.recentFilesTableView.reloadData(forRowIndexes: rows, columnIndexes: IndexSet(integer: 0))
+          self.publishRecentItems()
         }
       }
     }
@@ -952,8 +900,8 @@ extension InitialWindowController: NSTableViewDelegate, NSTableViewDataSource {
     switch keyChar {
       case "ENTER", "KP_ENTER":  // RETURN or (keypad ENTER)
         if isRecentListKeyboardActive {
-          if recentDocuments.indices.contains(recentFilesTableView.selectedRow) {
-            openRecentItemFromTable(recentFilesTableView.selectedRow)
+          if recentDocuments.indices.contains(selectedRecentRow) {
+            openRecentItemFromTable(selectedRecentRow)
           }
         } else if let show = showFolders.first {
           openMedia(show.resumeURL)
@@ -968,7 +916,7 @@ extension InitialWindowController: NSTableViewDelegate, NSTableViewDataSource {
           }
           selectRecentDocument(at: firstAvailable)
         } else {
-          let selectedRow = recentFilesTableView.selectedRow
+          let selectedRow = selectedRecentRow
           let nextAvailable = recentDocuments.indices.first { index in
             index > selectedRow && recentDocuments[index].isAvailable
           }
@@ -978,14 +926,14 @@ extension InitialWindowController: NSTableViewDelegate, NSTableViewDataSource {
         }
       case "UP":  // UP arrow
         if isRecentListKeyboardActive {
-          let selectedRow = recentFilesTableView.selectedRow
+          let selectedRow = selectedRecentRow
           let previousAvailable = recentDocuments.indices.reversed().first { index in
             index < selectedRow && recentDocuments[index].isAvailable
           }
           if let previousAvailable {
             selectRecentDocument(at: previousAvailable)
           } else {
-            recentFilesTableView.deselectAll(nil)
+            recentListModel.selection = nil
             isRecentListKeyboardActive = false
             showFolderShelf.setKeyboardSelectedCard(identityPath: showFolders.first?.identityPath)
           }
@@ -999,161 +947,77 @@ extension InitialWindowController: NSTableViewDelegate, NSTableViewDataSource {
 
 }
 
-private final class InitialWindowRecentCell: NSTableCellView {
-  private static let horizontalInset: CGFloat = 16
-  private static let iconTextSpacing: CGFloat = 8
-  private let titleLabel = NSTextField(labelWithString: "")
-  private let fileIcon = NSImageView()
-
-  init(identifier: NSUserInterfaceItemIdentifier) {
-    super.init(frame: .zero)
-    self.identifier = identifier
-    wantsLayer = true
-    layer?.masksToBounds = true
-    titleLabel.font = .systemFont(ofSize: NSFont.systemFontSize)
-    titleLabel.lineBreakMode = .byTruncatingTail
-    titleLabel.maximumNumberOfLines = 1
-    titleLabel.translatesAutoresizingMaskIntoConstraints = false
-    fileIcon.translatesAutoresizingMaskIntoConstraints = false
-    fileIcon.imageScaling = .scaleProportionallyUpOrDown
-    fileIcon.contentTintColor = .secondaryLabelColor
-    addSubview(fileIcon)
-    addSubview(titleLabel)
-    textField = titleLabel
-    imageView = fileIcon
-    NSLayoutConstraint.activate([
-      fileIcon.leadingAnchor.constraint(equalTo: leadingAnchor, constant: Self.horizontalInset),
-      fileIcon.centerYAnchor.constraint(equalTo: centerYAnchor),
-      fileIcon.widthAnchor.constraint(equalToConstant: 16),
-      fileIcon.heightAnchor.constraint(equalToConstant: 16),
-      titleLabel.leadingAnchor.constraint(equalTo: fileIcon.trailingAnchor,
-                                          constant: Self.iconTextSpacing),
-      titleLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -Self.horizontalInset),
-      titleLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
-    ])
-  }
-
-  required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
-
-  func update(title: String, icon: NSImage) {
-    titleLabel.stringValue = title
-    fileIcon.image = icon
-  }
-}
-
-private final class InitialWindowRecentRowView: NSTableRowView {
-  override func drawSelection(in dirtyRect: NSRect) {
-    guard selectionHighlightStyle != .none else { return }
-    let selectionColor = isEmphasized
-      ? NSColor.selectedContentBackgroundColor
-      : NSColor.unemphasizedSelectedContentBackgroundColor
-    selectionColor.setFill()
-    NSBezierPath(roundedRect: bounds.insetBy(dx: 2, dy: 1), xRadius: 8, yRadius: 8).fill()
-  }
-}
-
-private final class WelcomeRecentDocumentView: NSView {
-  private let tableView: NSTableView
-
-  override var isFlipped: Bool { true }
-
-  init(tableView: NSTableView) {
-    self.tableView = tableView
-    super.init(frame: .zero)
-    addSubview(tableView)
-  }
-
-  func update(width: CGFloat, topInset: CGFloat, rowHeight: CGFloat,
-              rowCount: Int, bottomInset: CGFloat) {
-    let tableHeight = rowHeight * CGFloat(rowCount)
-    let documentHeight = topInset + tableHeight + bottomInset
-    setFrameSize(NSSize(width: width, height: documentHeight))
-    tableView.frame = NSRect(x: 0, y: topInset, width: width, height: tableHeight)
-  }
-
-  required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+private struct WelcomeRecentItem: Identifiable {
+  let id: String
+  let title: String
+  let icon: NSImage
+  let available: Bool
 }
 
 @MainActor
-private final class WelcomeRecentScrollModel: ObservableObject {
-  struct Layout {
-    var documentHeight: CGFloat
-    var topEdgeHeight: CGFloat
-    var resetGeneration: Int
-  }
-
-  let documentView: WelcomeRecentDocumentView
-  let listWidth: CGFloat
-  @Published var layout: Layout
-
-  init(documentView: WelcomeRecentDocumentView, listWidth: CGFloat, layout: Layout) {
-    self.documentView = documentView
-    self.listWidth = listWidth
-    self.layout = layout
-  }
+private final class WelcomeRecentsModel: ObservableObject {
+  @Published var items: [WelcomeRecentItem] = []
+  @Published var selection: String? { didSet { selectionChanged?(selection) } }
+  @Published var revealID: String?
+  @Published var topInset: CGFloat = 32
+  @Published var coveredTop: CGFloat = 0
+  @Published var resetID = 0
+  var open: ((String) -> Void)?
+  var selectionChanged: ((String?) -> Void)?
 }
 
-private struct WelcomeRecentScrollView: View {
-  @ObservedObject var model: WelcomeRecentScrollModel
+private struct WelcomeRecentsView: View {
+  @ObservedObject var model: WelcomeRecentsModel
 
   var body: some View {
-    ScrollView(.vertical) {
-      WelcomeRecentDocumentRepresentable(documentView: model.documentView,
-                                         width: model.listWidth,
-                                         height: model.layout.documentHeight)
-        .frame(width: model.listWidth, height: model.layout.documentHeight,
-               alignment: .topLeading)
-    }
-    .scrollEdgeEffectStyle(.soft, for: .top)
-    .scrollEdgeEffectHidden(true, for: .bottom)
-    .ignoresSafeArea(.container, edges: .top)
-    .safeAreaBar(edge: .top, spacing: 0) {
-      WelcomeRecentEdgeSurface()
-        .frame(height: model.layout.topEdgeHeight)
-        .allowsHitTesting(false)
-    }
-    .id(model.layout.resetGeneration)
-    .background(Color.clear)
-  }
-}
-
-/// Native, hit-test-through surface for SwiftUI's scroll-edge material.
-/// Keeping this as an AppKit view lets the system attach the same native edge
-/// treatment used by Glass to the top of the scrolling content.
-private struct WelcomeRecentEdgeSurface: NSViewRepresentable {
-  func makeNSView(context: Context) -> NSView {
-    WelcomeRecentEdgeSurfaceView()
-  }
-
-  func updateNSView(_ nsView: NSView, context: Context) {}
-}
-
-private final class WelcomeRecentEdgeSurfaceView: NSView {
-  override func hitTest(_ point: NSPoint) -> NSView? { nil }
-
-  override init(frame frameRect: NSRect) {
-    super.init(frame: frameRect)
-    wantsLayer = true
-    layer?.backgroundColor = NSColor.clear.cgColor
-    layer?.masksToBounds = false
-  }
-
-  required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
-}
-
-private struct WelcomeRecentDocumentRepresentable: NSViewRepresentable {
-  let documentView: WelcomeRecentDocumentView
-  let width: CGFloat
-  let height: CGFloat
-
-  func makeNSView(context: Context) -> WelcomeRecentDocumentView {
-    documentView.setFrameSize(NSSize(width: width, height: height))
-    return documentView
-  }
-
-  func updateNSView(_ nsView: WelcomeRecentDocumentView, context: Context) {
-    if nsView.frame.size != NSSize(width: width, height: height) {
-      nsView.setFrameSize(NSSize(width: width, height: height))
+    ScrollViewReader { scroll in
+      List(selection: $model.selection) {
+        ForEach(model.items) { item in
+          Button {
+            guard item.available else { return }
+            model.selection = item.id
+            model.open?(item.id)
+          } label: {
+            HStack(spacing: 8) {
+              Image(nsImage: item.icon).resizable().scaledToFit().frame(width: 16, height: 16)
+              Text(item.title).font(.system(size: NSFont.systemFontSize)).lineLimit(1)
+              Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 16)
+            .frame(height: 32)
+            .contentShape(Rectangle())
+          }
+          .buttonStyle(.plain)
+          .opacity(item.available ? 1 : 0.45)
+          .selectionDisabled(!item.available)
+          .tag(item.id)
+          .id(item.id)
+          .listRowInsets(EdgeInsets(top: 1, leading: 0, bottom: 1, trailing: 0))
+          .listRowBackground(Color.clear)
+          .listRowSeparator(.hidden)
+        }
+      }
+      .listStyle(.plain)
+      .environment(\.defaultMinListRowHeight, 0)
+      .scrollContentBackground(.hidden)
+      .contentMargins(.horizontal, 0, for: .scrollContent)
+      .contentMargins(.top, max(0, model.topInset - model.coveredTop), for: .scrollContent)
+      .contentMargins(.bottom, 16, for: .scrollContent)
+      .scrollEdgeEffectStyle(.soft, for: .top)
+      .scrollEdgeEffectHidden(true, for: .bottom)
+      .safeAreaBar(edge: .top, spacing: 0) {
+        Color.clear.frame(height: model.coveredTop).allowsHitTesting(false)
+      }
+      .onChange(of: model.revealID) { _, id in
+        if let id { scroll.scrollTo(id) }
+      }
+      .onKeyPress(.return) {
+        guard let id = model.selection,
+              model.items.contains(where: { $0.id == id && $0.available }) else { return .ignored }
+        model.open?(id)
+        return .handled
+      }
+      .id(model.resetID)
     }
   }
 }
