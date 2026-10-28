@@ -75,6 +75,9 @@ class InitialWindowController: NSWindowController {
   private let showFolderShelf = ShowFolderShelfView()
   private var shelfWindow: NSWindow?
   private var mainViewHeightConstraint: NSLayoutConstraint?
+  private var recentScrollOffset: CGFloat = 0
+  private var recentResizePending = false
+  private var recentLayoutRevision = 0
   private var showFolders: [ShowFolder] = []
   private var documentIconCache: [String: NSImage] = [:]
   private var showFolderArtworkCache: [String: (position: Double, artwork: ShowFolderCardArtwork)] = [:]
@@ -262,6 +265,7 @@ class InitialWindowController: NSWindowController {
       self.isRecentListKeyboardActive = selection != nil
       self.showFolderShelf.setKeyboardSelectedCard(identityPath: selection == nil ? self.showFolders.first?.identityPath : nil)
     }
+    recentListModel.scrolled = { [weak self] offset in self?.recentListDidScroll(offset) }
     let recentListHost = NSHostingView(rootView: WelcomeRecentsView(model: recentListModel))
     recentListHost.safeAreaRegions = []
     recentListHost.translatesAutoresizingMaskIntoConstraints = false
@@ -849,33 +853,58 @@ class InitialWindowController: NSWindowController {
     }
   }
 
+  private var recentTopInset: CGFloat {
+    showFolders.isEmpty ? Self.recentListTopInset : ShowFolderShelfView.height / 2 - ShowFolderCardView.size.height / 4
+  }
+
+  private var recentMinimumHeight: CGFloat {
+    recentTopInset + CGFloat((32 + 2) * Self.minimumVisibleRecentRows) + Self.recentListBottomInset
+  }
+
+  private var recentStartingHeight: CGFloat {
+    min(Self.maximumRecentWindowHeight,
+        max(recentMinimumHeight, recentTopInset + CGFloat((32 + 2) * recentDocuments.count) + Self.recentListBottomInset))
+  }
+
   private func updateRecentLayout(resetScrollPosition: Bool = false, preserveTop: Bool = true) {
-    let rowHeight = CGFloat(32 + 2)
-    let documentTopInset = showFolders.isEmpty
-      ? Self.recentListTopInset
-      : ShowFolderShelfView.height / 2 - ShowFolderCardView.size.height / 4
-    let rowCount = recentDocuments.count
-    let visibleRowCount = max(Self.minimumVisibleRecentRows, rowCount)
-    let minimumHeight = documentTopInset +
-      rowHeight * CGFloat(Self.minimumVisibleRecentRows) + Self.recentListBottomInset
-    let desiredHeight = documentTopInset +
-      rowHeight * CGFloat(visibleRowCount) + Self.recentListBottomInset
-    let windowHeight = min(Self.maximumRecentWindowHeight, max(minimumHeight, desiredHeight))
-
-    recentListModel.topInset = documentTopInset
+    recentLayoutRevision &+= 1
+    recentResizePending = false
+    if resetScrollPosition {
+      recentScrollOffset = 0
+      recentListModel.resetID += 1
+    }
+    recentListModel.topInset = recentTopInset
     recentListModel.coveredTop = showFolders.isEmpty ? 0 : ShowFolderCardView.size.height / 4
-    if resetScrollPosition { recentListModel.resetID += 1 }
-    window?.contentMinSize = NSSize(width: Self.recentListWidth, height: minimumHeight)
-    window?.contentMaxSize = NSSize(width: Self.recentListWidth,
-                                    height: Self.maximumRecentWindowHeight)
+    window?.contentMinSize = NSSize(width: Self.recentListWidth, height: recentMinimumHeight)
+    window?.contentMaxSize = NSSize(width: Self.recentListWidth, height: Self.maximumRecentWindowHeight)
+    resizeRecentWindow(preserveTop: preserveTop)
+  }
 
-    let oldFrame = window?.frame
-    mainViewHeightConstraint?.constant = windowHeight
-    window?.setContentSize(NSSize(width: Self.recentListWidth, height: windowHeight))
+  private func recentListDidScroll(_ offset: CGFloat) {
+    guard offset.isFinite else { return }
+    recentScrollOffset = max(0, offset)
+    guard window?.isVisible == true, !recentResizePending else { return }
+    recentResizePending = true
+    let revision = recentLayoutRevision
+    DispatchQueue.main.async { [weak self] in
+      guard let self, revision == self.recentLayoutRevision else { return }
+      self.recentResizePending = false
+      guard self.window?.isVisible == true else { return }
+      self.resizeRecentWindow(preserveTop: true)
+    }
+  }
+
+  private func resizeRecentWindow(preserveTop: Bool) {
+    guard let window else { return }
+    // Follow the remaining initial viewport, not the entire scroll document.
+    let height = max(recentMinimumHeight, recentStartingHeight - recentScrollOffset)
+    guard height.isFinite, abs((window.contentView?.frame.height ?? 0) - height) > 0.5 else { return }
+    let top = window.frame.maxY
+    mainViewHeightConstraint?.constant = height
+    window.setContentSize(NSSize(width: Self.recentListWidth, height: height))
     mainView.layoutSubtreeIfNeeded()
-    if preserveTop, let window, let oldFrame, window.isVisible {
-      window.setFrameOrigin(NSPoint(x: oldFrame.minX,
-                                    y: oldFrame.maxY - window.frame.height))
+    if preserveTop && window.isVisible {
+      window.setFrameOrigin(NSPoint(x: window.frame.minX, y: top - window.frame.height))
     }
     updateShelfWindowFrame()
   }
@@ -997,6 +1026,7 @@ private final class WelcomeRecentsModel: ObservableObject {
   @Published var coveredTop: CGFloat = 0
   @Published var resetID = 0
   var open: ((String) -> Void)?
+  var scrolled: ((CGFloat) -> Void)?
   var selectionChanged: ((String?) -> Void)?
 }
 
@@ -1041,6 +1071,12 @@ private struct WelcomeRecentsView: View {
       .scrollEdgeEffectHidden(true, for: .bottom)
       .safeAreaBar(edge: .top, spacing: 0) {
         Color.clear.frame(height: model.coveredTop).allowsHitTesting(false)
+      }
+      .onScrollGeometryChange(for: CGFloat.self) { geometry in
+        let offset = geometry.contentOffset.y + geometry.contentInsets.top
+        return offset.isFinite ? offset : 0
+      } action: { _, offset in
+        model.scrolled?(offset)
       }
       .onChange(of: model.revealID) { _, id in
         if let id { scroll.scrollTo(id) }

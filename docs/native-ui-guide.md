@@ -46,6 +46,12 @@ Use these steps for AppKit and SwiftUI interface changes.
 
 ## Settled behavior and exception
 
+- The welcome List's native scroll geometry may resize the bottom of its window.
+  Keep its top anchored, retain the four-row minimum, and subtract scroll offset
+  from the capped starting viewport height. Preserve offset on data refresh.
+  Native List scrolling, momentum and rubberbanding remain the sole scroll path.
+  This approved window sizing is not permission for custom scrolling or blur.
+
 - Playback overlays must yield to the native window size. Use AppKit's
   `dragThatCannotResizeWindow` for the OSC's preferred size and saved position;
   `defaultHigh` can enlarge the window and break portrait video sizing. Retain
