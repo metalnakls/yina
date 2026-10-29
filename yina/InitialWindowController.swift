@@ -1091,7 +1091,6 @@ private struct WelcomeRecentsView: View {
               Text(item.title).font(.system(size: NSFont.systemFontSize)).lineLimit(1)
               Spacer(minLength: 0)
             }
-            .padding(.horizontal, 16)
             .frame(height: 32)
             .contentShape(Rectangle())
           }
@@ -1106,10 +1105,9 @@ private struct WelcomeRecentsView: View {
           .contextMenu { Button("Dismiss") { model.dismiss?(item.id) } }
         }
       }
-      .listStyle(.plain)
+      .listStyle(.inset)
       .environment(\.defaultMinListRowHeight, 0)
       .scrollContentBackground(.hidden)
-      .contentMargins(.horizontal, 0, for: .scrollContent)
       .contentMargins(.top, max(0, model.topInset - model.coveredTop), for: .scrollContent)
       .contentMargins(.bottom, 16, for: .scrollContent)
       .scrollEdgeEffectStyle(.soft, for: .top)
