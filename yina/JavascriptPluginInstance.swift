@@ -47,6 +47,34 @@ class JavascriptPluginInstance {
     DispatchQueue(label: "tsmc.yina.plugin.\(plugin.identifier)", qos: .background)
   }()
 
+  private let processLock = NSLock()
+  private var runningProcesses: Set<Process> = []
+  private var networkTasks: Set<URLSessionTask> = []
+
+  func track(_ process: Process) {
+    processLock.lock()
+    runningProcesses.insert(process)
+    processLock.unlock()
+  }
+
+  func untrack(_ process: Process) {
+    processLock.lock()
+    runningProcesses.remove(process)
+    processLock.unlock()
+  }
+
+  func track(_ task: URLSessionTask) {
+    processLock.lock()
+    networkTasks.insert(task)
+    processLock.unlock()
+  }
+
+  func untrack(_ task: URLSessionTask) {
+    processLock.lock()
+    networkTasks.remove(task)
+    processLock.unlock()
+  }
+
   lazy var subsystem = Logger.makeSubsystem("\(isGlobal ? "global" : "player\(player.label!)") - \(plugin.name)", ["puzzlepiece.extension"])
 
   var currentFile: URL? {
@@ -70,6 +98,14 @@ class JavascriptPluginInstance {
   }
 
   deinit {
+    processLock.lock()
+    let processes = runningProcesses
+    let tasks = networkTasks
+    runningProcesses.removeAll()
+    networkTasks.removeAll()
+    processLock.unlock()
+    for process in processes where process.isRunning { process.terminate() }
+    tasks.forEach { $0.cancel() }
     if let plugin = self.plugin {
       Logger.log("Unload \(plugin.name)", level: .debug, subsystem: subsystem)
     }

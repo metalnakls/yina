@@ -10,8 +10,6 @@ import Foundation
 import JavaScriptCore
 import Just
 
-fileprivate typealias JustRequestFunc = (URLComponentsConvertible, [String : Any], [String : Any]) -> HTTPResult
-
 @objc protocol JavascriptAPIHttpExportable: JSExport {
   func get(_ url: String, _ options: [String: Any]?) -> JSValue?
   func post(_ url: String, _ options: [String: Any]?) -> JSValue?
@@ -23,6 +21,7 @@ fileprivate typealias JustRequestFunc = (URLComponentsConvertible, [String : Any
 }
 
 class JavascriptAPIHttp: JavascriptAPI, JavascriptAPIHttpExportable {
+  private let session = URLSession.shared
 
   @objc func get(_ url: String, _ options: [String: Any]?) -> JSValue? {
     return request(.get, url: url, options: options)
@@ -65,26 +64,54 @@ class JavascriptAPIHttp: JavascriptAPI, JavascriptAPIHttpExportable {
         throwError(withMessage: "Not allowed to write to the destination.")
         return nil
       }
-      let params = options?["params"] as? [String: String]
-      let headers = options?["headers"] as? [String: String]
-      let data = options?["data"] as? [String: Any]
-      return createPromise { resolve, reject in
-        Just.request(method, url: url,
-                     params: params ?? [:],
-                     data: data ?? [:],
-                     headers: headers ?? [:],
-                     asyncCompletionHandler:  { [unowned self] response in
-          if (response.ok) {
+      guard let request = makeRequest(method, url: url, options: options) else { return nil }
+      return createPromise { [weak self] resolve, reject in
+        guard let self, let owner = self.pluginInstance else { return }
+        weak var trackedTask: URLSessionTask?
+        let task = self.session.downloadTask(with: request) { [weak self, weak owner] temporaryURL, response, error in
+          if let trackedTask { owner?.untrack(trackedTask) }
+          let http = response as? HTTPURLResponse
+          let status = http?.statusCode ?? 0
+          var failure: [String: Any?]?
+          if let error {
+            failure = ["statusCode": status, "reason": error.localizedDescription, "data": nil, "text": nil]
+          } else if !(200...299).contains(status) {
+            let responseData = temporaryURL.flatMap { try? Data(contentsOf: $0) }
+            failure = [
+              "statusCode": status,
+              "reason": HTTPURLResponse.localizedString(forStatusCode: status),
+              "data": responseData.flatMap { try? JSONSerialization.jsonObject(with: $0) },
+              "text": responseData.flatMap { String(data: $0, encoding: .utf8) }
+            ]
+          } else if let temporaryURL {
+            let destination = URL(fileURLWithPath: destPath)
+            let staged = destination.deletingLastPathComponent().appendingPathComponent(".\(destination.lastPathComponent).\(UUID().uuidString).download")
             do {
-              try response.content?.write(to: URL(fileURLWithPath: destPath))
+              try FileManager.default.copyItem(at: temporaryURL, to: staged)
+              if FileManager.default.fileExists(atPath: destPath) {
+                _ = try FileManager.default.replaceItemAt(destination, withItemAt: staged)
+              } else {
+                try FileManager.default.moveItem(at: staged, to: destination)
+              }
             } catch {
-              self.throwError(withMessage: "Unable to write to the destination.")
+              try? FileManager.default.removeItem(at: staged)
+              failure = ["statusCode": status, "reason": "Unable to write to the destination.", "data": nil, "text": nil]
             }
-            resolve.call(withArguments: [])
           } else {
-            reject.call(withArguments: [response.toDict()])
+            failure = ["statusCode": status, "reason": "No downloaded file was returned.", "data": nil, "text": nil]
           }
-        })
+          DispatchQueue.main.async { [weak self] in
+            guard self?.pluginInstance != nil else { return }
+            if let failure {
+              reject.call(withArguments: [failure])
+            } else {
+              resolve.call(withArguments: [])
+            }
+          }
+        }
+        trackedTask = task
+        owner.track(task)
+        task.resume()
       }
     }
   }
@@ -95,35 +122,79 @@ class JavascriptAPIHttp: JavascriptAPI, JavascriptAPIHttpExportable {
       guard hostIsValid(url) else {
         return JSValue(undefinedIn: context)
       }
-      // request
-      let params = options?["params"] as? [String: String]
-      let headers = options?["headers"] as? [String: String]
-      let data = options?["data"] as? [String: Any]
-      return createPromise { resolve, reject in
-        Just.request(method, url: url,
-                     params: params ?? [:],
-                     data: data ?? [:],
-                     headers: headers ?? [:],
-                     asyncCompletionHandler:  { response in
-          (response.ok ? resolve : reject).call(withArguments: [response.toDict()])
-        })
+      guard let request = makeRequest(method, url: url, options: options) else { return nil }
+      return createPromise { [weak self] resolve, reject in
+        guard let self, let owner = self.pluginInstance else { return }
+        weak var trackedTask: URLSessionTask?
+        let task = self.session.dataTask(with: request) { [weak self, weak owner] body, response, error in
+          if let trackedTask { owner?.untrack(trackedTask) }
+          let http = response as? HTTPURLResponse
+          let status = http?.statusCode ?? 0
+          let result: [String: Any?] = [
+            "statusCode": status,
+            "reason": error?.localizedDescription ?? HTTPURLResponse.localizedString(forStatusCode: status),
+            "data": body.flatMap { try? JSONSerialization.jsonObject(with: $0) },
+            "text": body.flatMap { String(data: $0, encoding: .utf8) }
+          ]
+          DispatchQueue.main.async { [weak self] in
+            guard self?.pluginInstance != nil else { return }
+            ((error == nil && (200...299).contains(status)) ? resolve : reject).call(withArguments: [result])
+          }
+        }
+        trackedTask = task
+        owner.track(task)
+        task.resume()
       }
     }
   }
 
+  private func makeRequest(_ method: HTTPMethod, url: String, options: [String: Any]?) -> URLRequest? {
+    guard var components = URLComponents(string: url.addingPercentEncoding(withAllowedCharacters: .urlAllowed) ?? url),
+          components.url != nil else {
+      throwError(withMessage: "URL is invalid.")
+      return nil
+    }
+    let params = options?["params"] as? [String: String] ?? [:]
+    if !params.isEmpty {
+      var added = URLComponents()
+      added.queryItems = params.map { URLQueryItem(name: $0.key, value: $0.value) }
+      let encoded = added.percentEncodedQuery?.replacingOccurrences(of: "+", with: "%2B") ?? ""
+      components.percentEncodedQuery = [components.percentEncodedQuery, encoded]
+        .compactMap { $0?.isEmpty == false ? $0 : nil }
+        .joined(separator: "&")
+    }
+    guard let requestURL = components.url else { return nil }
+    var request = URLRequest(url: requestURL)
+    request.httpMethod = method.rawValue
+    for (key, value) in options?["headers"] as? [String: String] ?? [:] {
+      request.setValue(value, forHTTPHeaderField: key)
+    }
+    if let data = options?["data"] as? [String: Any], !data.isEmpty {
+      var body = URLComponents()
+      body.queryItems = data.map { URLQueryItem(name: $0.key, value: String(describing: $0.value)) }
+      request.httpBody = body.percentEncodedQuery?
+        .replacingOccurrences(of: "+", with: "%2B")
+        .data(using: .utf8)
+      if request.value(forHTTPHeaderField: "Content-Type") == nil {
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+      }
+    }
+    return request
+  }
+
   private func hostIsValid(_ url: String) -> Bool {
-    guard let urlComponents = URLComponents(string: url.addingPercentEncoding(withAllowedCharacters: .urlAllowed) ?? url) else {
+    guard let urlComponents = URLComponents(string: url.addingPercentEncoding(withAllowedCharacters: .urlAllowed) ?? url),
+          let requestURL = urlComponents.url else {
       throwError(withMessage: "URL \(url) is invalid.")
       return false
     }
-    guard pluginInstance.canAccess(url: urlComponents.url!) else {
+    guard pluginInstance.canAccess(url: requestURL) else {
       throwError(withMessage: "URL \(url) is not allowed.")
       return false
     }
     return true
   }
 }
-
 @objc protocol JavascriptAPIXmlrpcExportable: JSExport {
   func call(_ method: String, _ args: [Any]) -> JSValue?
 }
@@ -153,16 +224,5 @@ class JavascriptAPIXmlrpc: JavascriptAPI, JavascriptAPIXmlrpcExportable {
         }
       }
     }
-  }
-}
-
-fileprivate extension HTTPResult {
-  func toDict() -> [String: Any?] {
-    return [
-      "statusCode": statusCode,
-      "reason": reason,
-      "data": json,
-      "text": text
-    ]
   }
 }
