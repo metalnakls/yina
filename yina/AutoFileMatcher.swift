@@ -154,46 +154,42 @@ class AutoFileMatcher {
   }
 
   private func matchVideoAndSubSeries() throws -> [String: String] {
-    var prefixDistance: [String: [String: UInt]] = [:]
-    var closestVideoForSub: [String: String] = [:]
+    // A Levenshtein distance cannot be smaller than the length difference.
+    // Keep only each side's closest candidate instead of a full distance matrix.
+    let videos = videosGroupedBySeries.filter { $0.value.count > 2 }
+      .map { (prefix: $0.key, length: $0.key.count) }
+    let subs = subsGroupedBySeries.keys.map { (prefix: $0, length: $0.count) }
+    var closestVideoForSub: [String: (prefix: String, distance: UInt)] = [:]
+    var closestSubForVideo: [String: (prefix: String, distance: UInt)] = [:]
 
     log("Matching video and sub series...")
-    // calculate edit distance between each v/s prefix
-    for (sp, _) in subsGroupedBySeries {
+    for sub in subs {
       try checkTicket()
-      prefixDistance[sp] = [:]
-      var minDist = UInt.max
-      var minVideo = ""
-      for (vp, vl) in videosGroupedBySeries {
-        guard vl.count > 2 else { continue }
-        let dist = ObjcUtils.levDistance(vp, and: sp)
-        prefixDistance[sp]![vp] = dist
-        if dist < minDist {
-          minDist = dist
-          minVideo = vp
+      for (index, video) in videos.enumerated() {
+        if index.isMultiple(of: 64) { try checkTicket() }
+        let lowerBound = UInt(abs(sub.length - video.length))
+        let subBest = closestVideoForSub[sub.prefix]?.distance ?? .max
+        let videoBest = closestSubForVideo[video.prefix]?.distance ?? .max
+        if lowerBound >= subBest && lowerBound >= videoBest { continue }
+        let distance = ObjcUtils.levDistance(video.prefix, and: sub.prefix)
+        if distance < subBest {
+          closestVideoForSub[sub.prefix] = (video.prefix, distance)
+        }
+        if distance < videoBest {
+          closestSubForVideo[video.prefix] = (sub.prefix, distance)
         }
       }
-      closestVideoForSub[sp] = minVideo
     }
     log("Calculated editing distance")
 
     var matchedPrefixes: [String: String] = [:]  // video: sub
-    for (vp, vl) in videosGroupedBySeries {
+    for video in videos {
       try checkTicket()
-      guard vl.count > 2 else { continue }
-      var minDist = UInt.max
-      var minSub = ""
-      for (sp, _) in subsGroupedBySeries {
-        let dist = prefixDistance[sp]![vp]!
-        if dist < minDist {
-          minDist = dist
-          minSub = sp
-        }
-      }
-      let threshold = UInt(Double(vp.count + minSub.count) * 0.6)
-      if closestVideoForSub[minSub] == vp && minDist < threshold {
-        matchedPrefixes[vp] = minSub
-        log("Matched \(vp) with \(minSub)")
+      guard let best = closestSubForVideo[video.prefix] else { continue }
+      let threshold = UInt(Double(video.length + best.prefix.count) * 0.6)
+      if closestVideoForSub[best.prefix]?.prefix == video.prefix && best.distance < threshold {
+        matchedPrefixes[video.prefix] = best.prefix
+        log("Matched \(video.prefix) with \(best.prefix)")
       }
     }
 
