@@ -106,10 +106,8 @@ class TranslucentView: NSView {
       wrapper.padding(.all)
     }
     contentPlane = wrapper
-    if contentPlacement == .aboveMaterial {
-      container?.setOwnExtendedDynamicRange(contentEDREnabled, headroom: contentEDRHeadroom)
-      wrapper.setExtendedDynamicRange(contentEDREnabled, headroom: contentEDRHeadroom)
-    }
+    container?.setOwnExtendedDynamicRange(contentEDREnabled, headroom: contentEDRHeadroom)
+    wrapper.setExtendedDynamicRange(contentEDREnabled, headroom: contentEDRHeadroom)
 
     appliedStyle = style
   }
@@ -117,9 +115,7 @@ class TranslucentView: NSView {
   func setContentExtendedDynamicRange(_ enabled: Bool, headroom: CGFloat) {
     contentEDREnabled = enabled
     contentEDRHeadroom = headroom
-    if contentPlacement == .aboveMaterial {
-      container?.setOwnExtendedDynamicRange(enabled, headroom: headroom)
-    }
+    container?.setOwnExtendedDynamicRange(enabled, headroom: headroom)
     contentPlane?.setExtendedDynamicRange(enabled, headroom: headroom)
   }
 

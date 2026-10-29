@@ -19,6 +19,8 @@ class OSDView: TranslucentView {
   weak var mainWindow: MainWindowController!
 
   private var accessoryView: NSView?
+  private var uiHeadroom: CGFloat = 1
+  private var sourceTitle: NSAttributedString?
 
   init(mainWindow: MainWindowController) {
     self.mainWindow = mainWindow
@@ -52,7 +54,7 @@ class OSDView: TranslucentView {
     progressBar.heightAnchor.constraint(equalToConstant: 12).isActive = true
     progressBar.setContentHuggingPriority(.defaultHigh, for: .horizontal)
 
-    super.init(liquidGlassCornerRadius: 16, vevCornerRadius: 10, padding: (16, 8))
+    super.init(liquidGlassCornerRadius: 16, vevCornerRadius: 10, padding: (16, 8), contentPlacement: .aboveMaterial)
 
     stackView.addArrangedSubview(titleStack)
     stackView.addArrangedSubview(secondaryLabel)
@@ -88,8 +90,10 @@ class OSDView: TranslucentView {
     let (osdString, osdType) = message.titleAndType()
     let renderedLabel = try! (try! Template(string: osdString)).render(osdData)
     if let attrString = message.attributedTitle(renderedLabel, fontSize: textSize, smallFontSize: smallTextSize) {
+      sourceTitle = attrString
       label.attributedStringValue = attrString
     } else {
+      sourceTitle = nil
       label.attributedStringValue = NSAttributedString(string: "")
       label.stringValue = renderedLabel
     }
@@ -130,8 +134,29 @@ class OSDView: TranslucentView {
       stackView.setVisibilityPriority(.mustHold, for: secondaryLabel)
       secondaryLabel.stringValue = try! (try! Template(string: text)).render(osdData)
     }
+    updateHDRColors()
   }
 
+  override func setContentExtendedDynamicRange(_ enabled: Bool, headroom: CGFloat) {
+    uiHeadroom = enabled ? headroom : 1
+    super.setContentExtendedDynamicRange(enabled, headroom: headroom)
+    updateHDRColors()
+  }
+
+  private func updateHDRColors() {
+    label.textColor = OSCExtendedDynamicRange.color(.labelColor, headroom: uiHeadroom)
+    secondaryLabel.textColor = OSCExtendedDynamicRange.color(.secondaryLabelColor, headroom: uiHeadroom)
+    iconView.contentTintColor = OSCExtendedDynamicRange.color(.labelColor, headroom: uiHeadroom)
+    progressBar.fillColor = OSCExtendedDynamicRange.color(.controlAccentColor, headroom: uiHeadroom)
+    if let sourceTitle {
+      let title = NSMutableAttributedString(attributedString: sourceTitle)
+      sourceTitle.enumerateAttribute(.foregroundColor, in: NSRange(location: 0, length: sourceTitle.length)) { color, range, _ in
+        title.addAttribute(.foregroundColor, value: OSCExtendedDynamicRange.color(color as? NSColor ?? .labelColor,
+                                                                                headroom: uiHeadroom), range: range)
+      }
+      label.attributedStringValue = title
+    }
+  }
 
   func addAccessoryView(_ view: NSView) {
     removeAccessoryView()

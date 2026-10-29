@@ -70,10 +70,13 @@ Use these steps for AppKit and SwiftUI interface changes.
   update only height when metrics change. AppKit owns the remaining dimension.
   Verify native blur and actual portrait playback together.
 
-- The floating OSC uses the native button tint, adaptive primary time-label
-  colors, and the native slider-thumb appearance without separate HDR tints.
-  Watched progress remains white by explicit user preference. Docked HDR
-  controls may tint the native thumb silhouette without replacing its shape.
+- Playback controls, pause/seek OSD, time preview, buffering and information
+  overlays share the playback display's HDR headroom. Semantic colors keep
+  their light/dark appearance, hue and alpha when given HDR exposure; the
+  floating controls no longer opt out of that exposure. Native slider-thumb
+  geometry stays intact. Watched progress remains white by user preference.
+  Material rebuilds retain the current content dynamic range. System menus
+  and standalone Settings keep their native appearance.
 
 ## References
 

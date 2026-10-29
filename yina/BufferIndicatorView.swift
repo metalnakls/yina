@@ -28,7 +28,7 @@ class BufferIndicatorView: TranslucentView {
     self.detailLabel = NSTextField(labelWithString: "")
     detailLabel.isHidden = true
 
-    super.init(padding: (16, 8))
+    super.init(padding: (16, 8), contentPlacement: .aboveMaterial)
 
     let stackView = NSStackView(views: [progressIndicator, progressLabel, detailLabel])
     stackView.translatesAutoresizingMaskIntoConstraints = false
@@ -41,6 +41,12 @@ class BufferIndicatorView: TranslucentView {
     container.addSubview(stackView)
     stackView.padding(.all(4))
     setContent(container)
+  }
+
+  override func setContentExtendedDynamicRange(_ enabled: Bool, headroom: CGFloat) {
+    super.setContentExtendedDynamicRange(enabled, headroom: headroom)
+    progressLabel?.textColor = OSCExtendedDynamicRange.color(.labelColor, headroom: enabled ? headroom : 1)
+    detailLabel?.textColor = OSCExtendedDynamicRange.color(.secondaryLabelColor, headroom: enabled ? headroom : 1)
   }
 
   @MainActor required init?(coder: NSCoder) {

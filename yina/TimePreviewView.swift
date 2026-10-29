@@ -19,12 +19,17 @@ class TimePreviewView: TranslucentView {
     textField.usesSingleLineMode = false
     textField.alignment = .center
 
-    super.init(liquidGlassCornerRadius: 16, vevCornerRadius: 8, padding: (4, 4))
+    super.init(liquidGlassCornerRadius: 16, vevCornerRadius: 8, padding: (4, 4), contentPlacement: .aboveMaterial)
 
     let container = NSView()
     container.addSubview(textField)
     textField.padding(.all)
     setContent(container)
+  }
+
+  override func setContentExtendedDynamicRange(_ enabled: Bool, headroom: CGFloat) {
+    super.setContentExtendedDynamicRange(enabled, headroom: headroom)
+    textField?.textColor = OSCExtendedDynamicRange.color(.labelColor, headroom: enabled ? headroom : 1)
   }
 
   @MainActor required init?(coder: NSCoder) {

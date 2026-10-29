@@ -11,6 +11,24 @@ class SideBarContainer: TranslucentView {
   private let prefObserver = Preference.Observer()
   private let isLeading: Bool
   var leadingBorder: NSBox!
+  private let hdrColors = PlaybackUIHDRColors()
+  private var uiHDRHeadroom: CGFloat = 1
+
+  override func setContentExtendedDynamicRange(_ enabled: Bool, headroom: CGFloat) {
+    uiHDRHeadroom = enabled ? headroom : 1
+    super.setContentExtendedDynamicRange(enabled, headroom: headroom)
+    if let content { hdrColors.apply(to: content, headroom: uiHDRHeadroom) }
+  }
+
+  override func layout() {
+    super.layout()
+    // Newly created/recycled rows receive the current playback appearance too.
+    if uiHDRHeadroom > 1, let content {
+      content.setExtendedDynamicRange(true, headroom: uiHDRHeadroom)
+      hdrColors.apply(to: content, headroom: uiHDRHeadroom)
+    }
+  }
+
 
   init(mainWindow: MainWindowController, isLeading: Bool) {
     self.mainWindow = mainWindow
@@ -31,6 +49,7 @@ class SideBarContainer: TranslucentView {
 
   override func setStyle(_ newStyle: TranslucentView.Style, force: Bool = false) {
     super.setStyle(newStyle, force: force)
+    if let content { hdrColors.apply(to: content, headroom: uiHDRHeadroom) }
 
     if let container = container as? NSVisualEffectView {
       leadingBorder = NSBox()

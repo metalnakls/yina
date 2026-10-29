@@ -38,10 +38,11 @@ class OSCButton: NSButton {
   var extendedDynamicRangeHeadroom: CGFloat = 1 {
     didSet {
       if usesNativeBezel {
-        contentTintColor = nil
+        contentTintColor = extendedDynamicRangeHeadroom > 1
+          ? OSCExtendedDynamicRange.color(.labelColor, headroom: extendedDynamicRangeHeadroom) : nil
       } else if usesQuickTimeStyle {
         contentTintColor = extendedDynamicRangeHeadroom > 1
-          ? .hdrWhite(intensity: 0.84, headroom: extendedDynamicRangeHeadroom)
+          ? OSCExtendedDynamicRange.color(.labelColor, headroom: extendedDynamicRangeHeadroom)
           : .white.withAlphaComponent(0.84)
       }
       needsDisplay = true
@@ -84,10 +85,11 @@ class OSCButton: NSButton {
         symbolConfiguration = .init(scale: .large)
       }
       if usesNativeBezel {
-        contentTintColor = nil
+        contentTintColor = extendedDynamicRangeHeadroom > 1
+          ? OSCExtendedDynamicRange.color(.labelColor, headroom: extendedDynamicRangeHeadroom) : nil
       } else {
         contentTintColor = extendedDynamicRangeHeadroom > 1
-          ? .hdrWhite(intensity: 0.84, headroom: extendedDynamicRangeHeadroom)
+          ? OSCExtendedDynamicRange.color(.labelColor, headroom: extendedDynamicRangeHeadroom)
           : .white.withAlphaComponent(0.84)
       }
     } else {
@@ -160,8 +162,7 @@ class OSCButton: NSButton {
                            width: drawSize.width, height: drawSize.height)
     image.draw(in: imageRect, from: .zero, operation: .sourceOver, fraction: 1,
                respectFlipped: true, hints: [.interpolation: NSImageInterpolation.high])
-    NSColor.hdrWhite(intensity: isPressed ? 1 : 0.84,
-                     headroom: extendedDynamicRangeHeadroom).setFill()
+    OSCExtendedDynamicRange.color(.labelColor, headroom: extendedDynamicRangeHeadroom).setFill()
     imageRect.fill(using: .sourceAtop)
   }
 

@@ -1068,8 +1068,16 @@ class MainWindowController: PlayerWindowController {
       $0?.setExtendedDynamicRange(enabled, headroom: headroom)
     }
 
-    let primaryColor: NSColor? = enabled ? .hdrWhite(headroom: headroom) : nil
-    let secondaryColor: NSColor = enabled ? .hdrWhite(intensity: 0.75, headroom: headroom) : .secondaryLabelColor
+    // Every playback overlay shares the same HDR/display decision, including
+    // the pause OSD and panels that are revealed after playback has paused.
+    [timePreviewView, osdView, additionalInfoView, bufferIndicatorView].forEach {
+      $0?.setContentExtendedDynamicRange(enabled, headroom: headroom)
+    }
+    sidebars.sideBars.forEach {
+      $0.view.setContentExtendedDynamicRange(enabled, headroom: headroom)
+    }
+    let primaryColor: NSColor? = enabled ? OSCExtendedDynamicRange.color(.labelColor, headroom: headroom) : nil
+    let secondaryColor = OSCExtendedDynamicRange.color(.secondaryLabelColor, headroom: headroom)
     [playButton, leftArrowButton, rightArrowButton].forEach {
       $0?.contentTintColor = primaryColor
     }
@@ -1083,13 +1091,16 @@ class MainWindowController: PlayerWindowController {
     muteButton.extendedDynamicRangeHeadroom = enabled ? headroom : 1
     muteButton.imageView.contentTintColor = primaryColor
     [leftLabel, rightLabel].forEach {
-      $0?.textColor = oscPosition == .floating ? .labelColor : secondaryColor
+      $0?.textColor = oscPosition == .floating
+        ? OSCExtendedDynamicRange.color(.labelColor, headroom: headroom) : secondaryColor
     }
     [oscSpeedLabelLeft, oscSpeedLabelRight].forEach {
       $0?.textColor = secondaryColor
     }
-    // Floating controls use AppKit's appearance together, without separate HDR tints.
-    playSlider.extendedDynamicRangeHeadroom = oscPosition == .floating ? 1 : (enabled ? headroom : 1)
+    playSlider.extendedDynamicRangeHeadroom = enabled ? headroom : 1
+    if oscPosition == .floating {
+      playSlider.trackFillColor = OSCExtendedDynamicRange.color(.white, headroom: headroom)
+    }
     (volumeSlider as? VolumeSlider)?.extendedDynamicRangeHeadroom = enabled ? headroom : 1
   }
 

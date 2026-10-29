@@ -57,7 +57,7 @@ class AdditionalInfoView: TranslucentView {
     batteryImage.padding(.all(0))
     batteryLabel.center()
 
-    super.init(liquidGlassCornerRadius: 16, vevCornerRadius: 10, padding: (16, 8))
+    super.init(liquidGlassCornerRadius: 16, vevCornerRadius: 10, padding: (16, 8), contentPlacement: .aboveMaterial)
 
     if let clockImage = NSImage.sf(["clock"])?
       .withSymbolConfiguration(.init(pointSize: 18, weight: .bold)) {
@@ -77,6 +77,13 @@ class AdditionalInfoView: TranslucentView {
     setContent(container)
   }
   
+  override func setContentExtendedDynamicRange(_ enabled: Bool, headroom: CGFloat) {
+    super.setContentExtendedDynamicRange(enabled, headroom: headroom)
+    title?.textColor = OSCExtendedDynamicRange.color(.labelColor, headroom: enabled ? headroom : 1)
+    timeLabel?.textColor = OSCExtendedDynamicRange.color(.secondaryLabelColor, headroom: enabled ? headroom : 1)
+    batteryLabel?.textColor = OSCExtendedDynamicRange.color(.secondaryLabelColor, headroom: enabled ? headroom : 1)
+  }
+
   @MainActor required init?(coder: NSCoder) {
     fatalError("init(coder:) has not been implemented")
   }
