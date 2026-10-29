@@ -17,7 +17,9 @@ struct SharedShowSmoke {
     try fm.createDirectory(at: root, withIntermediateDirectories: true)
     let store = try SharedShowStore(root: root.resolvingSymlinksInPath())
     let descriptor = try store.enable()
-    let descriptorData = try Data(contentsOf: root.appendingPathComponent(".yina.json"))
+    let descriptorData = try Data(contentsOf: root.appendingPathComponent(".yina/show.json"))
+    try check(!fm.fileExists(atPath: root.appendingPathComponent(".yina.json").path),
+              "New show creation wrote legacy root metadata")
     try check(try store.enable().showID == descriptor.showID)
     let media = root.appendingPathComponent("Episode.mkv")
     try Data(repeating: 0, count: 100).write(to: media)
@@ -118,7 +120,7 @@ struct SharedShowSmoke {
     let requestURL = root.appendingPathComponent(".yina/demand/\(writerA.uuidString.lowercased()).json")
     let requestJSON = try JSONSerialization.jsonObject(with: Data(contentsOf: requestURL)) as! [String: Any]
     try check(requestJSON["updatedAt"] is String && requestJSON["relativePath"] as? String == "Episode.mkv")
-    try check(try Data(contentsOf: root.appendingPathComponent(".yina.json")) == descriptorData, "Progress changed the descriptor")
+    try check(try Data(contentsOf: root.appendingPathComponent(".yina/show.json")) == descriptorData, "Progress changed the descriptor")
 
     // A different selected show with a symlink inside .yina must never write outside it.
     let unsafe = sandbox.appendingPathComponent("Unsafe")
@@ -132,6 +134,8 @@ struct SharedShowSmoke {
     try store.validateRequestPath("Missing/Season/Episode.mkv")
     let unsafeStore = try SharedShowStore(root: unsafe.resolvingSymlinksInPath())
     let unsafeID = try unsafeStore.enable().showID
+    try fm.moveItem(at: unsafe.appendingPathComponent(".yina"),
+                    to: unsafe.appendingPathComponent(".yina.safe"))
     try fm.createSymbolicLink(at: unsafe.appendingPathComponent(".yina"), withDestinationURL: outside)
     let escaped = SharedShowStore.Progress(showID: unsafeID, participantID: participantA, writerID: writerA,
       revision: 1, updatedAt: now, relativePath: "Episode.mkv", position: 5, duration: 100, activity: .playing)
@@ -144,7 +148,11 @@ struct SharedShowSmoke {
     try legacyBytes.write(to: legacyRoot.appendingPathComponent(".yina.json"))
     let legacy = try SharedShowStore(root: legacyRoot.resolvingSymlinksInPath())
     try check(try legacy.enable().showID == SharedShowStore.legacyShowID(hash: hash))
-    try check(try Data(contentsOf: legacyRoot.appendingPathComponent(".yina.json")) == legacyBytes)
+    try check(try Data(contentsOf: legacyRoot.appendingPathComponent(".yina/legacy-index.json")) == legacyBytes,
+              "Legacy inventory bytes changed during migration")
+    try check(!fm.fileExists(atPath: legacyRoot.appendingPathComponent(".yina.json").path),
+              "Recognized legacy file was not moved inside .yina")
+    try check(try legacy.descriptor().showID == SharedShowStore.legacyShowID(hash: hash))
     try Data("{\"schemaVersion\":99}".utf8).write(to: legacyRoot.appendingPathComponent(".yina.json"))
     do { _ = try legacy.enable(); fatalError("Overwrote an unknown descriptor") } catch {}
     print("PASS: v1/v2 identity, Glass fragments, size caps, totals, duplicate/traversal validation, nullable fields, truncation, future snapshots, independent writers, revisions, demands, symlink containment, and unknown-schema preservation")

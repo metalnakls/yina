@@ -1,7 +1,8 @@
 # Show inventory reader
 
-YINA reads Glass's version-one `.yina.json` inventory and version-two show
-descriptors with per-writer transfer snapshots. Discovery and bounded local-file
+YINA reads Glass's per-writer transfer snapshots within `.yina/`, identified by
+`.yina/show.json`. Recognized old root `.yina.json` inventories and descriptors
+migrate into that folder without losing identity or inventory bytes. Discovery and bounded local-file
 checks run on a utility operation queue. Results from another loaded file are
 discarded. Reading the inventory never changes the mpv playlist or its order.
 

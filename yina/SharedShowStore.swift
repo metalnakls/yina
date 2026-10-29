@@ -165,29 +165,208 @@ final class SharedShowStore {
     return encoder
   }
 
-  func descriptor() throws -> Descriptor {
-    let data = try read(".yina.json", limit: ShowEpisodeIndexReader.maximumBytes)
-    if let descriptor = try? Self.decoder().decode(Descriptor.self, from: data), descriptor.schemaVersion == 2 {
-      return descriptor
+  private static func object(_ data: Data, keys: Set<String>) throws -> [String: Any] {
+    guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+          Set(object.keys).isSubset(of: keys) else { throw Failure.invalidRecord }
+    return object
+  }
+
+  private static func strictDescriptor(_ data: Data) throws -> Descriptor {
+    let value = try object(data, keys: ["schemaVersion", "showID", "createdAt"])
+    guard Set(value.keys) == ["schemaVersion", "showID", "createdAt"],
+          let descriptor = try? decoder().decode(Descriptor.self, from: data),
+          descriptor.schemaVersion == 2 else { throw Failure.invalidRecord }
+    return descriptor
+  }
+
+  private static func strictLegacyIndex(_ data: Data) throws -> (Descriptor, Data) {
+    let value = try object(data, keys: ["schemaVersion", "hashString", "capturedAt", "episodes"])
+    guard Set(value.keys) == ["schemaVersion", "hashString", "capturedAt", "episodes"],
+          let records = value["episodes"] as? [[String: Any]],
+          records.count <= 20_000 else { throw Failure.invalidRecord }
+    for record in records {
+      guard Set(record.keys).isSubset(of: ["id", "relativePath", "season", "episode",
+                                           "bytesCompleted", "totalBytes", "wanted"]),
+            let identity = record["id"] as? [String: Any],
+            Set(identity.keys) == ["hashString", "fileIndex"] else { throw Failure.invalidRecord }
     }
-    if let legacy = ShowEpisodeIndexReader.decode(data),
-       let manifest = try? JSONDecoder().decode(ShowEpisodeIndexReader.Manifest.self, from: data) {
-      return Descriptor(showID: Self.legacyShowID(hash: manifest.hashString), createdAt: legacy.capturedAt)
+    guard let snapshot = ShowEpisodeIndexReader.decode(data),
+          let manifest = try? JSONDecoder().decode(ShowEpisodeIndexReader.Manifest.self, from: data) else {
+      throw Failure.invalidRecord
+    }
+    let descriptor = Descriptor(showID: legacyShowID(hash: manifest.hashString), createdAt: snapshot.capturedAt)
+    return (descriptor, try encoder().encode(descriptor))
+  }
+
+  private static func recognizedLegacy(_ data: Data) throws -> (Descriptor, Data, Data?) {
+    let version = try object(data, keys: ["schemaVersion", "showID", "createdAt",
+                                          "hashString", "capturedAt", "episodes"])["schemaVersion"] as? Int
+    if version == 2 {
+      return (try strictDescriptor(data), data, nil)
+    }
+    if version == 1 {
+      let (identity, descriptorBytes) = try strictLegacyIndex(data)
+      return (identity, descriptorBytes, data)
     }
     throw Failure.invalidRecord
   }
 
+  private static func isUnsupportedAtomicRename(_ code: Int32) -> Bool {
+    code == ENOTSUP || code == EOPNOTSUPP
+  }
+
+  private static func syncDirectory(_ fd: Int32) throws {
+    if fsync(fd) != 0 && errno != EINVAL && !isUnsupportedAtomicRename(errno) {
+      throw Failure.io(errno)
+    }
+  }
+
+  private func fileExists(_ path: String) throws -> Bool {
+    let directory: Int32
+    let name: String
+    do { (directory, name) = try parent(path) }
+    catch Failure.io(let code) where code == ENOENT { return false }
+    defer { close(directory) }
+    var info = stat()
+    if fstatat(directory, name, &info, AT_SYMLINK_NOFOLLOW) == 0 {
+      guard (info.st_mode & S_IFMT) == S_IFREG else { throw Failure.unsafePath }
+      return true
+    }
+    if errno == ENOENT { return false }
+    throw Failure.io(errno)
+  }
+
+  /// Migrate only recognized, fully validated legacy files. A destination
+  /// conflict is never overwritten, and the original stays until both files
+  /// have been published and re-read byte-for-byte.
+  private func migrateLegacy() throws -> Descriptor {
+    let original = try read(".yina.json", limit: ShowEpisodeIndexReader.maximumBytes)
+    let (identity, descriptorBytes, indexBytes) = try Self.recognizedLegacy(original)
+    if let indexBytes {
+      try publishImmutable(indexBytes, at: ".yina/legacy-index.json", limit: ShowEpisodeIndexReader.maximumBytes)
+    } else if try fileExists(".yina/legacy-index.json") {
+      throw Failure.invalidRecord
+    }
+    try publishImmutable(descriptorBytes, at: ".yina/show.json", limit: ShowEpisodeIndexReader.maximumBytes)
+    guard try read(".yina/show.json", limit: ShowEpisodeIndexReader.maximumBytes) == descriptorBytes,
+          (try indexBytes.map { try read(".yina/legacy-index.json", limit: ShowEpisodeIndexReader.maximumBytes) == $0 }) ?? true
+    else { throw Failure.identityChanged }
+    // Move the root file to a unique quarantine name atomically, then compare
+    // the moved bytes. A concurrent replacement is restored exclusively; if
+    // the root name was recreated meanwhile, both files are preserved.
+    let metadata = try directory([".yina"])
+    defer { close(metadata) }
+    let quarantine = ".legacy-root-\(UUID().uuidString).pending"
+    if renameatx_np(rootFD, ".yina.json", metadata, quarantine, UInt32(RENAME_EXCL)) != 0 {
+      if errno == ENOENT { return identity } // A matching migration completed elsewhere.
+      throw Failure.io(errno)
+    }
+    let quarantined: Data
+    do { quarantined = try read(".yina/\(quarantine)", limit: ShowEpisodeIndexReader.maximumBytes) }
+    catch Failure.io(let code) where code == ENOENT {
+      return identity // Another matching migrator finalized this quarantine.
+    }
+    catch {
+      // A failed read must not make an unknown file disappear from discovery.
+      // Restore it if the original name is still free; otherwise preserve both.
+      guard renameatx_np(metadata, quarantine, rootFD, ".yina.json", UInt32(RENAME_EXCL)) == 0 else {
+        throw Failure.identityChanged
+      }
+      throw error
+    }
+    if quarantined != original {
+      guard renameatx_np(metadata, quarantine, rootFD, ".yina.json", UInt32(RENAME_EXCL)) == 0 else {
+        throw Failure.identityChanged // Keep the quarantine copy when the root name is occupied.
+      }
+      throw Failure.identityChanged
+    }
+    guard unlinkat(metadata, quarantine, 0) == 0 else { throw Failure.io(errno) }
+    try Self.syncDirectory(metadata)
+    return identity
+  }
+
+  private func recoverQuarantine(descriptorBytes: Data, indexBytes: Data?) throws {
+    var entries = 0
+    let names = try children(".yina", entries: &entries).filter {
+      $0.hasPrefix(".legacy-root-") && $0.hasSuffix(".pending")
+    }
+    guard !names.isEmpty else { return }
+    let metadata = try directory([".yina"])
+    defer { close(metadata) }
+    for name in names {
+      let bytes: Data
+      do { bytes = try read(".yina/\(name)", limit: ShowEpisodeIndexReader.maximumBytes) }
+      catch Failure.io(let code) where code == ENOENT { continue }
+      let (_, expectedDescriptor, expectedIndex) = try Self.recognizedLegacy(bytes)
+      guard expectedDescriptor == descriptorBytes, expectedIndex == indexBytes else {
+        throw Failure.identityChanged
+      }
+      var info = stat()
+      if fstatat(metadata, name, &info, AT_SYMLINK_NOFOLLOW) != 0 {
+        if errno == ENOENT { continue }
+        throw Failure.io(errno)
+      }
+      guard (info.st_mode & S_IFMT) == S_IFREG else { throw Failure.unsafePath }
+      let modified = Double(info.st_mtimespec.tv_sec) + Double(info.st_mtimespec.tv_nsec) / 1_000_000_000
+      // A second process may be between its rename and byte comparison. Let
+      // that process finish its own marker; only finalize an older orphan.
+      if Date().timeIntervalSince1970 - modified < 30 { continue }
+      if unlinkat(metadata, name, 0) != 0 && errno != ENOENT { throw Failure.io(errno) }
+    }
+    try Self.syncDirectory(metadata)
+  }
+
+  func descriptor() throws -> Descriptor {
+    if try fileExists(".yina.json") {
+      do { _ = try migrateLegacy() }
+      catch Failure.io(let code) where code == ENOENT {
+        // Another writer may have completed the same move between the
+        // no-follow existence check and the initial read.
+      }
+      catch Failure.io(let code) where Self.isUnsupportedAtomicRename(code) {
+        // Some mounted filesystems cannot publish a no-replace rename. Keep
+        // recognized legacy metadata readable, but never write through it.
+        let data = try read(".yina.json", limit: ShowEpisodeIndexReader.maximumBytes)
+        return try Self.recognizedLegacy(data).0
+      }
+    }
+    if try !fileExists(".yina/show.json"), try fileExists(".yina/legacy-index.json") {
+      // A crash after publishing the inventory but before the descriptor is
+      // recoverable without touching the original bytes.
+      let index = try read(".yina/legacy-index.json", limit: ShowEpisodeIndexReader.maximumBytes)
+      let (_, descriptorBytes) = try Self.strictLegacyIndex(index)
+      do { try publishImmutable(descriptorBytes, at: ".yina/show.json", limit: 512 * 1024) }
+      catch Failure.io(let code) where Self.isUnsupportedAtomicRename(code) {
+        return try Self.strictLegacyIndex(index).0 // Read-only until publication is supported.
+      }
+    }
+    let bytes = try read(".yina/show.json", limit: ShowEpisodeIndexReader.maximumBytes)
+    let identity = try Self.strictDescriptor(bytes)
+    let index = try fileExists(".yina/legacy-index.json")
+      ? read(".yina/legacy-index.json", limit: ShowEpisodeIndexReader.maximumBytes) : nil
+    if let index {
+      let (legacyIdentity, _) = try Self.strictLegacyIndex(index)
+      guard legacyIdentity.showID == identity.showID else { throw Failure.identityChanged }
+    }
+    try recoverQuarantine(descriptorBytes: bytes, indexBytes: index)
+    return identity
+  }
+
   /// Explicit opt-in at a user-selected show root. Existing metadata is immutable.
   func enable() throws -> Descriptor {
-    let value = Descriptor(showID: UUID(), createdAt: Date())
-    let fd = openat(rootFD, ".yina.json", O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0o644)
-    if fd < 0 {
-      guard errno == EEXIST else { throw Failure.io(errno) }
-      return try descriptor()
+    if try fileExists(".yina/show.json") || fileExists(".yina.json") {
+      let identity = try descriptor()
+      guard try !fileExists(".yina.json") else { throw Failure.io(ENOTSUP) }
+      return identity
     }
-    defer { close(fd) }
-    try writeAll(Self.encoder().encode(value), to: fd)
-    guard fsync(fd) == 0 else { throw Failure.io(errno) }
+    if try fileExists(".yina/legacy-index.json") {
+      let identity = try descriptor()
+      guard try fileExists(".yina/show.json") else { throw Failure.io(ENOTSUP) }
+      return identity
+    }
+    let value = Descriptor(showID: UUID(), createdAt: Date())
+    do { try publishImmutable(Self.encoder().encode(value), at: ".yina/show.json", limit: 512 * 1024) }
+    catch Failure.invalidRecord { return try descriptor() } // Another creator won; validate its descriptor.
     return value
   }
 
@@ -198,12 +377,10 @@ final class SharedShowStore {
     let volume = try? folder.resourceValues(forKeys: [.volumeURLKey]).volume
     for _ in 0..<12 {
       let store = try SharedShowStore(root: folder)
-      var info = stat()
-      if fstatat(store.rootFD, ".yina.json", &info, AT_SYMLINK_NOFOLLOW) == 0 {
+      if try store.fileExists(".yina/show.json") || store.fileExists(".yina.json") {
         _ = try store.descriptor() // A malformed nearer record stops discovery.
         return store
       }
-      guard errno == ENOENT else { throw Failure.io(errno) }
       let parent = folder.deletingLastPathComponent()
       if folder == volume || parent == folder { break }
       folder = parent
@@ -222,10 +399,23 @@ final class SharedShowStore {
   func catalog(at now: Date = Date()) throws -> ShowEpisodeIndexReader.Snapshot {
     let identity = try descriptor()
     var byHash: [String: ShowEpisodeIndexReader.Snapshot] = [:]
-    let legacyData = try read(".yina.json", limit: ShowEpisodeIndexReader.maximumBytes)
-    if let legacy = ShowEpisodeIndexReader.decode(legacyData), let first = legacy.episodes.first {
-      byHash[first.hashString] = legacy
-    }
+    let legacyData: Data
+    if try fileExists(".yina/legacy-index.json") {
+      legacyData = try read(".yina/legacy-index.json", limit: ShowEpisodeIndexReader.maximumBytes)
+      let (legacyDescriptor, _) = try Self.strictLegacyIndex(legacyData)
+      guard legacyDescriptor.showID == identity.showID else { throw Failure.identityChanged }
+      if let legacy = ShowEpisodeIndexReader.decode(legacyData), let first = legacy.episodes.first {
+        byHash[first.hashString] = legacy
+      }
+    } else if try fileExists(".yina.json") {
+      let original = try read(".yina.json", limit: ShowEpisodeIndexReader.maximumBytes)
+      let (legacyIdentity, _, index) = try Self.recognizedLegacy(original)
+      guard legacyIdentity.showID == identity.showID else { throw Failure.identityChanged }
+      legacyData = index ?? Data()
+      if let legacy = ShowEpisodeIndexReader.decode(legacyData), let first = legacy.episodes.first {
+        byHash[first.hashString] = legacy
+      }
+    } else { legacyData = Data() }
     var entries = 0
     var bytes = legacyData.count
     let decoder = Self.decoder()
@@ -343,8 +533,16 @@ final class SharedShowStore {
     return (record, data.count)
   }
 
+  private func requireWritableDescriptor(_ showID: UUID) throws {
+    guard try descriptor().showID == showID else { throw Failure.identityChanged }
+    guard try fileExists(".yina/show.json"), try !fileExists(".yina.json") else {
+      throw Failure.io(ENOTSUP)
+    }
+  }
+
   func publish(_ record: Progress) throws {
-    guard record.isValid, try descriptor().showID == record.showID else { throw Failure.invalidRecord }
+    guard record.isValid else { throw Failure.invalidRecord }
+    try requireWritableDescriptor(record.showID)
     let path = ".yina/progress/\(record.participantID.uuidString.lowercased())/\(record.writerID.uuidString.lowercased()).json"
     if let previous = try existing(path, as: Progress.self) {
       guard previous.isValid, previous.showID == record.showID, previous.participantID == record.participantID,
@@ -355,7 +553,8 @@ final class SharedShowStore {
 
   func publish(_ record: Demand) throws {
     guard record.schemaVersion == 1, Self.safePath(record.relativePath), Self.validHash(record.hashString),
-          record.fileIndex >= 0, try descriptor().showID == record.showID else { throw Failure.invalidRecord }
+          record.fileIndex >= 0 else { throw Failure.invalidRecord }
+    try requireWritableDescriptor(record.showID)
     let path = ".yina/demand/\(record.writerID.uuidString.lowercased()).json"
     if let previous = try existing(path, as: Demand.self) {
       guard previous.showID == record.showID, previous.writerID == record.writerID,
@@ -448,6 +647,41 @@ final class SharedShowStore {
     defer { close(fd); unlinkat(directory, temporary, 0) }
     try writeAll(data, to: fd)
     guard fsync(fd) == 0, renameat(directory, temporary, directory, name) == 0 else { throw Failure.io(errno) }
+  }
+
+  /// Publish a descriptor or migration snapshot without replacing anything at
+  /// the destination, including a file created concurrently by another writer.
+  private func publishImmutable(_ data: Data, at path: String, limit: Int) throws {
+    guard data.count <= limit else { throw Failure.tooLarge }
+    if try fileExists(path) {
+      guard try read(path, limit: limit) == data else { throw Failure.invalidRecord }
+      return
+    }
+    let (directory, name) = try parent(path, create: true)
+    defer { close(directory) }
+    let temporary = ".\(UUID().uuidString).tmp"
+    let fd = openat(directory, temporary, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0o644)
+    guard fd >= 0 else { throw Failure.io(errno) }
+    defer { close(fd); unlinkat(directory, temporary, 0) }
+    try writeAll(data, to: fd)
+    guard fsync(fd) == 0 else { throw Failure.io(errno) }
+    if renameatx_np(directory, temporary, directory, name, UInt32(RENAME_EXCL)) != 0 {
+      var code = errno
+      if Self.isUnsupportedAtomicRename(code) {
+        if linkat(directory, temporary, directory, name, 0) == 0 {
+          guard unlinkat(directory, temporary, 0) == 0 else { throw Failure.io(errno) }
+          try Self.syncDirectory(directory)
+          return
+        }
+        code = errno
+      }
+      if code == EEXIST {
+        guard try read(path, limit: limit) == data else { throw Failure.invalidRecord }
+        return
+      }
+      throw Failure.io(code)
+    }
+    try Self.syncDirectory(directory)
   }
 
   private func writeAll(_ data: Data, to fd: Int32) throws {

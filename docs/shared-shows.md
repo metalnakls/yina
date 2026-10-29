@@ -1,6 +1,6 @@
 # Shared shows
 
-YINA and Glass share a show folder through `.yina.json`. Glass owns transfer
+YINA and Glass share a show folder through one hidden `.yina/` folder. Glass owns transfer
 snapshots and download selection. YINA owns each player's progress and explicit
 download requests. Existing mpv playlists, local watch-later data, and manual
 subtitle selection keep their behavior.
@@ -41,7 +41,7 @@ are preserved. No automatic requests or deletion are performed.
 
 ## Portable format and ownership
 
-The version-two `.yina.json` is an immutable identity:
+The version-two `.yina/show.json` is an immutable identity:
 
 ```json
 {"schemaVersion":2,"showID":"4B182DAC-5B18-41B9-9AAE-B7709CFCC89A","createdAt":"2026-10-29T12:00:00.000Z"}
@@ -69,9 +69,10 @@ Glass decoder ignores these extensions and can still read the progress record.
 YINA accepts Glass's optional coverage field without interpreting it as watched
 or changing another writer's file.
 
-Legacy version-one inventories are read unchanged. Their show ID uses Glass's
-deterministic SHA-256 mapping of the normalized torrent hash. Unknown or malformed
-descriptors are preserved. No old multiplayer-branch implementation is merged.
+Recognized old root `.yina.json` files migrate into `.yina/`, preserving their
+identity and original bytes. Version-one inventories become `legacy-index.json`
+and retain Glass's deterministic SHA-256 show ID. Unknown, conflicting, or malformed
+metadata is preserved. See [storage and migration](shared-show-storage.md). No old multiplayer-branch implementation is merged.
 
 Writes use a temporary file, `fsync`, then an atomic rename into the writer's own
 path. Metadata ancestors and leaf files are opened without following symlinks.
