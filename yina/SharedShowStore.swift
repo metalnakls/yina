@@ -58,6 +58,32 @@ final class SharedShowStore {
   private let rootFD: Int32
   private let maximumEntries = 4096
   private let maximumAggregateBytes = 64 * 1024 * 1024
+  private struct ProgressStamp: Equatable {
+    let device: dev_t
+    let inode: ino_t
+    let size: off_t
+    let modifiedSeconds: Int
+    let modifiedNanoseconds: Int
+    let changedSeconds: Int
+    let changedNanoseconds: Int
+
+    init(_ info: stat) {
+      device = info.st_dev
+      inode = info.st_ino
+      size = info.st_size
+      modifiedSeconds = info.st_mtimespec.tv_sec
+      modifiedNanoseconds = info.st_mtimespec.tv_nsec
+      changedSeconds = info.st_ctimespec.tv_sec
+      changedNanoseconds = info.st_ctimespec.tv_nsec
+    }
+  }
+  private struct CachedProgress {
+    let stamp: ProgressStamp
+    let record: Progress?
+    let expiresAt: Date
+  }
+  private static let progressCacheLock = NSLock()
+  private static var progressCache: [String: CachedProgress] = [:]
 
   init(root: URL) throws {
     guard root.isFileURL else { throw Failure.unsafePath }
@@ -112,13 +138,16 @@ final class SharedShowStore {
 
   static func decoder() -> JSONDecoder {
     let decoder = JSONDecoder()
+    // Each decoder owns its formatters. One broad refresh may decode thousands
+    // of dates, but no formatter is shared between concurrent mount lanes.
+    let fractional = ISO8601DateFormatter()
+    fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+    let whole = ISO8601DateFormatter()
+    whole.formatOptions = [.withInternetDateTime]
     decoder.dateDecodingStrategy = .custom { decoder in
       let value = try decoder.singleValueContainer().decode(String.self)
-      let formatter = ISO8601DateFormatter()
-      formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-      if let date = formatter.date(from: value) { return date }
-      formatter.formatOptions = [.withInternetDateTime]
-      guard let date = formatter.date(from: value) else { throw Failure.invalidRecord }
+      if let date = fractional.date(from: value) { return date }
+      guard let date = whole.date(from: value) else { throw Failure.invalidRecord }
       return date
     }
     return decoder
@@ -127,9 +156,9 @@ final class SharedShowStore {
   static func encoder() -> JSONEncoder {
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.sortedKeys]
+    let formatter = ISO8601DateFormatter()
+    formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
     encoder.dateEncodingStrategy = .custom { date, encoder in
-      let formatter = ISO8601DateFormatter()
-      formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
       var value = encoder.singleValueContainer()
       try value.encode(formatter.string(from: date))
     }
@@ -199,6 +228,7 @@ final class SharedShowStore {
     }
     var entries = 0
     var bytes = legacyData.count
+    let decoder = Self.decoder()
     for writer in try children(".yina/transfers", entries: &entries) {
       guard let writerID = UUID(uuidString: writer) else { continue }
       for name in try children(".yina/transfers/\(writer)", entries: &entries) where name.hasSuffix(".json") {
@@ -208,7 +238,7 @@ final class SharedShowStore {
         guard let data = try? read(path, limit: min(ShowEpisodeIndexReader.maximumBytes, maximumAggregateBytes - bytes)) else { continue }
         bytes += data.count
         guard bytes < maximumAggregateBytes else { throw Failure.tooLarge }
-        guard let fragment = try? Self.decoder().decode(Fragment.self, from: data),
+        guard let fragment = try? decoder.decode(Fragment.self, from: data),
               fragment.schemaVersion == 1, fragment.showID == identity.showID, fragment.writerID == writerID,
               fragment.index.hashString.lowercased() == hash.lowercased(),
               let indexData = try? JSONEncoder().encode(fragment.index),
@@ -259,20 +289,58 @@ final class SharedShowStore {
     var entries = 0
     var bytes = 0
     var records: [Progress] = []
+    let decoder = Self.decoder()
     for participant in try children(".yina/progress", entries: &entries) {
       guard let participantID = UUID(uuidString: participant) else { continue }
       for name in try children(".yina/progress/\(participant)", entries: &entries) where name.hasSuffix(".json") {
         guard let writerID = UUID(uuidString: String(name.dropLast(5))),
-              let data = try? read(".yina/progress/\(participant)/\(name)", limit: min(512 * 1024, maximumAggregateBytes - bytes)) else { continue }
-        bytes += data.count
+              let result = try? cachedProgress(".yina/progress/\(participant)/\(name)",
+                limit: min(512 * 1024, maximumAggregateBytes - bytes), decoder: decoder, at: now) else { continue }
+        bytes += result.1
         guard bytes < maximumAggregateBytes else { throw Failure.tooLarge }
-        guard let record = try? Self.decoder().decode(Progress.self, from: data), record.isValid,
+        guard let record = result.0, record.isValid,
               record.showID == showID, record.participantID == participantID, record.writerID == writerID,
               record.updatedAt <= now else { continue }
         records.append(record)
       }
     }
     return records.sorted { $0.updatedAt > $1.updatedAt }
+  }
+
+  /// Frequent follow updates need only the selected writer. A wider scan still
+  /// runs periodically to discover new participants and changed records.
+  func progress(showID: UUID, participantID: UUID, writerID: UUID, at now: Date = Date()) throws -> Progress? {
+    guard try descriptor().showID == showID else { throw Failure.identityChanged }
+    let path = ".yina/progress/\(participantID.uuidString.lowercased())/\(writerID.uuidString.lowercased()).json"
+    let record: Progress?
+    do { (record, _) = try cachedProgress(path, limit: 512 * 1024, decoder: Self.decoder(), at: now) }
+    catch Failure.io(let code) where code == ENOENT { return nil }
+    guard let record, record.isValid,
+          record.showID == showID, record.participantID == participantID,
+          record.writerID == writerID, record.updatedAt <= now else { return nil }
+    return record
+  }
+
+  private func cachedProgress(_ path: String, limit: Int, decoder: JSONDecoder, at now: Date) throws -> (Progress?, Int) {
+    guard limit > 0 else { throw Failure.tooLarge }
+    let (directory, name) = try parent(path)
+    defer { close(directory) }
+    var info = stat()
+    guard fstatat(directory, name, &info, AT_SYMLINK_NOFOLLOW) == 0 else { throw Failure.io(errno) }
+    guard (info.st_mode & S_IFMT) == S_IFREG else { throw Failure.unsafePath }
+    guard info.st_size >= 0 && info.st_size <= limit else { throw Failure.tooLarge }
+    let stamp = ProgressStamp(info)
+    let key = root.path + "/" + path
+    if let hit = Self.progressCacheLock.withLock({ Self.progressCache[key] }),
+       hit.stamp == stamp, hit.expiresAt > now { return (hit.record, Int(info.st_size)) }
+    let data = try read(path, limit: limit)
+    let record = try? decoder.decode(Progress.self, from: data)
+    Self.progressCacheLock.withLock {
+      if Self.progressCache.count >= maximumEntries { Self.progressCache.removeAll(keepingCapacity: true) }
+      Self.progressCache[key] = CachedProgress(stamp: stamp, record: record,
+                                              expiresAt: now.addingTimeInterval(15))
+    }
+    return (record, data.count)
   }
 
   func publish(_ record: Progress) throws {

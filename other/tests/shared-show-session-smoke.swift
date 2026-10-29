@@ -58,6 +58,25 @@ enum Utility {
     }
     session.start()
     try wait { session.showID == descriptor.showID }
+    var changes = 0
+    let observer = NotificationCenter.default.addObserver(forName: .yinaSharedShowChanged, object: player,
+                                                          queue: .main) { _ in changes += 1 }
+    defer { NotificationCenter.default.removeObserver(observer) }
+    player.info.state = .paused
+    let beforePause = changes
+    session.checkpoint()
+    try wait {
+      guard changes > beforePause else { return false }
+      return try store.progress(showID: descriptor.showID).first { $0.writerID == session.writerID }?.activity == .paused
+    }
+    let pausedRevision = try store.progress(showID: descriptor.showID).first { $0.writerID == session.writerID }!.revision
+    let beforeRepeat = changes
+    session.checkpoint()
+    try wait { changes > beforeRepeat }
+    let repeatedRevision = try store.progress(showID: descriptor.showID).first { $0.writerID == session.writerID }!.revision
+    precondition(repeatedRevision == pausedRevision,
+                 "Unchanged paused non-host checkpoint wrote a new revision")
+    player.info.state = .playing
     player.info.videoPosition?.second = 37
     session.checkpoint()
     session.saveFinal(media: a, position: 38, duration: 100)

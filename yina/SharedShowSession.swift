@@ -4,17 +4,41 @@ extension Notification.Name {
   static let yinaSharedShowChanged = Notification.Name("yinaSharedShowChanged")
 }
 
-/// One player owns one writer file. A single bounded queue handles all SMB work;
-/// slow shares cannot accumulate timer jobs or block the UI thread.
+/// One player owns one writer file. Bounded lanes keep a stalled share from
+/// blocking every other session while each session retains its write order.
 @MainActor
 final class SharedShowSession {
-  private static let operations: OperationQueue = {
+  private static let operations: [OperationQueue] = (0..<4).map { index in
     let queue = OperationQueue()
-    queue.name = "YINASharedShows"
+    queue.name = "YINASharedShows.\(index)"
     queue.qualityOfService = .utility
     queue.maxConcurrentOperationCount = 1
     return queue
-  }()
+  }
+  private static var laneByRoot: [String: (index: Int, count: Int)] = [:]
+  private static var laneLoads = [0, 0, 0, 0]
+  private static func reserveLane(for url: URL) -> (OperationQueue, String) {
+    // A root with work in flight retains its serial lane. A new root chooses
+    // the least occupied lane, so one stalled root leaves other lanes usable.
+    let key = url.standardizedFileURL.path
+    if var assignment = laneByRoot[key] {
+      assignment.count += 1
+      laneByRoot[key] = assignment
+      laneLoads[assignment.index] += 1
+      return (operations[assignment.index], key)
+    }
+    let index = laneLoads.indices.min { laneLoads[$0] < laneLoads[$1] }!
+    laneByRoot[key] = (index, 1)
+    laneLoads[index] += 1
+    return (operations[index], key)
+  }
+  private static func releaseLane(_ key: String) {
+    guard var assignment = laneByRoot[key] else { return }
+    laneLoads[assignment.index] -= 1
+    assignment.count -= 1
+    if assignment.count == 0 { laneByRoot.removeValue(forKey: key) }
+    else { laneByRoot[key] = assignment }
+  }
   static let participantID: UUID = {
     let key = "sharedShowParticipantID"
     if let value = AppEnvironment.defaults.string(forKey: key), let id = UUID(uuidString: value) { return id }
@@ -32,6 +56,15 @@ final class SharedShowSession {
   private var pendingFinal: Sample?
   private var pendingCurrent: Sample?
   private var lastSample: Sample?
+  private var lastPublished: Sample?
+  private var lastBroadRefresh = Date.distantPast
+  private struct Membership: Sendable {
+    let root: URL?
+    let showID: UUID?
+    let path: String?
+    let expiresAt: Date
+  }
+  private var membership: Membership?
   private var requestBusy = false
   private var applyingRemote = false
   private var lastControlCheckpoint: TimeInterval = 0
@@ -55,6 +88,8 @@ final class SharedShowSession {
     let date: Date
     var rate = 1.0
     var hosting = false
+    var shouldWrite = true
+    var refreshPeers = true
   }
 
   init(player: PlayerCore) { self.player = player }
@@ -70,6 +105,9 @@ final class SharedShowSession {
     status = nil
     requestStatus = nil
     lastSample = nil
+    lastPublished = nil
+    lastBroadRefresh = .distantPast
+    membership = nil
     pendingCurrent = nil
     // Following never crosses into a newly opened file without another choice.
     followingWriter = nil
@@ -80,9 +118,9 @@ final class SharedShowSession {
 
   private func scheduleTimer() {
     timer?.invalidate()
-    let interval: TimeInterval = isHosting || followingWriter != nil ? 2 : 10
+    let interval: TimeInterval = isHosting || followingWriter != nil ? 2 : membership?.root == nil && membership != nil ? 30 : 10
     timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
-      MainActor.assumeIsolated { self?.checkpoint() }
+      MainActor.assumeIsolated { self?.checkpoint(refreshPeers: false) }
     }
     timer?.tolerance = interval / 10
   }
@@ -104,21 +142,29 @@ final class SharedShowSession {
     enqueue(sample)
   }
 
-  func checkpoint(stopped: Bool = false) {
+  func checkpoint(stopped: Bool = false, refreshPeers: Bool = true) {
     guard let player else { return }
     let sample: Sample
     if player.info.state.loaded, let media = player.info.currentURL, media.isFileURL {
-      player.syncPositionIfNeeded()
       guard let position = player.info.videoPosition?.second, let duration = player.info.videoDuration?.second,
             position.isFinite, duration.isFinite, duration > 0 else { return }
-      sample = Sample(generation: generation, media: media, position: min(duration, max(0, position)), duration: duration,
+      var current = Sample(generation: generation, media: media, position: min(duration, max(0, position)), duration: duration,
                       activity: stopped ? .stopped : player.info.state == .paused ? .paused : .playing,
                       date: Date(), rate: player.info.playSpeed, hosting: isHosting && !stopped)
-      lastSample = sample
+      if current.activity == .paused && !current.hosting, let previous = lastPublished,
+         previous.media == current.media, previous.activity == .paused, !previous.hosting,
+         abs(previous.position - current.position) < 0.01, abs(previous.rate - current.rate) < 0.001 {
+        current.shouldWrite = false
+      }
+      current.refreshPeers = refreshPeers
+      sample = current
+      lastSample = current
     } else if stopped, let lastSample {
       sample = Sample(generation: lastSample.generation, media: lastSample.media, position: lastSample.position, duration: lastSample.duration,
                       activity: .stopped, date: Date())
     } else { return }
+    if !sample.shouldWrite && !sample.refreshPeers && followingWriter == nil && sample.date.timeIntervalSince(lastBroadRefresh) < 30 { return }
+    if let membership, membership.root == nil, sample.date < membership.expiresAt { return }
     enqueue(sample)
   }
 
@@ -140,30 +186,68 @@ final class SharedShowSession {
     let generation = sample.generation
     let writer = writerID
     let participant = Self.participantID
-    Self.operations.addOperation { [weak self] in
+    let cachedMembership = membership
+    let previousPositions = positions
+    let previousBroadRefresh = lastBroadRefresh
+    let following = followingWriter
+    let hostParticipant = previousPositions.first { $0.writerID == following }?.participantID
+    let (lane, laneKey) = Self.reserveLane(for: cachedMembership?.root ?? sample.media.deletingLastPathComponent())
+    lane.addOperation { [weak self] in
       var resolvedRoot: URL?
       var resolvedID: UUID?
       var resolvedPath: String?
-      var positions: [SharedShowStore.Progress] = []
+      var positions = previousPositions
       var status: String?
+      var nextMembership = cachedMembership
+      var broadRefresh = previousBroadRefresh
+      var published = false
       do {
-        if let store = try SharedShowStore.discover(for: sample.media),
-           let path = store.relativePath(for: sample.media) {
-          let descriptor = try store.descriptor()
+        let store: SharedShowStore?
+        if let cached = cachedMembership, sample.date < cached.expiresAt {
+          store = try cached.root.map { try SharedShowStore(root: $0) }
+          resolvedID = cached.showID
+          resolvedPath = cached.path
+        } else {
+          store = try SharedShowStore.discover(for: sample.media)
+          if let store {
+            let descriptor = try store.descriptor()
+            resolvedID = descriptor.showID
+            resolvedPath = store.relativePath(for: sample.media)
+            nextMembership = Membership(root: store.root, showID: resolvedID, path: resolvedPath,
+                                        expiresAt: sample.date.addingTimeInterval(60))
+          } else {
+            nextMembership = Membership(root: nil, showID: nil, path: nil,
+                                        expiresAt: sample.date.addingTimeInterval(30))
+          }
+        }
+        if let store, let path = resolvedPath, let showID = resolvedID {
           resolvedRoot = store.root
-          resolvedID = descriptor.showID
-          resolvedPath = path
           // Capture other writers before writing this checkpoint. No other person's
           // position automatically overrides local watch-later or playback state.
-          positions = try store.progress(showID: descriptor.showID).filter { $0.writerID != writer }
-          try store.publish(.init(showID: descriptor.showID, participantID: participant, writerID: writer,
-            revision: revision, updatedAt: sample.date, relativePath: path, position: sample.position,
-            duration: sample.duration, activity: sample.activity, playbackRate: sample.rate, watchTogether: sample.hosting))
+          if sample.refreshPeers || sample.date.timeIntervalSince(previousBroadRefresh) >= 30 {
+            positions = try store.progress(showID: showID).filter { $0.writerID != writer }
+            broadRefresh = sample.date
+          } else if let following, let hostParticipant,
+                    let host = try store.progress(showID: showID, participantID: hostParticipant,
+                                                  writerID: following) {
+            positions.removeAll { $0.writerID == following }
+            positions.append(host)
+          }
+          if sample.shouldWrite {
+            try store.publish(.init(showID: showID, participantID: participant, writerID: writer,
+              revision: revision, updatedAt: sample.date, relativePath: path, position: sample.position,
+              duration: sample.duration, activity: sample.activity, playbackRate: sample.rate, watchTogether: sample.hosting))
+            published = true
+          }
           status = "Progress saved to show folder"
         }
-      } catch { status = "Shared progress unavailable; playback continues locally" }
-      let result = (resolvedRoot, resolvedID, positions, status, resolvedPath)
+      } catch {
+        nextMembership = Membership(root: nil, showID: nil, path: nil, expiresAt: sample.date.addingTimeInterval(10))
+        status = "Shared progress unavailable; playback continues locally"
+      }
+      let result = (resolvedRoot, resolvedID, positions, status, resolvedPath, nextMembership, broadRefresh, published)
       DispatchQueue.main.async { [weak self] in
+        Self.releaseLane(laneKey)
         guard let self else { return }
         self.busy = false
         if self.generation == generation {
@@ -172,9 +256,13 @@ final class SharedShowSession {
           self.positions = result.2
           self.status = result.3
           self.relativePath = result.4
+          self.membership = result.5
+          self.lastBroadRefresh = result.6
+          if result.7 { self.lastPublished = sample }
           self.contextMedia = sample.media
           self.synchronize()
           self.changed()
+          if self.timer != nil { self.scheduleTimer() }
         }
         if let final = self.pendingFinal {
           self.pendingFinal = nil
@@ -266,7 +354,8 @@ final class SharedShowSession {
       guard let self else { return }
       self.status = "Enabling shared progress…"
       self.changed()
-      Self.operations.addOperation { [weak self] in
+      let (lane, laneKey) = Self.reserveLane(for: root)
+      lane.addOperation { [weak self] in
         let result: String
         do {
           let store = try SharedShowStore(root: root.resolvingSymlinksInPath())
@@ -275,8 +364,10 @@ final class SharedShowSession {
           result = "Shared progress enabled"
         } catch { result = "Couldn’t enable sharing in this folder" }
         DispatchQueue.main.async { [weak self] in
+          Self.releaseLane(laneKey)
           guard let self, self.player?.info.currentURL == media else { return }
           self.status = result
+          self.membership = nil
           self.changed()
           self.checkpoint()
         }
@@ -295,7 +386,8 @@ final class SharedShowSession {
       hashString: episode.hashString, fileIndex: episode.fileIndex, cancelled: false)
     requestStatus = "Saving download request…"
     changed()
-    Self.operations.addOperation { [weak self] in
+    let (lane, laneKey) = Self.reserveLane(for: root)
+    lane.addOperation { [weak self] in
       let message: String
       do {
         let store = try SharedShowStore(root: root)
@@ -313,6 +405,7 @@ final class SharedShowSession {
         message = "Request saved for Glass; waiting for availability"
       } catch { message = "Couldn’t save the download request" }
       DispatchQueue.main.async { [weak self] in
+        Self.releaseLane(laneKey)
         self?.requestBusy = false
         if self?.generation == generation {
           self?.requestStatus = message

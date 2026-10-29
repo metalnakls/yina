@@ -75,6 +75,14 @@ struct SharedShowSmoke {
     try store.publish(progress(participantA, writerA, revision: 2, position: 10))
     let records = try store.progress(showID: descriptor.showID)
     try check(records.first { $0.writerID == writerA }?.position == 10, "Explicit rewind replaced by furthest progress")
+    try check(try store.progress(showID: descriptor.showID, participantID: participantA,
+                                 writerID: writerA)?.revision == 2, "Direct host read missed the latest revision")
+    let malformedWriter = UUID()
+    let malformedFolder = root.appendingPathComponent(".yina/progress/\(participantA.uuidString.lowercased())")
+    try Data("{malformed".utf8).write(to: malformedFolder.appendingPathComponent("\(malformedWriter.uuidString.lowercased()).json"))
+    try check(try store.progress(showID: descriptor.showID, participantID: participantA,
+                                 writerID: malformedWriter) == nil, "Malformed direct host record was accepted")
+    try check(try store.progress(showID: descriptor.showID).count == 2, "Malformed peer displaced valid records")
     do { try store.publish(progress(participantA, writerA)); fatalError("Accepted a decreasing revision") } catch {}
     do { try store.publish(progress(participantA, writerA, revision: 3, position: .infinity)); fatalError("Accepted infinite progress") } catch {}
     try store.publish(progress(participantA, UUID(), time: now.addingTimeInterval(100)))
