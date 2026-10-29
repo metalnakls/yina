@@ -1108,6 +1108,7 @@ private struct WelcomeRecentsView: View {
       .listStyle(.inset)
       .environment(\.defaultMinListRowHeight, 0)
       .scrollContentBackground(.hidden)
+      .scrollIndicators(.hidden)
       .contentMargins(.top, max(0, model.topInset - model.coveredTop), for: .scrollContent)
       .contentMargins(.bottom, 16, for: .scrollContent)
       .scrollEdgeEffectStyle(.soft, for: .top)
