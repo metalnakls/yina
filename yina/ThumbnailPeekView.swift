@@ -19,6 +19,14 @@ class ThumbnailPeekView: NSView {
   private weak var previewPlayer: PlayerCore?
   private var previewSeconds: Double?
   private var equalizerObserver: NSObjectProtocol?
+  private var settingsObserver: NSObjectProtocol?
+  private var previewOptions: [String: String]?
+  private var optionsCapturedAt: Date?
+  private weak var optionsPlayer: PlayerCore?
+  private var optionsURL: URL?
+  private var optionsVideoID: Int?
+  private var optionsGeneration: UInt64 = 0
+  private var previewHDREnabled: Bool?
 
   override var isHidden: Bool {
     didSet {
@@ -33,14 +41,43 @@ class ThumbnailPeekView: NSView {
   func renderPreview(player: PlayerCore, seconds: Double) {
     guard let url = player.info.currentURL, !player.info.isNetworkResource,
           player.info.state.loaded, Preference.bool(for: .enableThumbnailPreview) else {
+      invalidateOptions()
+      previewPlayer = nil
       isHidden = true
       return
     }
     previewPlayer = player
     previewSeconds = seconds
-    var options: [String: String] = [:]
-    for name in MPVPreviewRenderer.optionNames {
-      if let value = player.mpv.getString(name) { options[name] = value }
+    let videoID = player.info.vid
+    if optionsPlayer !== player || optionsURL != url || optionsVideoID != videoID {
+      invalidateOptions()
+      optionsPlayer = player
+      optionsURL = url
+      optionsVideoID = videoID
+    }
+    if let optionsCapturedAt, Date().timeIntervalSince(optionsCapturedAt) > 10 {
+      // External IPC can change an unobserved option. Bound that exposure
+      // without issuing a property batch on every timeline movement.
+      invalidateOptions()
+    }
+    guard let options = previewOptions else {
+      // One asynchronous batch serves all hover positions until a relevant
+      // file, track, or rendering option changes.
+      let generation = optionsGeneration
+      if !optionsRefreshInFlight {
+        optionsRefreshInFlight = true
+        player.mpv.getStringsAsync(MPVPreviewRenderer.optionNames) { [weak self, weak player] values in
+          guard let self, let player, self.optionsGeneration == generation,
+                self.optionsPlayer === player, self.optionsURL == url else { return }
+          self.optionsRefreshInFlight = false
+          guard player.info.currentURL == url, player.info.state.loaded else { return }
+          guard !values.isEmpty else { return }
+          self.previewOptions = values
+          self.optionsCapturedAt = Date()
+          if let seconds = self.previewSeconds { self.renderPreview(player: player, seconds: seconds) }
+        }
+      }
+      return
     }
     previewGeneration &+= 1
     let generation = previewGeneration
@@ -63,7 +100,11 @@ class ThumbnailPeekView: NSView {
 
   func setHDRPlaybackEnabled(_ enabled: Bool) {
 #if IINA_ENABLE_METAL_RENDERER
-    synchronizePreview()
+    if previewHDREnabled != enabled {
+      previewHDREnabled = enabled
+      invalidateOptions()
+      synchronizePreview()
+    }
 #else
     imageView.preferredImageDynamicRange = enabled ? .high : .standard
 #endif
@@ -76,8 +117,20 @@ class ThumbnailPeekView: NSView {
     }
   }
 
+  private var optionsRefreshInFlight = false
+
+  private func invalidateOptions() {
+    optionsGeneration &+= 1
+    optionsRefreshInFlight = false
+    previewOptions = nil
+    optionsCapturedAt = nil
+    previewGeneration &+= 1
+    previewRenderer?.cancel()
+  }
+
   deinit {
     if let equalizerObserver { NotificationCenter.default.removeObserver(equalizerObserver) }
+    if let settingsObserver { NotificationCenter.default.removeObserver(settingsObserver) }
   }
 #endif
 
@@ -165,6 +218,14 @@ class ThumbnailPeekView: NSView {
       object: nil, queue: .main) { [weak self] notification in
         guard let self, let player = notification.object as? PlayerCore,
               player === self.previewPlayer else { return }
+        self.invalidateOptions()
+        self.synchronizePreview()
+      }
+    settingsObserver = NotificationCenter.default.addObserver(forName: .yinaPreviewSettingsChanged,
+      object: nil, queue: .main) { [weak self] notification in
+        guard let self, let player = notification.object as? PlayerCore,
+              player === self.previewPlayer else { return }
+        self.invalidateOptions()
         self.synchronizePreview()
       }
 #endif
@@ -186,7 +247,7 @@ class ThumbnailPeekView: NSView {
 import Metal
 
 /// The preview uses the same gpu-next/libplacebo Metal backend as playback.
-/// Settings are snapshotted before each seek; no HDR image decoding or second
+/// Settings are snapshotted when they change; no HDR image decoding or second
 /// image-view tone mapping is involved. Each worker owns exactly one mpv core.
 final class MPVPreviewRenderer {
   static let optionNames = [
@@ -280,29 +341,79 @@ final class MPVPreviewRenderer {
       return mpv_command_async(core, id, &pointers) >= 0
     }
 
+    private func skipPendingFrame(_ context: OpaquePointer) {
+      guard mpv_render_context_update(context) & UInt64(MPV_RENDER_UPDATE_FRAME.rawValue) != 0 else { return }
+      var skip: CInt = 1
+      withUnsafeMutablePointer(to: &skip) { pointer in
+        var parameters = [mpv_render_param(type: MPV_RENDER_PARAM_SKIP_RENDERING, data: pointer),
+                          mpv_render_param()]
+        _ = mpv_render_context_render(context, &parameters)
+      }
+    }
+
+    private func applyOptions(_ request: Request, core: OpaquePointer, context: OpaquePointer) -> Bool {
+      var outstanding: [UInt64: (String, String)] = [:]
+      for (index, name) in MPVPreviewRenderer.optionNames.enumerated() {
+        guard let value = request.options[name], appliedOptions[name] != value else { continue }
+        let reply = request.id &* 128 &+ UInt64(index + 1)
+        let result = value.withCString { valuePointer in
+          var pointer: UnsafePointer<CChar>? = valuePointer
+          return mpv_set_property_async(core, reply, name, MPV_FORMAT_STRING, &pointer)
+        }
+        if result >= 0 { outstanding[reply] = (name, value) }
+      }
+      let deadline = Date(timeIntervalSinceNow: 4)
+      while !outstanding.isEmpty && current(request.id) && Date() < deadline {
+        let event = mpv_wait_event(core, 0).pointee
+        if event.event_id == MPV_EVENT_SET_PROPERTY_REPLY,
+           let entry = outstanding.removeValue(forKey: event.reply_userdata), event.error >= 0 {
+          appliedOptions[entry.0] = entry.1
+        }
+        skipPendingFrame(context)
+        if event.event_id == MPV_EVENT_NONE { usleep(5_000) }
+      }
+      return outstanding.isEmpty && current(request.id)
+    }
+
     func render(_ request: Request) -> Bool {
       guard current(request.id), initialize(), let core, let context else { return false }
-      for (name, value) in request.options where appliedOptions[name] != value {
-        guard mpv_set_property_string(core, name, value) >= 0 else { continue }
-        appliedOptions[name] = value
-      }
+      guard applyOptions(request, core: core, context: context) else { return false }
       // Discard completed events from the preceding request before issuing this seek.
       while mpv_wait_event(core, 0).pointee.event_id != MPV_EVENT_NONE {}
       let sameFile = loadedPath == request.path
       let arguments = sameFile ? ["seek", String(request.seconds), "absolute+exact"] :
         ["loadfile", request.path, "replace", "-1", "start=\(request.seconds)"]
-      guard command(arguments, id: request.id) else { return false }
+      guard command(arguments, id: request.id &* 128) else { return false }
       var replied = false
       var fileLoaded = sameFile
       var seekStarted = false
       var restarted = false
+      var positionRequested = false
+      var positionReceived = false
+      var fpsReceived = false
+      var position: Double?
+      var fps = 24.0
       let deadline = Date(timeIntervalSinceNow: 4)
       while current(request.id), Date() < deadline {
-        let event = mpv_wait_event(core, 0.01).pointee
+        // A zero timeout is the only mpv_wait_event variant permitted on an
+        // mpv render thread. All property operations below are asynchronous.
+        let event = mpv_wait_event(core, 0).pointee
         switch event.event_id {
-        case MPV_EVENT_COMMAND_REPLY where event.reply_userdata == request.id:
+        case MPV_EVENT_COMMAND_REPLY where event.reply_userdata == request.id &* 128:
           guard event.error >= 0 else { return false }
           replied = true
+        case MPV_EVENT_GET_PROPERTY_REPLY where event.reply_userdata == request.id &* 128 &+ 60:
+          positionReceived = true
+          if event.error >= 0, let property = event.data?.assumingMemoryBound(to: mpv_event_property.self).pointee,
+             property.format == MPV_FORMAT_DOUBLE, let data = property.data {
+            position = data.assumingMemoryBound(to: Double.self).pointee
+          }
+        case MPV_EVENT_GET_PROPERTY_REPLY where event.reply_userdata == request.id &* 128 &+ 61:
+          fpsReceived = true
+          if event.error >= 0, let property = event.data?.assumingMemoryBound(to: mpv_event_property.self).pointee,
+             property.format == MPV_FORMAT_DOUBLE, let data = property.data {
+            fps = data.assumingMemoryBound(to: Double.self).pointee
+          }
         case MPV_EVENT_FILE_LOADED:
           if !sameFile { fileLoaded = true; restarted = false }
         case MPV_EVENT_SEEK:
@@ -318,34 +429,39 @@ final class MPVPreviewRenderer {
              data.pointee.error < 0 { loadedPath = nil; return false }
         default: break
         }
-        let flags = mpv_render_context_update(context)
         if replied && restarted {
-          var position = 0.0
-          var fps = 24.0
-          _ = mpv_get_property(core, "container-fps", MPV_FORMAT_DOUBLE, &fps)
-          let tolerance = max(0.05, 1 / max(1, fps))
-          if mpv_get_property(core, "time-pos", MPV_FORMAT_DOUBLE, &position) >= 0,
-             abs(position - request.seconds) <= tolerance {
-            guard current(request.id) else { return false }
-            // Seeking and rendering are serialized: only the requested decoded frame
-            // reaches the layer, after its playback color settings have been applied.
-            var parameters = [mpv_render_param()]
-            guard mpv_render_context_render(context, &parameters) >= 0 else { return false }
-            CATransaction.flush()
-            mpv_render_context_report_swap(context)
-            loadedPath = request.path
-            return true
+          if !positionRequested {
+            positionRequested = true
+            if mpv_get_property_async(core, request.id &* 128 &+ 60, "time-pos", MPV_FORMAT_DOUBLE) < 0 {
+              return false
+            }
+            if mpv_get_property_async(core, request.id &* 128 &+ 61, "container-fps", MPV_FORMAT_DOUBLE) < 0 {
+              fpsReceived = true
+            }
+          }
+          if positionReceived && fpsReceived {
+            let tolerance = max(0.05, 1 / max(1, fps))
+            if let position, abs(position - request.seconds) <= tolerance {
+              guard current(request.id) else { return false }
+              // Seeking and rendering are serialized: only the requested decoded frame
+              // reaches the layer, after its playback color settings have been applied.
+              var parameters = [mpv_render_param()]
+              guard mpv_render_context_render(context, &parameters) >= 0 else { return false }
+              CATransaction.flush()
+              mpv_render_context_report_swap(context)
+              loadedPath = request.path
+              return true
+            }
+            // The decoder may still be settling on the requested frame.
+            positionRequested = false
+            positionReceived = false
+            fpsReceived = false
+            position = nil
           }
         }
-        if flags & UInt64(MPV_RENDER_UPDATE_FRAME.rawValue) != 0 {
-          // Let mpv advance while decoding, without showing an intermediate frame.
-          var skip: CInt = 1
-          withUnsafeMutablePointer(to: &skip) { pointer in
-            var parameters = [mpv_render_param(type: MPV_RENDER_PARAM_SKIP_RENDERING, data: pointer),
-                              mpv_render_param()]
-            mpv_render_context_render(context, &parameters)
-          }
-        }
+        // Let mpv advance while decoding, without showing an intermediate frame.
+        skipPendingFrame(context)
+        if event.event_id == MPV_EVENT_NONE { usleep(5_000) }
       }
       loadedPath = nil
       return false
@@ -355,6 +471,7 @@ final class MPVPreviewRenderer {
       if let context { mpv_render_context_free(context); self.context = nil }
       if let core { mpv_terminate_destroy(core); self.core = nil }
       loadedPath = nil
+      appliedOptions = [:]
     }
   }
 
@@ -377,8 +494,18 @@ final class MPVPreviewRenderer {
   func cancel() {
     worker.lock.lock()
     worker.generation &+= 1
+    let idleGeneration = worker.generation
     worker.pending = nil
     worker.lock.unlock()
+    // Repeated hovers reuse the warm decoder. A hidden preview releases its
+    // media handle, render context, and mpv core after a short idle interval.
+    queue.asyncAfter(deadline: .now() + 3) { [worker] in
+      worker.lock.lock()
+      let stillIdle = !worker.closed && !worker.running && worker.pending == nil &&
+        worker.generation == idleGeneration
+      worker.lock.unlock()
+      if stillIdle { worker.close() }
+    }
   }
 
   deinit {

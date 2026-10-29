@@ -130,5 +130,10 @@ for index in 0..<30 {
 renderer.cancel()
 equal(frame(renderer,first,"sdr.mkv",adjusted,seconds:0.75), changed, hdr:false)
 precondition(staleCompletions == 0, "A superseded request published a stale frame")
+renderer.cancel()
+// Hidden preview releases its decoder/core after the grace interval; a new
+// hover must recreate it and still render the same generated-media frame.
+RunLoop.main.run(until: Date(timeIntervalSinceNow: 3.3))
+equal(frame(renderer,first,"sdr.mkv",adjusted,seconds:0.75), changed, hdr:false)
 window.orderOut(nil)
-print("PASS: real presented SDR/PQ/HLG pixels, live equalizer parity, SDR-expansion reset and latest-seek cancellation")
+print("PASS: real presented SDR/PQ/HLG pixels, live equalizer parity, SDR-expansion reset, latest-seek cancellation, idle release and reopen")
