@@ -201,7 +201,7 @@ class SidebarPlaylistPane: NSView, SidebarPane {
   }
 
   private func updateSharedShowButton() {
-    sharedShowButton.isEnabled = player.sharedShow.isHosting || player.sharedShow.followingWriter != nil ||
+    sharedShowButton.isEnabled = player.sharedShow.requestStatus != nil || player.sharedShow.isHosting || player.sharedShow.followingWriter != nil ||
       (player.info.currentURL?.isFileURL == true && player.info.state.loaded)
     let title = player.sharedShow.isHosting ? "Hosting Together" :
       player.sharedShow.followingWriter != nil ? "Following Host" : "Shared Show"
@@ -480,11 +480,7 @@ extension SidebarPlaylistPane: NSMenuDelegate, NSMenuItemValidation {
       request.isEnabled = snapshot.showID != nil && episode.isFresh() && !episode.ambiguous
       menu.autoenablesItems = false
       menu.addItem(request)
-      if let status = player.sharedShow.requestStatus {
-        let info = NSMenuItem(title: status, action: nil, keyEquivalent: "")
-        info.isEnabled = false
-        menu.addItem(info)
-      }
+      addDownloadRequestActions(to: menu)
       return
     }
     let selectedRow = tableView.selectedRowIndexes
@@ -581,8 +577,35 @@ extension SidebarPlaylistPane: NSMenuDelegate, NSMenuItemValidation {
       item.representedObject = record
       menu.addItem(item)
     }
+    addDownloadRequestActions(to: menu)
     if menu.items.isEmpty { menu.addItem(withTitle: "No saved positions yet", action: nil, keyEquivalent: "") }
   }
+
+  private func addDownloadRequestActions(to menu: NSMenu) {
+    guard let status = player.sharedShow.requestStatus else { return }
+    menu.addItem(.separator())
+    if let name = player.sharedShow.requestFileName {
+      let file = NSMenuItem(title: "Request: \(name)", action: nil, keyEquivalent: "")
+      file.isEnabled = false
+      menu.addItem(file)
+    }
+    let info = NSMenuItem(title: status, action: nil, keyEquivalent: "")
+    info.isEnabled = false
+    menu.addItem(info)
+    if player.sharedShow.canRetryRequest {
+      let retry = NSMenuItem(title: "Retry Download Request", action: #selector(retryDownloadRequest(_:)), keyEquivalent: "")
+      retry.target = self
+      menu.addItem(retry)
+    }
+    if player.sharedShow.canWithdrawRequest {
+      let withdraw = NSMenuItem(title: "Withdraw Download Request", action: #selector(withdrawDownloadRequest(_:)), keyEquivalent: "")
+      withdraw.target = self
+      menu.addItem(withdraw)
+    }
+  }
+
+  @objc private func retryDownloadRequest(_ sender: NSMenuItem) { player.sharedShow.retryRequest() }
+  @objc private func withdrawDownloadRequest(_ sender: NSMenuItem) { player.sharedShow.withdrawRequest() }
 
   @objc private func requestIndexedEpisode(_ sender: NSMenuItem) {
     guard let (episode, snapshot) = sender.representedObject as? (ShowEpisodeIndexReader.Episode, ShowEpisodeIndexReader.Snapshot) else { return }

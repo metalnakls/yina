@@ -19,8 +19,9 @@ never evidence of completeness. Completion is independent of `wanted`; partial
 bytes do not imply active downloading.
 
 Unavailable Episodes stays separate from the playable queue. Its native context
-menu can save an exact, fresh episode request for Glass. The caption reports that
-the request was saved, not that a download started. See [Shared shows](shared-shows.md)
+menu can save an exact, fresh episode request for Glass. Status distinguishes
+saving, waiting, acceptance and failure. Retry and withdrawal are explicit actions;
+Glass acceptance does not establish downloaded completeness. See [Shared shows](shared-shows.md)
 for progress, requests, and explicit watch-together controls.
 
 Run the decoder regression checks without launching an app:

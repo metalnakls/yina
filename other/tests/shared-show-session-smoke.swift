@@ -347,6 +347,39 @@ enum Utility {
     } }
     precondition(raced.relativePath == "B.mkv", "Late old-file final replaced the new context")
 
-    print("PASS: shared queue/follow safety, EOF transition, and final-save generation")
+    // A suspended injected request lane simulates a slow share. Withdrawal
+    // queues one newer cancelled revision behind the blocked publish, and the
+    // stale first completion cannot replace its outcome.
+    let requestQueue = OperationQueue()
+    requestQueue.maxConcurrentOperationCount = 1
+    requestQueue.isSuspended = true
+    var requestReservations = 0
+    let requestScheduler = SharedShowSession.RequestWorkScheduler(reserve: { _ in
+      requestReservations += 1
+      return (requestQueue, "test-request-lane")
+    }, release: { _ in })
+    let requesterPlayer = PlayerCore()
+    requesterPlayer.info.currentURL = a
+    let requester = SharedShowSession(player: requesterPlayer, requestWorkScheduler: requestScheduler)
+    requester.start()
+    try wait { requester.showID == descriptor.showID }
+    let requestSnapshot = try store.catalog()
+    let requestedEpisode = requestSnapshot.episodes.first { $0.path == "E.mkv" }!
+    requester.request(requestedEpisode, snapshot: requestSnapshot)
+    precondition(requester.canWithdrawRequest && requester.requestFileName == "E.mkv")
+    requester.withdrawRequest()
+    precondition(requestReservations == 2 && requester.requestStatus?.contains("Withdrawing") == true,
+                 "Withdrawal was not queued behind an in-flight publish")
+    requestQueue.isSuspended = false
+    try wait { requester.requestStatus?.contains("withdrawn") == true }
+    let withdrawnData = try Data(contentsOf: root.appendingPathComponent(".yina/demand/\(requester.writerID.uuidString.lowercased()).json"))
+    let withdrawn = try SharedShowStore.decoder().decode(SharedShowStore.Demand.self, from: withdrawnData)
+    precondition(withdrawn.cancelled && withdrawn.revision > 1 && requestReservations == 2,
+                 "The blocked publish replayed over the withdrawal")
+    requesterPlayer.info.currentURL = b
+    requester.start()
+    precondition(requester.requestFileName == "E.mkv" && requester.requestStatus?.contains("withdrawn") == true,
+                 "File change erased an unresolved request outcome")
+    print("PASS: shared queue/follow safety, EOF transition, final-save generation, and blocked request withdrawal")
   }
 }

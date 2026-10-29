@@ -66,6 +66,27 @@ final class SharedShowStore {
       return current.map { SharedShowStore.safeMediaPath($0) && items.contains($0) } ?? true
     }
   }
+  struct Receipt: Codable, Sendable {
+    enum Outcome: String, Codable, Sendable { case accepted, failed, cancelled }
+    var schemaVersion = 1
+    let showID: UUID
+    let requestID: UUID
+    let requestWriterID: UUID
+    let receiptWriterID: UUID
+    let revision: UInt64
+    let requestRevision: UInt64
+    let updatedAt: Date
+    let outcome: Outcome
+    let reason: String?
+
+    var isValid: Bool {
+      guard schemaVersion == 1, revision > 0, requestRevision > 0 else { return false }
+      switch outcome {
+      case .accepted, .cancelled: return reason == nil
+      case .failed: return ["selectionFailed", "priorityFailed", "startFailed"].contains(reason)
+      }
+    }
+  }
   private struct Fragment: Decodable {
     let schemaVersion: Int
     let showID: UUID
@@ -605,6 +626,31 @@ final class SharedShowStore {
           record.showID == showID, record.participantID == participantID,
           record.writerID == writerID else { return nil }
     return record
+  }
+
+  /// Read Glass acknowledgements without treating an older demand revision as
+  /// answered. Callers match requestWriterID and requestRevision to their
+  /// current demand before showing accepted, failed, or cancelled status.
+  func receipts(showID: UUID, requestID: UUID) throws -> [Receipt] {
+    guard try descriptor().showID == showID else { throw Failure.identityChanged }
+    var entries = 0
+    var bytes = 0
+    var records: [Receipt] = []
+    let decoder = Self.decoder()
+    for writer in try children(".yina/receipts", entries: &entries) {
+      guard let writerID = UUID(uuidString: writer) else { continue }
+      let path = ".yina/receipts/\(writer)/\(requestID.uuidString.lowercased()).json"
+      let data: Data
+      do { data = try read(path, limit: min(512 * 1024, maximumAggregateBytes - bytes)) }
+      catch Failure.io(let code) where code == ENOENT { continue }
+      bytes += data.count
+      guard bytes < maximumAggregateBytes else { throw Failure.tooLarge }
+      guard let record = try? decoder.decode(Receipt.self, from: data), record.isValid,
+            record.showID == showID, record.requestID == requestID,
+            record.receiptWriterID == writerID else { throw Failure.invalidRecord }
+      records.append(record)
+    }
+    return records.sorted { $0.updatedAt > $1.updatedAt }
   }
 
   /// A queue path is playable only when it stays inside this root and either

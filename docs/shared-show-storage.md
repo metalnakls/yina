@@ -15,6 +15,7 @@ progress or queue.
 | Progress | `progress/<participantID>/<writerID>.json` | Per-writer playback state |
 | Demand | `demand/<writerID>.json` | Explicit request for a Glass selection/download |
 | Queue | `queues/<writerID>.json` | Host-owned ordered playback paths |
+| Receipt | `receipts/<glassWriterID>/<requestID>.json` | Durable Glass acknowledgement of a demand revision |
 
 ## Migration and discovery
 
@@ -58,5 +59,32 @@ capitalization cannot turn a partial managed file into an unmanaged one. Missing
 partial, stale, truncated, or symlinked managed paths do not play. This check
 never deletes media or assumes that a missing share is permanently offline.
 
+## Demand receipts
 
-The local queue fixture covers independent writers, revisions, unsafe paths, symlinks, and partial, stale, or truncated managed media. Real SMB and cross-app use remain runtime checks.
+A receipt has schema version 1, `showID`, `requestID`, `requestWriterID`,
+`receiptWriterID`, a receipt-writer `revision`, the originating
+`requestRevision`, `updatedAt`, and `outcome` (`accepted`, `failed`, or
+`cancelled`). Only failed receipts carry a generic reason:
+`selectionFailed`, `priorityFailed`, or `startFailed`. The requesting client
+compares both the request writer and request revision with its current demand;
+an older receipt cannot acknowledge a newer retry. Receipt timestamps are
+informational, so modest clock skew between Macs does not hide a durable
+acknowledgement; malformed or foreign receipts fail closed. An accepted receipt reports
+that Glass accepted the request, not that the media is already complete or
+playable. No credentials, absolute paths, or private filenames belong in
+receipts.
+
+YINA polls receipts on the same bounded per-root worker lane and permits only
+one read in flight per session. Missing or unreadable receipts do not resend a
+demand. After 15 minutes without an answer, the request becomes an explicit
+Retry/Withdraw choice. Retry keeps the request ID and publishes a newer
+revision after revalidating the transfer. Withdrawing a still-pending request
+publishes a newer cancelled revision, even when the earlier publish is waiting
+on a slow share. Withdrawal does not claim to stop a download Glass already
+accepted.
+
+The filesystem fixtures use temporary local folders and cover fresh creation,
+v1/v2 migration, interrupted publication, conflicts, independent writers,
+queue revisions, malformed records, symlinks, and partial or stale media. Real
+SMB latency, disconnected mounts, and simultaneous YINA/Glass use remain
+runtime checks.

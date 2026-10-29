@@ -41,10 +41,14 @@ host records cannot drive playback. See [Watch Together](shared-show-watch-toget
 
 Unavailable Episodes shows saved byte progress and snapshot dates. Its **Request
 Download in Glass** context action writes an exact torrent/file request. Glass
-must be running with its server mapping and that transfer already present. Saving
-a request is not an acknowledgment or evidence of active downloading. A newer
-request from the same player replaces its previous demand; other players' demands
-are preserved. No automatic requests or deletion are performed.
+must be running with its server mapping and that transfer already present.
+Status reports saving, waiting, Glass's acceptance or its failure. Acceptance
+means selection, priority and start succeeded, not that bytes have arrived. Use
+**Retry Download Request** after failure or expiry; it advances the same request's
+revision. **Withdraw Download Request** writes a newer cancellation while pending;
+an active download may continue in Glass. Old responses cannot acknowledge a
+newer action. A newer request from the same player replaces its previous demand;
+other players' demands are preserved. No automatic requests or deletion occur.
 
 ## Portable format and ownership
 
@@ -62,6 +66,7 @@ Each process/window writes only its own fragment:
 | `.yina/progress/<participantUUID>/<writerUUID>.json` | One YINA player's current episode and position |
 | `.yina/demand/<writerUUID>.json` | That player's latest explicit download request |
 | `.yina/queues/<writerUUID>.json` | Host-owned ordered paths and current episode |
+| `.yina/receipts/<glassWriterUUID>/<requestUUID>.json` | Glass's durable outcome for one request revision |
 
 The participant UUID persists in the local app profile; each player gets a new
 writer UUID. Positions from different writers remain separate, including older
@@ -116,7 +121,7 @@ xcrun swiftc -parse-as-library -module-cache-path /tmp/yina-shared-modules \
 
 xcrun swiftc -parse-as-library -module-cache-path /tmp/yina-shared-modules \
   yina/SharedShowStore.swift yina/ShowEpisodeIndexReader.swift \
-  yina/SharedShowSession.swift yina/PlayerState.swift \
+  yina/SharedShowSession.swift yina/SharedShowDownloadRequest.swift yina/PlayerState.swift \
   other/tests/shared-show-session-smoke.swift -o /tmp/yina-shared-session-smoke
 /tmp/yina-shared-session-smoke
 ```
@@ -125,10 +130,12 @@ xcrun swiftc -parse-as-library -module-cache-path /tmp/yina-shared-modules \
 actual `Models.swift`, `TorrentNameCleaner.swift`, `ShowEpisodeIndex.swift`, and
 `YinaShowStore.swift`. It checks Glass → YINA inventory, YINA → Glass progress and
 demand (including Watch Together extensions), Glass → YINA progress, and identical
-legacy IDs. It passed against the local `/Users/wsb/glass` sources on 2026-10-29.
+legacy IDs, byte-preserving migration in both directions, and receipts. It passed against the local `/Users/wsb/glass` sources on 2026-10-29.
 
 The session fixture replaces only the mpv/UI boundary and exercises the production
 queue and disk protocol, rapid file changes, final saves, explicit resume,
-play/pause/seek/rate following, local takeover, and stale/ended hosts. It does not
-prove real two-Mac synchronization. Actual SMB round trips, real mpv timing,
-native context-menu accessibility, and installed-app appearance remain unverified.
+play/pause/seek/rate following, local takeover and stale/ended hosts. It does not
+prove real two-Mac synchronization. The separate libmpv fixture uses generated
+media and two real engines without video/audio output. Actual SMB round trips,
+native context-menu accessibility and installed-app appearance remain runtime
+checks. Use the [acceptance checklist](multiplayer-testing.md) for both Macs.

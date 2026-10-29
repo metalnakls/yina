@@ -8,6 +8,10 @@ extension Notification.Name {
 /// blocking every other session while each session retains its write order.
 @MainActor
 final class SharedShowSession {
+  struct RequestWorkScheduler {
+    let reserve: (URL) -> (OperationQueue, String)
+    let release: (String) -> Void
+  }
   private static let operations: [OperationQueue] = (0..<4).map { index in
     let queue = OperationQueue()
     queue.name = "YINASharedShows.\(index)"
@@ -17,6 +21,7 @@ final class SharedShowSession {
   }
   private static var laneByRoot: [String: (index: Int, count: Int)] = [:]
   private static var laneLoads = [0, 0, 0, 0]
+  private let requestWorkScheduler: RequestWorkScheduler
   private static func reserveLane(for url: URL) -> (OperationQueue, String) {
     // A root with work in flight retains its serial lane. A new root chooses
     // the least occupied lane, so one stalled root leaves other lanes usable.
@@ -67,6 +72,12 @@ final class SharedShowSession {
   }
   private var membership: Membership?
   private var requestBusy = false
+  private var requestPollBusy = false
+  private var requestPollTimer: Timer?
+  private var requestToken: UInt64 = 0
+  private var requestState: SharedShowDownloadRequest?
+  private var requestEpisode: ShowEpisodeIndexReader.Episode?
+  private var requestRoot: URL?
   private var applyingRemote = false
   private var remoteMediaIntents: Set<URL> = []
   private var endedByStopCommand = false
@@ -109,7 +120,16 @@ final class SharedShowSession {
     var awaitingNextEpisode = false
   }
 
-  init(player: PlayerCore) { self.player = player }
+  init(player: PlayerCore, requestWorkScheduler: RequestWorkScheduler? = nil) {
+    self.player = player
+    self.requestWorkScheduler = requestWorkScheduler ?? .init(reserve: Self.reserveLane,
+                                                               release: Self.releaseLane)
+  }
+
+  deinit {
+    timer?.invalidate()
+    requestPollTimer?.invalidate()
+  }
 
   func start() {
     timer?.invalidate()
@@ -133,7 +153,6 @@ final class SharedShowSession {
     contextMedia = nil
     positions = []
     status = nil
-    requestStatus = nil
     lastSample = nil
     lastPublished = nil
     lastBroadRefresh = .distantPast
@@ -643,39 +662,130 @@ final class SharedShowSession {
   func request(_ episode: ShowEpisodeIndexReader.Episode, snapshot: ShowEpisodeIndexReader.Snapshot) {
     guard !requestBusy, !episode.ambiguous, episode.isFresh(),
           let root = snapshot.root, let showID = snapshot.showID else { return }
-    requestBusy = true
-    let generation = generation
     revision += 1
     let record = SharedShowStore.Demand(showID: showID, requestID: UUID(), participantID: Self.participantID,
       writerID: writerID, revision: revision, updatedAt: Date(), relativePath: episode.path,
       hashString: episode.hashString, fileIndex: episode.fileIndex, cancelled: false)
-    requestStatus = "Saving download request…"
+    requestToken &+= 1
+    requestState = SharedShowDownloadRequest(record: record)
+    requestEpisode = episode
+    requestRoot = root
+    requestStatus = requestState?.status
     changed()
-    let (lane, laneKey) = Self.reserveLane(for: root)
+    publishRequest(record, episode: episode, root: root, token: requestToken)
+  }
+
+  var canRetryRequest: Bool { !requestBusy && requestState?.canRetry == true }
+  var canWithdrawRequest: Bool { requestState?.canWithdraw == true }
+  var requestFileName: String? { requestState?.record.relativePath.split(separator: "/").last.map(String.init) }
+
+  func retryRequest() {
+    guard canRetryRequest, let episode = requestEpisode, let root = requestRoot else { return }
+    revision += 1
+    requestToken &+= 1
+    requestPollTimer?.invalidate(); requestPollTimer = nil
+    let record = requestState!.advance(revision: revision, cancelled: false)
+    requestStatus = requestState?.status
+    changed()
+    publishRequest(record, episode: episode, root: root, token: requestToken)
+  }
+
+  func withdrawRequest() {
+    guard canWithdrawRequest, let episode = requestEpisode, let root = requestRoot else { return }
+    revision += 1
+    requestToken &+= 1
+    requestPollTimer?.invalidate(); requestPollTimer = nil
+    let record = requestState!.advance(revision: revision, cancelled: true)
+    requestStatus = requestState?.status
+    changed()
+    publishRequest(record, episode: episode, root: root, token: requestToken)
+  }
+
+  private func publishRequest(_ record: SharedShowStore.Demand,
+                              episode: ShowEpisodeIndexReader.Episode, root: URL, token: UInt64) {
+    requestBusy = true
+    let (lane, laneKey) = requestWorkScheduler.reserve(root)
+    let releaseLane = requestWorkScheduler.release
     lane.addOperation { [weak self] in
-      let message: String
+      let succeeded: Bool
       do {
         let store = try SharedShowStore(root: root)
-        guard Date().timeIntervalSince(record.updatedAt) < ShowEpisodeIndexReader.freshnessLimit else {
-          throw SharedShowStore.Failure.invalidRecord
+        if !record.cancelled {
+          guard Date().timeIntervalSince(record.updatedAt) < ShowEpisodeIndexReader.freshnessLimit else {
+            throw SharedShowStore.Failure.invalidRecord
+          }
+          try store.validateRequestPath(episode.path)
+          // A retry revalidates the same transfer before publishing a newer
+          // revision. A withdrawal remains possible when media has vanished.
+          let catalog = try store.catalog(checkLocalFiles: false)
+          guard catalog.showID == record.showID, catalog.episodes.contains(where: {
+            !$0.ambiguous && $0.isFresh() && $0.path == episode.path &&
+            $0.hashString == episode.hashString && $0.fileIndex == episode.fileIndex
+          }) else { throw SharedShowStore.Failure.invalidRecord }
         }
-        try store.validateRequestPath(episode.path)
-        // Revalidate the exact transfer and path immediately before publishing.
-        let catalog = try store.catalog()
-        guard catalog.showID == showID, catalog.episodes.contains(where: {
-          !$0.ambiguous && $0.isFresh() && $0.path == episode.path &&
-          $0.hashString == episode.hashString && $0.fileIndex == episode.fileIndex
-        }) else { throw SharedShowStore.Failure.invalidRecord }
         try store.publish(record)
-        message = "Request saved for Glass; waiting for availability"
-      } catch { message = "Couldn’t save the download request" }
+        succeeded = true
+      } catch { succeeded = false }
       DispatchQueue.main.async { [weak self] in
-        Self.releaseLane(laneKey)
-        self?.requestBusy = false
-        if self?.generation == generation {
-          self?.requestStatus = message
-          self?.changed()
+        releaseLane(laneKey)
+        guard let self, self.requestToken == token,
+              self.requestState?.record.revision == record.revision else { return }
+        self.requestBusy = false
+        self.requestState?.publicationFinished(for: record.revision, succeeded: succeeded)
+        self.requestStatus = self.requestState?.status
+        self.changed()
+        if succeeded && !record.cancelled { self.scheduleRequestPoll() }
+      }
+    }
+  }
+
+  private func scheduleRequestPoll() {
+    requestPollTimer?.invalidate(); requestPollTimer = nil
+    requestState?.expireIfNeeded()
+    requestStatus = requestState?.status
+    guard requestState?.shouldPoll == true else { return }
+    requestPollTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
+      MainActor.assumeIsolated { self?.pollRequestReceipts() }
+    }
+    requestPollTimer?.tolerance = 1
+    pollRequestReceipts()
+  }
+
+  private func pollRequestReceipts() {
+    requestState?.expireIfNeeded()
+    if requestState?.shouldPoll != true {
+      requestPollTimer?.invalidate(); requestPollTimer = nil
+      requestStatus = requestState?.status
+      changed()
+      return
+    }
+    guard !requestBusy, !requestPollBusy, let requestState,
+          let root = requestRoot else { return }
+    requestPollBusy = true
+    let record = requestState.record
+    let token = requestToken
+    let (lane, laneKey) = requestWorkScheduler.reserve(root)
+    let releaseLane = requestWorkScheduler.release
+    lane.addOperation { [weak self] in
+      let result: Result<[SharedShowStore.Receipt], Error>
+      do { result = .success(try SharedShowStore(root: root).receipts(showID: record.showID,
+                                                                    requestID: record.requestID)) }
+      catch { result = .failure(error) }
+      DispatchQueue.main.async { [weak self] in
+        releaseLane(laneKey)
+        guard let self else { return }
+        self.requestPollBusy = false
+        guard self.requestToken == token,
+              self.requestState?.record.revision == record.revision else { return }
+        switch result {
+        case .success(let receipts): self.requestState?.observe(receipts, for: record.revision)
+        case .failure: self.requestState?.receiptReadFailed(for: record.revision)
         }
+        self.requestStatus = self.requestState?.status
+        if self.requestState?.shouldPoll != true {
+          self.requestPollTimer?.invalidate(); self.requestPollTimer = nil
+        }
+        self.changed()
       }
     }
   }

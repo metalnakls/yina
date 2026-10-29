@@ -378,6 +378,7 @@
 		EC2026102900000000000003 /* PlaybackSettingsWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC2026102900000000000004 /* PlaybackSettingsWindowController.swift */; };
 		EC2026102900000000000005 /* SharedShowStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC2026102900000000000006 /* SharedShowStore.swift */; };
 		EC2026102900000000000007 /* SharedShowSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC2026102900000000000008 /* SharedShowSession.swift */; };
+		EC2026102900000000000010 /* SharedShowDownloadRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC2026102900000000000011 /* SharedShowDownloadRequest.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -912,6 +913,7 @@
 		EC2026102900000000000004 /* PlaybackSettingsWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackSettingsWindowController.swift; sourceTree = "<group>"; };
 		EC2026102900000000000006 /* SharedShowStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedShowStore.swift; sourceTree = "<group>"; };
 		EC2026102900000000000008 /* SharedShowSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedShowSession.swift; sourceTree = "<group>"; };
+		EC2026102900000000000011 /* SharedShowDownloadRequest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedShowDownloadRequest.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -1567,6 +1569,7 @@
 				EC2026102900000000000004 /* PlaybackSettingsWindowController.swift */,
 				EC2026102900000000000006 /* SharedShowStore.swift */,
 				EC2026102900000000000008 /* SharedShowSession.swift */,
+				EC2026102900000000000011 /* SharedShowDownloadRequest.swift */,
 				E360A5CC2C23C1BC006EA412 /* SettingsWindow.swift */,
 				E34BC28C2C27733200A94680 /* SettingsPage.swift */,
 				E34BC28E2C27A68100A94680 /* SettingsItem.swift */,
@@ -1991,6 +1994,7 @@
 				EC2026102900000000000003 /* PlaybackSettingsWindowController.swift in Sources */,
 				EC2026102900000000000005 /* SharedShowStore.swift in Sources */,
 				EC2026102900000000000007 /* SharedShowSession.swift in Sources */,
+				EC2026102900000000000010 /* SharedShowDownloadRequest.swift in Sources */,
 				E360A5CD2C23C1BC006EA412 /* SettingsWindow.swift in Sources */,
 				8461C5301D462488006E91FF /* VideoTime.swift in Sources */,
 				E3839C5724FFF201007D0AB4 /* PluginStandaloneWindow.swift in Sources */,
