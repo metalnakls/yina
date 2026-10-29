@@ -147,7 +147,8 @@ final class ApplicationMenus {
     let recentMenu = menu("recentDocumentsMenu")
     recentMenu.autoenablesItems = false
     recentMenu.delegate = controller
-    controller.menuNeedsUpdate(recentMenu)
+    // AppKit asks the delegate to populate this menu when it opens. Resolving
+    // recent-document bookmarks here can block startup on unavailable shares.
   }
 
   private func build(_ definition: Definition) -> NSMenu {
