@@ -67,6 +67,7 @@ class InitialWindowController: NSWindowController {
     return queue
   }()
   private var openRequestGeneration = 0
+  private var pendingMediaPreparationToken: UInt64?
   private let iconQueue = DispatchQueue(label: "YINAInitialWindowIcons", qos: .utility)
   private var pendingIconExtensions = Set<String>()
   private let coordinator = WelcomeWindowCoordinator()
@@ -390,6 +391,8 @@ class InitialWindowController: NSWindowController {
 
   @objc private func initialWindowWillClose() {
     openRequestGeneration &+= 1
+    if let token = pendingMediaPreparationToken { player?.abandonMediaPreparation(token) }
+    pendingMediaPreparationToken = nil
     mediaOpenQueue.cancelAllOperations()
     stopAvailabilityRefresh()
     shelfWindow?.orderOut(nil)
@@ -675,14 +678,27 @@ class InitialWindowController: NSWindowController {
     openRequestGeneration &+= 1
     let generation = openRequestGeneration
     let player = self.player!
+    let token = player.beginMediaPreparation(url)
+    pendingMediaPreparationToken = token
     mediaOpenQueue.cancelAllOperations()
     let operation = BlockOperation()
+    operation.completionBlock = { [weak player] in
+      DispatchQueue.main.async { player?.abandonMediaPreparation(token) }
+    }
     operation.addExecutionBlock { [weak self, weak operation] in
-      guard operation?.isCancelled == false,
-            let media = player.prepareWelcomeMedia(url), operation?.isCancelled == false else { return }
+      let media = operation?.isCancelled == false ? player.prepareWelcomeMedia(url) : nil
+      // The queue may release a finished operation before this main callback
+      // runs. Record cancellation while the execution block still owns it;
+      // generation, window, and player-token checks handle later cancellation.
+      let eligible = operation?.isCancelled == false
       DispatchQueue.main.async { [weak self] in
         guard let self, self.openRequestGeneration == generation,
-              self.window?.isVisible == true else { return }
+              self.window?.isVisible == true, eligible,
+              let media, player.completeMediaPreparation(token) else {
+          player.abandonMediaPreparation(token)
+          return
+        }
+        if self.pendingMediaPreparationToken == token { self.pendingMediaPreparationToken = nil }
         player.openPreparedWelcomeMedia(media)
       }
     }

@@ -76,7 +76,7 @@ class PlayerCore: NSObject {
   static private var playerCoreCounter = 0
 
   static private func findIdlePlayerCore() -> PlayerCore? {
-    playerCores.first { $0.info.state == .idle && !$0.backgroundTaskInUse }
+    playerCores.first { $0.info.state == .idle && !$0.backgroundTaskInUse && !$0.mediaPreparationPending }
   }
 
   static private func createPlayerCore() -> PlayerCore {
@@ -467,6 +467,7 @@ class PlayerCore: NSObject {
   @discardableResult
   func openURLs(_ urls: [URL], shouldAutoLoad autoLoad: Bool = true) -> Int? {
     guard !urls.isEmpty else { return 0 }
+    invalidateMediaPreparation()
     let urls = Utility.resolveURLs(urls)
 
     // Handle folder URL (to support mpv shuffle, etc), BD folders and m3u / m3u8 files first.
@@ -496,12 +497,140 @@ class PlayerCore: NSObject {
     return 1
   }
 
+  private static let mediaPreparationQueue: OperationQueue = {
+    let queue = OperationQueue()
+    queue.name = "tsmc.yina.media-preparation"
+    queue.qualityOfService = .userInitiated
+    queue.maxConcurrentOperationCount = 4
+    return queue
+  }()
+  private var mediaPreparationGeneration: UInt64 = 0
+  private var mediaPreparationPending = false
+  private var preparingURL: URL?
+
+  /// Every entry point reserves the same player's next open before doing I/O.
+  /// A later welcome or direct request invalidates the earlier result.
+  func beginMediaPreparation(_ url: URL?) -> UInt64 {
+    precondition(Thread.isMainThread)
+    mediaPreparationGeneration &+= 1
+    mediaPreparationPending = true
+    preparingURL = url
+    return mediaPreparationGeneration
+  }
+
+  @discardableResult
+  func completeMediaPreparation(_ generation: UInt64) -> Bool {
+    precondition(Thread.isMainThread)
+    guard mediaPreparationGeneration == generation, mediaPreparationPending,
+          info.state != .shutDown, info.state != .shuttingDown else { return false }
+    mediaPreparationPending = false
+    preparingURL = nil
+    return true
+  }
+
+  func abandonMediaPreparation(_ generation: UInt64) {
+    precondition(Thread.isMainThread)
+    guard mediaPreparationGeneration == generation, mediaPreparationPending else { return }
+    mediaPreparationPending = false
+    preparingURL = nil
+  }
+
+  private func invalidateMediaPreparation() {
+    mediaPreparationGeneration &+= 1
+    mediaPreparationPending = false
+    preparingURL = nil
+  }
+
+  static func openURLsAsync(_ urls: [URL], completion: ((Int?) -> Void)? = nil) {
+    precondition(Thread.isMainThread)
+    guard !urls.isEmpty else { completion?(0); return }
+    if !Preference.bool(for: .alwaysOpenInNewWindow) {
+      activeOrNew.openURLsAsync(urls, completion: completion)
+    } else if urls.count > 1 && Preference.bool(for: .groupSimultaneousOpensInPlaylist) {
+      newPlayerCore.openURLsAsync(urls, completion: completion)
+    } else {
+      var remaining = urls.count
+      var total: Int?
+      func finished(_ count: Int?) {
+        if let count { total = (total ?? 0) + count }
+        remaining -= 1
+        if remaining == 0 { completion?(total) }
+      }
+      for url in urls {
+        if !Preference.bool(for: .allowDuplicatePlayers), let existing = playerCores.first(where: {
+          ($0.info.state != .idle && $0.info.currentURL == url) || $0.preparingURL == url
+        }) {
+          existing.currentController.window?.makeKeyAndOrderFront(nil)
+          finished(nil)
+        } else {
+          newPlayerCore.openURLsAsync([url], completion: finished)
+        }
+      }
+    }
+  }
+
+  func openURLsAsync(_ original: [URL], shouldAutoLoad: Bool = true, completion: ((Int?) -> Void)? = nil) {
+    precondition(Thread.isMainThread)
+    guard !original.isEmpty else { completion?(0); return }
+    let generation = beginMediaPreparation(original.first)
+    Self.mediaPreparationQueue.addOperation { [weak self] in
+      guard let self else {
+        DispatchQueue.main.async { completion?(nil) }
+        return
+      }
+      let urls = Utility.resolveURLs(original)
+      let container = urls.count == 1 && (Utility.playlistFileExt.contains(urls[0].pathExtension.lowercased()) ||
+        (urls[0].hasDirectoryPath && self.isBDFolder(urls[0])))
+      let playable = container ? urls : self.getPlayableFiles(in: urls)
+      let first = playable.first
+      let remote = first.map { $0.isFileURL &&
+        (try? $0.resourceValues(forKeys: [.volumeIsLocalKey]).volumeIsLocal) == false } ?? false
+      DispatchQueue.main.async { [weak self] in
+        guard let self, self.completeMediaPreparation(generation) else { completion?(nil); return }
+        guard let first else { completion?(0); return }
+        self.info.shouldAutoLoadFiles = shouldAutoLoad && !container
+        self.open(first, knownRemoteFile: remote)
+        self.postNotification(.yinaPlaylistChanged)
+        completion?(container ? nil : 1)
+      }
+    }
+  }
+
+  struct PreparedWelcomeMedia {
+    let urls: [URL]
+    let autoLoad: Bool
+    let isRemoteFile: Bool
+  }
+
+  /// Alias resolution, directory scans and volume metadata can block on SMB.
+  /// The welcome window calls this only on its I/O queue, before touching player UI.
+  func prepareWelcomeMedia(_ original: URL) -> PreparedWelcomeMedia? {
+    precondition(!Thread.isMainThread)
+    guard let url = Utility.resolveURLs([original]).first else { return nil }
+    let isContainer = Utility.playlistFileExt.contains(url.pathExtension.lowercased()) ||
+      (url.hasDirectoryPath && isBDFolder(url))
+    let urls = isContainer ? [url] : getPlayableFiles(in: [url])
+    guard let first = urls.first else { return nil }
+    let remote = first.isFileURL &&
+      (try? first.resourceValues(forKeys: [.volumeIsLocalKey]).volumeIsLocal) == false
+    return PreparedWelcomeMedia(urls: Array(urls.prefix(1)), autoLoad: !isContainer,
+                                isRemoteFile: remote)
+  }
+
+  func openPreparedWelcomeMedia(_ media: PreparedWelcomeMedia) {
+    precondition(Thread.isMainThread)
+    info.shouldAutoLoadFiles = media.autoLoad
+    open(media.urls[0], knownRemoteFile: media.isRemoteFile)
+    postNotification(.yinaPlaylistChanged)
+  }
+
   func openURL(_ url: URL, shouldAutoLoad: Bool = true) {
-    openURLs([url], shouldAutoLoad: shouldAutoLoad)
+    openURLsAsync([url], shouldAutoLoad: shouldAutoLoad)
   }
 
   func openURLString(_ str: String) {
     if str == "-" {
+      invalidateMediaPreparation()
       openMainWindow(path: str, url: URL(string: "stdin")!, isNetwork: false, usesDiskCache: false)
       return
     }
@@ -736,6 +865,9 @@ class PlayerCore: NSObject {
   ///     task is still running this method only changes the player state. When the background task ends it will notice that shutting
   ///     down was in progress and will call this method again to continue the process of shutting down..
   func shutdown() {
+    mediaPreparationGeneration &+= 1
+    mediaPreparationPending = false
+    preparingURL = nil
     transportGeneration &+= 1
     requestedPause = nil
     finishSubtitleDissolve()
@@ -953,6 +1085,9 @@ class PlayerCore: NSObject {
   ///     and call this method again to continue the process of stopping. It is important to stop the background task as if it is still
   ///     running when the mpv core is shutdown it may call into mpv triggering a crash.
   func stop() {
+    mediaPreparationGeneration &+= 1
+    mediaPreparationPending = false
+    preparingURL = nil
     transportGeneration &+= 1
     requestedPause = nil
     guard info.state != .shutDown else { return }

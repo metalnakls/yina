@@ -140,8 +140,7 @@ extension PlayerCore {
     guard let types = pb.types else { return [] }
 
     if types.contains(.nsFilenames) {
-      guard var paths = pb.propertyList(forType: .nsFilenames) as? [String] else { return [] }
-      paths = Utility.resolvePaths(paths)
+      guard let paths = pb.propertyList(forType: .nsFilenames) as? [String] else { return [] }
       
       // check 3d lut files
       if paths.count == 1 && Utility.lut3dExt.contains(paths[0].lowercasedPathExtension) {
@@ -149,20 +148,21 @@ extension PlayerCore {
       }
 
       if isPlaylist {
-        return hasPlayableFiles(in: paths) ? .copy : []
+        return paths.contains { path in
+          let ext = path.lowercasedPathExtension
+          return ext.isEmpty || (!Utility.blacklistExt.contains(ext) &&
+            !Utility.supportedFileExt[.audio]!.contains(ext))
+        } ? .copy : []
       }
 
-      if paths.count == 1 {
-        let url = URL(fileURLWithPath: paths[0])
-
-        if isBDFolder(url)
-            || Utility.playlistFileExt.contains(url.absoluteString.lowercasedPathExtension) {
-          return .copy
-        }
-      }
-
-      if hasPlayableFiles(in: paths)
-          || hasSubtitleFile(in: paths) {
+      // Drag acceptance runs on the main thread, sometimes on every pointer movement.
+      // An extensionless path may be a folder; resolve and inspect it after the drop.
+      if paths.contains(where: { path in
+        let ext = path.lowercasedPathExtension
+        return ext.isEmpty || Utility.playlistFileExt.contains(ext) ||
+          Utility.supportedFileExt[.sub]!.contains(ext) ||
+          (!Utility.blacklistExt.contains(ext) && !Utility.supportedFileExt[.audio]!.contains(ext))
+      }) {
         return .copy
       }
     } else if types.contains(.nsURL) {
@@ -188,8 +188,7 @@ extension PlayerCore {
     guard let types = pb.types else { return false }
 
     if types.contains(.nsFilenames) {
-      guard var paths = pb.propertyList(forType: .nsFilenames) as? [String] else { return false }
-      paths = Utility.resolvePaths(paths)
+      guard let paths = pb.propertyList(forType: .nsFilenames) as? [String] else { return false }
       // check 3d lut files
       if paths.count == 1 && Utility.lut3dExt.contains(paths[0].lowercasedPathExtension) {
         let result = addVideoFilter(MPVFilter(lavfiName: "lut3d", label: "iina_quickl3d", paramDict: [
@@ -202,28 +201,24 @@ extension PlayerCore {
         return result
       }
 
-      let urls = paths.map{ URL(fileURLWithPath: $0) }
+      let urls = paths.map { URL(fileURLWithPath: $0) }
       // try open files
-      guard let loadedFileCount = useGlobalOpenRouting ? PlayerCore.openURLs(urls) : openURLs(urls) else { return true }
-      if loadedFileCount == 0 {
-        // if no playable files, try add subtitle files
-        var loadedSubtitle = false
-        for url in urls {
-          if !url.hasDirectoryPath && Utility.supportedFileExt[.sub]!.contains(url.pathExtension.lowercased()) {
-            loadExternalSubFile(url)
-            loadedSubtitle = true
+      let opened: (Int?) -> Void = { [weak self] loadedFileCount in
+        guard let self else { return }
+        if loadedFileCount == 0 {
+          for url in urls where Utility.supportedFileExt[.sub]!.contains(url.pathExtension.lowercased()) {
+            self.loadExternalSubFile(url)
           }
+        } else if let loadedFileCount, loadedFileCount > 1 {
+          self.sendOSD(.addToPlaylist(loadedFileCount))
         }
-        return loadedSubtitle
-      } else if loadedFileCount == 1 {
-        // loaded one file
-        info.shouldAutoLoadFiles = true
-        return true
-      } else {
-        // add multiple files to playlist
-        sendOSD(.addToPlaylist(loadedFileCount))
-        return true
       }
+      if useGlobalOpenRouting {
+        PlayerCore.openURLsAsync(urls, completion: opened)
+      } else {
+        openURLsAsync(urls, completion: opened)
+      }
+      return true
     } else if types.contains(.nsURL) {
       guard let url = pb.propertyList(forType: .nsURL) as? [String] else { return false }
       openURLString(url[0])

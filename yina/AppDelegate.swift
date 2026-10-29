@@ -104,7 +104,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
   @objc private func openRecentDocument(_ sender: NSMenuItem) {
     guard let url = sender.representedObject as? URL else { return }
     if !isReady { getReady() }
-    if PlayerCore.openURLs([url]) == 0 { Utility.showAlert("nothing_to_open") }
+    PlayerCore.openURLsAsync([url]) { if $0 == 0 { Utility.showAlert("nothing_to_open") } }
   }
 
   private func getReady() {
@@ -423,7 +423,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
             getNewPlayerCore().openURL(url)
           }
         } else {
-          getNewPlayerCore().openURLs(validFileURLs)
+          getNewPlayerCore().openURLsAsync(validFileURLs)
         }
       }
 
@@ -769,8 +769,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
   /// playlist and separate-window preferences without delaying single-file opens.
   func application(_ sender: NSApplication, openFiles filenames: [String]) {
     openFileCalled = true
-    var reply: NSApplication.DelegateReply = .success
-    defer { sender.reply(toOpenOrPrint: reply) }
+    var deferredReply = false
+    defer { if !deferredReply { sender.reply(toOpenOrPrint: .success) } }
     if !isReady {
       getReady()
     }
@@ -789,9 +789,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     }
 
     // Route the whole batch through the existing playlist/window policy.
-    if PlayerCore.openURLs(urls) == 0 {
-      reply = .failure
-      Utility.showAlert("nothing_to_open")
+    deferredReply = true
+    PlayerCore.openURLsAsync(urls) { count in
+      sender.reply(toOpenOrPrint: count == 0 ? .failure : .success)
+      if count == 0 { Utility.showAlert("nothing_to_open") }
     }
   }
 
@@ -946,9 +947,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
           noteNewRecentDocumentURL(url)
         }
       }
-      if PlayerCore.openURLs(panel.urls) == 0 {
-        Utility.showAlert("nothing_to_open")
-      }
+      PlayerCore.openURLsAsync(panel.urls) { if $0 == 0 { Utility.showAlert("nothing_to_open") } }
     }
   }
 

@@ -25,13 +25,20 @@ final class RecordingApplication: NSApplication {
 enum PlayerCore {
   static var batches: [[URL]] = []
   static var result: Int? = 1
-  static func openURLs(_ urls: [URL]) -> Int? {
+  static var pending: [() -> Void] = []
+  static func openURLsAsync(_ urls: [URL], completion: @escaping (Int?) -> Void) {
     batches.append(urls)
-    return result
+    let answer = result
+    pending.append { completion(answer) }
+  }
+  static func finish() {
+    let callbacks = pending
+    pending.removeAll()
+    callbacks.forEach { $0() }
   }
 }
 final class SettingsWindow {
-  static let `default` = SettingsWindow()
+  static let plugins = SettingsWindow()
   var packages: [URL] = []
   func installPlugin(localPackageURL: URL) { packages.append(localPackageURL) }
 }
@@ -54,14 +61,17 @@ let delegate = AppDelegate()
 app.delegate = delegate
 let files = ["/tmp/first clip.mp4", "/tmp/second clip.mkv"]
 
-// Calls must route synchronously: no run-loop turn or debounce timer is needed.
+// Routing is immediate, but AppKit receives a reply only after asynchronous validation.
 delegate.application(app, openFiles: files)
 precondition(PlayerCore.batches == [files.map { URL(fileURLWithPath: $0) }])
 precondition(delegate.openFileCalled && delegate.readyCount == 1)
+precondition(app.replies.isEmpty, "Finder was acknowledged before validation finished")
+PlayerCore.finish()
 precondition(app.replies == [.success])
 delegate.application(app, openFiles: [files[0]])
 precondition(PlayerCore.batches.count == 2 && PlayerCore.batches[1].count == 1)
 precondition(delegate.readyCount == 1)
+PlayerCore.finish()
 
 // CLI suppression consumes exactly one request, without retaining stale filenames.
 delegate.shouldIgnoreOpenFile = true
@@ -69,21 +79,24 @@ delegate.application(app, openFiles: files)
 precondition(!delegate.shouldIgnoreOpenFile && PlayerCore.batches.count == 2)
 delegate.application(app, openFiles: [files[1]])
 precondition(PlayerCore.batches.last == [URL(fileURLWithPath: files[1])])
+PlayerCore.finish()
 
 let beforePlugin = PlayerCore.batches.count
 delegate.application(app, openFiles: ["/tmp/example.iinaplgz"])
-precondition(SettingsWindow.default.packages.count == 1)
+precondition(SettingsWindow.plugins.packages.count == 1)
 precondition(PlayerCore.batches.count == beforePlugin && app.replies.last == .success)
 
 PlayerCore.result = 0
 delegate.application(app, openFiles: ["/tmp/unsupported.exe"])
+PlayerCore.finish()
 precondition(app.replies.last == .failure && Utility.alerts == ["nothing_to_open"])
 PlayerCore.result = nil // Blu-ray/playlist requests are handled without a count.
 delegate.application(app, openFiles: ["/tmp/playlist.m3u"])
+PlayerCore.finish()
 precondition(app.replies.last == .success)
 delegate.application(app, openFiles: [])
 precondition(app.replies.count == 8 && app.replies.last == .success)
-print("PASS: immediate single/batch routing, CLI suppression, plugin routing and AppKit replies")
+print("PASS: immediate single/batch routing, deferred validation replies, CLI suppression and plugin routing")
 '''
 
 with tempfile.TemporaryDirectory(prefix="yina-finder-open-") as temp:
