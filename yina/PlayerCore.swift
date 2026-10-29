@@ -219,6 +219,15 @@ class PlayerCore: NSObject {
   lazy var info: PlaybackInfo = PlaybackInfo(self)
 
   var syncUITimer: Timer?
+  @MainActor lazy var sharedShow = SharedShowSession(player: self)
+
+  func sharedPlaybackControlChanged() {
+    if Thread.isMainThread {
+      MainActor.assumeIsolated { sharedShow.localControlChanged() }
+    } else {
+      DispatchQueue.main.async { [weak self] in self?.sharedShow.localControlChanged() }
+    }
+  }
 
   var displayOSD: Bool = true
 
@@ -790,6 +799,7 @@ class PlayerCore: NSObject {
     }
     uninitVideo()
     postNotification(.yinaPlayerShutdown)
+    DispatchQueue.main.async { [weak self] in self?.sharedShow.stop() }
     if isMPVInitiated {
       // Initiate application termination. AppKit requires this be done from the main thread,
       // however the main dispatch queue must not be used to avoid blocking the queue as per
@@ -864,6 +874,7 @@ class PlayerCore: NSObject {
   ///     [#4520](https://github.com/iina/iina/issues/4520)
   func pause() {
     guard info.state.active else { return }
+    sharedPlaybackControlChanged()
     log("Pausing playback")
     mpv.setFlag(MPVOption.PlaybackControl.pause, true, level: .verbose)
   }
@@ -885,6 +896,7 @@ class PlayerCore: NSObject {
   /// - Important: Although primary responsibility for ensuring the display link is running when playback is in progress belongs to
   ///     the `pauseChanged` method, this method calls `displayActive` to provide more time for the display link to start up.
   func resume() {
+    sharedPlaybackControlChanged()
     log("Resuming playback")
     measureResumeStage("displayActive") { mainWindow.videoView.displayActive() }
     // Restart playback when reached EOF
@@ -959,6 +971,7 @@ class PlayerCore: NSObject {
   }
 
   func seek(percent: Double, forceExact: Bool = false) {
+    sharedPlaybackControlChanged()
     var percent = percent
     // mpv will play next file automatically when seek to EOF.
     // We clamp to a Range to ensure that we don't try to seek to 100%.
@@ -974,6 +987,7 @@ class PlayerCore: NSObject {
   }
 
   func seek(relativeSecond: Double, option: Preference.SeekOption) {
+    sharedPlaybackControlChanged()
     switch option {
 
     case .relative:
@@ -1002,11 +1016,13 @@ class PlayerCore: NSObject {
   }
 
   func seek(absoluteSecond: Double) {
+    sharedPlaybackControlChanged()
     invalidateSyncedDisplayPosition()
     mpv.command(.seek, args: ["\(absoluteSecond)", "absolute+exact"])
   }
 
   func frameStep(backwards: Bool) {
+    sharedPlaybackControlChanged()
     // When playback is paused the display link is stopped in order to avoid wasting energy on
     // It must be running when stepping to avoid slowdowns caused by mpv waiting for YINA to call
     // mpv_render_report_swap.
@@ -1305,6 +1321,7 @@ class PlayerCore: NSObject {
   }
 
   func setSpeed(_ speed: Double) {
+    sharedPlaybackControlChanged()
     let speed = max(AppData.mpvMinPlaybackSpeed, speed)
     mpv.setDouble(MPVOption.PlaybackControl.speed, speed)
   }
@@ -2036,6 +2053,12 @@ class PlayerCore: NSObject {
 
   func savePlaybackPosition() {
     finishSubtitleDissolve()
+    let sharedMedia = info.currentURL
+    let sharedPosition = info.videoPosition?.second
+    let sharedDuration = info.videoDuration?.second
+    DispatchQueue.main.async { [weak self] in
+      self?.sharedShow.saveFinal(media: sharedMedia, position: sharedPosition, duration: sharedDuration)
+    }
     guard mpv.getFlag(MPVOption.WatchLater.savePositionOnQuit) else { return }
 
     // The player must be active to be able to save the watch later configuration.
@@ -2299,6 +2322,7 @@ class PlayerCore: NSObject {
       }
     }
     postNotification(.yinaFileLoaded)
+    DispatchQueue.main.async { [weak self] in self?.sharedShow.start() }
     events.emit(.fileLoaded, data: info.currentURL?.absoluteString ?? "")
 
     Task { @MainActor in
@@ -2468,6 +2492,7 @@ class PlayerCore: NSObject {
       log("Playback has stopped")
       info.state = .idle
       postNotification(.yinaPlayerStopped)
+      DispatchQueue.main.async { [weak self] in self?.sharedShow.stop() }
       if let pendingUrl {
         self.pendingUrl = nil
         log("Processing pending open")

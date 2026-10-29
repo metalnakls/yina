@@ -3,11 +3,11 @@ import Foundation
 @main
 struct ShowIndexDecodingSmoke {
   static func main() throws {
-    let record: [String: Any] = ["id": ["hashString": "transfer", "fileIndex": 0],
+    let record: [String: Any] = ["id": ["hashString": "0123456789abcdef0123456789abcdef01234567", "fileIndex": 0],
                                "relativePath": "Season 1/episode.mkv", "bytesCompleted": 10,
                                "totalBytes": 10, "wanted": false]
     func data(_ records: [[String: Any]], version: Int = 1, date: String = "2026-10-28T20:00:00Z") -> Data {
-      try! JSONSerialization.data(withJSONObject: ["schemaVersion": version, "hashString": "transfer",
+      try! JSONSerialization.data(withJSONObject: ["schemaVersion": version, "hashString": "0123456789abcdef0123456789abcdef01234567",
                                                   "capturedAt": date, "episodes": records])
     }
     let snapshot = ShowEpisodeIndexReader.decode(data([record]))
@@ -23,7 +23,7 @@ struct ShowIndexDecodingSmoke {
       precondition(ShowEpisodeIndexReader.decode(data([unsafe])) == nil, "Accepted unsafe path: \(path)")
     }
     var mismatched = record
-    mismatched["id"] = ["hashString": "another-transfer", "fileIndex": 0]
+    mismatched["id"] = ["hashString": "ffffffffffffffffffffffffffffffffffffffff", "fileIndex": 0]
     precondition(ShowEpisodeIndexReader.decode(data([mismatched])) == nil)
     var negative = record
     negative["bytesCompleted"] = -1

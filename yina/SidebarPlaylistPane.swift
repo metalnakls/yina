@@ -37,6 +37,8 @@ class SidebarPlaylistPane: NSView, SidebarPane {
   private var indexEpisodes: [ShowEpisodeIndexReader.Episode] = []
   private var indexExpiry: Timer?
   private var indexGeneration = 0
+  private var indexMedia: URL?
+  private var lastIndexRead = Date.distantPast
   private let indexReads: OperationQueue = {
     let queue = OperationQueue()
     queue.name = "YINAReadShowInventory"
@@ -119,6 +121,8 @@ class SidebarPlaylistPane: NSView, SidebarPane {
     indexTable.rowHeight = LayoutValue.tableRowHeight.get()
     indexTable.selectionHighlightStyle = .none
     indexTable.backgroundColor = .clear
+    indexTable.menu = NSMenu()
+    indexTable.menu?.delegate = self
     let indexScroll = NSScrollView()
     indexScroll.translatesAutoresizingMaskIntoConstraints = false
     indexScroll.documentView = indexTable
@@ -129,6 +133,7 @@ class SidebarPlaylistPane: NSView, SidebarPane {
     heading.font = .preferredFont(forTextStyle: .headline)
     indexDate.font = .preferredFont(forTextStyle: .caption1)
     indexDate.textColor = .secondaryLabelColor
+    indexDate.maximumNumberOfLines = 2
     indexPane.translatesAutoresizingMaskIntoConstraints = false
     indexPane.orientation = .vertical
     indexPane.alignment = .width
@@ -152,6 +157,12 @@ class SidebarPlaylistPane: NSView, SidebarPane {
     player.observe(.yinaFileLoaded) { [unowned self] _ in
       updateTable()
       readEpisodeIndex()
+    }
+    player.observe(.yinaSharedShowChanged) { [weak self] _ in
+      guard let self else { return }
+      self.showEpisodeIndex(self.indexSnapshot)
+      guard Date().timeIntervalSince(self.lastIndexRead) >= 10 else { return }
+      self.readEpisodeIndex()
     }
     player.observe(.yinaPlayerStopped) { [unowned self] _ in
       indexGeneration &+= 1
@@ -194,11 +205,15 @@ class SidebarPlaylistPane: NSView, SidebarPane {
   }
 
   private func readEpisodeIndex() {
+    let mediaURL = player.info.currentURL
+    if indexMedia == mediaURL && indexReads.operationCount > 0 { return }
     indexGeneration &+= 1
     indexReads.cancelAllOperations()
-    showEpisodeIndex(nil)
+    if indexMedia != mediaURL { showEpisodeIndex(nil) }
+    indexMedia = mediaURL
     guard window != nil, !isHiddenOrHasHiddenAncestor,
           let media = player.info.currentURL, media.isFileURL else { return }
+    lastIndexRead = Date()
     let generation = indexGeneration
     let operation = BlockOperation()
     operation.addExecutionBlock { [weak self, weak operation] in
@@ -217,9 +232,8 @@ class SidebarPlaylistPane: NSView, SidebarPane {
   private func showEpisodeIndex(_ snapshot: ShowEpisodeIndexReader.Snapshot?) {
     indexExpiry?.invalidate()
     indexSnapshot = snapshot
-    let fresh = snapshot?.isFresh() == true
     indexEpisodes = snapshot?.episodes.filter { episode in
-      !(fresh && episode.size > 0 && episode.received >= episode.size &&
+      !(!episode.ambiguous && episode.isFresh() && episode.size > 0 && episode.received == episode.size &&
         episode.exists == true && episode.localSize == episode.size)
     } ?? []
     indexPane.isHidden = indexEpisodes.isEmpty
@@ -227,6 +241,7 @@ class SidebarPlaylistPane: NSView, SidebarPane {
     guard let snapshot else { indexDate.stringValue = ""; return }
     let date = DateFormatter.localizedString(from: snapshot.capturedAt, dateStyle: .short, timeStyle: .short)
     indexDate.stringValue = snapshot.isFresh() ? "Snapshot from Glass · \(date)" : "Snapshot from Glass · \(date) · status may be out of date"
+    if let requestStatus = player.sharedShow.requestStatus { indexDate.stringValue += "\n\(requestStatus)" }
     if snapshot.isFresh() {
       let delay = snapshot.capturedAt.addingTimeInterval(ShowEpisodeIndexReader.freshnessLimit).timeIntervalSinceNow
       indexExpiry = Timer.scheduledTimer(withTimeInterval: max(0, delay), repeats: false) { [weak self] _ in
@@ -236,20 +251,25 @@ class SidebarPlaylistPane: NSView, SidebarPane {
   }
 
   private func episodeCell(at row: Int) -> NSView? {
-    guard indexEpisodes.indices.contains(row), let snapshot = indexSnapshot else { return nil }
+    guard indexEpisodes.indices.contains(row), indexSnapshot != nil else { return nil }
     let episode = indexEpisodes[row]
     let status: String
-    if episode.exists == false { status = "Missing locally" }
-    else if !snapshot.isFresh() { status = "Status unknown (old snapshot)" }
-    else if episode.size > 0 && episode.received >= episode.size {
+    if episode.ambiguous { status = "Multiple sources; availability unknown" }
+    else if !episode.isFresh() { status = "Status unknown (old snapshot)" }
+    else if episode.exists == false { status = "Missing locally" }
+    else if episode.size > 0 && episode.received == episode.size {
       status = episode.localSize == nil ? "Local availability not checked" : "Local file size differs from snapshot"
-    } else if episode.wanted == false { status = "Not selected" }
+    } else if episode.size == 0 { status = "Status unknown" }
+    else if episode.wanted == false { status = "Not selected" }
     else if episode.wanted == true { status = episode.received > 0 ? "Incomplete" : "Selected" }
     else { status = "Status unknown" }
-    let label = NSTextField(labelWithString: "\(episode.path) — \(status)")
+    let received = ByteCountFormatter.string(fromByteCount: Int64(clamping: episode.received), countStyle: .file)
+    let size = ByteCountFormatter.string(fromByteCount: Int64(clamping: episode.size), countStyle: .file)
+    let label = NSTextField(labelWithString: "\(episode.path) — \(status) · \(received) of \(size)")
     label.textColor = .secondaryLabelColor
     label.lineBreakMode = .byTruncatingMiddle
-    label.toolTip = episode.path
+    let date = DateFormatter.localizedString(from: episode.capturedAt, dateStyle: .short, timeStyle: .short)
+    label.toolTip = "\(episode.path)\n\(status) · \(received) of \(size)\nSnapshot from Glass · \(date)"
     return label
   }
 
@@ -420,6 +440,24 @@ extension SidebarPlaylistPane: NSMenuDelegate, NSMenuItemValidation {
   }
 
   func menuNeedsUpdate(_ menu: NSMenu) {
+    if menu === indexTable.menu {
+      menu.removeAllItems()
+      let row = indexTable.clickedRow
+      guard indexEpisodes.indices.contains(row), let snapshot = indexSnapshot else { return }
+      let episode = indexEpisodes[row]
+      let request = NSMenuItem(title: "Request Download in Glass", action: #selector(requestIndexedEpisode(_:)), keyEquivalent: "")
+      request.target = self
+      request.representedObject = (episode, snapshot)
+      request.isEnabled = snapshot.showID != nil && episode.isFresh() && !episode.ambiguous
+      menu.autoenablesItems = false
+      menu.addItem(request)
+      if let status = player.sharedShow.requestStatus {
+        let info = NSMenuItem(title: status, action: nil, keyEquivalent: "")
+        info.isEnabled = false
+        menu.addItem(info)
+      }
+      return
+    }
     let selectedRow = tableView.selectedRowIndexes
     let clickedRow = tableView.clickedRow
     var target = IndexSet()
@@ -438,6 +476,77 @@ extension SidebarPlaylistPane: NSMenuDelegate, NSMenuItemValidation {
     for item in items {
       menu.addItem(item)
     }
+    let targetsCurrent = target.isEmpty || player.info.$playlist.withLock { playlist in
+      target.count == 1 && target.first.map { playlist.indices.contains($0) && playlist[$0].isCurrent } == true
+    }
+    if targetsCurrent && player.info.currentURL?.isFileURL == true {
+      menu.addItem(.separator())
+      let sharing = NSMenuItem(title: "Shared Show", action: nil, keyEquivalent: "")
+      let choices = NSMenu()
+      if let watchStatus = player.sharedShow.watchStatus {
+        choices.addItem(withTitle: watchStatus, action: nil, keyEquivalent: "")
+      }
+      if let status = player.sharedShow.status {
+        let item = NSMenuItem(title: status, action: nil, keyEquivalent: "")
+        item.isEnabled = false
+        choices.addItem(item)
+      }
+      if player.sharedShow.showID == nil {
+        let enable = NSMenuItem(title: "Enable for This Show…", action: #selector(enableSharedShow(_:)), keyEquivalent: "")
+        enable.target = self
+        choices.addItem(enable)
+      } else {
+        if player.sharedShow.isHosting || player.sharedShow.followingWriter != nil {
+          let leave = NSMenuItem(title: "Leave Watch Together", action: #selector(leaveWatchTogether(_:)), keyEquivalent: "")
+          leave.target = self
+          choices.addItem(leave)
+        } else {
+          let host = NSMenuItem(title: "Host Watch Together", action: #selector(hostWatchTogether(_:)), keyEquivalent: "")
+          host.target = self
+          choices.addItem(host)
+        }
+        for record in player.sharedShow.positions.filter({
+          $0.relativePath == player.sharedShow.relativePath && SharedPlaybackSync.target(for: $0) != nil
+        }).prefix(12) {
+          let follow = NSMenuItem(title: "Follow Host \(record.writerID.uuidString.prefix(6))", action: #selector(followSharedViewer(_:)), keyEquivalent: "")
+          follow.target = self
+          follow.representedObject = record
+          follow.state = player.sharedShow.followingWriter == record.writerID ? .on : .off
+          choices.addItem(follow)
+        }
+      }
+      for record in player.sharedShow.positions.filter({ $0.relativePath == player.sharedShow.relativePath }).prefix(12) {
+        let viewer = record.participantID == SharedShowSession.participantID ? "This profile" : "Viewer \(record.participantID.uuidString.prefix(6))"
+        let position = VideoTime(record.position).stringRepresentation
+        let date = DateFormatter.localizedString(from: record.updatedAt, dateStyle: .short, timeStyle: .short)
+        let item = NSMenuItem(title: "Resume at \(position) · \(viewer) · \(date)", action: #selector(resumeSharedPosition(_:)), keyEquivalent: "")
+        item.target = self
+        item.representedObject = record
+        choices.addItem(item)
+      }
+      if choices.items.isEmpty { choices.addItem(withTitle: "No saved positions yet", action: nil, keyEquivalent: "") }
+      sharing.submenu = choices
+      menu.addItem(sharing)
+    }
+  }
+
+  @objc private func requestIndexedEpisode(_ sender: NSMenuItem) {
+    guard let (episode, snapshot) = sender.representedObject as? (ShowEpisodeIndexReader.Episode, ShowEpisodeIndexReader.Snapshot) else { return }
+    player.sharedShow.request(episode, snapshot: snapshot)
+  }
+
+  @objc private func enableSharedShow(_ sender: NSMenuItem) { player.sharedShow.enableSharing(in: window) }
+
+  @objc private func hostWatchTogether(_ sender: NSMenuItem) { player.sharedShow.hostWatchTogether() }
+  @objc private func leaveWatchTogether(_ sender: NSMenuItem) { player.sharedShow.leaveWatchTogether() }
+  @objc private func followSharedViewer(_ sender: NSMenuItem) {
+    guard let record = sender.representedObject as? SharedShowStore.Progress else { return }
+    player.sharedShow.follow(record)
+  }
+
+  @objc private func resumeSharedPosition(_ sender: NSMenuItem) {
+    guard let record = sender.representedObject as? SharedShowStore.Progress else { return }
+    player.sharedShow.resume(record)
   }
 
   @IBAction func contextMenuPlayInNewWindow(_ sender: NSMenuItem) {

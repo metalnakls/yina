@@ -327,6 +327,9 @@ class PlayerWindowController: NSWindowController, NSWindowDelegate {
         player.toggleSubVisibility(action[2] == "yes")
         return true
       }
+      if SharedPlaybackSync.isTransportCommand(action) {
+        player.sharedPlaybackControlChanged()
+      }
       let returnValue: Int32
       // execute the command
       switch keyBinding.action.first! {
