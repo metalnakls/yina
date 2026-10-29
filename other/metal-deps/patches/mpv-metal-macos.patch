@@ -1,32 +1,112 @@
 diff --git a/audio/out/ao_avfoundation.m b/audio/out/ao_avfoundation.m
-index 09f3ef002..36638b94a 100644
+index 09f3ef002..c779b1159 100644
 --- a/audio/out/ao_avfoundation.m
 +++ b/audio/out/ao_avfoundation.m
-@@ -81 +81,3 @@ static void feed(struct ao *ao)
+@@ -38,0 +39 @@
++- (void)invalidate;
+@@ -47,0 +49 @@ struct priv {
++    bool paused;
+@@ -49,0 +52,2 @@ struct priv {
++static char queue_key;
++
+@@ -81 +85,3 @@ static void feed(struct ao *ao)
 -    if (eof) {
 +    // An empty read leaves the renderer ready, causing an immediate callback loop.
 +    // Use the same restart contract as EOF when audio becomes available again.
 +    if (eof || real_sample_count == 0) {
-@@ -143 +145 @@ finish:
+@@ -143 +149 @@ finish:
 -static void start(struct ao *ao)
 +static void request_media_data(struct ao *ao)
-@@ -147,2 +148,0 @@ static void start(struct ao *ao)
+@@ -147,2 +152,0 @@ static void start(struct ao *ao)
 -    p->end_time_av = -1;
 -    [p->synchronizer setRate:1];
-@@ -153,0 +154,9 @@ static void start(struct ao *ao)
+@@ -154 +158 @@ static void start(struct ao *ao)
+-static void stop(struct ao *ao)
++static void start_on_queue(struct ao *ao)
+@@ -158,5 +162,5 @@ static void stop(struct ao *ao)
+-    dispatch_sync(p->queue, ^{
+-        [p->renderer stopRequestingMediaData];
+-        [p->renderer flush];
+-        [p->synchronizer setRate:0];
+-    });
++    p->end_time_av = -1;
++    if (!p->paused) {
++        [p->synchronizer setRate:1];
++        request_media_data(ao);
++    }
+@@ -165 +169 @@ static void stop(struct ao *ao)
+-static bool set_pause(struct ao *ao, bool paused)
++static void stop_on_queue(struct ao *ao)
+@@ -169,2 +173,10 @@ static bool set_pause(struct ao *ao, bool paused)
+-    if (paused) {
+-        [p->synchronizer setRate:0];
++    [p->renderer stopRequestingMediaData];
++    [p->renderer flush];
++    [p->synchronizer setRate:0];
++}
++
++static void on_queue_sync(struct ao *ao, dispatch_block_t block)
++{
++    struct priv *p = ao->priv;
++    if (dispatch_get_specific(&queue_key) == &queue_key) {
++        block();
+@@ -172 +184 @@ static bool set_pause(struct ao *ao, bool paused)
+-        [p->synchronizer setRate:1];
++        dispatch_sync(p->queue, block);
+@@ -173,0 +186,26 @@ static bool set_pause(struct ao *ao, bool paused)
++}
++
 +static void start(struct ao *ao)
++{
++    on_queue_sync(ao, ^{ start_on_queue(ao); });
++}
++
++static void stop(struct ao *ao)
++{
++    on_queue_sync(ao, ^{ stop_on_queue(ao); });
++}
++
++static bool set_pause(struct ao *ao, bool paused)
 +{
 +    struct priv *p = ao->priv;
 +
-+    p->end_time_av = -1;
-+    [p->synchronizer setRate:1];
-+    request_media_data(ao);
++    on_queue_sync(ao, ^{
++        p->paused = paused;
++        if (paused) {
++            [p->renderer stopRequestingMediaData];
++            [p->synchronizer setRate:0];
++        } else {
++            [p->synchronizer setRate:1];
++            request_media_data(ao);
++        }
++    });
+@@ -209,6 +247,13 @@ static int control(struct ao *ao, enum aocontrol cmd, void *arg)
+-    char *name = cfstr_get_cstr((CFStringRef)notification.name);
+-    MP_WARN(ao, "restarting due to system notification; this will cause desync\n");
+-    MP_VERBOSE(ao, "notification name: %s\n", name);
+-    talloc_free(name);
+-    stop(ao);
+-    start(ao);
++    @synchronized (self) {
++        if (!ao) return;
++        struct ao *current = ao;
++        struct priv *p = current->priv;
++        dispatch_async(p->queue, ^{
++            MP_WARN(current, "restarting due to system notification; this will cause desync\n");
++            stop_on_queue(current);
++            start_on_queue(current);
++        });
++    }
 +}
-+
-@@ -169,0 +179 @@ static bool set_pause(struct ao *ao, bool paused)
-+        [p->renderer stopRequestingMediaData];
-@@ -172,0 +183 @@ static bool set_pause(struct ao *ao, bool paused)
-+        request_media_data(ao);
++- (void)invalidate {
++    @synchronized (self) { ao = NULL; }
+@@ -250,0 +296 @@ static int init(struct ao *ao)
++    dispatch_queue_set_specific(p->queue, &queue_key, &queue_key, NULL);
+@@ -335,0 +382,2 @@ static void uninit(struct ao *ao)
++    [[NSNotificationCenter defaultCenter] removeObserver:p->observer];
++    [p->observer invalidate];
+@@ -343 +390,0 @@ static void uninit(struct ao *ao)
+-    [[NSNotificationCenter defaultCenter] removeObserver:p->observer];
 diff --git a/meson.build b/meson.build
 index 534c28a12..ba8d93a49 100644
 --- a/meson.build

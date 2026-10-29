@@ -17,6 +17,11 @@ int main(int argc,char **argv){
  const char *load[]={"loadfile",argv[1],NULL}; CHECK(mpv_command(h,load)==0);
  int loaded=0;for(int i=0;i<100;i++){mpv_event *e=mpv_wait_event(h,.05);if(e->event_id==MPV_EVENT_FILE_LOADED){loaded=1;break;}} CHECK(loaded);
  for(int i=0;i<5;i++){
+  if(i==2){
+   sleep(7);
+   const char *resetSeek[]={"seek","8","absolute+exact",NULL};
+   CHECK(mpv_command(h,resetSeek)==0);
+  }
   int paused=0;CHECK(mpv_set_property(h,"pause",MPV_FORMAT_FLAG,&paused)==0);usleep(200000);
   char *ao=mpv_get_property_string(h,"current-ao");CHECK(ao);CHECK(!strcmp(ao,"avfoundation"));mpv_free(ao);
   double before=0,after=0;CHECK(mpv_get_property(h,"time-pos",MPV_FORMAT_DOUBLE,&before)==0);for(int wait=0;wait<60;wait++){usleep(50000);CHECK(mpv_get_property(h,"time-pos",MPV_FORMAT_DOUBLE,&after)==0);if(after>before+.01)break;}printf("cycle=%d before=%f after=%f\n",i,before,after);fflush(stdout);CHECK(after>before);
@@ -26,5 +31,5 @@ int main(int argc,char **argv){
  const char *seek[]={"seek","19.7","absolute+exact",NULL}; CHECK(mpv_command(h,seek)==0);
  int eof=0;for(int i=0;i<160;i++){mpv_event *event=mpv_wait_event(h,.05);if(event->event_id==MPV_EVENT_END_FILE){mpv_event_end_file *end=event->data;if(end->reason==MPV_END_FILE_REASON_EOF){eof=1;break;}}}CHECK(eof);
  CHECK(mpv_command(h,load)==0);usleep(200000);const char *stop[]={"stop",NULL};CHECK(mpv_command(h,stop)==0);
- mpv_terminate_destroy(h);puts("PASS: rebuilt libmpv AVFoundation output, five pause/resume cycles with advancing audio, EOF, reopen and stop");
+ mpv_terminate_destroy(h);puts("PASS: rebuilt libmpv AVFoundation output, five pause/resume cycles, long pause and paused seek/reset, EOF, reopen and stop");
 }

@@ -26,11 +26,12 @@ The pinned cargo-c release emits a shared libdovi that Xcode 27 rejects for a
 malformed `LINKEDIT` string pool. The builder links cargo-c's valid arm64 static
 archive into libplacebo instead. No libdovi dylib is shipped.
 
-After replacing `deps/lib` with the packaged closure, regenerate the Xcode link
-and Copy Dylibs phases from that exact directory:
+After copying the complete packaged closure into `deps/lib`, regenerate the
+Xcode link and Copy Dylibs phases from the package inventory. This excludes
+obsolete libraries left by an earlier dependency build without deleting them:
 
 ```sh
-ruby other/metal-deps/update-xcode-libraries.rb
+ruby other/metal-deps/update-xcode-libraries.rb build/metal-deps/package/lib
 ```
 
 Build the temporary Metal renderer by adding `IINA_ENABLE_METAL_RENDERER` to

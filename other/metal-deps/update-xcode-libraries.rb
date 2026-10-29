@@ -6,7 +6,8 @@ require "pathname"
 
 ROOT = Pathname.new(__dir__).join("../..").realpath
 PROJECT = ROOT.join("yina.xcodeproj/project.pbxproj")
-LIB_DIR = ROOT.join("deps/lib")
+raise "usage: #{$PROGRAM_NAME} [packaged-library-directory]" if ARGV.length > 1
+LIB_DIR = ARGV.empty? ? ROOT.join("deps/lib") : Pathname.new(ARGV.first).realpath
 
 def stable_id(kind, name)
   Digest::SHA256.hexdigest("yina-metal-deps:#{kind}:#{name}")[0, 24].upcase
@@ -21,6 +22,9 @@ end
 
 libraries = LIB_DIR.glob("*.dylib").map(&:basename).map(&:to_s).sort
 raise "No dylibs found in #{LIB_DIR}" if libraries.empty?
+libraries.each do |name|
+  raise "Copy #{name} from #{LIB_DIR} into deps/lib before updating Xcode" unless ROOT.join("deps/lib", name).file?
+end
 
 text = PROJECT.read
 

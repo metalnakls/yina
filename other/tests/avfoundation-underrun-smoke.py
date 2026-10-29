@@ -33,6 +33,7 @@ int main(void) { @autoreleasepool {
     struct priv p = {0};
     struct ao ao = {.priv=&p, .samplerate=48000, .sstride=8};
     p.queue = dispatch_queue_create("fixture.audio", DISPATCH_QUEUE_SERIAL);
+    dispatch_queue_set_specific(p.queue, &queue_key, &queue_key, NULL);
     p.renderer = [AVSampleBufferAudioRenderer new];
     p.renderer.muted = YES;
     p.synchronizer = [AVSampleBufferRenderSynchronizer new];
@@ -57,6 +58,10 @@ int main(void) { @autoreleasepool {
     dispatch_sync(p.queue, ^{ afterEmpty=ao.reads; });
     [NSThread sleepForTimeInterval:0.1];
     dispatch_sync(p.queue, ^{ NSCAssert(ao.reads==afterEmpty, @"pause stops callbacks"); ao.available=4800; });
+    // A renderer reset while paused must not start feeding until mpv unpauses.
+    dispatch_sync(p.queue, ^{ stop(&ao); start(&ao); });
+    [NSThread sleepForTimeInterval:0.1];
+    dispatch_sync(p.queue, ^{ NSCAssert(ao.reads==afterEmpty, @"paused reset remains paused"); });
     set_pause(&ao, false);
     [NSThread sleepForTimeInterval:0.1];
     dispatch_sync(p.queue, ^{ NSCAssert(ao.available==0 && ao.reads>afterEmpty, @"resume feeds returned data"); });
@@ -69,7 +74,7 @@ int main(void) { @autoreleasepool {
     [NSThread sleepForTimeInterval:0.1];
     dispatch_sync(p.queue, ^{ NSCAssert(ao.reads==afterEmpty, @"shutdown stops callbacks"); });
     CFRelease(p.format_description);
-    puts("PASS: actual mpv callback stops empty-read spinning; data return, pause/resume, EOF and shutdown");
+    puts("PASS: actual mpv callback stops empty-read spinning; data return, pause/reset/resume, EOF and shutdown");
 } }
 '''
 # Keep AO/driver addresses stable across copied dispatch blocks.
