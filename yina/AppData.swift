@@ -144,6 +144,7 @@ extension Notification.Name {
   static let yinaSpeedChanged = Notification.Name("YINASpeedChanged")
   static let yinaMediaTitleChanged = Notification.Name("YINAMediaTitleChanged")
   static let yinaVideoParamsChanged = Notification.Name("yinaVideoParamsChanged")
+  static let yinaPreviewSettingsChanged = Notification.Name("YINAPreviewSettingsChanged")
   static let yinaVFChanged = Notification.Name("YINAVfChanged")
   static let yinaVideoEqualizerChanged = Notification.Name("yinaVideoEqualizerChanged")
   static let yinaDeinterlaceChanged = Notification.Name("yinaDeinterlaceChanged")
@@ -155,6 +156,7 @@ extension Notification.Name {
   static let yinaSubPositionChanged = Notification.Name("yinaSubPositionChanged")
   static let yinaSubDelayChanged = Notification.Name("yinaSubDelayChanged")
   static let yinaSubVisibilityChanged = Notification.Name("yinaSubVisibilityChanged")
+  static let yinaSubtitleTextChanged = Notification.Name("yinaSubtitleTextChanged")
 
   static let yinaKeyBindingInputChanged = Notification.Name("YINAKeyBindingInputChanged")
   static let yinaFileLoaded = Notification.Name("YINAFileLoaded")

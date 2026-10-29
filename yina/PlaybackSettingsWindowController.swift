@@ -24,6 +24,7 @@ final class PlaybackSettingsWindowController: NSWindowController, NSWindowDelega
   private let preferences = Preference.Observer()
   private var audioDevices: [PlaybackSettingsAudioDevice] = []
   private var audioDevice = "auto"
+  private var deviceRefreshGeneration: UInt64 = 0
 
   private init() {
     model = PlaybackSettingsModel(styles: SubtitleStyleID.allCases.map {
@@ -48,7 +49,6 @@ final class PlaybackSettingsWindowController: NSWindowController, NSWindowDelega
 
   func show(for player: PlayerCore) {
     bind(to: player)
-    refreshDevices()
     if applicationObservations.isEmpty {
       applicationObservations.append(NotificationCenter.default.addObserver(
         forName: NSWindow.didBecomeMainNotification, object: nil, queue: .main
@@ -69,6 +69,7 @@ final class PlaybackSettingsWindowController: NSWindowController, NSWindowDelega
   }
 
   func windowWillClose(_ notification: Notification) {
+    deviceRefreshGeneration &+= 1
     (observations + applicationObservations).forEach(NotificationCenter.default.removeObserver)
     observations.removeAll()
     applicationObservations.removeAll()
@@ -84,6 +85,7 @@ final class PlaybackSettingsWindowController: NSWindowController, NSWindowDelega
       self.player = player
       audioDevices = []
       audioDevice = "auto"
+      deviceRefreshGeneration &+= 1
       let names: [Notification.Name] = [
         .yinaTracklistChanged, .yinaVIDChanged, .yinaAIDChanged, .yinaSIDChanged,
         .yinaVideoEqualizerChanged, .yinaAFChanged, .yinaSubVisibilityChanged,
@@ -130,11 +132,25 @@ final class PlaybackSettingsWindowController: NSWindowController, NSWindowDelega
 
   private func refreshDevices() {
     guard let player, player.info.state.active else { return }
-    audioDevices = player.getAudioDevices().map {
-      PlaybackSettingsAudioDevice(id: $0.name, title: $0.desc.isEmpty ? $0.name : $0.desc)
+    deviceRefreshGeneration &+= 1
+    let generation = deviceRefreshGeneration
+    let url = player.info.currentURL
+    player.mpv.getPropertiesAsync([MPVProperty.audioDeviceList, MPVProperty.audioDevice]) { [weak self, weak player] values in
+      guard let self, let player, self.player === player,
+            self.deviceRefreshGeneration == generation,
+            player.info.state.active, player.info.currentURL == url else { return }
+      let raw = values[MPVProperty.audioDeviceList] as? [[String: Any]] ?? []
+      let ignoredDriver = Preference.bool(for: .audioDriverEnableAVFoundation) ? "coreaudio" : "avfoundation"
+      self.audioDevices = raw.compactMap { device -> MPVAudioDevice? in
+        guard let name = device["name"] as? String,
+              let description = device["description"] as? String else { return nil }
+        return MPVAudioDevice(desc: description, name: name)
+      }.filter { $0.driver != ignoredDriver }.map {
+        PlaybackSettingsAudioDevice(id: $0.name, title: $0.desc.isEmpty ? $0.name : $0.desc)
+      }
+      self.audioDevice = values[MPVProperty.audioDevice] as? String ?? "auto"
+      self.refresh()
     }
-    audioDevice = player.mpv.getString(MPVProperty.audioDevice) ?? "auto"
-    refresh()
   }
 
   private func perform(_ action: PlaybackSettingsAction) {
@@ -173,6 +189,7 @@ final class PlaybackSettingsWindowController: NSWindowController, NSWindowDelega
       guard player.info.videoWidth != nil, player.info.videoHeight != nil else { return }
       player.setCrop(fromString: ratio)
     case .audioDevice(let device):
+      deviceRefreshGeneration &+= 1
       audioDevice = device
       player.setAudioDevice(device)
     case .externalAudio: loadExternalFile(audio: true, player: player)

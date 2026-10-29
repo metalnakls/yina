@@ -94,7 +94,8 @@ class MPVController: NSObject {
   // The mpv_handle
   var mpv: OpaquePointer!
   var mpvRenderContext: OpaquePointer?
-
+  let asyncClient = MPVAsyncClient()
+  private var quitEnqueuePending = false
 #if !IINA_ENABLE_METAL_RENDERER
   private var openGLContext: CGLContextObj! = nil
 #endif
@@ -122,6 +123,14 @@ class MPVController: NSObject {
   private var hookCounter: UInt64 = 1
 
   let observeProperties: [String: mpv_format] = [
+    "sub-text": MPV_FORMAT_STRING,
+    "secondary-sub-text": MPV_FORMAT_STRING,
+    MPVProperty.timePos: MPV_FORMAT_DOUBLE,
+    MPVProperty.duration: MPV_FORMAT_DOUBLE,
+    MPVProperty.eofReached: MPV_FORMAT_FLAG,
+    MPVOption.WatchLater.savePositionOnQuit: MPV_FORMAT_FLAG,
+    MPVProperty.timeRemainingFull: MPV_FORMAT_DOUBLE,
+    MPVProperty.playtimeRemainingFull: MPV_FORMAT_DOUBLE,
     MPVProperty.trackList: MPV_FORMAT_NONE,
     MPVProperty.vf: MPV_FORMAT_NONE,
     MPVProperty.af: MPV_FORMAT_NONE,
@@ -530,7 +539,6 @@ class MPVController: NSObject {
       setUserOption(PK.subScaleWithWindow, type: .bool, forName: MPVOption.Subtitles.subScaleByWindow,
                     verboseIfDefault: true)
     }
-
     // - Network / cache settings
 
     setUserOption(PK.enableCache, type: .other, forName: MPVOption.Cache.cache,
@@ -642,6 +650,7 @@ class MPVController: NSObject {
 
     // Initialize an uninitialized mpv instance. If the mpv instance is already running, an error is returned.
     chkErr(mpv_initialize(mpv))
+    asyncClient.activate(mpv)
 
     // The option watch-later-options is not available until after the mpv instance is initialized.
     // Keep global subtitle preferences out of per-file watch-later state unless the user explicitly
@@ -788,12 +797,13 @@ class MPVController: NSObject {
 #endif
 
   func mpvUninitRendering() {
-    guard let mpvRenderContext else { return }
-    mpv_render_context_set_update_callback(mpvRenderContext, nil, nil)
-    mpv_render_context_free(mpvRenderContext)
-    self.mpvRenderContext = nil
-    mpv_destroy(mpv)
-    mpv = nil
+    asyncClient.invalidate()
+    if let context = mpvRenderContext {
+      mpv_render_context_set_update_callback(context, nil, nil)
+      mpv_render_context_free(context)
+      mpvRenderContext = nil
+    }
+    if let handle = mpv { mpv_destroy(handle); mpv = nil }
   }
 
   func mpvReportSwap() {
@@ -838,15 +848,34 @@ class MPVController: NSObject {
 
   /// Shutdown this mpv controller.
   func mpvQuit() {
+    guard !quitEnqueuePending, mpv != nil else { return }
+    quitEnqueuePending = true
+    asyncClient.flushLatest()
     // Remove observers for YINA preference. Must not attempt to change a mpv setting
     // in response to a YINA preference change while mpv is shutting down.
     removeOptionObservers()
     // Remove observers for mpv properties. Because 0 was passed for reply_userdata when
     // registering mpv property observers all observers can be removed in one call.
     mpv_unobserve_property(mpv, 0)
-    // Start mpv quitting. Even though this command is being sent using the synchronous
-    // command API the quit command is special and will be executed by mpv asynchronously.
-    command(.quit, level: .verbose)
+    enqueueQuit()
+  }
+
+  private func enqueueQuit() {
+    guard mpv != nil else { return }
+    let status = asyncClient.command(["quit"])
+    if status >= 0 {
+      // The quit command follows accepted writes on mpv's dispatch queue.
+      // Invalidating replies does not cancel those queued commands.
+      asyncClient.invalidate()
+    } else if status == MPV_ERROR_EVENT_QUEUE_FULL.rawValue {
+      // Only one retry is pending while earlier replies drain.
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+        guard let self, self.quitEnqueuePending else { return }
+        self.enqueueQuit()
+      }
+    } else {
+      log("Unable to queue quit command (\(status))", level: .error)
+    }
   }
 
   // MARK: - Command & property
@@ -910,20 +939,51 @@ class MPVController: NSObject {
     mpv_observe_property(mpv, 0, property, format)
   }
 
+  func getStringsAsync(_ names: [String], completion: @escaping ([String: String]) -> Void) {
+    asyncClient.get(names, strings: true) { values in
+      completion(values.compactMapValues { $0 as? String })
+    }
+  }
+
+  func getPropertiesAsync(_ names: [String], completion: @escaping ([String: Any]) -> Void) {
+    asyncClient.get(names, completion: completion)
+  }
+
+  func setAsync(_ name: String, _ value: MPVAsyncClient.Value, coalescing: Bool = false) {
+    if coalescing { asyncClient.setLatest(name, value) }
+    else { asyncClient.set(name, value) { [weak self] error in
+      if error < 0 { self?.log("Async property failed: \(name) (\(error))", level: .warning) }
+    } }
+    previewSettingsChanged(name)
+  }
+
+  private func previewSettingsChanged(_ name: String) {
+#if IINA_ENABLE_METAL_RENDERER
+    guard MPVPreviewRenderer.optionNames.contains(name) else { return }
+    DispatchQueue.main.async { [weak self] in
+      guard let self else { return }
+      self.player.postNotification(.yinaPreviewSettingsChanged)
+    }
+#endif
+  }
+
   // Set property
   func setFlag(_ name: String, _ flag: Bool, level: Logger.Level = .debug) {
+    previewSettingsChanged(name)
     log("Set property: \(name)=\(flag)", level: level)
     var data: Int32 = flag ? 1 : 0
     mpv_set_property(mpv, name, MPV_FORMAT_FLAG, &data)
   }
 
   func setInt(_ name: String, _ value: Int, level: Logger.Level = .debug) {
+    previewSettingsChanged(name)
     log("Set property: \(name)=\(value)", level: level)
     var data = Int64(value)
     mpv_set_property(mpv, name, MPV_FORMAT_INT64, &data)
   }
 
   func setDouble(_ name: String, _ value: Double, level: Logger.Level = .debug) {
+    previewSettingsChanged(name)
     log("Set property: \(name)=\(value)", level: level)
     var data = value
     mpv_set_property(mpv, name, MPV_FORMAT_DOUBLE, &data)
@@ -931,6 +991,7 @@ class MPVController: NSObject {
 
   @discardableResult
   func setString(_ name: String, _ value: String, level: Logger.Level = .debug) -> Int32 {
+    previewSettingsChanged(name)
     log("Set property: \(name)=\(value)", level: level)
     return mpv_set_property_string(mpv, name, value)
   }
@@ -1188,9 +1249,11 @@ class MPVController: NSObject {
   // Handle the event
   private func handleEvent(_ event: UnsafePointer<mpv_event>) {
     let eventId = event.pointee.event_id
+    if asyncClient.consume(event.pointee) { return }
 
     switch eventId {
     case MPV_EVENT_SHUTDOWN:
+      asyncClient.invalidate()
       DispatchQueue.main.async {
         self.player.mpvHasShutdown()
       }
@@ -1235,6 +1298,7 @@ class MPVController: NSObject {
       DispatchQueue.main.async { self.player.onVideoReconfig() }
 
     case MPV_EVENT_START_FILE:
+      resetPlaybackObservation()
       guard let path = getString(MPVProperty.path) else { break }
       DispatchQueue.main.async { [self] in
         player.info.state = .starting
@@ -1348,9 +1412,62 @@ class MPVController: NSObject {
 
   // MARK: - Property listeners
 
+  private let playbackValuesLock = NSLock()
+  private var pendingPlaybackValues: [String: Any] = [:]
+  private var playbackDeliveryPending = false
+  private var playbackDeliveryGeneration: UInt64 = 0
+
+  func resetPlaybackObservation() {
+    playbackValuesLock.lock()
+    playbackDeliveryGeneration &+= 1
+    pendingPlaybackValues.removeAll(keepingCapacity: true)
+    playbackDeliveryPending = false
+    playbackValuesLock.unlock()
+  }
+
+  private func receivePlaybackValue(_ name: String, _ property: mpv_event_property) -> Bool {
+    let names = [MPVProperty.timePos, MPVProperty.duration, MPVProperty.eofReached, MPVOption.WatchLater.savePositionOnQuit,
+                 MPVProperty.timeRemainingFull, MPVProperty.playtimeRemainingFull]
+    guard names.contains(name) else { return false }
+    guard let data = property.data else { return true }
+    let value: Any
+    if property.format == MPV_FORMAT_DOUBLE { value = data.load(as: Double.self) }
+    else if property.format == MPV_FORMAT_FLAG { value = data.load(as: Int32.self) != 0 }
+    else { return true }
+    playbackValuesLock.lock()
+    pendingPlaybackValues[name] = value
+    let schedule = !playbackDeliveryPending
+    let generation = playbackDeliveryGeneration
+    playbackDeliveryPending = true
+    playbackValuesLock.unlock()
+    if schedule {
+      DispatchQueue.main.async { [weak self] in
+        guard let self else { return }
+        self.playbackValuesLock.lock()
+        guard self.playbackDeliveryGeneration == generation else {
+          self.playbackValuesLock.unlock()
+          return
+        }
+        let values = self.pendingPlaybackValues
+        self.pendingPlaybackValues.removeAll(keepingCapacity: true)
+        self.playbackDeliveryPending = false
+        self.playbackValuesLock.unlock()
+        self.player.updateObservedPlayback(values)
+      }
+    }
+    return true
+  }
+
   private func handlePropertyChange(_ name: String, _ property: mpv_event_property) {
+    if receivePlaybackValue(name, property) { return }
+    previewSettingsChanged(name)
 
     switch name {
+
+    case "sub-text", "secondary-sub-text":
+      let pointer = property.data?.assumingMemoryBound(to: UnsafePointer<CChar>?.self).pointee
+      let text = pointer.map { String(cString: $0) } ?? ""
+      DispatchQueue.main.async { self.player.updateSubtitleText(text, secondary: name == "secondary-sub-text") }
 
     case MPVProperty.audioDeviceList:
       DispatchQueue.main.async { self.player.audioDeviceListChanged() }
@@ -1372,16 +1489,20 @@ class MPVController: NSObject {
       DispatchQueue.main.async { self.player.refreshEdrMode() }
 
     case MPVOption.TrackSelection.vid:
-      DispatchQueue.main.async { self.player.vidChanged() }
+      let selectedID = property.data.map { Int($0.load(as: Int64.self)) } ?? 0
+      DispatchQueue.main.async { self.player.vidChanged(selectedID) }
 
     case MPVOption.TrackSelection.aid:
-      DispatchQueue.main.async { self.player.aidChanged() }
+      let selectedID = property.data.map { Int($0.load(as: Int64.self)) } ?? 0
+      DispatchQueue.main.async { self.player.aidChanged(selectedID) }
 
     case MPVOption.TrackSelection.sid:
-      DispatchQueue.main.async { self.player.sidChanged() }
+      let selectedID = property.data.map { Int($0.load(as: Int64.self)) } ?? 0
+      DispatchQueue.main.async { self.player.sidChanged(selectedID) }
 
     case MPVOption.Subtitles.secondarySid:
-      DispatchQueue.main.async { self.player.secondarySidChanged() }
+      let selectedID = property.data.map { Int($0.load(as: Int64.self)) } ?? 0
+      DispatchQueue.main.async { self.player.secondarySidChanged(selectedID) }
 
     case MPVOption.PlaybackControl.pause:
       guard let paused = UnsafePointer<Bool>(OpaquePointer(property.data))?.pointee else {

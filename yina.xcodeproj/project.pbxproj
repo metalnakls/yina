@@ -207,6 +207,7 @@
 		8492C2881E7721A600CE5825 /* ISO639Helper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8492C2871E7721A600CE5825 /* ISO639Helper.swift */; };
 		849581F11F02728700D3B359 /* InitialWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 849581EF1F02728700D3B359 /* InitialWindowController.swift */; };
 		A31000012F00000000000001 /* ShowFolder.swift in Sources */ = {isa = PBXBuildFile; fileRef = A31000002F00000000000001 /* ShowFolder.swift */; };
+		A32910012F00000000000001 /* MPVAsyncClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A32910002F00000000000001 /* MPVAsyncClient.swift */; };
 		A32800012F00000000000001 /* ShowEpisodeIndexReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = A32800002F00000000000001 /* ShowEpisodeIndexReader.swift */; };
 		84A09A0E1F2DF596000FF343 /* MiniPlayerWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84A09A0C1F2DF596000FF343 /* MiniPlayerWindowController.swift */; };
 		84A0BA971D2FA1CE00BC8DA1 /* PlayerCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84A0BA961D2FA1CE00BC8DA1 /* PlayerCore.swift */; };
@@ -732,6 +733,7 @@
 		8492C2871E7721A600CE5825 /* ISO639Helper.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ISO639Helper.swift; sourceTree = "<group>"; };
 		849581EF1F02728700D3B359 /* InitialWindowController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = InitialWindowController.swift; sourceTree = "<group>"; };
 		A31000002F00000000000001 /* ShowFolder.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ShowFolder.swift; sourceTree = "<group>"; };
+		A32910002F00000000000001 /* MPVAsyncClient.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MPVAsyncClient.swift; sourceTree = "<group>"; };
 		A32800002F00000000000001 /* ShowEpisodeIndexReader.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ShowEpisodeIndexReader.swift; sourceTree = "<group>"; };
 		8497A4831D2FF573005F504F /* yina-Bridging-Header.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "yina-Bridging-Header.h"; sourceTree = "<group>"; };
 		84A09A0C1F2DF596000FF343 /* MiniPlayerWindowController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MiniPlayerWindowController.swift; sourceTree = "<group>"; };
@@ -1190,6 +1192,7 @@
 				846352571EEEE11A0043F0CC /* ThumbnailPeekView.swift */,
 				849581EF1F02728700D3B359 /* InitialWindowController.swift */,
 				A31000002F00000000000001 /* ShowFolder.swift */,
+				A32910002F00000000000001 /* MPVAsyncClient.swift */,
 				A32800002F00000000000001 /* ShowEpisodeIndexReader.swift */,
 				84A09A0C1F2DF596000FF343 /* MiniPlayerWindowController.swift */,
 				E36E8D7A24F6052F00B8C097 /* GuideWindowController.swift */,
@@ -1921,6 +1924,7 @@
 				E35306FA214808AB008FE492 /* JavascriptAPIEvent.swift in Sources */,
 				849581F11F02728700D3B359 /* InitialWindowController.swift in Sources */,
 				A31000012F00000000000001 /* ShowFolder.swift in Sources */,
+				A32910012F00000000000001 /* MPVAsyncClient.swift in Sources */,
 				A32800012F00000000000001 /* ShowEpisodeIndexReader.swift in Sources */,
 				8461C52E1D45FFF6006E91FF /* PlaySliderCell.swift in Sources */,
 				84F5D4A21E4796F50060A838 /* KeyBindingTranslator.swift in Sources */,

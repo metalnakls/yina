@@ -14,6 +14,14 @@ enum Preference {
 }
 
 enum Logger { enum Level { case verbose } }
+// Animation-state checks use an immediate transport. Queue ordering and final
+// flush/discard behavior are covered against libmpv by mpv-async-client-smoke.py.
+enum MPVAsyncClient {
+  enum Value { case flag(Bool), double(Double), string(String) }
+}
+final class AnimationTransport {
+  func discardLatest(_ names: [String]) {}
+}
 enum MPVOption {
   enum Subtitles {
     static let subBlur = "sub-blur", subColor = "sub-color", subOutlineColor = "sub-outline-color"
@@ -21,10 +29,19 @@ enum MPVOption {
   }
 }
 final class MPVController {
+  let asyncClient = AnimationTransport()
   var visible = true
   var blur = 0.42
   var colors = ["sub-color": "1/0.9/0.8/0.9", "sub-outline-color": "0/0/0/0.8", "sub-back-color": "0/0/0/0"]
   var writes = 0
+  func setAsync(_ name: String, _ value: MPVAsyncClient.Value, coalescing: Bool = false) {
+    switch value {
+    case .flag(let value): visible = value
+    case .double(let value): blur = value
+    case .string(let value): colors[name] = value
+    }
+    writes += 1
+  }
   func getFlag(_ name: String) -> Bool { visible }
   func getDouble(_ name: String) -> Double { blur }
   func getString(_ name: String) -> String? { colors[name] }

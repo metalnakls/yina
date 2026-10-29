@@ -152,11 +152,11 @@ final class SubtitleDissolve: NSObject {
   private func apply(opacity: Double, blur: Double) {
     guard let style else { return }
     if resolvedSRGBComponents.isEmpty { resolveColors(of: style) }
-    mpv.setDouble(MPVOption.Subtitles.subBlur, blur, level: .verbose)
+    mpv.setAsync(MPVOption.Subtitles.subBlur, .double(blur), coalescing: true)
     for component in resolvedSRGBComponents {
       let fadedAlpha = component.alpha * opacity
       let value = "\(component.red)/\(component.green)/\(component.blue)/\(fadedAlpha)"
-      mpv.setString(component.name, value, level: .verbose)
+      mpv.setAsync(component.name, .string(value), coalescing: true)
     }
   }
 
@@ -166,11 +166,12 @@ final class SubtitleDissolve: NSObject {
     timer?.invalidate()
     timer = nil
     guard let style, let visible = targetVisibility else { return }
-    // Hide first so restoring the normal style cannot flash the subtitle on fade-out.
-    mpv.setFlag(MPVOption.Subtitles.subVisibility, visible, level: .verbose)
-    mpv.setDouble(MPVOption.Subtitles.subBlur, style.blur, level: .verbose)
+    mpv.asyncClient.discardLatest(Self.styleOptions)
+    // Final writes follow every submitted frame, before later save/stop commands.
+    mpv.setAsync(MPVOption.Subtitles.subVisibility, .flag(visible))
+    mpv.setAsync(MPVOption.Subtitles.subBlur, .double(style.blur))
     for (name, original, _) in style.colors {
-      mpv.setString(name, original, level: .verbose)
+      mpv.setAsync(name, .string(original))
     }
     self.style = nil
     targetVisibility = nil
@@ -178,6 +179,7 @@ final class SubtitleDissolve: NSObject {
 
   /// mpv-initiated shutdown: cancel without touching an already terminated core.
   func abandon() {
+    mpv.asyncClient.discardLatest(Self.styleOptions)
     timer?.invalidate()
     timer = nil
     style = nil

@@ -1,57 +1,7 @@
-"""Run production pipe handlers and buffering view with isolated dependencies."""
+"""Exercise the process pipe collector and spinner lifecycle."""
 from pathlib import Path
-import subprocess, tempfile
-source=Path('yina/JavascriptAPIUtils.swift').read_text()
-start=source.index('      let (stdout, stderr) = (Pipe(), Pipe())')
-end=source.index('      Logger.log("Executing',start)
-handlers=source[start:end]
-fixture='''import Cocoa
-final class JSValue {
-  let isObject = true
-  let isString = true
-  let lock = NSLock()
-  var calls: [String] = []
-  func toString() -> String { "/tmp" }
-  func call(withArguments values: [String]) { lock.lock(); calls += values; lock.unlock() }
-  var outputs: [String] { lock.lock(); defer { lock.unlock() }; return calls }
-}
-func parsePath(_ path: String) -> (path: String?, ignored: Bool) { (path, false) }
-func makeProcess(_ path: String, _ args: [String], _ stdoutHook_: JSValue?, _ stderrHook_: JSValue?)
- -> (Process, Pipe, Pipe, () -> String, () -> String) {
-  let cwd: JSValue? = nil
-'''+handlers+'''
-  return (process, stdout, stderr, { stdoutContent }, { stderrContent })
-}
-func until(_ condition: () -> Bool) {
-  let deadline=Date(timeIntervalSinceNow: 3)
-  while !condition() && Date() < deadline { Thread.sleep(forTimeInterval: 0.005) }
-  precondition(condition(), "timed out waiting for EOF cleanup")
-}
-let out=JSValue(), err=JSValue()
-let (process, stdout, stderr, output, error)=makeProcess("/bin/sh", ["-c", "printf out; printf err >&2"], out, err)
-let blocked=DispatchSemaphore(value: 0)
-let queue=DispatchQueue(label:"fixture.blocked.plugin")
-queue.async { blocked.wait() }
-try process.run()
-queue.async { process.waitUntilExit(); stdout.fileHandleForReading.readabilityHandler=nil; stderr.fileHandleForReading.readabilityHandler=nil }
-until { stdout.fileHandleForReading.readabilityHandler == nil && stderr.fileHandleForReading.readabilityHandler == nil }
-precondition(output()=="out" && error()=="err", "stream contents survive EOF")
-precondition(out.outputs.joined()=="out" && err.outputs.joined()=="err")
-precondition(!out.outputs.contains("") && !err.outputs.contains(""), "EOF is never emitted to JS hooks")
-blocked.signal(); queue.sync {}
-print("PASS: stdout/stderr detach at EOF while plugin wait queue is blocked; output and hooks preserved")
-'''
-# Launch-error path uses the production catch cleanup before returning a rejected promise.
-catch=source[source.index('      } catch {',end):source.index('      self.pluginInstance.queue.async',end)]
-cleanup='\n'.join(s for s in catch.splitlines() if 'readabilityHandler = nil' in s)
-fixture+='''
-let (failed, failedOut, failedErr, _, _)=makeProcess("/nonexistent/yina-fixture", [], JSValue(), JSValue())
-do { try failed.run(); preconditionFailure("invalid fixture executable unexpectedly launched") } catch {
-'''+cleanup.replace('stdout.', 'failedOut.').replace('stderr.', 'failedErr.')+'''
-}
-precondition(failedOut.fileHandleForReading.readabilityHandler == nil && failedErr.fileHandleForReading.readabilityHandler == nil)
-print("PASS: process launch failure detaches both pipe handlers")
-'''
+import subprocess, tempfile, os
+subprocess.run(["python3", "other/tests/plugin-output-smoke.py"], check=True)
 viewPrelude='''import Cocoa
 class TranslucentView: NSView {
   init(padding: (Int, Int)) { super.init(frame:.zero) }
@@ -114,7 +64,7 @@ viewTest='''
 '''
 with tempfile.TemporaryDirectory(prefix='yina-eof-spinner-') as directory:
  p=Path(directory)
- for name,code,args in [('pipes',fixture,[]),('spinner',viewPrelude+Path('yina/BufferIndicatorView.swift').read_text()+viewTest,['-parse-as-library'])]:
+ for name,code,args in [('spinner',viewPrelude+Path('yina/BufferIndicatorView.swift').read_text()+viewTest,['-parse-as-library'])]:
   (p/(name+'.swift')).write_text(code)
   subprocess.run(['xcrun','swiftc',*args,'-module-cache-path',str(p/'modules'),str(p/(name+'.swift')),'-o',str(p/name)],check=True)
   subprocess.run([str(p/name)],check=True,timeout=15)

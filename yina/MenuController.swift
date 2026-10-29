@@ -665,13 +665,24 @@ class MenuController: NSObject, NSMenuDelegate {
   }
 
   private func updateAudioDevice() {
-    let devices = PlayerCore.active.getAudioDevices()
-    let currAudioDevice = PlayerCore.active.mpv.getString(MPVProperty.audioDevice)
-    audioDeviceMenu.removeAllItems()
-    devices.forEach { device in
-      audioDeviceMenu.addItem(withTitle: String(describing: device),
-                              action: #selector(AppDelegate.menuSelectAudioDevice(_:)), tag: nil,
-                              obj: device.name, stateOn: device.name == currAudioDevice)
+    let player = PlayerCore.active
+    func populate() {
+      audioDeviceMenu.removeAllItems()
+      for device in player.cachedAudioDevices {
+        audioDeviceMenu.addItem(withTitle: String(describing: device),
+          action: #selector(AppDelegate.menuSelectAudioDevice(_:)), tag: nil,
+          obj: device.name, stateOn: device.name == player.cachedAudioDevice)
+      }
+    }
+    populate()
+    player.refreshAudioDeviceSnapshot { [weak self, weak player] in
+      guard let self, let player, PlayerCore.active === player else { return }
+      self.audioDeviceMenu.removeAllItems()
+      for device in player.cachedAudioDevices {
+        self.audioDeviceMenu.addItem(withTitle: String(describing: device),
+          action: #selector(AppDelegate.menuSelectAudioDevice(_:)), tag: nil,
+          obj: device.name, stateOn: device.name == player.cachedAudioDevice)
+      }
     }
   }
 
@@ -712,15 +723,18 @@ class MenuController: NSObject, NSMenuDelegate {
   }
 
   func updateSavedFiltersMenu(type: String) {
-    let filters = PlayerCore.active.mpv.getFilters(type)
-    let menu: NSMenu! = type == MPVProperty.vf ? savedVideoFiltersMenu : savedAudioFiltersMenu
-    for item in menu.items {
-      if let string = (item.representedObject as? String), let asObject = MPVFilter(rawString: string) {
-        // Filters that support multiple parameters have more than one valid string representation.
-        // Must compare filters using their object representation.
-        item.state = filters.contains { $0 == asObject } ? .on : .off
+    let player = PlayerCore.active
+    func populate() {
+      let filters = type == MPVProperty.vf ? player.cachedVideoFilters : player.cachedAudioFilters
+      let menu = type == MPVProperty.vf ? savedVideoFiltersMenu : savedAudioFiltersMenu
+      for item in menu!.items {
+        if let string = item.representedObject as? String, let filter = MPVFilter(rawString: string) {
+          item.state = filters.contains { $0 == filter } ? .on : .off
+        }
       }
     }
+    populate()
+    player.refreshFilterSnapshot { if PlayerCore.active === player { populate() } }
   }
 
   func updatePluginMenu() {
