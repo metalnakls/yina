@@ -117,7 +117,12 @@ extension LiveTextController: ImageAnalysisOverlayViewDelegate {
     analysisTask = Task { [weak self] in
       guard let self else { return }
       do {
+        // A seek or a brief pause often resumes before OCR is useful. Let those
+        // interactions cancel without acquiring and converting a full frame.
+        if !self.isActive { try await Task.sleep(for: .milliseconds(150)) }
+        try Task.checkCancellation()
         guard let image = await videoView.videoLayer.captureSnapshot() else {
+          try Task.checkCancellation()
           liveTextLog("Failed to capture frame for image analysis", level: .warning)
           return
         }
@@ -126,7 +131,7 @@ extension LiveTextController: ImageAnalysisOverlayViewDelegate {
         try Task.checkCancellation()
         liveTextLog("Image analysis results acquired")
         await MainActor.run {
-          guard self.isAvailable, self.mainWindow.player.info.state == .paused else {
+          guard !Task.isCancelled, self.isAvailable, self.mainWindow.player.info.state == .paused else {
             liveTextLog("Image analysis results discarded due to change of player state")
             return
           }

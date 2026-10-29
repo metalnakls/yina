@@ -18,16 +18,43 @@ import Metal
 /// scheduling, display detection, tone-mapping policy, and paused-frame capture.
 class ViewLayer: CAMetalLayer, @unchecked Sendable {
 
-  private struct PendingSnapshot {
-    let id: UUID
-    let handler: (NSImage?) -> Void
+  private final class SnapshotRequest: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<NSImage?, Never>?
+    private var finished = false
+
+    var isFinished: Bool {
+      lock.lock(); defer { lock.unlock() }
+      return finished
+    }
+
+    func install(_ continuation: CheckedContinuation<NSImage?, Never>) {
+      lock.lock()
+      if finished {
+        lock.unlock()
+        continuation.resume(returning: nil)
+      } else {
+        self.continuation = continuation
+        lock.unlock()
+      }
+    }
+
+    func finish(_ image: NSImage? = nil) {
+      lock.lock()
+      guard !finished else { lock.unlock(); return }
+      finished = true
+      let continuation = self.continuation
+      self.continuation = nil
+      lock.unlock()
+      continuation?.resume(returning: image)
+    }
   }
 
   private weak var videoView: VideoView!
   private let renderQueue = DispatchQueue(label: "tsmc.yina.mpvmetal", qos: .userInteractive)
   private let snapshotQueue = DispatchQueue(label: "tsmc.yina.mpvmetal.snapshot", qos: .userInitiated)
   private let snapshotLock = Lock()
-  private var pendingSnapshot: PendingSnapshot?
+  private var pendingSnapshot: SnapshotRequest?
   private lazy var imageContext = CIContext(mtlDevice: metalDevice)
 
   private var metalDevice: MTLDevice {
@@ -79,7 +106,7 @@ class ViewLayer: CAMetalLayer, @unchecked Sendable {
 
   override func nextDrawable() -> CAMetalDrawable? {
     let drawable = super.nextDrawable()
-    let pending = snapshotLock.withLock { () -> PendingSnapshot? in
+    let pending = snapshotLock.withLock { () -> SnapshotRequest? in
       guard drawable != nil else { return nil }
       let pending = pendingSnapshot
       pendingSnapshot = nil
@@ -90,14 +117,15 @@ class ViewLayer: CAMetalLayer, @unchecked Sendable {
       failPendingSnapshot()
       return nil
     }
-    if let pending {
+    if let pending, !pending.isFinished {
       drawable.addPresentedHandler { [weak self] _ in
         guard let self else {
-          pending.handler(nil)
+          pending.finish()
           return
         }
         snapshotQueue.async {
-          pending.handler(self.snapshot(texture: drawable.texture))
+          guard !pending.isFinished else { return }
+          pending.finish(self.snapshot(texture: drawable.texture))
         }
       }
     }
@@ -105,8 +133,13 @@ class ViewLayer: CAMetalLayer, @unchecked Sendable {
   }
 
   func update(force: Bool = false) {
+    enqueueRender(force: force, snapshotRequest: nil)
+  }
+
+  private func enqueueRender(force: Bool, snapshotRequest: SnapshotRequest?) {
     renderQueue.async { [weak self] in
       guard let self else { return }
+      guard snapshotRequest?.isFinished != true else { return }
       self.videoView.$isUninited.withReadLock { isUninited in
         guard !isUninited, let context = self.videoView.player.mpv.mpvRenderContext else {
           self.failPendingSnapshot()
@@ -132,27 +165,38 @@ class ViewLayer: CAMetalLayer, @unchecked Sendable {
   }
 
   func captureSnapshot() async -> NSImage? {
-    await withCheckedContinuation { continuation in
-      let id = UUID()
-      let previous = snapshotLock.withLock { () -> PendingSnapshot? in
-        let previous = pendingSnapshot
-        pendingSnapshot = PendingSnapshot(id: id) { image in
-          continuation.resume(returning: image)
+    guard !Task.isCancelled else { return nil }
+    let request = SnapshotRequest()
+    return await withTaskCancellationHandler {
+      await withCheckedContinuation { continuation in
+        request.install(continuation)
+        guard !request.isFinished else { return }
+        let previous = snapshotLock.withLock { () -> SnapshotRequest? in
+          let previous = pendingSnapshot
+          pendingSnapshot = request
+          return previous
         }
-        return previous
-      }
-      previous?.handler(nil)
-      update(force: true)
+        previous?.finish()
+        guard !request.isFinished else {
+          removePendingSnapshot(request)
+          return
+        }
+        enqueueRender(force: true, snapshotRequest: request)
 
-      snapshotQueue.asyncAfter(deadline: .now() + 2) { [weak self] in
-        let timedOut = self?.snapshotLock.withLock { () -> PendingSnapshot? in
-          guard self?.pendingSnapshot?.id == id else { return nil }
-          let pending = self?.pendingSnapshot
-          self?.pendingSnapshot = nil
-          return pending
+        snapshotQueue.asyncAfter(deadline: .now() + 2) { [weak self] in
+          self?.removePendingSnapshot(request)
+          request.finish()
         }
-        timedOut?.handler(nil)
       }
+    } onCancel: { [weak self] in
+      self?.removePendingSnapshot(request)
+      request.finish()
+    }
+  }
+
+  private func removePendingSnapshot(_ request: SnapshotRequest) {
+    snapshotLock.withLock {
+      if pendingSnapshot === request { pendingSnapshot = nil }
     }
   }
 
@@ -183,12 +227,12 @@ class ViewLayer: CAMetalLayer, @unchecked Sendable {
   }
 
   private func failPendingSnapshot() {
-    let pending = snapshotLock.withLock { () -> PendingSnapshot? in
+    let pending = snapshotLock.withLock { () -> SnapshotRequest? in
       let pending = pendingSnapshot
       pendingSnapshot = nil
       return pending
     }
-    pending?.handler(nil)
+    pending?.finish()
   }
 
   private func snapshot(texture: MTLTexture) -> NSImage? {
