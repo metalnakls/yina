@@ -820,7 +820,7 @@
 "settings.subOverrideLevel.items.4" = "no";
 "settings.subOverrideLevel.items.4.desc" = "Render subtitles as specified by the subtitle scripts, without overrides.";
 "settings.subPos.label" = "Vertical position";
-"settings.subScaleWithWindow.label" = "Scale subtitles with window size";
+"settings.subScaleWithWindow.label" = "Scale subtitles with video size";
 "settings.subSpacing.label" = "Font spacing";
 
 // Settings - UI

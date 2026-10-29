@@ -539,6 +539,17 @@ class MPVController: NSObject {
       setUserOption(PK.subScaleWithWindow, type: .bool, forName: MPVOption.Subtitles.subScaleByWindow,
                     verboseIfDefault: true)
     }
+    if !userOptionsContains(MPVOption.Subtitles.subScaleByWindow),
+       !userOptionsContains(MPVOption.Subtitles.subScaleWithWindow) {
+      // mpv's default scales plain-text subtitles by the whole viewport, so
+      // letterbox height changes their font even when the video image does not.
+      // Keep the user's toggle, but scale its enabled state by the video image.
+      setUserOption(PK.subScaleWithWindow, type: .other, forName: MPVOption.Subtitles.subScaleWithWindow,
+                    verboseIfDefault: true) { key in
+        Preference.bool(for: key) ? "no" : "yes"
+      }
+    }
+
     // - Network / cache settings
 
     setUserOption(PK.enableCache, type: .other, forName: MPVOption.Cache.cache,
@@ -1940,8 +1951,8 @@ class MPVController: NSObject {
     }
 
     if sync {
-      AppEnvironment.defaults.addObserver(self, forKeyPath: keyRawValue, options: [.new, .old], context: nil)
       if optionObservers[keyRawValue] == nil {
+        AppEnvironment.defaults.addObserver(self, forKeyPath: keyRawValue, options: [.new, .old], context: nil)
         optionObservers[keyRawValue] = []
       }
       optionObservers[keyRawValue]!.append(OptionObserverInfo(key, name, type, transformer))
