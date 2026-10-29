@@ -113,9 +113,20 @@ final class PlaybackSettingsModel: ObservableObject {
 /// supplies window size constraints when a slider label or selection changes.
 @MainActor
 final class PlaybackSettingsPanel: NSPanel {
+  // Playback panel dimensions belong to this window, not to SwiftUI content.
+  static let preferredContentSize = NSSize(width: 740, height: 740)
+  static let minimumContentSize = NSSize(width: 700, height: 600)
+  static let maximumContentSize = NSSize(width: 780, height: 900)
+
+  static func normalizedContentSize(_ proposed: NSSize, visibleSize: NSSize) -> NSSize {
+    let maximumWidth = min(maximumContentSize.width, visibleSize.width)
+    let maximumHeight = min(maximumContentSize.height, visibleSize.height)
+    return NSSize(width: min(max(proposed.width, min(minimumContentSize.width, maximumWidth)), maximumWidth),
+                  height: min(max(proposed.height, min(minimumContentSize.height, maximumHeight)), maximumHeight))
+  }
+
   init(model: PlaybackSettingsModel) {
-    // Existing Settings dimensions and minimum detail width.
-    super.init(contentRect: NSRect(x: 0, y: 0, width: 600, height: 480),
+    super.init(contentRect: NSRect(origin: .zero, size: Self.preferredContentSize),
                styleMask: [.titled, .closable, .resizable, .fullSizeContentView, .utilityWindow],
                backing: .buffered, defer: false)
     title = "Settings"
@@ -124,7 +135,8 @@ final class PlaybackSettingsPanel: NSPanel {
     isFloatingPanel = true
     level = .floating
     collectionBehavior = [.fullScreenAuxiliary, .moveToActiveSpace]
-    contentMinSize = NSSize(width: 400, height: 480)
+    contentMinSize = Self.minimumContentSize
+    contentMaxSize = Self.maximumContentSize
     isMovableByWindowBackground = false
     titlebarAppearsTransparent = true
     isOpaque = false
@@ -135,7 +147,7 @@ final class PlaybackSettingsPanel: NSPanel {
     contentView = glass
     let content = NSView()
     glass.contentView = content
-    let host = NSHostingView(rootView: PlaybackSettingsView(model: model))
+    let host = PlaybackSettingsHostingView(model: model)
     host.sizingOptions = []
     host.translatesAutoresizingMaskIntoConstraints = false
     content.addSubview(host)
@@ -147,79 +159,171 @@ final class PlaybackSettingsPanel: NSPanel {
       host.bottomAnchor.constraint(equalTo: content.bottomAnchor),
     ])
   }
+
+  /// Apply the same bounds after AppKit restores a legacy autosaved frame.
+  /// NSWindow's resize limits do not constrain a programmatic frame restore.
+  func normalizeSavedFrame() {
+    guard let screen = self.screen ?? NSScreen.main ?? NSScreen.screens.first else { return }
+    let visible = screen.visibleFrame
+    let availableContent = contentRect(forFrameRect: visible).size
+    let restoredSize = contentRect(forFrameRect: frame).size
+    let legacySize = restoredSize.width < Self.minimumContentSize.width ||
+      restoredSize.width > Self.maximumContentSize.width ||
+      restoredSize.height < Self.minimumContentSize.height ||
+      restoredSize.height > Self.maximumContentSize.height
+    let size = Self.normalizedContentSize(legacySize ? Self.preferredContentSize : restoredSize,
+                                          visibleSize: availableContent)
+    contentMinSize = NSSize(width: min(Self.minimumContentSize.width, availableContent.width),
+                            height: min(Self.minimumContentSize.height, availableContent.height))
+    contentMaxSize = NSSize(width: min(Self.maximumContentSize.width, availableContent.width),
+                            height: min(Self.maximumContentSize.height, availableContent.height))
+    var normalized = frameRect(forContentRect: NSRect(origin: .zero, size: size))
+    normalized.origin.x = min(max(frame.minX, visible.minX), visible.maxX - normalized.width)
+    normalized.origin.y = min(max(frame.maxY - normalized.height, visible.minY),
+                              visible.maxY - normalized.height)
+    setFrame(normalized, display: false)
+  }
+}
+
+/// An offscreen or newly opened AppKit panel can acquire its appearance after
+/// SwiftUI first resolves the environment. Keep the hosted controls in sync
+/// when the panel switches between Aqua and Dark Aqua.
+@MainActor
+private final class PlaybackSettingsHostingView: NSHostingView<AnyView> {
+  private let model: PlaybackSettingsModel
+
+  init(model: PlaybackSettingsModel) {
+    self.model = model
+    super.init(rootView: AnyView(PlaybackSettingsView(model: model)))
+    updateColorScheme()
+  }
+
+  @available(*, unavailable)
+  required init(rootView: AnyView) { fatalError("Use init(model:)") }
+
+  @available(*, unavailable)
+  required init?(coder: NSCoder) { fatalError("Use init(model:)") }
+
+  override func viewDidChangeEffectiveAppearance() {
+    super.viewDidChangeEffectiveAppearance()
+    updateColorScheme()
+  }
+
+  private func updateColorScheme() {
+    let dark = effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+    rootView = AnyView(PlaybackSettingsView(model: model)
+      .environment(\.colorScheme, dark ? .dark : .light))
+  }
 }
 
 struct PlaybackSettingsView: View {
   @ObservedObject var model: PlaybackSettingsModel
   private let imageLabels = ["Brightness", "Contrast", "Saturation", "Gamma", "Hue"]
   private let bandLabels = ["Bass", "Mid", "Treble"]
+  // These are local panel metrics, chosen for the compact two-column layout.
+  private let columnSpacing: CGFloat = 14
+  private let sectionSpacing: CGFloat = 20
+  private let sectionInset: CGFloat = 18
+  private let consoleHeight: CGFloat = 228
 
   var body: some View {
     ScrollView {
-      VStack(alignment: .leading) {
+      VStack(alignment: .leading, spacing: sectionSpacing) {
+        VStack(alignment: .leading, spacing: 4) {
+          Text("Playback").font(.largeTitle.weight(.semibold))
+            .foregroundStyle(Color(nsColor: .labelColor))
+          Text("Picture, sound, and subtitles")
+            .font(.subheadline).foregroundStyle(Color(nsColor: .secondaryLabelColor))
+        }
         if !model.snapshot.hasMedia {
           Label("Open a video to adjust picture and sound", systemImage: "play.rectangle")
             .font(.callout).foregroundStyle(.secondary)
-            .padding(.bottom)
         }
-        videoSection
-        Divider().padding(.vertical)
-        audioSection
-        Divider().padding(.vertical)
+        HStack(alignment: .top, spacing: columnSpacing) {
+          videoSection.frame(maxWidth: .infinity, alignment: .topLeading)
+          audioSection.frame(maxWidth: .infinity, alignment: .topLeading)
+        }
         subtitleSection
       }
-      .padding()
+      .padding(sectionSpacing)
       .frame(maxWidth: .infinity, alignment: .leading)
+      .foregroundStyle(Color(nsColor: .labelColor))
     }
     .scrollEdgeEffectStyle(.soft, for: .top)
   }
 
   private var videoSection: some View {
-    VStack(alignment: .leading) {
+    VStack(alignment: .leading, spacing: 9) {
       HStack {
-        Label("Video", systemImage: "film").font(.headline)
+        Label("Picture", systemImage: "film").font(.title3.weight(.semibold))
         Spacer()
         Button("Reset", action: model.resetImage)
+          .buttonStyle(.borderless)
+          .controlSize(.small)
           .disabled(!model.snapshot.hasMedia || model.snapshot.videoValues.allSatisfy { $0 == 0 })
         Menu { videoMenu } label: { Image(systemName: "ellipsis") }
           .menuStyle(.borderlessButton).fixedSize()
           .accessibilityLabel("Video options")
       }
-      Grid {
+      Rectangle().fill(Color(nsColor: .separatorColor)).frame(height: 1)
+      Grid(horizontalSpacing: 12, verticalSpacing: 8) {
         ForEach(imageLabels.indices, id: \.self) { index in
           sliderRow(imageLabels[index], value: model.imageBinding(index), range: -100...100, unit: "")
         }
       }
       .disabled(!model.snapshot.hasMedia)
     }
+    .padding(sectionInset)
+    .frame(height: consoleHeight, alignment: .top)
+    .frame(maxWidth: .infinity)
+    .background(consoleSurface)
     .contextMenu { videoMenu }
   }
 
   private var audioSection: some View {
-    VStack(alignment: .leading) {
+    VStack(alignment: .leading, spacing: 9) {
       HStack {
-        Label("Audio", systemImage: "waveform").font(.headline)
+        Label("Sound", systemImage: "waveform").font(.title3.weight(.semibold))
         Spacer()
         Button("Reset", action: model.resetAudio)
+          .buttonStyle(.borderless)
+          .controlSize(.small)
           .disabled(!model.snapshot.hasMedia || model.snapshot.audioGains.allSatisfy { $0 == 0 })
         Menu { audioMenu } label: { Image(systemName: "ellipsis") }
           .menuStyle(.borderlessButton).fixedSize()
           .accessibilityLabel("Audio options")
       }
-      Grid {
+      Rectangle().fill(Color(nsColor: .separatorColor)).frame(height: 1)
+      HStack(alignment: .top, spacing: 4) {
         ForEach(bandLabels.indices, id: \.self) { index in
-          sliderRow(bandLabels[index], value: model.gainBinding(index), range: -12...12, unit: " dB")
+          VStack(spacing: 6) {
+            PlaybackSettingsRotaryControl(title: bandLabels[index],
+                                          identifier: "PlaybackSettingsTone\(bandLabels[index])",
+                                          value: model.gainBinding(index),
+                                          enabled: model.snapshot.hasMedia,
+                                          onEditingChanged: model.setEditing)
+              .frame(width: 32, height: 32)
+              .scaleEffect(2.2)
+              .frame(width: 76, height: 76)
+            Text(bandLabels[index]).font(.subheadline.weight(.medium))
+            Text("\(Int(model.gain(index).rounded()).formatted(.number.sign(strategy: .always()))) dB")
+              .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+          }
+          .frame(maxWidth: .infinity)
         }
       }
-      .disabled(!model.snapshot.hasMedia)
     }
+    .padding(sectionInset)
+    .frame(height: consoleHeight, alignment: .top)
+    .frame(maxWidth: .infinity)
+    .background(consoleSurface)
     .contextMenu { audioMenu }
   }
 
   private var subtitleSection: some View {
-    VStack(alignment: .leading) {
+    VStack(alignment: .leading, spacing: 16) {
       HStack {
-        Label("Subtitles", systemImage: "captions.bubble").font(.headline)
+        Label("Subtitles", systemImage: "captions.bubble").font(.title3.weight(.semibold))
         Spacer()
         Toggle("Show subtitles", isOn: Binding(get: { model.snapshot.subtitleID > 0 && model.snapshot.subtitleVisible }, set: {
           model.snapshot.subtitleVisible = $0
@@ -231,25 +335,38 @@ struct PlaybackSettingsView: View {
           .menuStyle(.borderlessButton).fixedSize()
           .accessibilityLabel("Subtitle options")
       }
-      LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 3)) {
+      LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3), spacing: 10) {
         ForEach(model.styles) { style in
           Button {
             model.snapshot.subtitleStyle = style.id
             model.perform(.style(style.id))
           } label: {
-            VStack {
-              Image(nsImage: style.preview).resizable().aspectRatio(16 / 9, contentMode: .fit)
-                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 8) {
+              GeometryReader { geometry in
+                Image(nsImage: style.preview)
+                  .resizable().scaledToFill()
+                  .frame(width: geometry.size.width, height: geometry.size.height)
+                  .clipped()
+              }
+              .frame(height: 78)
+              .clipShape(RoundedRectangle(cornerRadius: 7))
+              .accessibilityHidden(true)
               HStack {
                 Text(style.title).lineLimit(1)
+                Spacer(minLength: 0)
                 Image(systemName: "checkmark.circle.fill")
                   .opacity(model.snapshot.subtitleStyle == style.id ? 1 : 0)
               }
-              .font(.caption)
+              .font(.caption.weight(.medium))
             }
             .frame(maxWidth: .infinity)
+            .padding(8)
+            .background(model.snapshot.subtitleStyle == style.id ? Color.accentColor.opacity(0.14) : Color(nsColor: .controlBackgroundColor).opacity(0.45),
+                        in: RoundedRectangle(cornerRadius: 11))
+            .overlay(RoundedRectangle(cornerRadius: 11)
+              .strokeBorder(model.snapshot.subtitleStyle == style.id ? Color.accentColor : Color(nsColor: .separatorColor).opacity(0.55), lineWidth: 1))
           }
-          .buttonStyle(.bordered)
+          .buttonStyle(.plain)
           .accessibilityLabel(style.title)
           .accessibilityAddTraits(model.snapshot.subtitleStyle == style.id ? .isSelected : [])
         }
@@ -260,7 +377,16 @@ struct PlaybackSettingsView: View {
           .font(.caption).foregroundStyle(.secondary)
       }
     }
+    .padding(sectionInset)
+    .background(consoleSurface)
     .contextMenu { subtitleMenu }
+  }
+
+  private var consoleSurface: some View {
+    RoundedRectangle(cornerRadius: 16)
+      .fill(Color(nsColor: .controlBackgroundColor).opacity(0.58))
+      .overlay(RoundedRectangle(cornerRadius: 16)
+        .strokeBorder(Color(nsColor: .separatorColor).opacity(0.7), lineWidth: 1))
   }
 
   private func sliderRow(_ label: String, value: Binding<Double>, range: ClosedRange<Double>, unit: String) -> some View {
@@ -339,5 +465,91 @@ struct PlaybackSettingsView: View {
       }
     }
     .disabled(!model.snapshot.hasMedia || tracks.isEmpty)
+  }
+}
+
+/// AppKit supplies the dial, focus ring, and accessibility value. Edits are
+/// bracketed so delayed mpv snapshots cannot move a dial during interaction;
+/// arrow keys adjust the gain in whole decibels.
+@MainActor
+final class PlaybackSettingsRotarySlider: NSSlider {
+  var editingChanged: (Bool) -> Void = { _ in }
+  private(set) var isEditing = false
+
+  override func mouseDown(with event: NSEvent) {
+    guard isEnabled else { return }
+    isEditing = true
+    editingChanged(true)
+    defer { isEditing = false; editingChanged(false) }
+    super.mouseDown(with: event)
+  }
+
+  override func keyDown(with event: NSEvent) {
+    guard isEnabled,
+          event.modifierFlags.intersection([.command, .control, .option]).isEmpty else {
+      super.keyDown(with: event)
+      return
+    }
+    isEditing = true
+    editingChanged(true)
+    defer { isEditing = false; editingChanged(false) }
+    // Circular NSSlider does not step for arrow keys on every macOS release.
+    // Keep the native control and focus ring, while making a focused dial
+    // operable by keyboard in one-decibel increments.
+    let step: Double
+    switch event.keyCode {
+    case 123, 125: step = -1 // Left, Down
+    case 124, 126: step = 1  // Right, Up
+    default:
+      super.keyDown(with: event)
+      return
+    }
+    doubleValue = min(maxValue, max(minValue, doubleValue.rounded() + step))
+    sendAction(action, to: target)
+  }
+}
+
+@MainActor
+struct PlaybackSettingsRotaryControl: NSViewRepresentable {
+  let title: String
+  let identifier: String
+  @Binding var value: Double
+  let enabled: Bool
+  let onEditingChanged: (Bool) -> Void
+
+  func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+  func makeNSView(context: Context) -> PlaybackSettingsRotarySlider {
+    let slider = PlaybackSettingsRotarySlider()
+    slider.sliderType = .circular
+    slider.controlSize = .large
+    slider.minValue = -12
+    slider.maxValue = 12
+    slider.isContinuous = true
+    slider.target = context.coordinator
+    slider.action = #selector(Coordinator.changed(_:))
+    slider.setAccessibilityIdentifier(identifier)
+    slider.setAccessibilityLabel(title)
+    slider.setAccessibilityHelp("Adjust from −12 to +12 decibels. Zero leaves this range unchanged.")
+    slider.editingChanged = onEditingChanged
+    return slider
+  }
+
+  func updateNSView(_ slider: PlaybackSettingsRotarySlider, context: Context) {
+    context.coordinator.parent = self
+    slider.editingChanged = onEditingChanged
+    slider.isEnabled = enabled
+    if !slider.isEditing { slider.doubleValue = value }
+  }
+
+  @MainActor final class Coordinator: NSObject {
+    var parent: PlaybackSettingsRotaryControl
+    init(_ parent: PlaybackSettingsRotaryControl) { self.parent = parent }
+
+    @objc func changed(_ sender: NSSlider) {
+      let rounded = sender.doubleValue.rounded()
+      sender.doubleValue = rounded
+      parent.value = rounded
+    }
   }
 }

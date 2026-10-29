@@ -39,6 +39,7 @@ final class PlaybackSettingsWindowController: NSWindowController, NSWindowDelega
     panel.delegate = self
     panel.center()
     if !AppEnvironment.isCleanStart { panel.setFrameAutosaveName("YINAPlaybackSettings") }
+    panel.normalizeSavedFrame()
     model.perform = { [weak self] in self?.perform($0) }
     preferences.addAll([.subStyle, .subOverrideLevel, .subVisibility]) { [weak self] _ in
       DispatchQueue.main.async { self?.refresh() }
@@ -49,6 +50,7 @@ final class PlaybackSettingsWindowController: NSWindowController, NSWindowDelega
 
   func show(for player: PlayerCore) {
     bind(to: player)
+    (window as? PlaybackSettingsPanel)?.normalizeSavedFrame()
     if applicationObservations.isEmpty {
       applicationObservations.append(NotificationCenter.default.addObserver(
         forName: NSWindow.didBecomeMainNotification, object: nil, queue: .main
@@ -66,6 +68,10 @@ final class PlaybackSettingsWindowController: NSWindowController, NSWindowDelega
 
   func isShown(for player: PlayerCore) -> Bool {
     self.player === player && window?.isVisible == true
+  }
+
+  func windowDidChangeScreen(_ notification: Notification) {
+    (window as? PlaybackSettingsPanel)?.normalizeSavedFrame()
   }
 
   func windowWillClose(_ notification: Notification) {
