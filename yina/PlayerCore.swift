@@ -74,6 +74,22 @@ class PlayerCore: NSObject {
 
   static var playerCores: [PlayerCore] = []
   static private var playerCoreCounter = 0
+  private var idleRetirement: DispatchWorkItem?
+  private var isRetiring = false
+
+  private func scheduleIdleRetirement() {
+    idleRetirement?.cancel()
+    guard self !== Self.first else { return }
+    let work = DispatchWorkItem { [weak self] in
+      guard let self, self.info.state == .idle, !self.backgroundTaskInUse,
+            !self.mediaPreparationPending, self.pendingUrl == nil,
+            (!self.currentController.loaded || self.currentController.window?.isVisible != true) else { return }
+      self.isRetiring = true
+      self.shutdown()
+    }
+    idleRetirement = work
+    DispatchQueue.main.asyncAfter(deadline: .now() + 60, execute: work)
+  }
 
   static private func findIdlePlayerCore() -> PlayerCore? {
     playerCores.first { $0.info.state == .idle && !$0.backgroundTaskInUse && !$0.mediaPreparationPending }
@@ -515,6 +531,8 @@ class PlayerCore: NSObject {
     mediaPreparationGeneration &+= 1
     mediaPreparationPending = true
     preparingURL = url
+    idleRetirement?.cancel()
+    idleRetirement = nil
     return mediaPreparationGeneration
   }
 
@@ -533,6 +551,7 @@ class PlayerCore: NSObject {
     guard mediaPreparationGeneration == generation, mediaPreparationPending else { return }
     mediaPreparationPending = false
     preparingURL = nil
+    if info.state == .idle { scheduleIdleRetirement() }
   }
 
   private func invalidateMediaPreparation() {
@@ -587,7 +606,7 @@ class PlayerCore: NSObject {
         (try? $0.resourceValues(forKeys: [.volumeIsLocalKey]).volumeIsLocal) == false } ?? false
       DispatchQueue.main.async { [weak self] in
         guard let self, self.completeMediaPreparation(generation) else { completion?(nil); return }
-        guard let first else { completion?(0); return }
+        guard let first else { self.scheduleIdleRetirement(); completion?(0); return }
         self.info.shouldAutoLoadFiles = shouldAutoLoad && !container
         self.open(first, knownRemoteFile: remote)
         self.postNotification(.yinaPlaylistChanged)
@@ -657,6 +676,8 @@ class PlayerCore: NSObject {
   ///   - url: URL of the media to open.
   ///   - isNetwork: Whether the media must be streamed over the network.
   private func openMainWindow(path: String, url: URL, isNetwork: Bool, usesDiskCache: Bool) {
+    idleRetirement?.cancel()
+    idleRetirement = nil
     transportGeneration &+= 1
     requestedPause = nil
     cachedEOF = false
@@ -913,7 +934,18 @@ class PlayerCore: NSObject {
     }
     uninitVideo()
     postNotification(.yinaPlayerShutdown)
-    DispatchQueue.main.async { [weak self] in self?.sharedShow.stop() }
+    if isRetiring { MainActor.assumeIsolated { sharedShow.stop() } }
+    else { DispatchQueue.main.async { [weak self] in self?.sharedShow.stop() } }
+    if isRetiring {
+      idleRetirement?.cancel()
+      idleRetirement = nil
+      observers.forEach(NotificationCenter.default.removeObserver)
+      observers.removeAll()
+      pluginMap.removeAll()
+      plugins.removeAll()
+      Self.playerCores.removeAll { $0 === self }
+      if Self._lastActive === self { Self._lastActive = nil }
+    }
     if isMPVInitiated {
       // Initiate application termination. AppKit requires this be done from the main thread,
       // however the main dispatch queue must not be used to avoid blocking the queue as per
@@ -2674,6 +2706,7 @@ class PlayerCore: NSObject {
     if info.state != .loading {
       log("Playback has stopped")
       info.state = .idle
+      scheduleIdleRetirement()
       postNotification(.yinaPlayerStopped)
       DispatchQueue.main.async { [weak self] in self?.sharedShow.stop() }
       if let pendingUrl {
