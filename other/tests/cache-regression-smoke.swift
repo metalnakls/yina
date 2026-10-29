@@ -43,6 +43,13 @@ extension FileHandle {
     Utility.createDirIfNotExist(url: directory)
     defer { try? FileManager.default.removeItem(at: directory) }
     func check(_ condition: @autoclosure () -> Bool, _ message: String) { precondition(condition(), message) }
+    func wait(_ label: String, _ predicate: () -> Bool) {
+      let deadline = Date().addingTimeInterval(10)
+      while !predicate() {
+        precondition(Date() < deadline, "Cache writer did not settle: \(label)")
+        RunLoop.current.run(until: Date().addingTimeInterval(0.005))
+      }
+    }
     func imageData(blue: Bool, width: Int = 32) -> Data {
       let context = CGContext(data: nil, width: width, height: width, bitsPerComponent: 8, bytesPerRow: width * 4,
         space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
@@ -95,7 +102,7 @@ extension FileHandle {
     try write("bad-headroom", cache(frames: [(0, red)], headroom: .nan))
     _ = CacheManager.shared.getCacheSize()
     check(ThumbnailCache.readOne(forName: "bad-headroom") == nil, "non-finite headroom is rejected")
-    check(CacheManager.shared.needsRefresh, "corrupt-file removal invalidates the cached directory")
+    wait("corrupt file refresh") { !CacheManager.shared.needsRefresh }
     try write("valid", cache(frames: [(0, blue)]))
     check(ThumbnailCache.readOne(forName: "valid", nearest: .nan) == nil, "invalid caller timestamp is rejected")
     check(FileManager.default.fileExists(atPath: directory.appendingPathComponent("valid").path), "bad caller input preserves valid cache")
@@ -118,6 +125,7 @@ extension FileHandle {
     try FileManager.default.removeItem(at: directory)
     Utility.createDirIfNotExist(url: directory)
     CacheManager.shared.needsRefresh = true
+    wait("directory reset refresh") { !CacheManager.shared.needsRefresh }
     let item = Data(repeating: 1, count: 400_000)
     for index in 0..<6 { try CacheManager.shared.write(item, to: directory.appendingPathComponent("item-\(index)")) }
     check(CacheManager.shared.getCacheSize() <= 1_048_576, "successive evictions enforce the budget")
@@ -125,7 +133,7 @@ extension FileHandle {
     CacheManager.shared.clearOldCache()
     try CacheManager.shared.write(item, to: directory.appendingPathComponent("after-clear"))
     CacheManager.shared.clearOldCache()
-    check(CacheManager.shared.getCacheSize() < item.count, "explicit eviction can run more than once")
+    wait("second eviction") { CacheManager.shared.getCacheSize() < item.count }
     DispatchQueue.concurrentPerform(iterations: 40) { index in
       try! CacheManager.shared.write(Data(repeating: UInt8(index), count: 64_000), to: directory.appendingPathComponent("parallel-\(index)"))
     }
@@ -134,8 +142,23 @@ extension FileHandle {
       let data = try Data(contentsOf: file)
       check(data.count == 64_000 && data.allSatisfy { $0 == data.first }, "atomic writes leave complete files")
     }
+    do {
+      try CacheManager.shared.write(Data(repeating: 3, count: 800_000),
+                                    to: directory.appendingPathComponent("missing/fails"))
+      preconditionFailure("Writing through a missing directory succeeded")
+    } catch {}
+    let actualSize = try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: [.fileSizeKey])
+      .reduce(0) { $0 + ((try? $1.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0) }
+    check(CacheManager.shared.getCacheSize() == actualSize, "failed replacement or eviction broke size accounting")
     ThumbnailCache.clearThumbnailCache()
-    check(CacheManager.shared.getCacheSize() == 0, "clearing the cache invalidates its directory snapshot")
+    wait("clear all") { CacheManager.shared.getCacheSize() == 0 }
+    let external = directory.appendingPathComponent("external")
+    try Data(repeating: 9, count: 125_000).write(to: external)
+    CacheManager.shared.needsRefresh = true
+    wait("external add") { CacheManager.shared.getCacheSize() == 125_000 }
+    try FileManager.default.removeItem(at: external)
+    CacheManager.shared.needsRefresh = true
+    wait("external remove") { CacheManager.shared.getCacheSize() == 0 }
     print("PASS: selected-frame decoding, v2/v4 compatibility, corruption, atomic replacement, repeated eviction, concurrent budget")
   }
 }
