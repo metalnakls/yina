@@ -87,6 +87,9 @@ class MainWindowController: PlayerWindowController {
 
 
   var videoViewContainer: NSView!
+  /// Cached from the same rotation-aware size used for the window and PiP.
+  /// Floating controls can lay out without querying mpv during live resize.
+  private(set) var displayedVideoSize: NSSize?
   private let videoBackdropView = VideoBackdropView()
   var titleBarView: Titlebar!
   var titleBarHeightConstraint: NSLayoutConstraint!
@@ -2472,6 +2475,7 @@ class MainWindowController: PlayerWindowController {
     let screenSize = screenRect.size
 
     let (width, height) = player.videoSizeForDisplay
+    displayedVideoSize = NSSize(width: width, height: height)
 
     // set aspect ratio
     let originalVideoSize = NSSize(width: width, height: height)
@@ -2598,6 +2602,11 @@ class MainWindowController: PlayerWindowController {
 
     // UI and slider
     updatePlayTime(withDuration: true, andProgressBar: true)
+    if oscPosition == .floating {
+      // The new image aspect can change without a window resize. Wait for
+      // AppKit's pending geometry update before positioning the floating OSC.
+      DispatchQueue.main.async { [weak self] in self?.oscFloatingView.updatePosition() }
+    }
     player.events.emit(.windowSizeAdjusted, data: rect)
   }
 

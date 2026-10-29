@@ -231,11 +231,40 @@ private final class OSCFloatingDragSurface: NSView {
 }
 
 
+/// Positions a movable OSC relative to the displayed image rather than the
+/// enclosing viewport. The same image rect yields the same screen anchor even
+/// when fullscreen adds letterbox space around it.
+enum OSCFloatingGeometry {
+  static func displayedRect(in container: NSRect, videoSize: NSSize?) -> NSRect {
+    guard let videoSize, container.width > 0, container.height > 0,
+          videoSize.width.isFinite, videoSize.height.isFinite,
+          videoSize.width > 0, videoSize.height > 0 else { return container }
+    let scale = min(container.width / videoSize.width, container.height / videoSize.height)
+    let width = videoSize.width * scale
+    let height = videoSize.height * scale
+    return NSRect(x: container.midX - width / 2, y: container.midY - height / 2,
+                  width: width, height: height)
+  }
+
+  static func anchor(horizontal: CGFloat, vertical: CGFloat, in videoRect: NSRect,
+                     barSize: NSSize) -> NSPoint {
+    NSPoint(x: videoRect.minX + videoRect.width * horizontal - barSize.width / 2,
+            y: videoRect.minY + videoRect.height * vertical)
+  }
+
+  static func fractions(for anchor: NSPoint, in videoRect: NSRect, barSize: NSSize) -> NSPoint {
+    guard videoRect.width > 0, videoRect.height > 0 else { return .zero }
+    return NSPoint(x: (anchor.x + barSize.width / 2 - videoRect.minX) / videoRect.width,
+                   y: (anchor.y - videoRect.minY) / videoRect.height)
+  }
+}
+
 class OSCFloatingView: TranslucentView {
   static let preferredWidth: CGFloat = 460
   static let horizontalInset: CGFloat = 16
   /// Distance kept between the bar and the bottom of the video.
   static let verticalMargin: CGFloat = 25
+  private static let videoRectPositionKey = "controlBarPositionUsesVideoRect"
   /// Fallback height used for clamping before the bar has been laid out.
   private static let assumedHeight: CGFloat = 40
 
@@ -413,13 +442,30 @@ class OSCFloatingView: TranslucentView {
   }
 
   func initPosition() {
+    guard !isDragging else { return }
     let videoView = mainWindow.videoViewContainer!
-    let horizontal = CGFloat(Preference.float(for: .controlBarPositionHorizontal))
-    let vertical = CGFloat(Preference.float(for: .controlBarPositionVertical))
-    xConstraint.constant = clampedX(videoView.bounds.width * horizontal - barSize.width / 2,
-                                    inWidth: videoView.bounds.width)
-    yConstraint.constant = clampedY(videoView.bounds.height * vertical,
-                                    inHeight: videoView.bounds.height)
+    let videoRect = OSCFloatingGeometry.displayedRect(in: videoView.bounds,
+      videoSize: mainWindow.player.info.state.loaded ? mainWindow.displayedVideoSize : nil)
+    var horizontal = CGFloat(Preference.float(for: .controlBarPositionHorizontal))
+    var vertical = CGFloat(Preference.float(for: .controlBarPositionVertical))
+    if !AppEnvironment.defaults.bool(forKey: Self.videoRectPositionKey),
+       mainWindow.player.info.state.loaded, mainWindow.displayedVideoSize != nil {
+      // Preserve the user's current position when upgrading from viewport
+      // fractions. Fractions outside the image remain valid for a bar the user
+      // deliberately placed in a letterbox area.
+      let oldAnchor = NSPoint(x: videoView.bounds.width * horizontal - barSize.width / 2,
+                              y: videoView.bounds.height * vertical)
+      let migrated = OSCFloatingGeometry.fractions(for: oldAnchor, in: videoRect, barSize: barSize)
+      horizontal = migrated.x
+      vertical = migrated.y
+      Preference.set(horizontal, for: .controlBarPositionHorizontal)
+      Preference.set(vertical, for: .controlBarPositionVertical)
+      AppEnvironment.defaults.set(true, forKey: Self.videoRectPositionKey)
+    }
+    let anchor = OSCFloatingGeometry.anchor(horizontal: horizontal, vertical: vertical,
+                                            in: videoRect, barSize: barSize)
+    xConstraint.constant = clampedX(anchor.x, inWidth: videoView.bounds.width)
+    yConstraint.constant = clampedY(anchor.y, inHeight: videoView.bounds.height)
   }
 
   func updatePosition() {
@@ -486,15 +532,14 @@ class OSCFloatingView: TranslucentView {
     dragStartOriginInVideo = nil
     guard didDrag else { return }
     let videoView = mainWindow.videoViewContainer!
-    let videoWidth = videoView.bounds.width
-    let videoHeight = videoView.bounds.height
-    if videoWidth > 0 {
-      Preference.set((xConstraint.constant + barSize.width / 2) / videoWidth,
-                     for: .controlBarPositionHorizontal)
-    }
-    if videoHeight > 0 {
-      Preference.set(yConstraint.constant / videoHeight, for: .controlBarPositionVertical)
-    }
+    let hasVideoGeometry = mainWindow.player.info.state.loaded && mainWindow.displayedVideoSize != nil
+    let videoRect = OSCFloatingGeometry.displayedRect(in: videoView.bounds,
+      videoSize: hasVideoGeometry ? mainWindow.displayedVideoSize : nil)
+    let anchor = NSPoint(x: xConstraint.constant, y: yConstraint.constant)
+    let fractions = OSCFloatingGeometry.fractions(for: anchor, in: videoRect, barSize: barSize)
+    Preference.set(fractions.x, for: .controlBarPositionHorizontal)
+    Preference.set(fractions.y, for: .controlBarPositionVertical)
+    AppEnvironment.defaults.set(hasVideoGeometry, forKey: Self.videoRectPositionKey)
   }
 
   @MainActor required init?(coder: NSCoder) {
