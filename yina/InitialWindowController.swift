@@ -927,13 +927,16 @@ class InitialWindowController: NSWindowController {
         .windowHeight(minimum: recentMinimumHeight, maximum: Self.maximumRecentWindowHeight)
     } ?? recentStartingHeight
     guard height.isFinite, abs((window.contentView?.frame.height ?? 0) - height) > 0.5 else { return }
-    let top = window.frame.maxY
+    let previousFrame = window.frame
+    let contentRect = NSRect(origin: .zero, size: NSSize(width: Self.recentListWidth, height: height))
+    var frame = window.frameRect(forContentRect: contentRect)
+    frame.origin.x = previousFrame.minX
+    frame.origin.y = preserveTop && window.isVisible
+      ? previousFrame.maxY - frame.height : previousFrame.minY
     mainViewHeightConstraint?.constant = height
-    window.setContentSize(NSSize(width: Self.recentListWidth, height: height))
-    mainView.layoutSubtreeIfNeeded()
-    if preserveTop && window.isVisible {
-      window.setFrameOrigin(NSPoint(x: window.frame.minX, y: top - window.frame.height))
-    }
+    // Resize and preserve the top in one AppKit transaction. Forcing layout between
+    // a content resize and a separate move re-enters SwiftUI's scroll geometry updates.
+    window.setFrame(frame, display: true, animate: false)
     updateShelfWindowFrame()
   }
 
@@ -1117,6 +1120,7 @@ private struct WelcomeRecentsView: View {
       .environment(\.defaultMinListRowHeight, 0)
       .scrollContentBackground(.hidden)
       .scrollIndicators(.hidden)
+      .defaultScrollAnchor(.top, for: .sizeChanges)
       .contentMargins(.top, model.topInset, for: .scrollContent)
       .contentMargins(.bottom, 16, for: .scrollContent)
       .scrollEdgeEffectStyle(.soft, for: .top)

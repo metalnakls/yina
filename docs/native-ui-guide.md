@@ -51,6 +51,9 @@ Use these steps for AppKit and SwiftUI interface changes.
   Keep its top anchored, retain the four-row minimum, and subtract scroll offset
   from the full measured scroll content, including its content insets, before
   applying the maximum window height. Preserve offset on data refresh.
+  Resize and preserve the window top with one `setFrame` call, without forcing
+  synchronous layout between a resize and a move. Use the native top scroll
+  anchor for size changes so resizing does not reposition visible content.
   Native List scrolling, momentum and rubberbanding remain the sole scroll path.
   This approved window sizing is not permission for custom scrolling or blur.
 
