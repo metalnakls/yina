@@ -32,8 +32,8 @@ class HardwareDecodeCapabilities {
     kCMVideoCodecType_AV1,
     kCMVideoCodecType_VP9]
 
-  private var initialization: DispatchWorkItem?
-  private var isInitialized = false
+  private let lock = NSLock()
+  private var initializationStarted = false
 
   /// Cache containing a map from video codec to whether hardware decoding is supported.
   private var supported: [CMVideoCodecType: Bool] = [:]
@@ -43,36 +43,44 @@ class HardwareDecodeCapabilities {
   /// As checking the capabilities takes a long time it is performed asynchronously. See `isHardwareDecodeSupported` for details.
   /// - Important: This method **must** be called before `isSupported` is called and only be called **once**.
   func checkCapabilities() {
-    guard initialization == nil else {
+    lock.lock()
+    guard !initializationStarted else {
+      lock.unlock()
       // Internal error. This method must only be called once.
       Logger.fatal("HardwareDecodeCapabilities is already initialized")
     }
-    initialization = DispatchWorkItem() { [self] in
+    initializationStarted = true
+    lock.unlock()
+    DispatchQueue.global(qos: .userInitiated).async { [self] in
       for codec in codecs {
-        supported[codec] = isHardwareDecodeSupported(codec)
+        let result = isHardwareDecodeSupported(codec)
+        lock.lock()
+        supported[codec] = result
+        lock.unlock()
       }
     }
-    DispatchQueue.global(qos: .userInitiated).async { self.initialization!.perform() }
   }
 
   /// Whether this Mac supports hardware decoding for the given video codec.
   /// - Parameter codecType: The video codec as a
   ///     [CMVideoCodecType](https://developer.apple.com/documentation/coremedia/cmvideocodectype).
-  /// - Returns: `true` if hardware decoding is supported; `false` otherwise.
+  /// - Returns: The cached result, or `true` while the asynchronous probe is
+  ///   pending so mpv can use its normal software fallback without delaying startup.
   func isSupported(_ codecType: CMVideoCodecType) -> Bool {
-    if !isInitialized {
-      guard let initialization else {
-        // Internal error. The cache must be initialized before calling this method.
-        Logger.fatal("HardwareDecodeCapabilities.checkCapabilities has not been called")
-      }
-      initialization.wait()
-      isInitialized = true
-    }
-    guard let supported = supported[codecType] else {
+    guard codecs.contains(codecType) else {
       // Internal error. This codec must not be in the list of codecs above.
       Logger.fatal("HardwareDecodeCapabilities is missing support for codec \(codecType)")
     }
-    return supported
+    lock.lock()
+    let started = initializationStarted
+    let result = supported[codecType]
+    lock.unlock()
+    guard started else {
+      Logger.fatal("HardwareDecodeCapabilities.checkCapabilities has not been called")
+    }
+    // While probing, keep the codec on mpv's hardware whitelist. FFmpeg can
+    // fall back to software; a later player uses the completed cached answer.
+    return result ?? true
   }
 
   /// Whether this Mac supports hardware decoding for the given video codec.
