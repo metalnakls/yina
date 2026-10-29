@@ -52,6 +52,7 @@ class InitialWindowController: NSWindowController {
   private let recentListModel = WelcomeRecentsModel()
   private var recentListHost: NSHostingView<WelcomeRecentsView>?
   private let visualEffectView = NSVisualEffectView()
+  private let cardEdgeAccessory = NSTitlebarAccessoryViewController()
   private let mainView = InitialWindowContentView()
   private let emptyStateView = NSStackView()
 
@@ -237,6 +238,12 @@ class InitialWindowController: NSWindowController {
     window.titlebarAppearsTransparent = true
     window.titlebarSeparatorStyle = .none
     window.titleVisibility = .hidden
+    cardEdgeAccessory.layoutAttribute = .bottom
+    cardEdgeAccessory.automaticallyAdjustsSize = false
+    cardEdgeAccessory.preferredScrollEdgeEffectStyle = .soft
+    cardEdgeAccessory.view = NSView(frame: .zero)
+    cardEdgeAccessory.isHidden = true
+    window.addTitlebarAccessoryViewController(cardEdgeAccessory)
     window.isMovableByWindowBackground = true
     window.isReleasedWhenClosed = false
     window.autorecalculatesKeyViewLoop = true
@@ -889,7 +896,9 @@ class InitialWindowController: NSWindowController {
       recentListModel.resetID += 1
     }
     recentListModel.topInset = recentTopInset
-    recentListModel.coveredTop = showFolders.isEmpty ? 0 : ShowFolderCardView.size.height / 4
+    cardEdgeAccessory.view.setFrameSize(NSSize(width: cardEdgeAccessory.view.frame.width,
+                                               height: showFolders.isEmpty ? 0 : ShowFolderCardView.size.height / 4))
+    cardEdgeAccessory.isHidden = showFolders.isEmpty
     window?.contentMinSize = NSSize(width: Self.recentListWidth, height: recentMinimumHeight)
     window?.contentMaxSize = NSSize(width: Self.recentListWidth, height: Self.maximumRecentWindowHeight)
     resizeRecentWindow(preserveTop: preserveTop)
@@ -1066,7 +1075,6 @@ private final class WelcomeRecentsModel: ObservableObject {
   @Published var selection: String? { didSet { selectionChanged?(selection) } }
   @Published var revealID: String?
   @Published var topInset: CGFloat = 32
-  @Published var coveredTop: CGFloat = 0
   @Published var resetID = 0
   var open: ((String) -> Void)?
   var dismiss: ((String) -> Void)?
@@ -1109,13 +1117,10 @@ private struct WelcomeRecentsView: View {
       .environment(\.defaultMinListRowHeight, 0)
       .scrollContentBackground(.hidden)
       .scrollIndicators(.hidden)
-      .contentMargins(.top, max(0, model.topInset - model.coveredTop), for: .scrollContent)
+      .contentMargins(.top, model.topInset, for: .scrollContent)
       .contentMargins(.bottom, 16, for: .scrollContent)
       .scrollEdgeEffectStyle(.soft, for: .top)
       .scrollEdgeEffectHidden(true, for: .bottom)
-      .safeAreaBar(edge: .top, spacing: 0) {
-        Color.clear.frame(height: model.coveredTop).allowsHitTesting(false)
-      }
       .onScrollGeometryChange(for: WelcomeRecentScrollGeometry.self) { geometry in
         WelcomeRecentScrollGeometry(
           offset: geometry.contentOffset.y + geometry.contentInsets.top,
