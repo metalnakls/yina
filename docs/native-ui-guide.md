@@ -69,8 +69,10 @@ Use these steps for AppKit and SwiftUI interface changes.
   update only height when metrics change. AppKit owns the remaining dimension.
   Verify native blur and actual portrait playback together.
 
-- HDR may tint the native slider-thumb silhouette. Preserve the system thumb
-  shape; do not replace it with a custom shape.
+- The floating OSC uses the native button tint, adaptive primary time-label
+  colors, and the native slider-thumb appearance without separate HDR tints.
+  Watched progress remains white by explicit user preference. Docked HDR
+  controls may tint the native thumb silhouette without replacing its shape.
 
 ## References
 

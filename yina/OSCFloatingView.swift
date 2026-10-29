@@ -37,7 +37,9 @@ class OSCButton: NSButton {
   private var usesQuickTimeStyle = false
   var extendedDynamicRangeHeadroom: CGFloat = 1 {
     didSet {
-      if usesQuickTimeStyle {
+      if usesNativeBezel {
+        contentTintColor = nil
+      } else if usesQuickTimeStyle {
         contentTintColor = extendedDynamicRangeHeadroom > 1
           ? .hdrWhite(intensity: 0.84, headroom: extendedDynamicRangeHeadroom)
           : .white.withAlphaComponent(0.84)
@@ -81,9 +83,13 @@ class OSCButton: NSButton {
         borderShape = .circle
         symbolConfiguration = .init(scale: .large)
       }
-      contentTintColor = extendedDynamicRangeHeadroom > 1
-        ? .hdrWhite(intensity: 0.84, headroom: extendedDynamicRangeHeadroom)
-        : .white.withAlphaComponent(0.84)
+      if usesNativeBezel {
+        contentTintColor = nil
+      } else {
+        contentTintColor = extendedDynamicRangeHeadroom > 1
+          ? .hdrWhite(intensity: 0.84, headroom: extendedDynamicRangeHeadroom)
+          : .white.withAlphaComponent(0.84)
+      }
     } else {
       imagePosition = originalImagePosition!
       imageScaling = originalImageScaling!

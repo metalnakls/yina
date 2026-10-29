@@ -1053,10 +1053,14 @@ class MainWindowController: PlayerWindowController {
     }
     muteButton.extendedDynamicRangeHeadroom = enabled ? headroom : 1
     muteButton.imageView.contentTintColor = primaryColor
-    [leftLabel, rightLabel, oscSpeedLabelLeft, oscSpeedLabelRight].forEach {
+    [leftLabel, rightLabel].forEach {
+      $0?.textColor = oscPosition == .floating ? .labelColor : secondaryColor
+    }
+    [oscSpeedLabelLeft, oscSpeedLabelRight].forEach {
       $0?.textColor = secondaryColor
     }
-    playSlider.extendedDynamicRangeHeadroom = enabled ? headroom : 1
+    // Floating controls use AppKit's appearance together, without separate HDR tints.
+    playSlider.extendedDynamicRangeHeadroom = oscPosition == .floating ? 1 : (enabled ? headroom : 1)
     (volumeSlider as? VolumeSlider)?.extendedDynamicRangeHeadroom = enabled ? headroom : 1
   }
 
@@ -1230,7 +1234,7 @@ class MainWindowController: PlayerWindowController {
     oscPlaySliderTopConstraint.constant = DockedOSCLayout.playSliderInset
     oscPlaySliderBottomConstraint.constant = DockedOSCLayout.playSliderInset
 
-    let labelColor = enabled ? NSColor.white.withAlphaComponent(0.68) : NSColor.secondaryLabelColor
+    let labelColor: NSColor = enabled ? .labelColor : .secondaryLabelColor
     leftLabel.textColor = labelColor
     rightLabel.textColor = labelColor
 
