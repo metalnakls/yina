@@ -433,6 +433,13 @@ class SidebarController: NSObject {
   }
 
   func show(sidebar: ViewType? = nil, tab: String? = nil, force: Bool = false, hideIfAlreadyShown: Bool = true) {
+    if sidebar == .settings || ["video", "audio", "sub", "layout"].contains(tab ?? "") {
+      DispatchQueue.main.async { [weak self] in
+        guard let self else { return }
+        PlaybackSettingsWindowController.shared.show(for: self.mainWindow.player)
+      }
+      return
+    }
     let view: SidebarViewController = if let sidebar {
       switch sidebar {
       case .settings: quickSettingView

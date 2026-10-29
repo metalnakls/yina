@@ -659,7 +659,7 @@ class PlayerCore: NSObject {
   }
 
   static private func filterSectionBindings(_ kb: KeyMapping) -> KeyMapping? {
-    if kb.isYINACommand && ["toggle-music-mode"].contains(kb.action.first ?? "") {
+    if kb.isYINACommand && ["toggle-music-mode", "video-panel", "audio-panel", "sub-panel"].contains(kb.action.first ?? "") {
       return nil
     }
     guard let section = kb.section else {

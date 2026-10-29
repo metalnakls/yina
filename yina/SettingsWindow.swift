@@ -34,6 +34,7 @@ class SettingsWindow: CommonWindow {
     SettingsPageUtilities(),
   ])
   static let keyBindings = SettingsWindow([SettingsPageKeyBindings()])
+  static let plugins = SettingsWindow([SettingsPagePlugin()])
 
   let sidebarList: NSTableView
   private let sidebarScrollView: NSScrollView
@@ -228,7 +229,7 @@ class SettingsWindow: CommonWindow {
   }
 
   func show() {
-    if !AppEnvironment.isCleanStart { self.setFrameAutosaveName(pages.count == 1 ? "YINAKeyBindingsWindow" : "YINAPreferenceWindowV2") }
+    if !AppEnvironment.isCleanStart { self.setFrameAutosaveName(pages.first is SettingsPagePlugin ? "YINAPluginsWindow" : pages.count == 1 ? "YINAKeyBindingsWindow" : "YINAPreferenceWindowV2") }
     self.makeKeyAndOrderFront(nil)
   }
 

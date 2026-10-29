@@ -368,6 +368,8 @@
 		84EC12861F504D2500137C1E /* FilterPresets.strings in Resources */ = {isa = PBXBuildFile; fileRef = 84EC12871F504D2500137C1E /* Base */; };
 		84F5D49A1E44E9A50060A838 /* KeyBinding.strings in Resources */ = {isa = PBXBuildFile; fileRef = 84F5D49B1E44E9A50060A838 /* Base */; };
 		845AC09C1E1AE6C10080B614 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 845AC09D1E1AE6C10080B614 /* Base */; };
+		EC2026102900000000000001 /* PlaybackSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC2026102900000000000002 /* PlaybackSettingsView.swift */; };
+		EC2026102900000000000003 /* PlaybackSettingsWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC2026102900000000000004 /* PlaybackSettingsWindowController.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -892,6 +894,8 @@
 		E3FC31451FE1501E00B9B86F /* PowerSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PowerSource.swift; sourceTree = "<group>"; };
 		E3FEC1322A30400F00CFD845 /* PluginInputManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginInputManager.swift; sourceTree = "<group>"; };
 		E3FF5ABF2938582F0019CE45 /* JavascriptDevTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JavascriptDevTool.swift; sourceTree = "<group>"; };
+		EC2026102900000000000002 /* PlaybackSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackSettingsView.swift; sourceTree = "<group>"; };
+		EC2026102900000000000004 /* PlaybackSettingsWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackSettingsWindowController.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -1537,6 +1541,8 @@
 			children = (
 				E38099C22FC05B2E00D3333E /* Pages */,
 				E34BC2A72C27C01800A94680 /* SettingsLocalization.swift */,
+				EC2026102900000000000002 /* PlaybackSettingsView.swift */,
+				EC2026102900000000000004 /* PlaybackSettingsWindowController.swift */,
 				E360A5CC2C23C1BC006EA412 /* SettingsWindow.swift */,
 				E34BC28C2C27733200A94680 /* SettingsPage.swift */,
 				E34BC28E2C27A68100A94680 /* SettingsItem.swift */,
@@ -1955,6 +1961,8 @@
 				E36E8D7C24F6052F00B8C097 /* GuideWindowController.swift in Sources */,
 				84817C981DBDCE4300CC2279 /* RoundedColorWell.swift in Sources */,
 				E38372922443634500F57718 /* LanguageTokenField.swift in Sources */,
+				EC2026102900000000000001 /* PlaybackSettingsView.swift in Sources */,
+				EC2026102900000000000003 /* PlaybackSettingsWindowController.swift in Sources */,
 				E360A5CD2C23C1BC006EA412 /* SettingsWindow.swift in Sources */,
 				8461C5301D462488006E91FF /* VideoTime.swift in Sources */,
 				E3839C5724FFF201007D0AB4 /* PluginStandaloneWindow.swift in Sources */,

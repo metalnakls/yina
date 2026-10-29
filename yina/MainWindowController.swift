@@ -1080,7 +1080,7 @@ class MainWindowController: PlayerWindowController {
       highlight(.fullScreen, enable)
     case .yinaSidebarStatusChanged:
       // no userInfo is provided in this notification
-      highlight(.settings, sidebars.isShowing(.settings))
+      highlight(.settings, PlaybackSettingsWindowController.isShown(for: player))
       highlight(.plugins, sidebars.isShowing(.plugins))
       highlight(.playlist, sidebars.isShowing(.playlist))
       fadeableViews.update()

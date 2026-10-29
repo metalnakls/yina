@@ -84,8 +84,6 @@ final class ApplicationMenus {
 
     let view = menu("videoMenu")
     view.removeAllItems()
-    move(item("quickSettingsVideo"), to: view)
-    item("quickSettingsVideo").title = "Video Settings"
     let speed = NSMenu(title: "Speed")
     menuBindings["speedMenu"] = speed
     for binding in ["speedUp", "speedDown", "speedReset"] { move(item(binding), to: speed) }

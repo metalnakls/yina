@@ -98,6 +98,8 @@ private struct Contract: Decodable {
     menus.configureRecentDocuments(target: delegate, openAction: #selector(MenuTarget.openRecent(_:)),
                                    urls: { urls }, clear: { urls = []; clears += 1 })
     let recent = menus.menu("recentDocumentsMenu")
+    // Native recents are populated when the menu opens, not during startup.
+    recent.delegate?.menuNeedsUpdate?(recent)
     precondition(recent.numberOfItems == 4)
     precondition(recent.items[0].toolTip != recent.items[1].toolTip)
     recent.performActionForItem(at: 1)

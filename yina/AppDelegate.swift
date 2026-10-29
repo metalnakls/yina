@@ -784,7 +784,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
 
     // if installing a plugin package
     if let pluginPackageURL = urls.first(where: { $0.pathExtension == "iinaplgz" }) {
-      SettingsWindow.default.installPlugin(localPackageURL: pluginPackageURL)
+      SettingsWindow.plugins.installPlugin(localPackageURL: pluginPackageURL)
       return
     }
 
@@ -977,7 +977,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
   }
 
   @IBAction func showPreferences(_ sender: AnyObject) {
-    SettingsWindow.default.show()
+    PlaybackSettingsWindowController.shared.show(for: PlayerCore.lastActive)
   }
 
   @IBAction func showKeyBindings(_ sender: AnyObject) {
@@ -985,8 +985,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
   }
 
   @objc func showPluginPreferences(_ sender: NSMenuItem) {
-    SettingsWindow.default.show()
-    SettingsWindow.default.navigateTo(page: "plugin")
+    SettingsWindow.plugins.show()
+    SettingsWindow.plugins.navigateTo(page: "plugin")
   }
 
   @IBAction func showVideoFilterWindow(_ sender: AnyObject) {
