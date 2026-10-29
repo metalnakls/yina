@@ -47,6 +47,25 @@ final class SharedShowStore {
     let fileIndex: Int
     let cancelled: Bool
   }
+  struct QueueRecord: Codable, Sendable {
+    var schemaVersion = 1
+    let showID: UUID
+    let participantID: UUID
+    let writerID: UUID
+    let revision: UInt64
+    let updatedAt: Date
+    let items: [String]
+    let current: String?
+
+    var isValid: Bool {
+      guard schemaVersion == 1, revision > 0, items.count <= 1_024,
+            items.reduce(0, { $0 + $1.utf8.count }) <= 256 * 1024,
+            items.allSatisfy(SharedShowStore.safeMediaPath) else { return false }
+      let keys = items.map { $0.precomposedStringWithCanonicalMapping.lowercased() }
+      guard Set(keys).count == keys.count else { return false }
+      return current.map { SharedShowStore.safeMediaPath($0) && items.contains($0) } ?? true
+    }
+  }
   private struct Fragment: Decodable {
     let schemaVersion: Int
     let showID: UUID
@@ -119,6 +138,10 @@ final class SharedShowStore {
       path.split(separator: "/", omittingEmptySubsequences: false).allSatisfy {
         !$0.isEmpty && $0 != "." && $0 != ".."
       }
+  }
+
+  private static func safeMediaPath(_ path: String) -> Bool {
+    safePath(path) && path != ".yina.json" && path.split(separator: "/").first != ".yina"
   }
 
   static func validHash(_ hash: String) -> Bool {
@@ -396,7 +419,7 @@ final class SharedShowStore {
     return Self.safePath(path) ? path : nil
   }
 
-  func catalog(at now: Date = Date()) throws -> ShowEpisodeIndexReader.Snapshot {
+  func catalog(at now: Date = Date(), checkLocalFiles: Bool = true) throws -> ShowEpisodeIndexReader.Snapshot {
     let identity = try descriptor()
     var byHash: [String: ShowEpisodeIndexReader.Snapshot] = [:]
     let legacyData: Data
@@ -454,7 +477,7 @@ final class SharedShowStore {
     for index in all.indices {
       let key = all[index].path.precomposedStringWithCanonicalMapping.lowercased()
       all[index].ambiguous = (counts[key]?.count ?? 0) > 1
-      if index < 128 {
+      if checkLocalFiles && index < 128 {
         do {
           all[index].localSize = try regularSize(all[index].path)
           all[index].exists = true
@@ -561,6 +584,46 @@ final class SharedShowStore {
             previous.participantID == record.participantID, previous.revision < record.revision else { throw Failure.invalidRecord }
     }
     try atomicWrite(Self.encoder().encode(record), path: path)
+  }
+
+  func publishQueue(_ record: QueueRecord) throws {
+    guard record.isValid else { throw Failure.invalidRecord }
+    try requireWritableDescriptor(record.showID)
+    let path = ".yina/queues/\(record.writerID.uuidString.lowercased()).json"
+    if let previous = try existing(path, as: QueueRecord.self) {
+      guard previous.isValid, previous.showID == record.showID,
+            previous.participantID == record.participantID, previous.writerID == record.writerID,
+            previous.revision < record.revision else { throw Failure.invalidRecord }
+    }
+    try atomicWrite(Self.encoder().encode(record), path: path)
+  }
+
+  func queue(showID: UUID, participantID: UUID, writerID: UUID) throws -> QueueRecord? {
+    guard try descriptor().showID == showID else { throw Failure.identityChanged }
+    let path = ".yina/queues/\(writerID.uuidString.lowercased()).json"
+    guard let record = try existing(path, as: QueueRecord.self), record.isValid,
+          record.showID == showID, record.participantID == participantID,
+          record.writerID == writerID else { return nil }
+    return record
+  }
+
+  /// A queue path is playable only when it stays inside this root and either
+  /// has no transfer record or has a fresh, complete record matching the file.
+  func resolvePlayable(path: String, showID: UUID) throws -> URL? {
+    guard Self.safeMediaPath(path) else { throw Failure.unsafePath }
+    guard try descriptor().showID == showID else { throw Failure.identityChanged }
+    let size: UInt64
+    do { size = try regularSize(path) }
+    catch Failure.io(let code) where code == ENOENT { return nil }
+    let snapshot = try catalog(checkLocalFiles: false)
+    let key = path.precomposedStringWithCanonicalMapping.lowercased()
+    if let episode = snapshot.episodes.first(where: {
+      $0.path.precomposedStringWithCanonicalMapping.lowercased() == key
+    }) {
+      guard !episode.ambiguous, episode.isFresh(), episode.size > 0,
+            episode.received == episode.size, size == episode.size else { return nil }
+    }
+    return root.appendingPathComponent(path)
   }
 
   private func existing<T: Decodable>(_ path: String, as type: T.Type) throws -> T? {

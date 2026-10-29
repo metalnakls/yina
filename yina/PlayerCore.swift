@@ -245,6 +245,14 @@ class PlayerCore: NSObject {
     }
   }
 
+  func sharedShowLocalMediaChangeRequested() {
+    if Thread.isMainThread {
+      MainActor.assumeIsolated { sharedShow.localMediaChangeRequested() }
+    } else {
+      DispatchQueue.main.async { [weak self] in self?.sharedShow.localMediaChangeRequested() }
+    }
+  }
+
   var displayOSD: Bool = true
 
   var isInMiniPlayer = false
@@ -483,6 +491,7 @@ class PlayerCore: NSObject {
   @discardableResult
   func openURLs(_ urls: [URL], shouldAutoLoad autoLoad: Bool = true) -> Int? {
     guard !urls.isEmpty else { return 0 }
+    sharedShowLocalMediaChangeRequested()
     invalidateMediaPreparation()
     let urls = Utility.resolveURLs(urls)
 
@@ -560,6 +569,14 @@ class PlayerCore: NSObject {
     preparingURL = nil
   }
 
+  /// Cancel only the still-pending Watch Together open owned by this session.
+  /// A newer local open has a different URL and keeps its own preparation.
+  func cancelSharedShowMediaPreparation(for expectedURL: URL) {
+    precondition(Thread.isMainThread)
+    guard mediaPreparationPending, preparingURL == expectedURL else { return }
+    invalidateMediaPreparation()
+  }
+
   static func openURLsAsync(_ urls: [URL], completion: ((Int?) -> Void)? = nil) {
     precondition(Thread.isMainThread)
     guard !urls.isEmpty else { completion?(0); return }
@@ -591,6 +608,7 @@ class PlayerCore: NSObject {
   func openURLsAsync(_ original: [URL], shouldAutoLoad: Bool = true, completion: ((Int?) -> Void)? = nil) {
     precondition(Thread.isMainThread)
     guard !original.isEmpty else { completion?(0); return }
+    sharedShowLocalMediaChangeRequested()
     let generation = beginMediaPreparation(original.first)
     Self.mediaPreparationQueue.addOperation { [weak self] in
       guard let self else {
@@ -638,6 +656,7 @@ class PlayerCore: NSObject {
 
   func openPreparedWelcomeMedia(_ media: PreparedWelcomeMedia) {
     precondition(Thread.isMainThread)
+    sharedShowLocalMediaChangeRequested()
     info.shouldAutoLoadFiles = media.autoLoad
     open(media.urls[0], knownRemoteFile: media.isRemoteFile)
     postNotification(.yinaPlaylistChanged)
@@ -649,6 +668,7 @@ class PlayerCore: NSObject {
 
   func openURLString(_ str: String) {
     if str == "-" {
+      sharedShowLocalMediaChangeRequested()
       invalidateMediaPreparation()
       openMainWindow(path: str, url: URL(string: "stdin")!, isNetwork: false, usesDiskCache: false)
       return
@@ -1118,6 +1138,12 @@ class PlayerCore: NSObject {
   ///     and call this method again to continue the process of stopping. It is important to stop the background task as if it is still
   ///     running when the mpv core is shutdown it may call into mpv triggering a crash.
   func stop() {
+    sharedShowLocalMediaChangeRequested()
+    if Thread.isMainThread {
+      MainActor.assumeIsolated { sharedShow.localStopRequested() }
+    } else {
+      DispatchQueue.main.async { [weak self] in self?.sharedShow.localStopRequested() }
+    }
     mediaPreparationGeneration &+= 1
     mediaPreparationPending = false
     preparingURL = nil
@@ -1772,6 +1798,7 @@ class PlayerCore: NSObject {
   }
 
   func appendToPlaylist(_ path: String, silent: Bool = false) {
+    if !silent { sharedShowLocalMediaChangeRequested() }
     mpv.playlistAppend(path)
     info.isShuffled = false
     if !silent {
@@ -1780,6 +1807,7 @@ class PlayerCore: NSObject {
   }
 
   func playlistMove(_ from: Int, to: Int) {
+    sharedShowLocalMediaChangeRequested()
     mpv.playlistMove(from, to: to)
     info.isShuffled = false
     postNotification(.yinaPlaylistChanged)
@@ -1788,6 +1816,7 @@ class PlayerCore: NSObject {
   func playlistReorder(newPlaylist: [MPVPlaylistItem]) {
     guard Set(info.playlist) == Set(newPlaylist) else { return }
     if info.playlist == newPlaylist { return }
+    sharedShowLocalMediaChangeRequested()
     info.isShuffled = false
     mpv.command(.playlistClear)
     guard let currentPlaying = newPlaylist.firstIndex(where: { $0.isPlaying } ) else {
@@ -1808,6 +1837,7 @@ class PlayerCore: NSObject {
   }
 
   func addToPlaylist(paths: [String], at index: Int = -1) {
+    sharedShowLocalMediaChangeRequested()
     getPlaylist()
     info.isShuffled = false
     for path in paths {
@@ -1823,6 +1853,7 @@ class PlayerCore: NSObject {
   }
 
   func playlistRemove(_ index: Int) {
+    sharedShowLocalMediaChangeRequested()
     mpv.playlistRemove(index)
     info.isShuffled = false
     postNotification(.yinaPlaylistChanged)
@@ -1830,6 +1861,7 @@ class PlayerCore: NSObject {
 
   func playlistRemove(_ indexSet: IndexSet) {
     guard !indexSet.isEmpty else { return }
+    sharedShowLocalMediaChangeRequested()
     var count = 0
     for i in indexSet {
       mpv.playlistRemove(i - count)
@@ -1840,6 +1872,7 @@ class PlayerCore: NSObject {
   }
 
   func clearPlaylist() {
+    sharedShowLocalMediaChangeRequested()
     mpv.command(.playlistClear)
     info.isShuffled = false
     postNotification(.yinaPlaylistChanged)
@@ -1865,6 +1898,7 @@ class PlayerCore: NSObject {
   ///     clicking in the playlist on the entry that is currently playing reloads that entry.
   /// - Parameter pos: Position of the entry in the playlist to be played.
   func playFileInPlaylist(_ pos: Int) {
+    sharedShowLocalMediaChangeRequested()
     mainWindow.videoView.displayActive()
     if !mpv.getFlag(MPVOption.PlaybackControl.pause) {
       log("Pausing playback before playing entry at index \(pos) in the playlist")
@@ -1890,6 +1924,7 @@ class PlayerCore: NSObject {
   /// - Parameter nextMedia: When `true` play the next entry in the playlist; otherwise play the previous entry.
   func navigateInPlaylist(nextMedia: Bool) {
     guard !mainWindow.interactiveMode.isActive else { return }
+    sharedShowLocalMediaChangeRequested()
 
     if nextMedia == false && (info.playlist.first?.isPlaying) ?? false {
       seek(absoluteSecond: 0)
@@ -2307,8 +2342,11 @@ class PlayerCore: NSObject {
     let sharedMedia = info.currentURL
     let sharedPosition = info.videoPosition?.second
     let sharedDuration = info.videoDuration?.second
+    let sharedGeneration: Int? = Thread.isMainThread ?
+      MainActor.assumeIsolated { sharedShow.generationToken } : nil
     DispatchQueue.main.async { [weak self] in
-      self?.sharedShow.saveFinal(media: sharedMedia, position: sharedPosition, duration: sharedDuration)
+      self?.sharedShow.saveFinal(media: sharedMedia, position: sharedPosition,
+                                 duration: sharedDuration, sourceGeneration: sharedGeneration)
     }
     guard cachedSavePositionOnQuit else { return }
 
@@ -2603,6 +2641,10 @@ class PlayerCore: NSObject {
   }
 
   func fileEnded(_ dueToStopCommand: Bool) {
+    let replacingMedia = info.state == .loading || info.state == .starting
+    MainActor.assumeIsolated {
+      sharedShow.fileEnded(dueToStopCommand: dueToStopCommand && !replacingMedia)
+    }
     finishSubtitleDissolve()
     // if receive end-file when loading file, might be error
     // wait for idle
@@ -3436,6 +3478,7 @@ class PlayerCore: NSObject {
                              title: entry["title"] as? String)
     }
     info.$playlist.withLock { $0 = playlist }
+    DispatchQueue.main.async { [weak self] in self?.sharedShow.playlistChanged() }
   }
 
   func getChapters() {

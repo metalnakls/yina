@@ -7,8 +7,8 @@ subtitle selection keep their behavior.
 
 ## Using it
 
-Open a local or mounted SMB episode normally. In the Playlist pane, open the
-current episode's context menu → **Shared Show**. A valid Glass descriptor or
+Open a local or mounted SMB episode normally. Use **Shared Show** in the Playlist
+pane's footer or the current episode's context menu. A valid Glass descriptor or
 legacy inventory is discovered automatically, within 12 ancestors and the volume
 boundary. For a folder without a descriptor, **Enable for This Show…** lets you
 select its root explicitly. Opening an ordinary file never creates a descriptor
@@ -18,19 +18,26 @@ Progress is saved while playing or paused. Another player's saved position is an
 explicit **Resume at…** action for the episode already open. It does not replace
 local resume automatically, open another file, or choose the furthest position.
 
-For Watch Together, open the same episode on both Macs. On one choose **Host Watch
-Together**. On the other choose **Follow Host** with the matching six-character
-code. The follower applies the host's play/pause, position, and playback speed.
-**Leave Watch Together**, a local transport control, or a standard mpv transport
-shortcut takes control back. Volume, subtitles, and other presentation choices
-remain local. Custom scripts or commands sent directly through mpv IPC are not
-classified as local transport actions.
+For Watch Together, open an episode from the same show on both Macs. On one choose
+**Host Watch Together**; on the other choose **Follow** with the matching
+six-character code. The follower applies the host's play/pause, position and
+speed, and opens the host's current episode once it is safely available. The
+host's ordered **Shared Queue** appears separately in the menu. It is read-only
+on the follower and does not replace its full mpv playlist.
 
-Both machines need the same show ID and relative episode path. Choosing a
-different episode on the follower ends following. If the host changes episodes,
-the follower continues locally and waits; it does not load media or modify the
-queue. An explicit host stop/leave ends following. Stale, future, or inaccessible
-host records cannot drive playback.
+**Leave Watch Together**, a local open or playlist edit, or a local transport
+control takes control back. Volume, subtitles and other presentation choices
+remain local. Custom scripts or commands sent directly through mpv IPC are not
+classified as local transport actions. A pending remote file preparation is
+cancelled on takeover; a load already accepted by mpv may still complete, but no
+further remote transport changes apply.
+
+Both machines need the same show ID and relative episode paths. Missing, partial,
+truncated, stale or ambiguous managed episodes wait without being enqueued. The
+host can advance to the next episode, and followers switch when it is available.
+At natural EOF they wait for the next episode rather than reopening the finished
+one. An explicit host stop or leave ends following. Stale, future or inaccessible
+host records cannot drive playback. See [Watch Together](shared-show-watch-together.md).
 
 Unavailable Episodes shows saved byte progress and snapshot dates. Its **Request
 Download in Glass** context action writes an exact torrent/file request. Glass
@@ -54,6 +61,7 @@ Each process/window writes only its own fragment:
 | `.yina/transfers/<writerUUID>/<hash>.json` | Glass's dated episode inventory |
 | `.yina/progress/<participantUUID>/<writerUUID>.json` | One YINA player's current episode and position |
 | `.yina/demand/<writerUUID>.json` | That player's latest explicit download request |
+| `.yina/queues/<writerUUID>.json` | Host-owned ordered paths and current episode |
 
 The participant UUID persists in the local app profile; each player gets a new
 writer UUID. Positions from different writers remain separate, including older
@@ -81,8 +89,9 @@ No credentials, absolute media paths, or network addresses are written.
 
 ## Timing and failure behavior
 
-One serial utility queue performs filesystem work for all players. Checkpoints
-coalesce while a share is slow; UI actions and layout do not wait for SMB. Normal
+Four bounded utility lanes perform filesystem work. Each root with work in flight
+keeps its lane and write order; a stalled root leaves other lanes available.
+Checkpoints coalesce while a share is slow; UI actions and layout do not wait for SMB. Normal
 progress checks every ten seconds. Hosting or following checks every two seconds,
 with host transport changes also requesting a checkpoint. Snapshot time includes
 fractional seconds; playing positions are extrapolated by playback rate. Drift
@@ -123,7 +132,3 @@ queue and disk protocol, rapid file changes, final saves, explicit resume,
 play/pause/seek/rate following, local takeover, and stale/ended hosts. It does not
 prove real two-Mac synchronization. Actual SMB round trips, real mpv timing,
 native context-menu accessibility, and installed-app appearance remain unverified.
-The full Nightly build, signing with the configured Apple Development identity,
-and installation of version 2.36 passed on 2026-10-29 with elevated Keychain
-access. The installed bundle passed deep, strict signature verification, and its
-executable matched the built executable. Live testing remains as described above.

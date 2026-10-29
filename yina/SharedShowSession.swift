@@ -51,6 +51,7 @@ final class SharedShowSession {
   private weak var player: PlayerCore?
   private var timer: Timer?
   private var generation = 0
+  var generationToken: Int { generation }
   private var revision: UInt64 = 0
   private var busy = false
   private var pendingFinal: Sample?
@@ -67,9 +68,23 @@ final class SharedShowSession {
   private var membership: Membership?
   private var requestBusy = false
   private var applyingRemote = false
+  private var remoteMediaIntents: Set<URL> = []
+  private var endedByStopCommand = false
   private var lastControlCheckpoint: TimeInterval = 0
   private(set) var isHosting = false
   private(set) var followingWriter: UUID?
+  private var followingParticipant: UUID?
+  private var followingShowID: UUID?
+  private var acceptedHostRevision: UInt64 = 0
+  private var acceptedQueueRevision: UInt64 = 0
+  private(set) var hostQueueItems: [String] = []
+  private(set) var hostQueueCurrent: String?
+  private var pendingRemoteTarget: URL?
+  private var pendingRemoteSince: TimeInterval?
+  private var remoteOpenGeneration: UInt64 = 0
+  private var remoteOpenFailures = 0
+  private var remoteOpenFailedPath: String?
+  private var unavailableAttempts = 0
   private(set) var watchStatus: String?
   private(set) var root: URL?
   private(set) var showID: UUID?
@@ -90,12 +105,27 @@ final class SharedShowSession {
     var hosting = false
     var shouldWrite = true
     var refreshPeers = true
+    var playlistPaths: [String] = []
+    var awaitingNextEpisode = false
   }
 
   init(player: PlayerCore) { self.player = player }
 
   func start() {
     timer?.invalidate()
+    let media = player?.info.currentURL
+    let remoteChange = followingWriter != nil && media.map { remoteMediaIntents.contains($0) } == true
+    if let media, remoteChange {
+      if media == pendingRemoteTarget {
+        // The latest requested episode has loaded. Older in-flight targets
+        // can no longer justify preserving follow on a future local open.
+        remoteMediaIntents.removeAll()
+        pendingRemoteTarget = nil
+        pendingRemoteSince = nil
+        remoteOpenFailures = 0
+        remoteOpenFailedPath = nil
+      } else { remoteMediaIntents.remove(media) }
+    }
     generation += 1
     root = nil
     showID = nil
@@ -109,16 +139,25 @@ final class SharedShowSession {
     lastBroadRefresh = .distantPast
     membership = nil
     pendingCurrent = nil
-    // Following never crosses into a newly opened file without another choice.
-    followingWriter = nil
-    watchStatus = isHosting ? "Hosting Watch Together · \(writerID.uuidString.prefix(6))" : nil
+    if !remoteChange {
+      followingWriter = nil
+      followingParticipant = nil
+      followingShowID = nil
+      remoteMediaIntents.removeAll()
+      hostQueueItems = []
+      hostQueueCurrent = nil
+    }
+    endedByStopCommand = false
+    watchStatus = isHosting ? "Hosting Watch Together · \(writerID.uuidString.prefix(6))" :
+      followingWriter.map { "Following host \($0.uuidString.prefix(6))" }
     checkpoint()
     scheduleTimer()
   }
 
   private func scheduleTimer() {
     timer?.invalidate()
-    let interval: TimeInterval = isHosting || followingWriter != nil ? 2 : membership?.root == nil && membership != nil ? 30 : 10
+    let interval: TimeInterval = isHosting ? 2 : followingWriter != nil ?
+      (unavailableAttempts >= 3 ? 10 : 2) : membership?.root == nil && membership != nil ? 30 : 10
     timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
       MainActor.assumeIsolated { self?.checkpoint(refreshPeers: false) }
     }
@@ -126,17 +165,37 @@ final class SharedShowSession {
   }
 
   func stop() {
-    timer?.invalidate()
-    timer = nil
+    if !endedByStopCommand && (isHosting || followingWriter != nil) {
+      watchStatus = isHosting ? "Hosting Watch Together · waiting for next episode" :
+        "Waiting for host's next episode"
+      checkpoint(refreshPeers: false)
+      scheduleTimer()
+      changed()
+      return
+    }
+    timer?.invalidate(); timer = nil
+    isHosting = false
     checkpoint(stopped: true)
   }
 
-  func saveFinal(media: URL?, position: Double?, duration: Double?) {
+  func fileEnded(dueToStopCommand: Bool) { endedByStopCommand = endedByStopCommand || dueToStopCommand }
+
+  func localStopRequested() { endedByStopCommand = true }
+
+  func saveFinal(media: URL?, position: Double?, duration: Double?, sourceGeneration: Int? = nil) {
+    let sampleGeneration = sourceGeneration ??
+      (player?.info.currentURL == media ? generation : generation - 1)
+    // A final callback can arrive after a new file has started. Publishing it
+    // then would replace the newer episode's single writer record on disk.
+    guard sampleGeneration == generation else { return }
     timer?.invalidate()
     timer = nil
     guard let media, media.isFileURL, let position, let duration,
-          position.isFinite, duration.isFinite, duration > 0 else { stop(); return }
-    let sample = Sample(generation: generation, media: media, position: min(duration, max(0, position)),
+          position.isFinite, duration.isFinite, duration > 0 else {
+      stop()
+      return
+    }
+    let sample = Sample(generation: sampleGeneration, media: media, position: min(duration, max(0, position)),
                         duration: duration, activity: .stopped, date: Date())
     lastSample = sample
     enqueue(sample)
@@ -157,14 +216,22 @@ final class SharedShowSession {
         current.shouldWrite = false
       }
       current.refreshPeers = refreshPeers
+      if isHosting { current.playlistPaths = player.info.playlist.map(\.filename) }
       sample = current
       lastSample = current
     } else if stopped, let lastSample {
       sample = Sample(generation: lastSample.generation, media: lastSample.media, position: lastSample.position, duration: lastSample.duration,
                       activity: .stopped, date: Date())
+    } else if (isHosting || followingWriter != nil), let previous = lastSample {
+      sample = Sample(generation: generation, media: previous.media, position: previous.position,
+                      duration: previous.duration, activity: .paused, date: Date(), rate: previous.rate,
+                      hosting: isHosting, shouldWrite: isHosting, refreshPeers: refreshPeers,
+                      playlistPaths: previous.playlistPaths,
+                      awaitingNextEpisode: isHosting && !endedByStopCommand)
     } else { return }
     if !sample.shouldWrite && !sample.refreshPeers && followingWriter == nil && sample.date.timeIntervalSince(lastBroadRefresh) < 30 { return }
-    if let membership, membership.root == nil, sample.date < membership.expiresAt { return }
+    if let membership, membership.root == nil, sample.date < membership.expiresAt,
+       !isHosting && followingWriter == nil { return }
     enqueue(sample)
   }
 
@@ -190,7 +257,9 @@ final class SharedShowSession {
     let previousPositions = positions
     let previousBroadRefresh = lastBroadRefresh
     let following = followingWriter
-    let hostParticipant = previousPositions.first { $0.writerID == following }?.participantID
+    let hostParticipant = followingParticipant
+    let followingShow = followingShowID
+    let watchIntent = remoteOpenGeneration
     let (lane, laneKey) = Self.reserveLane(for: cachedMembership?.root ?? sample.media.deletingLastPathComponent())
     lane.addOperation { [weak self] in
       var resolvedRoot: URL?
@@ -201,9 +270,14 @@ final class SharedShowSession {
       var nextMembership = cachedMembership
       var broadRefresh = previousBroadRefresh
       var published = false
+      var hostRecord: SharedShowStore.Progress?
+      var hostQueue: SharedShowStore.QueueRecord?
+      var publishedQueue: SharedShowStore.QueueRecord?
+      var playableTarget: URL?
       do {
         let store: SharedShowStore?
-        if let cached = cachedMembership, sample.date < cached.expiresAt {
+        if let cached = cachedMembership, sample.date < cached.expiresAt,
+           cached.root != nil || (!sample.hosting && following == nil) {
           store = try cached.root.map { try SharedShowStore(root: $0) }
           resolvedID = cached.showID
           resolvedPath = cached.path
@@ -233,7 +307,46 @@ final class SharedShowSession {
             positions.removeAll { $0.writerID == following }
             positions.append(host)
           }
+          if let following, let hostParticipant, followingShow == showID {
+            hostRecord = try store.progress(showID: showID, participantID: hostParticipant,
+                                            writerID: following)
+            if let hostRecord, SharedPlaybackSync.target(for: hostRecord) != nil {
+              hostQueue = try store.queue(showID: showID, participantID: hostParticipant,
+                                          writerID: following)
+              if let hostQueue, hostQueue.current == hostRecord.relativePath,
+                 hostQueue.items.contains(hostRecord.relativePath) {
+                // The current file was already resolved before mpv loaded it.
+                // Rechecking the full transfer catalog on every 2s sync would
+                // turn a cheap host heartbeat into a broad filesystem walk.
+                playableTarget = hostRecord.relativePath == path ? sample.media :
+                  try store.resolvePlayable(path: hostRecord.relativePath, showID: showID)
+              }
+            }
+          }
           if sample.shouldWrite {
+            if sample.hosting {
+              var queueItems: [String] = []
+              var seen: [String: Int] = [:]
+              var queueBytes = 0
+              for filename in sample.playlistPaths where filename.hasPrefix("/") && queueItems.count < 1_023 {
+                guard let relative = store.relativePath(for: URL(fileURLWithPath: filename)),
+                      relative != ".yina.json", relative.split(separator: "/").first != ".yina" else { continue }
+                let key = relative.precomposedStringWithCanonicalMapping.lowercased()
+                guard seen[key] == nil,
+                      queueBytes + relative.utf8.count <= 256 * 1024 - path.utf8.count else { continue }
+                seen[key] = queueItems.count
+                queueItems.append(relative)
+                queueBytes += relative.utf8.count
+              }
+              let currentKey = path.precomposedStringWithCanonicalMapping.lowercased()
+              if let index = seen[currentKey] { queueItems[index] = path }
+              else { queueItems.append(path) }
+              let queue = SharedShowStore.QueueRecord(showID: showID, participantID: participant,
+                writerID: writer, revision: revision, updatedAt: sample.date,
+                items: queueItems, current: sample.awaitingNextEpisode ? nil : path)
+              try store.publishQueue(queue)
+              publishedQueue = queue
+            }
             try store.publish(.init(showID: showID, participantID: participant, writerID: writer,
               revision: revision, updatedAt: sample.date, relativePath: path, position: sample.position,
               duration: sample.duration, activity: sample.activity, playbackRate: sample.rate, watchTogether: sample.hosting))
@@ -245,7 +358,8 @@ final class SharedShowSession {
         nextMembership = Membership(root: nil, showID: nil, path: nil, expiresAt: sample.date.addingTimeInterval(10))
         status = "Shared progress unavailable; playback continues locally"
       }
-      let result = (resolvedRoot, resolvedID, positions, status, resolvedPath, nextMembership, broadRefresh, published)
+      let result = (resolvedRoot, resolvedID, positions, status, resolvedPath, nextMembership,
+                    broadRefresh, published, hostRecord, hostQueue, playableTarget, publishedQueue)
       DispatchQueue.main.async { [weak self] in
         Self.releaseLane(laneKey)
         guard let self else { return }
@@ -260,7 +374,13 @@ final class SharedShowSession {
           self.lastBroadRefresh = result.6
           if result.7 { self.lastPublished = sample }
           self.contextMedia = sample.media
-          self.synchronize()
+          if self.isHosting, let queue = result.11 {
+            self.hostQueueItems = queue.items
+            self.hostQueueCurrent = queue.current
+          }
+          if self.remoteOpenGeneration == watchIntent {
+            self.synchronize(host: result.8, queue: result.9, playableTarget: result.10)
+          }
           self.changed()
           if self.timer != nil { self.scheduleTimer() }
         }
@@ -277,7 +397,7 @@ final class SharedShowSession {
 
   func hostWatchTogether() {
     guard showID != nil else { return }
-    followingWriter = nil
+    clearFollowing()
     isHosting = true
     watchStatus = "Hosting Watch Together · \(writerID.uuidString.prefix(6))"
     scheduleTimer()
@@ -286,20 +406,32 @@ final class SharedShowSession {
   }
 
   func follow(_ record: SharedShowStore.Progress) {
-    guard record.showID == showID, record.relativePath == relativePath,
+    guard record.showID == showID,
           record.writerID != writerID, SharedPlaybackSync.target(for: record) != nil else { return }
+    clearFollowing()
     isHosting = false
     followingWriter = record.writerID
+    followingParticipant = record.participantID
+    followingShowID = record.showID
+    acceptedHostRevision = 0
+    acceptedQueueRevision = 0
+    hostQueueItems = []
+    hostQueueCurrent = nil
+    pendingRemoteTarget = nil
+    pendingRemoteSince = nil
+    remoteOpenGeneration &+= 1
+    remoteOpenFailures = 0
+    remoteOpenFailedPath = nil
+    unavailableAttempts = 0
     watchStatus = "Following host \(record.writerID.uuidString.prefix(6))"
     scheduleTimer()
-    synchronize()
-    checkpoint()
+    checkpoint(refreshPeers: true)
     changed()
   }
 
   func leaveWatchTogether() {
     isHosting = false
-    followingWriter = nil
+    clearFollowing()
     watchStatus = nil
     scheduleTimer()
     checkpoint()
@@ -317,24 +449,115 @@ final class SharedShowSession {
     }
   }
 
-  private func synchronize() {
-    guard let followingWriter, let player, player.info.state.loaded,
-          player.info.currentURL == contextMedia else { return }
-    let host = positions.first(where: { $0.writerID == followingWriter && $0.showID == showID })
-    if let host, host.watchTogether != true || host.activity == .stopped {
-      self.followingWriter = nil
+  /// A local open or playlist edit is an explicit takeover. Remote opens call
+  /// this through PlayerCore while applyingRemote is true.
+  func localMediaChangeRequested() {
+    guard !applyingRemote else { return }
+    if followingWriter != nil { leaveWatchTogether() }
+    else if isHosting { checkpoint() }
+  }
+
+  func playlistChanged() {
+    if isHosting { checkpoint(refreshPeers: false) }
+  }
+
+  private func clearFollowing() {
+    if let pendingRemoteTarget { player?.cancelSharedShowMediaPreparation(for: pendingRemoteTarget) }
+    followingWriter = nil
+    followingParticipant = nil
+    followingShowID = nil
+    remoteMediaIntents.removeAll()
+    pendingRemoteTarget = nil
+    pendingRemoteSince = nil
+    remoteOpenGeneration &+= 1
+    remoteOpenFailures = 0
+    remoteOpenFailedPath = nil
+    acceptedHostRevision = 0
+    acceptedQueueRevision = 0
+    hostQueueItems = []
+    hostQueueCurrent = nil
+    unavailableAttempts = 0
+  }
+
+  private func synchronize(host record: SharedShowStore.Progress?, queue: SharedShowStore.QueueRecord?,
+                           playableTarget: URL?) {
+    guard let followingWriter, let followingParticipant, let followingShowID,
+          let player else { return }
+    guard showID == followingShowID else {
+      watchStatus = "Waiting for the shared show folder"
+      changed()
+      return
+    }
+    guard let record, record.writerID == followingWriter,
+          record.participantID == followingParticipant, record.showID == followingShowID else {
+      watchStatus = "Waiting for the host"
+      changed()
+      return
+    }
+    guard record.revision >= acceptedHostRevision else { return }
+    let age = Date().timeIntervalSince(record.updatedAt)
+    guard age >= 0, age <= SharedPlaybackSync.maximumAge else {
+      watchStatus = "Waiting for a fresh host update"
+      changed()
+      return
+    }
+    if record.revision > acceptedHostRevision { acceptedHostRevision = record.revision }
+    if record.watchTogether != true || record.activity == .stopped {
+      clearFollowing()
       watchStatus = "The host ended Watch Together"
       scheduleTimer()
+      changed()
       return
     }
-    guard let record = host,
-          record.relativePath == relativePath,
-          let target = SharedPlaybackSync.target(for: record),
-          let position = player.info.videoPosition?.second,
-          let duration = player.info.videoDuration?.second else {
-      watchStatus = "Waiting for the host on this episode; playing locally"
+    guard let target = SharedPlaybackSync.target(for: record),
+          let queue, queue.writerID == followingWriter,
+          queue.participantID == followingParticipant, queue.showID == followingShowID,
+          queue.revision >= acceptedQueueRevision else {
+      watchStatus = "Waiting for the host's shared queue"
+      changed()
       return
     }
+    let queueAge = Date().timeIntervalSince(queue.updatedAt)
+    guard queueAge >= 0, queueAge <= 30 else {
+      watchStatus = "Waiting for a fresh shared queue"
+      changed()
+      return
+    }
+    acceptedQueueRevision = queue.revision
+    hostQueueItems = queue.items
+    hostQueueCurrent = queue.current
+    if queue.current == nil {
+      watchStatus = "Waiting for the host's next episode"
+      changed()
+      return
+    }
+    guard queue.current == record.relativePath, queue.items.contains(record.relativePath) else {
+      watchStatus = "Waiting for the host's shared queue"
+      changed()
+      return
+    }
+    if relativePath == record.relativePath && !player.info.state.loaded {
+      watchStatus = "Waiting for the host's next episode"
+      changed()
+      return
+    }
+    guard let playableTarget else {
+      unavailableAttempts = min(3, unavailableAttempts + 1)
+      watchStatus = "Waiting for \(URL(fileURLWithPath: record.relativePath).lastPathComponent) to finish downloading"
+      scheduleTimer()
+      changed()
+      return
+    }
+    unavailableAttempts = 0
+    guard relativePath == record.relativePath, player.info.state.loaded,
+          player.info.currentURL == contextMedia else {
+      openRemoteEpisode(playableTarget, host: record)
+      return
+    }
+    pendingRemoteTarget = nil
+    remoteMediaIntents.remove(playableTarget)
+    guard let position = player.info.videoPosition?.second,
+          let duration = player.info.videoDuration?.second else { return }
     applyingRemote = true
     defer { applyingRemote = false }
     if target.paused && player.info.state != .paused { player.pause() }
@@ -342,7 +565,49 @@ final class SharedShowSession {
     let destination = min(max(0, duration - 0.5), target.position)
     if abs(position - destination) > SharedPlaybackSync.seekTolerance { player.seek(absoluteSecond: destination) }
     if !target.paused && player.info.state == .paused { player.resume() }
-    watchStatus = "Following host \(record.writerID.uuidString.prefix(6))"
+    watchStatus = "Following host \(record.writerID.uuidString.prefix(6)) · \(queue.items.count) queued"
+    changed()
+  }
+
+  private func openRemoteEpisode(_ url: URL, host: SharedShowStore.Progress) {
+    guard let player else { return }
+    let now = ProcessInfo.processInfo.systemUptime
+    if pendingRemoteTarget == url, let since = pendingRemoteSince, now - since < 20 { return }
+    let timedOut = pendingRemoteTarget == url
+    if timedOut { player.cancelSharedShowMediaPreparation(for: url) }
+    if remoteOpenFailedPath != url.path {
+      remoteOpenFailedPath = url.path
+      remoteOpenFailures = 0
+    }
+    if timedOut { remoteOpenFailures += 1 }
+    guard remoteOpenFailures < 3 else {
+      watchStatus = "Could not open host episode \(url.lastPathComponent)"
+      changed()
+      return
+    }
+    pendingRemoteTarget = url
+    pendingRemoteSince = now
+    remoteMediaIntents.insert(url)
+    remoteOpenGeneration &+= 1
+    let openGeneration = remoteOpenGeneration
+    watchStatus = "Opening host episode \(url.lastPathComponent)"
+    changed()
+    applyingRemote = true
+    player.openURLsAsync([url], shouldAutoLoad: false) { [weak self] count in
+      guard let self, self.remoteOpenGeneration == openGeneration,
+            self.followingWriter == host.writerID else { return }
+      if count != 1 {
+        self.remoteMediaIntents.remove(url)
+        self.pendingRemoteTarget = nil
+        self.pendingRemoteSince = nil
+        self.remoteOpenFailures += 1
+        self.unavailableAttempts = min(3, self.unavailableAttempts + 1)
+        self.watchStatus = "Waiting for host episode \(url.lastPathComponent)"
+        self.scheduleTimer()
+        self.changed()
+      }
+    }
+    applyingRemote = false
   }
 
   /// Root selection is explicit. Opening a normal media file never creates a

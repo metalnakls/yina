@@ -48,6 +48,7 @@ class SidebarPlaylistPane: NSView, SidebarPane {
   }()
   var tableView: NSTableView!
   private var totalLengthLabel: NSTextField!
+  private let sharedShowButton = NSPopUpButton(frame: .zero, pullsDown: true)
 
   var horizontalScroll: ((Bool) -> Void)?
 
@@ -110,6 +111,13 @@ class SidebarPlaylistPane: NSView, SidebarPane {
     let buttonStack = ui.hStack(spacing: 8)
     buttonStack.distribution = .gravityAreas
 
+    sharedShowButton.bezelStyle = .rounded
+    sharedShowButton.controlSize = .small
+    sharedShowButton.setAccessibilityLabel("Shared Show")
+    sharedShowButton.menu = NSMenu()
+    sharedShowButton.menu?.delegate = self
+    sharedShowButton.addItem(withTitle: "Shared Show")
+    buttonStack.addView(sharedShowButton, in: .leading)
     buttonStack.addView(totalLengthLabel, in: .center)
     buttonContainer.addSubview(buttonStack)
     buttonStack.padding(.horizontal(.toolbarPaddingHorizontal), .vertical(.toolbarPaddingVertical))
@@ -160,6 +168,7 @@ class SidebarPlaylistPane: NSView, SidebarPane {
     }
     player.observe(.yinaSharedShowChanged) { [weak self] _ in
       guard let self else { return }
+      self.updateSharedShowButton()
       self.showEpisodeIndex(self.indexSnapshot)
       guard Date().timeIntervalSince(self.lastIndexRead) >= 10 else { return }
       self.readEpisodeIndex()
@@ -185,9 +194,21 @@ class SidebarPlaylistPane: NSView, SidebarPane {
   }
 
   private func updateTable() {
+    updateSharedShowButton()
     guard player.info.state.active else { return }
     player.getPlaylist()
     tableView.reloadData()
+  }
+
+  private func updateSharedShowButton() {
+    sharedShowButton.isEnabled = player.sharedShow.isHosting || player.sharedShow.followingWriter != nil ||
+      (player.info.currentURL?.isFileURL == true && player.info.state.loaded)
+    let title = player.sharedShow.isHosting ? "Hosting Together" :
+      player.sharedShow.followingWriter != nil ? "Following Host" : "Shared Show"
+    sharedShowButton.item(at: 0)?.title = title
+    sharedShowButton.toolTip = player.sharedShow.watchStatus ?? player.sharedShow.status ??
+      "Share progress and watch together with people using this show folder."
+    sharedShowButton.setAccessibilityHelp(sharedShowButton.toolTip)
   }
 
   override func viewDidMoveToWindow() {
@@ -440,6 +461,14 @@ extension SidebarPlaylistPane: NSMenuDelegate, NSMenuItemValidation {
   }
 
   func menuNeedsUpdate(_ menu: NSMenu) {
+    if menu === sharedShowButton.menu {
+      let title = sharedShowButton.title
+      menu.removeAllItems()
+      // A pull-down menu's first item is its native button title.
+      menu.addItem(withTitle: title, action: nil, keyEquivalent: "")
+      buildSharedShowMenu(menu)
+      return
+    }
     if menu === indexTable.menu {
       menu.removeAllItems()
       let row = indexTable.clickedRow
@@ -483,51 +512,76 @@ extension SidebarPlaylistPane: NSMenuDelegate, NSMenuItemValidation {
       menu.addItem(.separator())
       let sharing = NSMenuItem(title: "Shared Show", action: nil, keyEquivalent: "")
       let choices = NSMenu()
-      if let watchStatus = player.sharedShow.watchStatus {
-        choices.addItem(withTitle: watchStatus, action: nil, keyEquivalent: "")
-      }
-      if let status = player.sharedShow.status {
-        let item = NSMenuItem(title: status, action: nil, keyEquivalent: "")
-        item.isEnabled = false
-        choices.addItem(item)
-      }
-      if player.sharedShow.showID == nil {
-        let enable = NSMenuItem(title: "Enable for This Show…", action: #selector(enableSharedShow(_:)), keyEquivalent: "")
-        enable.target = self
-        choices.addItem(enable)
-      } else {
-        if player.sharedShow.isHosting || player.sharedShow.followingWriter != nil {
-          let leave = NSMenuItem(title: "Leave Watch Together", action: #selector(leaveWatchTogether(_:)), keyEquivalent: "")
-          leave.target = self
-          choices.addItem(leave)
-        } else {
-          let host = NSMenuItem(title: "Host Watch Together", action: #selector(hostWatchTogether(_:)), keyEquivalent: "")
-          host.target = self
-          choices.addItem(host)
-        }
-        for record in player.sharedShow.positions.filter({
-          $0.relativePath == player.sharedShow.relativePath && SharedPlaybackSync.target(for: $0) != nil
-        }).prefix(12) {
-          let follow = NSMenuItem(title: "Follow Host \(record.writerID.uuidString.prefix(6))", action: #selector(followSharedViewer(_:)), keyEquivalent: "")
-          follow.target = self
-          follow.representedObject = record
-          follow.state = player.sharedShow.followingWriter == record.writerID ? .on : .off
-          choices.addItem(follow)
-        }
-      }
-      for record in player.sharedShow.positions.filter({ $0.relativePath == player.sharedShow.relativePath }).prefix(12) {
-        let viewer = record.participantID == SharedShowSession.participantID ? "This profile" : "Viewer \(record.participantID.uuidString.prefix(6))"
-        let position = VideoTime(record.position).stringRepresentation
-        let date = DateFormatter.localizedString(from: record.updatedAt, dateStyle: .short, timeStyle: .short)
-        let item = NSMenuItem(title: "Resume at \(position) · \(viewer) · \(date)", action: #selector(resumeSharedPosition(_:)), keyEquivalent: "")
-        item.target = self
-        item.representedObject = record
-        choices.addItem(item)
-      }
-      if choices.items.isEmpty { choices.addItem(withTitle: "No saved positions yet", action: nil, keyEquivalent: "") }
+      buildSharedShowMenu(choices)
       sharing.submenu = choices
       menu.addItem(sharing)
     }
+  }
+
+  private func buildSharedShowMenu(_ menu: NSMenu) {
+    menu.autoenablesItems = false
+    if let watchStatus = player.sharedShow.watchStatus {
+      let item = NSMenuItem(title: watchStatus, action: nil, keyEquivalent: "")
+      item.isEnabled = false
+      menu.addItem(item)
+    }
+    if let status = player.sharedShow.status {
+      let item = NSMenuItem(title: status, action: nil, keyEquivalent: "")
+      item.isEnabled = false
+      menu.addItem(item)
+    }
+    let watchingTogether = player.sharedShow.isHosting || player.sharedShow.followingWriter != nil
+    // Leave remains available while the share or current episode is unavailable.
+    if watchingTogether {
+      let leave = NSMenuItem(title: "Leave Watch Together", action: #selector(leaveWatchTogether(_:)), keyEquivalent: "")
+      leave.target = self
+      menu.addItem(leave)
+    }
+    if player.sharedShow.showID == nil {
+      if !watchingTogether {
+        let enable = NSMenuItem(title: "Enable for This Show…", action: #selector(enableSharedShow(_:)), keyEquivalent: "")
+        enable.target = self
+        menu.addItem(enable)
+      }
+    } else {
+      if !watchingTogether {
+        let host = NSMenuItem(title: "Host Watch Together", action: #selector(hostWatchTogether(_:)), keyEquivalent: "")
+        host.target = self
+        menu.addItem(host)
+      }
+      for record in player.sharedShow.positions.filter({
+        SharedPlaybackSync.target(for: $0) != nil
+      }).prefix(12) {
+        let follow = NSMenuItem(title: "Follow \(record.writerID.uuidString.prefix(6)) · \(URL(fileURLWithPath: record.relativePath).lastPathComponent)", action: #selector(followSharedViewer(_:)), keyEquivalent: "")
+        follow.target = self
+        follow.representedObject = record
+        follow.state = player.sharedShow.followingWriter == record.writerID ? .on : .off
+        menu.addItem(follow)
+      }
+    }
+    if !player.sharedShow.hostQueueItems.isEmpty {
+      let queueItem = NSMenuItem(title: "Shared Queue · \(player.sharedShow.hostQueueItems.count) episodes", action: nil, keyEquivalent: "")
+      let queue = NSMenu()
+      queue.autoenablesItems = false
+      for path in player.sharedShow.hostQueueItems {
+        let item = NSMenuItem(title: path, action: nil, keyEquivalent: "")
+        item.state = path == player.sharedShow.hostQueueCurrent ? .on : .off
+        item.isEnabled = false
+        queue.addItem(item)
+      }
+      queueItem.submenu = queue
+      menu.addItem(queueItem)
+    }
+    for record in player.sharedShow.positions.filter({ $0.relativePath == player.sharedShow.relativePath }).prefix(12) {
+      let viewer = record.participantID == SharedShowSession.participantID ? "This profile" : "Viewer \(record.participantID.uuidString.prefix(6))"
+      let position = VideoTime(record.position).stringRepresentation
+      let date = DateFormatter.localizedString(from: record.updatedAt, dateStyle: .short, timeStyle: .short)
+      let item = NSMenuItem(title: "Resume at \(position) · \(viewer) · \(date)", action: #selector(resumeSharedPosition(_:)), keyEquivalent: "")
+      item.target = self
+      item.representedObject = record
+      menu.addItem(item)
+    }
+    if menu.items.isEmpty { menu.addItem(withTitle: "No saved positions yet", action: nil, keyEquivalent: "") }
   }
 
   @objc private func requestIndexedEpisode(_ sender: NSMenuItem) {
