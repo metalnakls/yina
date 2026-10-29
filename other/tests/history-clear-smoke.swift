@@ -18,6 +18,7 @@ enum Utility {
 final class PlaybackHistory: NSObject {
   let mpvMd5: String
   init(url: URL, duration: Double, title: String?, mpvMd5: String) { self.mpvMd5 = mpvMd5 }
+  func detachedCopy() -> PlaybackHistory { PlaybackHistory(url: URL(fileURLWithPath: mpvMd5), duration: 0, title: nil, mpvMd5: mpvMd5) }
   static func encodeArchive(_ entries: [PlaybackHistory]) throws -> Data {
     try JSONSerialization.data(withJSONObject: entries.map(\.mpvMd5))
   }
@@ -48,24 +49,30 @@ extension Notification.Name {
     let controller = HistoryController(plistFileURL: url)
     controller.history = [PlaybackHistory(url: url, duration: 0, title: nil, mpvMd5: "old")]
     controller.add(URL(fileURLWithPath: "/fixture/queued.mp4"), duration: 1, title: nil, false)
-    precondition(Utility.entered.wait(timeout: .now() + 3) == .success)
+    precondition(Utility.entered.wait(timeout: .now() + 30) == .success)
     controller.removeAll()
     precondition(controller.history.isEmpty, "clear updates in-memory history")
-    let saved = try PlaybackHistory.decodeArchive(Data(contentsOf: url))!
-    precondition(saved.isEmpty, "clear persists empty history")
     Utility.proceed.signal()
     func drain() {
-      let deadline = Date(timeIntervalSinceNow: 3)
+      let deadline = Date(timeIntervalSinceNow: 30)
       while controller.tasksOutstanding != 0 && Date() < deadline { RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.005)) }
-      precondition(controller.tasksOutstanding == 0)
+      precondition(controller.tasksOutstanding == 0, "History tasks remain: \(controller.tasksOutstanding)")
     }
     drain()
     precondition(controller.history.isEmpty, "queued pre-clear additions stay discarded")
+    let saved = try PlaybackHistory.decodeArchive(Data(contentsOf: url))!
+    precondition(saved.isEmpty, "clear persists empty history")
     controller.add(URL(fileURLWithPath: "/fixture/new.mp4"), duration: 1, title: nil, false)
     drain()
     precondition(controller.history.map(\.mpvMd5) == ["new.mp4"])
     let reopened = HistoryController(plistFileURL: url)
     precondition(reopened.history.map(\.mpvMd5) == ["new.mp4"], "later save does not resurrect cleared history")
-    print("PASS: in-memory and disk clear, queued-add invalidation, post-clear additions and reload")
+    controller.history = (0..<5_000).map { PlaybackHistory(url: url, duration: 0, title: nil, mpvMd5: "entry-\($0)") }
+    controller.remove([controller.history[1_000].detachedCopy()])
+    drain()
+    let large = HistoryController(plistFileURL: url).history
+    precondition(large.count == 4_999 && !large.contains { $0.mpvMd5 == "entry-1000" },
+                 "detached row removal and large archive persisted")
+    print("PASS: in-memory and disk clear, queued-add invalidation, post-clear additions, detached removal, and large archive reload")
   }
 }

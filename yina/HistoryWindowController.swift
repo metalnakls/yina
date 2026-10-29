@@ -66,6 +66,30 @@ class HistoryWindowController: NSWindowController, NSOutlineViewDelegate, NSOutl
 
   private var historyData: [String: [PlaybackHistory]] = [:]
   private var historyDataKeys: [String] = []
+  private struct RowState {
+    let exists: Bool
+    let progress: VideoTime?
+  }
+  private var rowStates: [ObjectIdentifier: RowState] = [:]
+  private var loadGeneration = 0
+  private let rowQueue: OperationQueue = {
+    let queue = OperationQueue()
+    queue.name = "YINAHistoryRows"
+    queue.qualityOfService = .utility
+    queue.maxConcurrentOperationCount = 2
+    return queue
+  }()
+  private static let shortTimeFormatter = makeTimeFormatter("jmm")
+  private static let longTimeFormatter = makeTimeFormatter("yyMMddjmm")
+
+  private static func makeTimeFormatter(_ template: String) -> DateFormatter {
+    let formatter = DateFormatter()
+    formatter.setLocalizedDateFormatFromTemplate(template)
+    formatter.dateFormat = formatter.dateFormat
+      .replacingOccurrences(of: "(?<!h)h(?!h)", with: "hh", options: .regularExpression)
+      .replacingOccurrences(of: "(?<!H)H(?!H)", with: "HH", options: .regularExpression)
+    return formatter
+  }
 
   init() {
     let window = CommonWindow(
@@ -128,7 +152,6 @@ class HistoryWindowController: NSWindowController, NSOutlineViewDelegate, NSOutl
       return column
     }.forEach { outlineView.addTableColumn($0) }
 
-    prepareData()
     outlineView.delegate = self
     outlineView.dataSource = self
     outlineView.menu = NSMenu()
@@ -136,6 +159,7 @@ class HistoryWindowController: NSWindowController, NSOutlineViewDelegate, NSOutl
     outlineView.target = self
     outlineView.doubleAction = #selector(doubleAction)
     outlineView.expandItem(nil, expandChildren: true)
+    reloadData()
   }
 
   deinit {
@@ -149,11 +173,38 @@ class HistoryWindowController: NSWindowController, NSOutlineViewDelegate, NSOutl
   }
 
   func reloadData() {
-    prepareData()
-    adjustTimeColumnMinWidth()
-    outlineView.reloadData()
-    outlineView.expandItem(nil, expandChildren: true)
-    updateExpandCollapseSegmentState()
+    loadRows()
+  }
+
+  private func loadRows() {
+    loadGeneration += 1
+    let generation = loadGeneration
+    let query = searchToolbarItem?.searchField.stringValue ?? ""
+    let searchBy = searchOption
+    rowQueue.cancelAllOperations()
+    rowQueue.addOperation { [weak self] in
+      let entries = HistoryController.shared.$history.withLock { $0.map { $0.detachedCopy() } }
+      var rows: [PlaybackHistory] = []
+      var states: [ObjectIdentifier: RowState] = [:]
+      for entry in entries {
+        _ = entry.resolvedURL()
+        let text = searchBy == .filename ? entry.name : entry.url.path
+        guard query.isEmpty || text.localizedStandardContains(query) else { continue }
+        let exists = !entry.url.isFileURL || FileManager.default.fileExists(atPath: entry.url.path)
+        let progress = exists ? entry.mpvProgress : nil
+        states[ObjectIdentifier(entry)] = RowState(exists: exists, progress: progress)
+        rows.append(entry)
+      }
+      DispatchQueue.main.async { [weak self] in
+        guard let self, generation == self.loadGeneration else { return }
+        self.rowStates = states
+        self.prepareData(fromHistory: rows)
+        self.adjustTimeColumnMinWidth()
+        self.outlineView.reloadData()
+        self.outlineView.expandItem(nil, expandChildren: true)
+        self.updateExpandCollapseSegmentState()
+      }
+    }
   }
 
   private func updateExpandCollapseSegmentState() {
@@ -201,10 +252,9 @@ class HistoryWindowController: NSWindowController, NSOutlineViewDelegate, NSOutl
     historyData.removeAll()
     historyDataKeys.removeAll()
 
-    let historyList = historyList ?? HistoryController.shared.history
+    let historyList = historyList ?? []
 
     for entry in historyList {
-      _ = entry.resolvedURL()
       addToData(entry, forKey: getKey[groupBy]!(entry))
     }
 
@@ -319,7 +369,8 @@ class HistoryWindowController: NSWindowController, NSOutlineViewDelegate, NSOutl
     if let identifier = tableColumn?.identifier {
       guard let entry = item as? PlaybackHistory else { return nil }
       let isFile = entry.url.isFileURL
-      let fileExists = !isFile || FileManager.default.fileExists(atPath: entry.url.path)
+      let state = rowStates[ObjectIdentifier(entry)]
+      let fileExists = state?.exists ?? !isFile
       switch identifier {
       case .filename:
         let cell = (outlineView.makeView(withIdentifier: .filename, owner: nil) as? HistoryFilenameCellView) ?? HistoryFilenameCellView()
@@ -339,7 +390,7 @@ class HistoryWindowController: NSWindowController, NSOutlineViewDelegate, NSOutl
           cell.textField?.isHidden = false
         }
         if isFile {
-          cell.docImage.image = Utility.icon(for: entry.url)
+          cell.docImage.image = NSWorkspace.shared.icon(forFileType: entry.url.pathExtension)
         } else {
           cell.docImage.image = .sf("network")
         }
@@ -347,7 +398,7 @@ class HistoryWindowController: NSWindowController, NSOutlineViewDelegate, NSOutl
       case .progress:
         // Progress cell
         let cell = (outlineView.makeView(withIdentifier: .progress, owner: nil) as? HistoryProgressCellView) ?? HistoryProgressCellView()
-        if let progress = entry.mpvProgress, let ratio = (progress / entry.duration), ratio.isFinite && fileExists {
+        if let progress = state?.progress, let ratio = (progress / entry.duration), ratio.isFinite && fileExists {
           cell.textField?.stringValue = progress.stringRepresentation
           cell.indicator.isHidden = false
           cell.indicator.doubleValue = min(max(ratio, 0), 1)
@@ -401,36 +452,13 @@ class HistoryWindowController: NSWindowController, NSOutlineViewDelegate, NSOutl
   }
 
   private func getTimeString(from entry: PlaybackHistory) -> String {
-    let formatter = DateFormatter()
-    if groupBy == .lastPlayed {
-      formatter.setLocalizedDateFormatFromTemplate("jmm")
-    } else {
-      formatter.setLocalizedDateFormatFromTemplate("yyMMddjmm")
-    }
-    formatter.dateFormat = formatter.dateFormat
-      .replacingOccurrences(of: "(?<!h)h(?!h)", with: "hh", options: .regularExpression)
-      .replacingOccurrences(of: "(?<!H)H(?!H)", with: "HH", options: .regularExpression)
-    return formatter.string(from: entry.addedDate)
+    return (groupBy == .lastPlayed ? Self.shortTimeFormatter : Self.longTimeFormatter).string(from: entry.addedDate)
   }
 
   // MARK: - Searching
 
   @objc func searchFieldAction(_ sender: NSSearchField) {
-    let searchString = sender.stringValue
-    guard !searchString.isEmpty else {
-      reloadData()
-      return
-    }
-    let newObjects = HistoryController.shared.$history.withLock {
-      $0.filter { entry in
-        let string = searchOption == .filename ? entry.name : entry.url.path
-        // Do a locale-aware, case and diacritic insensitive search:
-        return string.localizedStandardContains(searchString)
-      }
-    }
-    prepareData(fromHistory: newObjects)
-    outlineView.reloadData()
-    outlineView.expandItem(nil, expandChildren: true)
+    loadRows()
   }
 
   // MARK: - Menu
@@ -466,12 +494,12 @@ class HistoryWindowController: NSWindowController, NSOutlineViewDelegate, NSOutl
 
   private var selectedFiles: [URL] {
     if selectedEntries.isEmpty { return [] }
-    return selectedEntries.map { $0.url }.filter { FileManager.default.fileExists(atPath: $0.path) }
+    return selectedEntries.filter { rowStates[ObjectIdentifier($0)]?.exists == true }.map(\.url)
   }
 
   private var selectedPlayableEntries: [URL] {
     if selectedEntries.isEmpty { return [] }
-    return selectedEntries.map { $0.url }.filter { !$0.isFileURL || FileManager.default.fileExists(atPath: $0.path) }
+    return selectedEntries.filter { rowStates[ObjectIdentifier($0)]?.exists == true }.map(\.url)
   }
 
   func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
@@ -551,6 +579,7 @@ class HistoryWindowController: NSWindowController, NSOutlineViewDelegate, NSOutl
     searchOption = sender.tag == MenuItemTagSearchFilename ? .filename : .fullPath
     sender.menu?.items.forEach { $0.state = .off }
     sender.state = .on
+    loadRows()
   }
 
   @objc func expandCollapseAction(_ sender: Any) {

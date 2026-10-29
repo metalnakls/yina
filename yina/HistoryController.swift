@@ -30,6 +30,9 @@ class HistoryController: NSObject {
 
   private let plistURL: URL
   private let queue = DispatchQueue(label: "YINAHistoryController", qos: .background)
+  private let persistenceLock = NSLock()
+  private var saveQueued = false
+  private var saveDirty = false
 
   init(plistFileURL: URL) {
     self.plistURL = plistFileURL
@@ -43,8 +46,7 @@ class HistoryController: NSObject {
     do {
       MemoryUsage.shared.logUsage("before reading history")
       let data = try Data(contentsOf: plistURL)
-      let object = try PlaybackHistory.decodeArchive(data)
-      guard let history = object as? [PlaybackHistory] else {
+      guard let history = try PlaybackHistory.decodeArchive(data) else {
         // Secure coding should ensure that this never occurs.
         log("Unable to convert object read from playback history file to [PlaybackHistory]", level: .error)
         return
@@ -72,18 +74,42 @@ class HistoryController: NSObject {
     }
   }
 
-  private func save() {
-    do {
-      try $history.withLock { history in
-        log("Saving \(history.count) playback history entries")
-        let data = try PlaybackHistory.encodeArchive(history)
-        try data.write(to: plistURL, options: [.atomic])
-        log("Saved \(history.count) playback history entries")
-      }
-      NotificationCenter.default.post(Notification(name: .yinaHistoryUpdated))
-    } catch {
-      log("Failed to save playback history to file \(plistURL.path): \(error)", level: .error)
+  private func requestSave() {
+    let shouldQueue = persistenceLock.withLock { () -> Bool in
+      saveDirty = true
+      if saveQueued { return false }
+      saveQueued = true
+      $tasksOutstanding.withLock { $0 += 1 }
+      return true
     }
+    guard shouldQueue else { return }
+    queue.async { [self] in
+      while true {
+        let shouldSave = persistenceLock.withLock { () -> Bool in
+          if !saveDirty { saveQueued = false; return false }
+          saveDirty = false
+          return true
+        }
+        guard shouldSave else { break }
+        // Entries can refresh their bookmarks while encoding. Neither that nor
+        // archive replacement may run while a UI reader holds the history lock.
+        let snapshot = $history.withLock { $0.map { $0.detachedCopy() } }
+        do {
+          let data = try PlaybackHistory.encodeArchive(snapshot)
+          try data.write(to: plistURL, options: [.atomic])
+          log("Saved \(snapshot.count) playback history entries")
+        } catch {
+          log("Failed to save playback history to file \(plistURL.path): \(error)", level: .error)
+        }
+        NotificationCenter.default.post(Notification(name: .yinaHistoryUpdated))
+      }
+      taskFinished()
+    }
+  }
+
+  private func taskFinished() {
+    $tasksOutstanding.withLock { $0 -= 1 }
+    NotificationCenter.default.post(Notification(name: .yinaHistoryTaskFinished))
   }
 
   /// Add an entry to playback history.
@@ -99,39 +125,33 @@ class HistoryController: NSObject {
     $tasksOutstanding.withLock { $0 += 1 }
     queue.async { [self] in
       let mpvMd5 = Utility.mpvWatchLaterMd5(url, ignorePath)
+      let entry = PlaybackHistory(url: url, duration: duration, title: title, mpvMd5: mpvMd5)
       let added = $history.withLock { history in
         guard generation == historyGeneration else { return false }
         if let existingItem = history.first(where: { $0.mpvMd5 == mpvMd5 }),
            let index = history.firstIndex(of: existingItem) {
           history.remove(at: index)
         }
-        let entry = PlaybackHistory(url: url, duration: duration, title: title, mpvMd5: mpvMd5)
         history.insert(entry, at: 0)
-        log("Adding to history: \(String(describing: entry))", level: .verbose)
         return true
       }
-      if added { save() }
-      $tasksOutstanding.withLock { tasksOutstanding in
-        tasksOutstanding -= 1
-        if tasksOutstanding != 0 {
-          // The history controller must be able to finish saving playback history before YINA
-          // terminates or history will be lost. If termination times out before saving of playback
-          // history has finished then history will be lost. If that happens then the qos of the
-          // history batch queue will need to be raised to allow the history controller to keep up
-          // with requests to save history.
-          log("History tasks outstanding: \(tasksOutstanding)")
-        }
+      if added {
+        log("Adding to history: \(String(describing: entry))", level: .verbose)
+        NotificationCenter.default.post(Notification(name: .yinaHistoryUpdated))
+        requestSave()
       }
-      NotificationCenter.default.post(Notification(name: .yinaHistoryTaskFinished))
+      taskFinished()
     }
   }
 
   func remove(_ entries: [PlaybackHistory]) {
     $history.withLock { history in
       log("Removing \(entries.count) playback history entries")
-      history = history.filter { !entries.contains($0) }
+      let identifiers = Set(entries.map(\.mpvMd5))
+      history.removeAll { identifiers.contains($0.mpvMd5) }
     }
-    save()
+    NotificationCenter.default.post(Notification(name: .yinaHistoryUpdated))
+    requestSave()
   }
 
   func removeAll() {
@@ -140,7 +160,8 @@ class HistoryController: NSObject {
       historyGeneration += 1
       history = []
     }
-    save()
+    NotificationCenter.default.post(Notification(name: .yinaHistoryUpdated))
+    requestSave()
   }
 
   private func log(_ message: @autoclosure () -> String, level: Logger.Level = .debug) {
