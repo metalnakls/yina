@@ -684,6 +684,7 @@ class PlayerCore: NSObject {
     mpv.resetPlaybackObservation()
     subtitleText = ""
     secondarySubtitleText = ""
+    postNotification(.yinaSubtitleTextChanged)
     cachedRemaining = nil
     cachedScaledRemaining = nil
     mediaOpeningStartedAt = CACurrentMediaTime()
@@ -1668,6 +1669,11 @@ class PlayerCore: NSObject {
     }
     guard info.state.active else { return }
     if subtitleDissolve.targetVisibility == visible { return }
+    if mpv.primarySubtitlePresentationSuppressed {
+      subVisibilityChanged(visible)
+      mpv.setAsync(MPVOption.Subtitles.subVisibility, .flag(visible))
+      return
+    }
     if subtitleDissolve.targetVisibility == nil,
        info.isSubVisible == visible {
       subVisibilityChanged(visible)
@@ -1695,6 +1701,7 @@ class PlayerCore: NSObject {
     // Confirm without holding AppKit up on the engine.
     mpv.getPropertiesAsync([MPVOption.Subtitles.subVisibility]) { [weak self] values in
       guard let self, self.subtitleDissolve.targetVisibility == nil,
+            !self.mpv.primarySubtitlePresentationSuppressed,
             self.info.state.active || self.info.state == .idle,
             values[MPVOption.Subtitles.subVisibility] as? Bool == visible else { return }
       self.subVisibilityChanged(visible)
@@ -2382,6 +2389,7 @@ class PlayerCore: NSObject {
     cachedScaledRemaining = nil
     subtitleText = ""
     secondarySubtitleText = ""
+    postNotification(.yinaSubtitleTextChanged)
     lastPairedAudioID = nil
     explicitlySelectedSubtitleID = nil
     pendingAutomaticSubtitleID = nil

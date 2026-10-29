@@ -96,6 +96,37 @@ class MPVController: NSObject {
   var mpvRenderContext: OpaquePointer?
   let asyncClient = MPVAsyncClient()
   private var quitEnqueuePending = false
+  private let subtitlePresentation = SubtitlePresentationState()
+  private var subtitlePresentationGeneration: UInt64 = 0
+
+  var primarySubtitlePresentationSuppressed: Bool {
+    subtitlePresentation.isSuppressed(MPVOption.Subtitles.subVisibility)
+  }
+
+  func setSubtitlePresentationSuppressed(primary: Bool, secondary: Bool,
+                                         completion: @escaping (Bool) -> Void = { _ in }) {
+    assert(Thread.isMainThread)
+    subtitlePresentationGeneration &+= 1
+    let generation = subtitlePresentationGeneration
+    let states = [(MPVOption.Subtitles.subVisibility, primary, player.info.isSubVisible),
+                  (MPVOption.Subtitles.secondarySubVisibility, secondary, player.info.isSecondSubVisible)]
+    let writes = states.map { name, suppressed, desired -> (String, Bool) in
+      _ = subtitlePresentation.update(name, suppressed: suppressed, desired: desired)
+      return (name, suppressed ? false : desired)
+    }
+    var remaining = writes.count
+    var succeeded = true
+    for (name, rendered) in writes {
+      asyncClient.set(name, .flag(rendered)) { [weak self] error in
+        succeeded = succeeded && error >= 0
+        remaining -= 1
+        if remaining == 0 {
+          completion(succeeded && self?.subtitlePresentationGeneration == generation)
+        }
+      }
+    }
+  }
+
 #if !IINA_ENABLE_METAL_RENDERER
   private var openGLContext: CGLContextObj! = nil
 #endif
@@ -961,6 +992,10 @@ class MPVController: NSObject {
   }
 
   func setAsync(_ name: String, _ value: MPVAsyncClient.Value, coalescing: Bool = false) {
+    var value = value
+    if case .flag(let desired) = value {
+      value = .flag(subtitlePresentation.renderedValue(desired, for: name))
+    }
     if coalescing { asyncClient.setLatest(name, value) }
     else { asyncClient.set(name, value) { [weak self] error in
       if error < 0 { self?.log("Async property failed: \(name) (\(error))", level: .warning) }
@@ -982,7 +1017,7 @@ class MPVController: NSObject {
   func setFlag(_ name: String, _ flag: Bool, level: Logger.Level = .debug) {
     previewSettingsChanged(name)
     log("Set property: \(name)=\(flag)", level: level)
-    var data: Int32 = flag ? 1 : 0
+    var data: Int32 = subtitlePresentation.renderedValue(flag, for: name) ? 1 : 0
     mpv_set_property(mpv, name, MPV_FORMAT_FLAG, &data)
   }
 
@@ -1626,6 +1661,7 @@ class MPVController: NSObject {
     case MPVOption.Subtitles.subVisibility:
       if let visible = UnsafePointer<Bool>(OpaquePointer(property.data))?.pointee {
         DispatchQueue.main.async {
+          guard self.subtitlePresentation.acceptsObservation(visible, for: name) else { return }
           self.player.subtitleVisibilityReportedByMPV(visible)
         }
       }
@@ -1633,6 +1669,7 @@ class MPVController: NSObject {
     case MPVOption.Subtitles.secondarySubVisibility:
       if let visible = UnsafePointer<Bool>(OpaquePointer(property.data))?.pointee {
         DispatchQueue.main.async {
+          guard self.subtitlePresentation.acceptsObservation(visible, for: name) else { return }
           self.player.secondSubVisibilityChanged(visible)
         }
       }

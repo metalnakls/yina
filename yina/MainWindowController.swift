@@ -141,6 +141,25 @@ class MainWindowController: PlayerWindowController {
   lazy var liveText = LiveTextController(mainWindow: self)
   lazy var interactiveMode = InteractiveModeController(mainWindow: self)
   var pipStatus = PIPStatus.notInPIP
+  private struct PiPSubtitleSuppression: Equatable {
+    var primary = false
+    var secondary = false
+    var any: Bool { primary || secondary }
+  }
+  private var pipSubtitlePanel: PiPSubtitlePanel?
+  private weak var pipSubtitleHostWindow: NSWindow?
+  private var pipSubtitleObservers: [NSObjectProtocol] = []
+  private var pipSubtitlePreferences: Preference.Observer?
+  private var pipSubtitleDesired = PiPSubtitleSuppression()
+  private var pipSubtitleApplied = PiPSubtitleSuppression()
+  private var pipSubtitleAppliedKnown = true
+  private var pipSubtitleRequestInFlight = false
+  private var pipSubtitleGeneration: UInt64 = 0
+  private var pipSubtitleSessionActive = false
+  private var pipSubtitleRestoreAttempts = 0
+  private var pipSubtitleRestoreRetry: DispatchWorkItem?
+  private var pipSubtitleRestoreRetryID: UInt64 = 0
+  private var pipSubtitleRestoreRetryReady = false
   private var shouldRestoreWindowAfterPIP = true
   /// Whether the window was full screen when PiP was entered, so full screen can be restored to
   /// the same display once PiP closes.
@@ -3128,11 +3147,178 @@ class MainWindowController: PlayerWindowController {
 
 extension MainWindowController: PIPViewControllerDelegate {
 
+  private func startPiPSubtitleSession() {
+    pipSubtitleGeneration &+= 1
+    pipSubtitleSessionActive = true
+    cancelPiPSubtitleRestoreRetry()
+    pipSubtitleRestoreAttempts = 0
+    pipSubtitleHostWindow = nil
+    pipSubtitlePanel?.detach()
+    let names: [Notification.Name] = [
+      .yinaSubtitleTextChanged, .yinaSIDChanged, .yinaSubVisibilityChanged,
+      .yinaFileLoaded, .yinaPlayerStopped, .yinaPlayerShutdown
+    ]
+    for name in names {
+      pipSubtitleObservers.append(NotificationCenter.default.addObserver(forName: name,
+        object: player, queue: .main) { [weak self] _ in self?.refreshPiPSubtitlePanel() })
+    }
+    let preferences = Preference.Observer()
+    preferences.addAll([.subTextFont, .subTextSize, .subScale, .subTextColorString,
+                        .subBorderSize, .subBorderColorString, .subShadowSize,
+                        .subShadowColorString, .subBlur, .subBold, .subItalic,
+                        .subSpacing, .subBorderStyle, .subAlignX, .subMarginX]) { [weak self] _ in
+      DispatchQueue.main.async { self?.refreshPiPSubtitlePanel() }
+    }
+    pipSubtitlePreferences = preferences
+    reconcilePiPSubtitlePresentation()
+  }
+
+  private func stopPiPSubtitleSession() {
+    guard pipSubtitleSessionActive else { return }
+    pipSubtitleSessionActive = false
+    pipSubtitleGeneration &+= 1
+    cancelPiPSubtitleRestoreRetry()
+    pipSubtitleRestoreAttempts = 0
+    pipSubtitleObservers.forEach(NotificationCenter.default.removeObserver)
+    pipSubtitleObservers.removeAll()
+    pipSubtitlePreferences = nil
+    pipSubtitleHostWindow = nil
+    pipSubtitlePanel?.detach()
+    pipSubtitlePanel = nil
+    pipSubtitleDesired = PiPSubtitleSuppression()
+    reconcilePiPSubtitlePresentation()
+  }
+
+  /// Called when the system PiP controller obtains or releases its actual
+  /// host window. PiP can present asynchronously on some macOS versions.
+  func pipHostWindowDidChange(_ window: NSWindow?) {
+    guard pipStatus == .inPIP else { return }
+    pipSubtitleHostWindow = window
+    refreshPiPSubtitlePanel()
+  }
+
+  func pipHostGeometryChanged() {
+    guard pipStatus == .inPIP else { return }
+    refreshPiPSubtitlePanel()
+  }
+
+  private func plainPiPSubtitle(_ track: MPVTrack?) -> Bool {
+    guard let track, !track.isImageSub, let codec = track.codec?.lowercased() else { return false }
+    // Box and blur rendering cannot be reproduced by the external AppKit text
+    // surface without changing the user's chosen appearance.
+    guard (Preference.enum(for: .subBorderStyle) as Preference.SubBorderStyle) == .outlineAndShadow,
+          Preference.float(for: .subBlur) == 0 else { return false }
+    return ["subrip", "srt", "text", "webvtt", "mov_text"].contains(codec)
+  }
+
+  private func refreshPiPSubtitlePanel() {
+    guard pipStatus == .inPIP, player.info.state.loaded,
+          let host = pipSubtitleHostWindow else {
+      pipSubtitlePanel?.detach()
+      pipSubtitleDesired = PiPSubtitleSuppression()
+      reconcilePiPSubtitlePresentation()
+      return
+    }
+    let info = player.info
+    let primary = info.isSubVisible && (info.sid ?? 0) > 0 &&
+      plainPiPSubtitle(info.currentTrack(.sub))
+    let secondary = info.isSecondSubVisible && (info.secondSid ?? 0) > 0 &&
+      plainPiPSubtitle(info.currentTrack(.secondSub))
+    let desired = PiPSubtitleSuppression(primary: primary, secondary: secondary)
+    guard desired.any else {
+      pipSubtitlePanel?.detach()
+      pipSubtitleDesired = PiPSubtitleSuppression()
+      reconcilePiPSubtitlePresentation()
+      return
+    }
+    let panel = pipSubtitlePanel ?? PiPSubtitlePanel()
+    pipSubtitlePanel = panel
+    guard panel.attach(to: host, primaryText: player.subtitleText,
+                       secondaryText: player.secondarySubtitleText,
+                       showPrimary: primary, showSecondary: secondary) else {
+      pipSubtitleDesired = PiPSubtitleSuppression()
+      reconcilePiPSubtitlePresentation()
+      return
+    }
+    pipSubtitleDesired = desired
+    if !pipSubtitleRequestInFlight && pipSubtitleAppliedKnown && pipSubtitleApplied == desired { panel.reveal() }
+    else { panel.conceal() }
+    reconcilePiPSubtitlePresentation()
+  }
+
+  private func reconcilePiPSubtitlePresentation() {
+    guard !pipSubtitleRequestInFlight else { return }
+    if pipSubtitleRestoreRetry != nil {
+      if pipSubtitleDesired.any {
+        cancelPiPSubtitleRestoreRetry()
+        pipSubtitleRestoreAttempts = 0
+      } else { return }
+    }
+    if !pipSubtitleDesired.any && !pipSubtitleAppliedKnown &&
+       pipSubtitleRestoreAttempts >= 3 && !pipSubtitleRestoreRetryReady { return }
+    guard !pipSubtitleAppliedKnown || pipSubtitleDesired != pipSubtitleApplied else {
+      if pipSubtitleDesired.any { pipSubtitlePanel?.reveal() }
+      return
+    }
+    pipSubtitleRequestInFlight = true
+    pipSubtitleRestoreRetryReady = false
+    let requested = pipSubtitleDesired
+    let generation = pipSubtitleGeneration
+    player.mpv.setSubtitlePresentationSuppressed(primary: requested.primary,
+                                                  secondary: requested.secondary) { [weak self] success in
+      guard let self else { return }
+      self.pipSubtitleRequestInFlight = false
+      self.pipSubtitleApplied = requested
+      self.pipSubtitleAppliedKnown = success
+      if !success && generation == self.pipSubtitleGeneration && requested.any {
+        self.pipSubtitleDesired = PiPSubtitleSuppression()
+        self.pipSubtitlePanel?.detach()
+      }
+      if !success && !requested.any && !self.pipSubtitleDesired.any {
+        self.schedulePiPSubtitleRestoreRetry()
+      } else if !self.pipSubtitleAppliedKnown || self.pipSubtitleDesired != self.pipSubtitleApplied {
+        self.reconcilePiPSubtitlePresentation()
+      } else if success && requested.any {
+        // A confirmed write can serve a new PiP session with the same desired
+        // visibility after rapid close/reopen; its host panel is the current one.
+        self.pipSubtitlePanel?.reveal()
+      }
+    }
+  }
+
+  private func cancelPiPSubtitleRestoreRetry() {
+    pipSubtitleRestoreRetry?.cancel()
+    pipSubtitleRestoreRetry = nil
+    pipSubtitleRestoreRetryID &+= 1
+    pipSubtitleRestoreRetryReady = false
+  }
+
+  private func schedulePiPSubtitleRestoreRetry() {
+    guard pipSubtitleRestoreAttempts < 3, pipSubtitleRestoreRetry == nil else { return }
+    let delays: [TimeInterval] = [0.1, 0.3, 0.9]
+    let delay = delays[pipSubtitleRestoreAttempts]
+    pipSubtitleRestoreAttempts += 1
+    pipSubtitleRestoreRetryID &+= 1
+    let retryID = pipSubtitleRestoreRetryID
+    let generation = pipSubtitleGeneration
+    let work = DispatchWorkItem { [weak self] in
+      guard let self, self.pipSubtitleRestoreRetryID == retryID else { return }
+      self.pipSubtitleRestoreRetry = nil
+      guard self.pipSubtitleGeneration == generation, !self.pipSubtitleDesired.any else { return }
+      self.pipSubtitleRestoreRetryReady = true
+      self.reconcilePiPSubtitlePresentation()
+    }
+    pipSubtitleRestoreRetry = work
+    DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
+  }
+
   func enterPIP() {
     guard pipStatus == .notInPIP else { return }
     if case .animating = fsState { return }
     shouldRestoreWindowAfterPIP = true
     pipStatus = .inPIP
+    player.finishSubtitleDissolve()
+    startPiPSubtitleSession()
     liveText.clearAnalysis()
     showUI()
 
@@ -3198,6 +3384,7 @@ extension MainWindowController: PIPViewControllerDelegate {
   }
 
   func doneExitingPIP() {
+    stopPiPSubtitleSession()
     let isRestoringWindow = shouldRestoreWindowAfterPIP
     if isRestoringWindow {
       if isWindowHidden {
@@ -3234,9 +3421,10 @@ extension MainWindowController: PIPViewControllerDelegate {
 
   func prepareForPIPClosure(_ pip: PIPViewController, restoringWindow: Bool) {
     guard pipStatus == .inPIP else { return }
-    guard let window else { return }
     // This is called right before we're about to close the PIP
     pipStatus = .intermediate
+    stopPiPSubtitleSession()
+    guard let window else { return }
 
     // Hide the overlay view preemptively, to prevent any issues where it does
     // not hide in time and ends up covering the video view (which will be added
