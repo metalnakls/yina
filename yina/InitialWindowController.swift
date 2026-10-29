@@ -76,6 +76,7 @@ class InitialWindowController: NSWindowController {
   private var shelfWindow: NSWindow?
   private var mainViewHeightConstraint: NSLayoutConstraint?
   private var recentScrollOffset: CGFloat = 0
+  private var recentContentHeight: CGFloat?
   private var recentResizePending = false
   private var recentLayoutRevision = 0
   private var showFolders: [ShowFolder] = []
@@ -268,7 +269,7 @@ class InitialWindowController: NSWindowController {
       self.showFolderShelf.setKeyboardSelectedCard(identityPath: selection == nil ? self.showFolders.first?.identityPath : nil)
     }
     recentListModel.dismiss = { [weak self] id in self?.dismissRecent(id) }
-    recentListModel.scrolled = { [weak self] offset in self?.recentListDidScroll(offset) }
+    recentListModel.scrolled = { [weak self] geometry in self?.recentListDidScroll(geometry) }
     let recentListHost = NSHostingView(rootView: WelcomeRecentsView(model: recentListModel))
     recentListHost.safeAreaRegions = []
     recentListHost.translatesAutoresizingMaskIntoConstraints = false
@@ -894,9 +895,10 @@ class InitialWindowController: NSWindowController {
     resizeRecentWindow(preserveTop: preserveTop)
   }
 
-  private func recentListDidScroll(_ offset: CGFloat) {
-    guard offset.isFinite else { return }
-    recentScrollOffset = max(0, offset)
+  private func recentListDidScroll(_ geometry: WelcomeRecentScrollGeometry) {
+    guard geometry.isValid else { return }
+    recentScrollOffset = max(0, geometry.offset)
+    recentContentHeight = geometry.contentHeight
     guard window?.isVisible == true, !recentResizePending else { return }
     recentResizePending = true
     let revision = recentLayoutRevision
@@ -910,8 +912,11 @@ class InitialWindowController: NSWindowController {
 
   private func resizeRecentWindow(preserveTop: Bool) {
     guard let window else { return }
-    // Follow the remaining initial viewport, not the entire scroll document.
-    let height = max(recentMinimumHeight, recentStartingHeight - recentScrollOffset)
+    // Shrink only when the full remaining document fits below the current scroll position.
+    let height = recentContentHeight.map {
+      WelcomeRecentScrollGeometry(offset: recentScrollOffset, contentHeight: $0)
+        .windowHeight(minimum: recentMinimumHeight, maximum: Self.maximumRecentWindowHeight)
+    } ?? recentStartingHeight
     guard height.isFinite, abs((window.contentView?.frame.height ?? 0) - height) > 0.5 else { return }
     let top = window.frame.maxY
     mainViewHeightConstraint?.constant = height
@@ -1037,6 +1042,17 @@ private enum WelcomeRecentDismissals {
   }
 }
 
+private struct WelcomeRecentScrollGeometry: Equatable {
+  let offset: CGFloat
+  let contentHeight: CGFloat
+
+  var isValid: Bool { offset.isFinite && contentHeight.isFinite && contentHeight > 0 }
+
+  func windowHeight(minimum: CGFloat, maximum: CGFloat) -> CGFloat {
+    min(maximum, max(minimum, contentHeight - max(0, offset)))
+  }
+}
+
 private struct WelcomeRecentItem: Identifiable {
   let id: String
   let title: String
@@ -1054,7 +1070,7 @@ private final class WelcomeRecentsModel: ObservableObject {
   @Published var resetID = 0
   var open: ((String) -> Void)?
   var dismiss: ((String) -> Void)?
-  var scrolled: ((CGFloat) -> Void)?
+  var scrolled: ((WelcomeRecentScrollGeometry) -> Void)?
   var selectionChanged: ((String?) -> Void)?
 }
 
@@ -1101,11 +1117,12 @@ private struct WelcomeRecentsView: View {
       .safeAreaBar(edge: .top, spacing: 0) {
         Color.clear.frame(height: model.coveredTop).allowsHitTesting(false)
       }
-      .onScrollGeometryChange(for: CGFloat.self) { geometry in
-        let offset = geometry.contentOffset.y + geometry.contentInsets.top
-        return offset.isFinite ? offset : 0
-      } action: { _, offset in
-        model.scrolled?(offset)
+      .onScrollGeometryChange(for: WelcomeRecentScrollGeometry.self) { geometry in
+        WelcomeRecentScrollGeometry(
+          offset: geometry.contentOffset.y + geometry.contentInsets.top,
+          contentHeight: geometry.contentSize.height + geometry.contentInsets.top + geometry.contentInsets.bottom)
+      } action: { _, geometry in
+        model.scrolled?(geometry)
       }
       .onChange(of: model.revealID) { _, id in
         if let id { scroll.scrollTo(id) }

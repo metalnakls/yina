@@ -49,7 +49,8 @@ Use these steps for AppKit and SwiftUI interface changes.
 
 - The welcome List's native scroll geometry may resize the bottom of its window.
   Keep its top anchored, retain the four-row minimum, and subtract scroll offset
-  from the capped starting viewport height. Preserve offset on data refresh.
+  from the full measured scroll content, including its content insets, before
+  applying the maximum window height. Preserve offset on data refresh.
   Native List scrolling, momentum and rubberbanding remain the sole scroll path.
   This approved window sizing is not permission for custom scrolling or blur.
 
@@ -65,11 +66,6 @@ Use these steps for AppKit and SwiftUI interface changes.
   update only height when metrics change. AppKit owns the remaining dimension.
   Verify native blur and actual portrait playback together.
 
-- The welcome window uses native content-fit sizing based on recent-row count,
-  with a four-row minimum and the existing maximum height. It does not resize
-  from scroll offsets or alter native scroll gestures or range. Revisit
-  scroll-follow sizing only with a documented native implementation; if native
-  support is unavailable or uncertain, ask the user before custom behavior.
 - HDR may tint the native slider-thumb silhouette. Preserve the system thumb
   shape; do not replace it with a custom shape.
 
