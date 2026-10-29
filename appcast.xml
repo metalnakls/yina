@@ -3,9 +3,9 @@
   <channel>
     <title>yina</title>
     <item>
-      <title>yina 2.1</title>
+      <title>yina 2.36</title>
       <sparkle:minimumSystemVersion>27.0</sparkle:minimumSystemVersion>
-      <enclosure url="https://github.com/metalnakls/yina/releases/download/v2.1/yina.zip" sparkle:version="2.1" sparkle:shortVersionString="2.1" sparkle:edSignature="zHH2UsAo8t3NGfA6Zy/dqp8SqjY1vsJnUTIbCK3Y2gCTb+dJh3F39lNbfWgB7Tj2npwqxYMgEBUQSJQPB120AQ==" length="72781397" type="application/octet-stream"/>
+      <enclosure url="https://github.com/metalnakls/yina/releases/download/v2.36/yina.zip" sparkle:version="2.36" sparkle:shortVersionString="2.36" sparkle:edSignature="2mVgxCpMsIi7Ah+3bPG1mjujuRQG65N0OzM+N+7wDNptNBBZDegcv1jJpkr4cLWvC8XhvbyZNNbtu0+dN2HfBw==" length="72963070" type="application/octet-stream"/>
     </item>
   </channel>
 </rss>
