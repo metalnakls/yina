@@ -21,6 +21,12 @@ class SidebarAudioPane: SidebarScrollView {
 
     let stack = ui.vStack(spacing: .sidebarStackViewSpacing)
 
+    stack.addArrangedSubview(ui.hStack(
+      spacing: .sidebarItemSpacing,
+      ui.label("sidebar.audio", font: .boldSystemFont(ofSize: 12)),
+      ui.flexibleSpace(),
+      TrackEnableSwitch(.audio, player: player, observedKey: .yinaAIDChanged)
+    ))
     stack.addArrangedSubview(Container(TrackSelector(
       .audio,
       player: player,

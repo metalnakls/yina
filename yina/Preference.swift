@@ -1242,7 +1242,7 @@ struct Preference {
     .subMarginX: Float(25),
     .subMarginY: Float(22),
     .subVisibility: true,
-    .secondarySubVisibility: true,
+    .secondarySubVisibility: false,
     .subScale: Float(1),
     .subPos: Float(100),
     .secondarySubPos: Float(0),

@@ -1492,6 +1492,16 @@ class PlayerCore: NSObject {
   }
 
   func setTrack(_ index: Int, forType: MPVTrack.TrackType, automatic: Bool = false) {
+    guard index >= 0 else { return }
+    if forType == .secondSub {
+      guard index == 0 || (info.subTracks.contains { $0.id == index } &&
+                          TrackSelectionPolicy.canSelectSubtitle(index, otherSelected: info.sid)) else { return }
+      // A selected secondary track should be visible immediately; off is a
+      // real selection state, including when no subtitle track remains.
+      if !automatic { toggleSecondSubVisibility(index > 0) }
+    } else if forType == .sub, index > 0, index == info.secondSid {
+      setTrack(0, forType: .secondSub, automatic: true)
+    }
     if forType == .sub {
       if automatic { pendingAutomaticSubtitleID = index }
       else { rememberSubtitleSelection(index) }
@@ -2813,6 +2823,14 @@ class PlayerCore: NSObject {
   func secondarySidChanged(_ selectedID: Int) {
     finishSubtitleDissolve()
     guard info.state.active else { return }
+    if selectedID > 0 && (!Preference.bool(for: .secondarySubVisibility) ||
+                          !TrackSelectionPolicy.canSelectSubtitle(selectedID, otherSelected: info.sid) ||
+                          (info.state.loaded && !info.subTracks.contains { $0.id == selectedID })) {
+      mpv.setAsync(MPVOption.Subtitles.secondarySid, .integer(0))
+      info.secondSid = 0
+      postNotification(.yinaSIDChanged)
+      return
+    }
     info.secondSid = selectedID
     postNotification(.yinaSIDChanged)
     sendOSD(.track(info.currentTrack(.secondSub) ?? .noneSubTrack))
@@ -2836,6 +2854,10 @@ class PlayerCore: NSObject {
     guard info.state.active else { return }
     let previous = info.sid
     info.sid = selectedID
+    if selectedID > 0 && selectedID == info.secondSid {
+      setTrack(0, forType: .secondSub, automatic: true)
+      info.secondSid = 0
+    }
     if pendingAutomaticSubtitleID == info.sid {
       pendingAutomaticSubtitleID = nil
     } else if pendingAutomaticSubtitleID == nil, previous != info.sid,
@@ -2899,6 +2921,15 @@ class PlayerCore: NSObject {
     log("Track list changed")
     getTrackInfo()
     getSelectedTracks()
+    // File load and later track-list changes share this guard: a secondary
+    // stream is opt-in, must still exist, and must differ from the primary.
+    if (info.secondSid ?? 0) > 0,
+       (!Preference.bool(for: .secondarySubVisibility) ||
+        TrackSelectionPolicy.validSecondaryID(info.secondSid, primary: info.sid,
+          available: Set(info.subTracks.map(\.id))) == 0) {
+      setTrack(0, forType: .secondSub, automatic: true)
+      info.secondSid = 0
+    }
     guard info.isAudio != .isAudio else { stop(); return }
     pairSubtitlesWithAudio()
 

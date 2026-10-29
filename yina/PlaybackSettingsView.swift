@@ -32,6 +32,7 @@ struct PlaybackSettingsSnapshot: Equatable {
   var videoID = 0
   var audioID = 0
   var subtitleID = 0
+  var secondarySubtitleID = 0
   var subtitleStyle = 0
   var subtitleOverride = 0
   var subtitleVisible = true
@@ -220,11 +221,12 @@ struct PlaybackSettingsView: View {
       HStack {
         Label("Subtitles", systemImage: "captions.bubble").font(.headline)
         Spacer()
-        Toggle("Show subtitles", isOn: Binding(get: { model.snapshot.subtitleVisible }, set: {
+        Toggle("Show subtitles", isOn: Binding(get: { model.snapshot.subtitleID > 0 && model.snapshot.subtitleVisible }, set: {
           model.snapshot.subtitleVisible = $0
           model.perform(.subtitleVisibility($0))
         }))
         .toggleStyle(.switch).labelsHidden().fixedSize()
+        .disabled(!model.snapshot.hasMedia || model.snapshot.subtitleID == 0)
         Menu { subtitleMenu } label: { Image(systemName: "ellipsis") }
           .menuStyle(.borderlessButton).fixedSize()
           .accessibilityLabel("Subtitle options")
@@ -278,9 +280,13 @@ struct PlaybackSettingsView: View {
   }
 
   @ViewBuilder private var videoMenu: some View {
-    if model.snapshot.videoTracks.count > 1 {
-      trackPicker("Video track", tracks: model.snapshot.videoTracks, selected: model.snapshot.videoID, kind: .video)
-    }
+    Toggle("Video", isOn: Binding(get: {
+      model.snapshot.videoTracks.contains { $0.id == model.snapshot.videoID }
+    }, set: { enabled in
+      model.perform(.track(.video, enabled ? (model.snapshot.videoTracks.first?.id ?? 0) : 0))
+    }))
+    .disabled(!model.snapshot.hasMedia || model.snapshot.videoTracks.isEmpty)
+    trackPicker("Video track", tracks: model.snapshot.videoTracks, selected: model.snapshot.videoID, kind: .video)
     Menu("Crop") {
       Button("None") { model.perform(.crop("")) }
       ForEach(["16:9", "4:3", "1:1", "2.35:1"], id: \.self) { ratio in
@@ -290,6 +296,12 @@ struct PlaybackSettingsView: View {
   }
 
   @ViewBuilder private var audioMenu: some View {
+    Toggle("Audio", isOn: Binding(get: {
+      model.snapshot.audioTracks.contains { $0.id == model.snapshot.audioID }
+    }, set: { enabled in
+      model.perform(.track(.audio, enabled ? (model.snapshot.audioTracks.first?.id ?? 0) : 0))
+    }))
+    .disabled(!model.snapshot.hasMedia || model.snapshot.audioTracks.isEmpty)
     trackPicker("Audio track", tracks: model.snapshot.audioTracks, selected: model.snapshot.audioID, kind: .audio)
     Picker("Output", selection: Binding(get: { model.snapshot.audioDevice }, set: {
       model.snapshot.audioDevice = $0
@@ -315,9 +327,16 @@ struct PlaybackSettingsView: View {
 
   private func trackPicker(_ title: String, tracks: [PlaybackSettingsChoice], selected: Int,
                            kind: PlaybackSettingsTrackKind) -> some View {
-    Picker(title, selection: Binding(get: { selected }, set: { model.perform(.track(kind, $0)) })) {
-      if kind != .video { Text("None").tag(0) }
-      ForEach(tracks) { Text($0.title).tag($0.id) }
+    Menu(title) {
+      ForEach(tracks) { track in
+        Button {
+          model.perform(.track(kind, track.id))
+        } label: {
+          if track.id == selected { Label(track.title, systemImage: "checkmark") }
+          else { Text(track.title) }
+        }
+        .disabled(kind == .subtitles && track.id == model.snapshot.secondarySubtitleID)
+      }
     }
     .disabled(!model.snapshot.hasMedia || tracks.isEmpty)
   }

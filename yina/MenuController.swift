@@ -591,15 +591,40 @@ class MenuController: NSObject, NSMenuDelegate {
   private func updateTracks(forMenu menu: NSMenu, type: MPVTrack.TrackType) {
     let info = PlayerCore.active.info
     menu.removeAllItems()
-    let noTrackMenuItem = NSMenuItem(title: Constants.String.trackNone, action: #selector(MainMenuActionHandler.menuChangeTrack(_:)), keyEquivalent: "")
-    noTrackMenuItem.representedObject = MPVTrack.emptyTrack(for: type)
-    if info.trackId(type) == 0 {  // no track
-      noTrackMenuItem.state = .on
+    let tracks = info.trackList(type)
+    let titleKey: String
+    let isOn: Bool
+    let canEnable: Bool
+    switch type {
+    case .audio:
+      titleKey = "menu.track.enable_audio"
+      isOn = (info.aid ?? 0) > 0
+      canEnable = !tracks.isEmpty
+    case .video:
+      titleKey = "menu.track.enable_video"
+      isOn = (info.vid ?? 0) > 0
+      canEnable = !tracks.isEmpty
+    case .sub:
+      titleKey = "menu.track.enable_subtitles"
+      isOn = (info.sid ?? 0) > 0 && info.isSubVisible
+      canEnable = TrackSelectionPolicy.firstAvailableSubtitleID(tracks.map(\.id),
+                                                                otherSelected: info.secondSid) != nil
+    case .secondSub:
+      titleKey = "menu.track.enable_secondary_subtitles"
+      isOn = (info.secondSid ?? 0) > 0 && info.isSecondSubVisible
+      canEnable = TrackSelectionPolicy.firstAvailableSubtitleID(tracks.map(\.id),
+                                                                otherSelected: info.sid) != nil
     }
-    menu.addItem(noTrackMenuItem)
-    for track in info.trackList(type) {
-      menu.addItem(withTitle: track.readableTitle, action: #selector(MainMenuActionHandler.menuChangeTrack(_:)),
-                             tag: nil, obj: (track, type), stateOn: track.id == info.trackId(type))
+    menu.addItem(withTitle: NSLocalizedString(titleKey, comment: "Track visibility"),
+                 action: #selector(MainMenuActionHandler.menuToggleTrack(_:)),
+                 obj: type, stateOn: isOn, enabled: canEnable)
+    menu.addItem(.separator())
+    for track in tracks {
+      let conflict = (type == .secondSub && track.id == info.sid) ||
+                     (type == .sub && track.id == info.secondSid)
+      menu.addItem(withTitle: track.readableTitle,
+                   action: #selector(MainMenuActionHandler.menuChangeTrack(_:)),
+                   obj: (track, type), stateOn: track.id == info.trackId(type), enabled: !conflict)
     }
   }
 

@@ -123,6 +123,7 @@ final class PlaybackSettingsWindowController: NSWindowController, NSWindowDelega
     snapshot.videoID = info.vid ?? 0
     snapshot.audioID = info.aid ?? 0
     snapshot.subtitleID = info.sid ?? 0
+    snapshot.secondarySubtitleID = info.secondSid ?? 0
     snapshot.subtitleStyle = Preference.integer(for: .subStyle)
     snapshot.subtitleOverride = Preference.integer(for: .subOverrideLevel)
     snapshot.subtitleVisible = info.isSubVisible

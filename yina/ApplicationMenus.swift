@@ -367,12 +367,10 @@ final class ApplicationMenus {
           .item("Cycle Subtitles", binding: "cycleSubtitles", modifiers: [], tag: 2),
           .item("Subtitle", modifiers: [], submenu:
             .menu("Subtitle", binding: "subTrackMenu", items: [
-              .item("<None>", modifiers: [], action: "orderFrontFontPanel:", target: .fontManager),
             ])),
           .item("Hide Subtitles", binding: "hideSubtitles", modifiers: []),
           .item("Secondary Subtitle", modifiers: [], submenu:
             .menu("Secondary Subtitle", binding: "secondSubTrackMenu", items: [
-              .item("<None>", modifiers: [], action: "orderFrontFontPanel:", target: .fontManager),
             ])),
           .item("Hide Secondary Subtitles", binding: "hideSecondSubtitles", modifiers: []),
           .item("Load External Subtitle…", binding: "loadExternalSub", modifiers: []),

@@ -22,6 +22,12 @@ class SidebarVideoPane: SidebarScrollView {
 
     let stack = ui.vStack(spacing: .sidebarStackViewSpacing)
 
+    stack.addArrangedSubview(ui.hStack(
+      spacing: .sidebarItemSpacing,
+      ui.label("sidebar.video", font: .boldSystemFont(ofSize: 12)),
+      ui.flexibleSpace(),
+      TrackEnableSwitch(.video, player: player, observedKey: .yinaVIDChanged)
+    ))
     stack.addArrangedSubview(Container(TrackSelector(
       .video,
       player: player,

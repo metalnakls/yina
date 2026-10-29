@@ -49,7 +49,7 @@ class TrackSelector: NSScrollView, NSTableViewDelegate, NSTableViewDataSource {
   }
   
   func numberOfRows(in tableView: NSTableView) -> Int {
-    return player.info.trackList(trackType).count + 1
+    return player.info.trackList(trackType).count
   }
 
   func tableView(_ tableView: NSTableView, heightOfRow row: Int) -> CGFloat {
@@ -58,9 +58,8 @@ class TrackSelector: NSScrollView, NSTableViewDelegate, NSTableViewDataSource {
 
   func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
     let trackList = player.info.trackList(trackType)
-    guard let column = tableColumn, row <= trackList.count else { return nil }
+    guard let column = tableColumn, let track = trackList[at: row] else { return nil }
 
-    let track = row == 0 ? nil : trackList[at: row - 1]
     let selectedTrack = player.info.currentTrack(trackType)
 
     let columnID = column.identifier
@@ -72,14 +71,14 @@ class TrackSelector: NSScrollView, NSTableViewDelegate, NSTableViewDataSource {
       return cell
     }()
     let isChosen = track == selectedTrack
-    let conflictsWithOtherSubtitle = track.map(conflictsWithOtherSubtitleSelection) ?? false
+    let conflictsWithOtherSubtitle = conflictsWithOtherSubtitleSelection(track)
     cell.alphaValue = conflictsWithOtherSubtitle ? 0.5 : 1
     switch columnID {
     case .trackName:
-      cell.textField?.textColor = row == 0 ? .secondaryLabelColor : .labelColor
-      cell.textField?.stringValue = track?.readableString(includingLanguage: false) ?? Constants.String.trackNone
+      cell.textField?.textColor = .labelColor
+      cell.textField?.stringValue = track.readableString(includingLanguage: false)
       cell.selectedIndicator.isHidden = !isChosen
-      cell.setLanguage(track?.readableLanguage)
+      cell.setLanguage(track.readableLanguage)
     default:
       break
     }
@@ -87,19 +86,14 @@ class TrackSelector: NSScrollView, NSTableViewDelegate, NSTableViewDataSource {
   }
 
   func tableView(_ tableView: NSTableView, shouldSelectRow row: Int) -> Bool {
-    guard row > 0,
-          let track = player.info.trackList(trackType)[at: row - 1] else { return true }
+    guard let track = player.info.trackList(trackType)[at: row] else { return false }
     return !conflictsWithOtherSubtitleSelection(track)
   }
 
   func tableViewSelectionDidChange(_ notification: Notification) {
     guard tableView.numberOfSelectedRows > 0 else { return }
-    let trackId = if tableView.selectedRow > 0 {
-      player.info.trackList(trackType)[tableView.selectedRow-1].id
-    } else {
-      0
-    }
-    player.setTrack(trackId, forType: trackType)
+    guard let track = player.info.trackList(trackType)[at: tableView.selectedRow] else { return }
+    player.setTrack(track.id, forType: trackType)
     tableView.deselectAll(nil)
   }
 
@@ -113,7 +107,8 @@ class TrackSelector: NSScrollView, NSTableViewDelegate, NSTableViewDataSource {
     case .audio, .video:
       return false
     }
-    return player.info.currentTrack(otherType)?.id == track.id
+    return !TrackSelectionPolicy.canSelectSubtitle(track.id,
+                                                   otherSelected: player.info.currentTrack(otherType)?.id)
   }
 
   private func makeCell(identifier: NSUserInterfaceItemIdentifier, columnID: NSUserInterfaceItemIdentifier) -> CellView {
@@ -176,6 +171,51 @@ class TrackSelector: NSScrollView, NSTableViewDelegate, NSTableViewDataSource {
       fatalError("init(coder:) has not been implemented")
     }
   }
+}
+
+/// Native on/off control for audio and video. Turning a track back on restores
+/// the last selection for this file when it still exists.
+class TrackEnableSwitch: NSSwitch {
+  private unowned let player: PlayerCore
+  private let trackType: MPVTrack.TrackType
+  private var lastActiveTrackID: Int?
+
+  init(_ trackType: MPVTrack.TrackType, player: PlayerCore, observedKey: Notification.Name) {
+    self.player = player
+    self.trackType = trackType
+    super.init(frame: .zero)
+    controlSize = .mini
+    target = self
+    action = #selector(changeTrack(_:))
+    setAccessibilityLabel(NSLocalizedString(trackType == .audio ? "sidebar.audio" : "sidebar.video", comment: "Track on or off"))
+    update()
+    player.observe(observedKey) { [weak self] _ in self?.update() }
+    player.observe(.yinaTracklistChanged) { [weak self] _ in self?.update() }
+    player.observe(.yinaFileLoaded) { [weak self] _ in
+      self?.lastActiveTrackID = nil
+      self?.update()
+    }
+  }
+
+  private func update() {
+    let tracks = player.info.trackList(trackType)
+    let selected = player.info.trackId(trackType) ?? 0
+    if selected > 0 { lastActiveTrackID = selected }
+    isEnabled = !tracks.isEmpty
+    state = selected > 0 && tracks.contains { $0.id == selected } ? .on : .off
+  }
+
+  @objc private func changeTrack(_ sender: NSSwitch) {
+    guard isEnabled else { return }
+    if sender.state == .off { player.setTrack(0, forType: trackType) }
+    else {
+      let tracks = player.info.trackList(trackType)
+      let selected = tracks.first { $0.id == lastActiveTrackID } ?? tracks.first
+      if let selected { player.setTrack(selected.id, forType: trackType) }
+    }
+  }
+
+  required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 }
 
 class ColoredView: NSView {

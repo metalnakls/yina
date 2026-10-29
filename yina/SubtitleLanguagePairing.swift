@@ -32,3 +32,20 @@ enum SubtitleLanguagePairing {
     }.first?.id
   }
 }
+
+/// Track IDs are file-local. Keep selection rules independent of AppKit and mpv
+/// so menus, sidebars, and the playback core agree on subtitle uniqueness.
+enum TrackSelectionPolicy {
+  static func firstAvailableSubtitleID(_ ids: [Int], otherSelected: Int?) -> Int? {
+    ids.first { canSelectSubtitle($0, otherSelected: otherSelected) }
+  }
+
+  static func canSelectSubtitle(_ candidate: Int, otherSelected: Int?) -> Bool {
+    candidate > 0 && candidate != otherSelected
+  }
+
+  static func validSecondaryID(_ selected: Int?, primary: Int?, available: Set<Int>) -> Int {
+    guard let selected, selected > 0, selected != primary, available.contains(selected) else { return 0 }
+    return selected
+  }
+}

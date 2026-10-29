@@ -193,6 +193,10 @@
 "menu.sub_delay" = "Subtitle Delay: %@s";
 "menu.sub_hide" = "Hide Subtitles";
 "menu.sub_show" = "Show Subtitles";
+"menu.track.enable_audio" = "Enable Audio";
+"menu.track.enable_video" = "Enable Video";
+"menu.track.enable_subtitles" = "Enable Subtitles";
+"menu.track.enable_secondary_subtitles" = "Enable Secondary Subtitles";
 "menu.sub_second_hide" = "Hide Secondary Subtitles";
 "menu.sub_second_show" = "Show Secondary Subtitles";
 "menu.fullscreen" = "Enter Full Screen";

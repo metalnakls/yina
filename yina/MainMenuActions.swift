@@ -182,6 +182,32 @@ extension MainMenuActionHandler {
     }
   }
 
+  @objc func menuToggleTrack(_ sender: NSMenuItem) {
+    guard let type = sender.representedObject as? MPVTrack.TrackType else { return }
+    let tracks = player.info.trackList(type)
+    guard !tracks.isEmpty else { return }
+    let selected = player.info.trackId(type) ?? 0
+    switch type {
+    case .audio, .video:
+      player.setTrack(selected > 0 ? 0 : tracks[0].id, forType: type)
+    case .sub:
+      if selected > 0 {
+        player.toggleSubVisibility()
+      } else if let first = TrackSelectionPolicy.firstAvailableSubtitleID(tracks.map(\.id),
+                                                                         otherSelected: player.info.secondSid) {
+        player.setTrack(first, forType: .sub)
+        player.toggleSubVisibility(true)
+      }
+    case .secondSub:
+      if selected > 0 {
+        player.toggleSecondSubVisibility()
+      } else if let first = TrackSelectionPolicy.firstAvailableSubtitleID(tracks.map(\.id),
+                                                                         otherSelected: player.info.sid) {
+        player.setTrack(first, forType: .secondSub)
+      }
+    }
+  }
+
   @objc func menuNextMedia(_ sender: NSMenuItem) {
     player.navigateInPlaylist(nextMedia: true)
   }
