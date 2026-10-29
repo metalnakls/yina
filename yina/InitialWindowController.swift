@@ -78,7 +78,9 @@ class InitialWindowController: NSWindowController {
   private var mainViewHeightConstraint: NSLayoutConstraint?
   private var recentScrollOffset: CGFloat = 0
   private var recentContentHeight: CGFloat?
+  private var recentNativeOffset: CGFloat?
   private var recentResizePending = false
+  private var isResizingRecentWindow = false
   private var recentLayoutRevision = 0
   private var showFolders: [ShowFolder] = []
   private var documentIconCache: [String: NSImage] = [:]
@@ -893,6 +895,7 @@ class InitialWindowController: NSWindowController {
     recentResizePending = false
     if resetScrollPosition {
       recentScrollOffset = 0
+      recentNativeOffset = nil
       recentListModel.resetID += 1
     }
     recentListModel.topInset = recentTopInset
@@ -906,7 +909,9 @@ class InitialWindowController: NSWindowController {
 
   private func recentListDidScroll(_ geometry: WelcomeRecentScrollGeometry) {
     guard geometry.isValid else { return }
+    guard !isResizingRecentWindow else { return }
     recentScrollOffset = max(0, geometry.offset)
+    recentNativeOffset = geometry.rawOffset
     recentContentHeight = geometry.contentHeight
     guard window?.isVisible == true, !recentResizePending else { return }
     recentResizePending = true
@@ -936,7 +941,11 @@ class InitialWindowController: NSWindowController {
     mainViewHeightConstraint?.constant = height
     // Resize and preserve the top in one AppKit transaction. Forcing layout between
     // a content resize and a separate move re-enters SwiftUI's scroll geometry updates.
-    window.setFrame(frame, display: true, animate: false)
+    isResizingRecentWindow = true
+    defer { isResizingRecentWindow = false }
+    WelcomeRecentScrollAnchor.preserve(in: recentListHost, offsetY: recentNativeOffset) {
+      window.setFrame(frame, display: true, animate: false)
+    }
     updateShelfWindowFrame()
   }
 
@@ -1054,9 +1063,37 @@ private enum WelcomeRecentDismissals {
   }
 }
 
+@MainActor
+private enum WelcomeRecentScrollAnchor {
+  /// Carry the reported visible offset (including native rubberband displacement)
+  /// across a window resize. AppKit constrains it against the new viewport.
+  static func preserve(in root: NSView?, offsetY: CGFloat?, during resize: () -> Void) {
+    let scrollView = root.flatMap { findScrollView(in: $0) }
+    var origin = scrollView?.contentView.bounds.origin
+    if let offsetY { origin?.y = offsetY }
+    resize()
+    guard let scrollView, let origin else { return }
+    root?.layoutSubtreeIfNeeded()
+    scrollView.tile()
+    let clip = scrollView.contentView
+    let bounds = NSRect(origin: origin, size: clip.bounds.size)
+    clip.scroll(to: clip.constrainBoundsRect(bounds).origin)
+    scrollView.reflectScrolledClipView(clip)
+  }
+
+  private static func findScrollView(in view: NSView) -> NSScrollView? {
+    if let scrollView = view as? NSScrollView { return scrollView }
+    for child in view.subviews {
+      if let scrollView = findScrollView(in: child) { return scrollView }
+    }
+    return nil
+  }
+}
+
 private struct WelcomeRecentScrollGeometry: Equatable {
   let offset: CGFloat
   let contentHeight: CGFloat
+  var rawOffset: CGFloat? = nil
 
   var isValid: Bool { offset.isFinite && contentHeight.isFinite && contentHeight > 0 }
 
@@ -1120,7 +1157,6 @@ private struct WelcomeRecentsView: View {
       .environment(\.defaultMinListRowHeight, 0)
       .scrollContentBackground(.hidden)
       .scrollIndicators(.hidden)
-      .defaultScrollAnchor(.top, for: .sizeChanges)
       .contentMargins(.top, model.topInset, for: .scrollContent)
       .contentMargins(.bottom, 16, for: .scrollContent)
       .scrollEdgeEffectStyle(.soft, for: .top)
@@ -1128,7 +1164,8 @@ private struct WelcomeRecentsView: View {
       .onScrollGeometryChange(for: WelcomeRecentScrollGeometry.self) { geometry in
         WelcomeRecentScrollGeometry(
           offset: geometry.contentOffset.y + geometry.contentInsets.top,
-          contentHeight: geometry.contentSize.height + geometry.contentInsets.top + geometry.contentInsets.bottom)
+          contentHeight: geometry.contentSize.height + geometry.contentInsets.top + geometry.contentInsets.bottom,
+          rawOffset: geometry.contentOffset.y)
       } action: { _, geometry in
         model.scrolled?(geometry)
       }
