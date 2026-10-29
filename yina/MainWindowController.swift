@@ -26,6 +26,20 @@ fileprivate let minimumInitialDragDistance: CGFloat = 3.0
 
 fileprivate let layoutSides: [NSLayoutConstraint.Attribute] = [.top, .bottom, .leading, .trailing]
 
+/// Keep the original full screen Space intact while PiP owns the video view.
+/// Windowed PiP follows the user's hide/minimize preference.
+struct PiPEntryPlan {
+  let windowAction: Preference.WindowBehaviorWhenPip
+  let pausePlayback: Bool
+
+  static func make(isFullscreen: Bool, isMiniaturized: Bool,
+                   preferredAction: Preference.WindowBehaviorWhenPip,
+                   pausePreference: Bool) -> PiPEntryPlan {
+    PiPEntryPlan(windowAction: isFullscreen || isMiniaturized ? .doNothing : preferredAction,
+                 pausePlayback: pausePreference)
+  }
+}
+
 class MainWindowController: PlayerWindowController {
   private enum DockedOSCLayout {
     static let playSliderInset: CGFloat = 6
@@ -161,13 +175,6 @@ class MainWindowController: PlayerWindowController {
   private var pipSubtitleRestoreRetryID: UInt64 = 0
   private var pipSubtitleRestoreRetryReady = false
   private var shouldRestoreWindowAfterPIP = true
-  /// Whether the window was full screen when PiP was entered, so full screen can be restored to
-  /// the same display once PiP closes.
-  private var wasFullscreenBeforePIP = false
-  /// Set while PiP is leaving full screen on its way to hiding the window. The hide has to wait
-  /// for AppKit to finish exiting full screen, otherwise the order out is swallowed by the
-  /// transition and the window is left behind.
-  private var isHidingWindowForPIP = false
   var isVideoLoaded: Bool = false
 
   var shouldApplyInitialWindowSize = true
@@ -1908,16 +1915,6 @@ class MainWindowController: PlayerWindowController {
       removeBlackWindow()
     }
 
-    // PiP cannot keep a full screen window on screen, so entering PiP from full screen leaves it
-    // first and hides the window here, once AppKit has finished the transition.
-    if isHidingWindowForPIP {
-      isHidingWindowForPIP = false
-      if pipStatus == .inPIP {
-        isWindowHidden = true
-        window?.orderOut(self)
-      }
-    }
-
     if player.info.state == .paused {
       // When playback is paused the display link is stopped in order to avoid wasting energy on
       // needless processing. It must be running while transitioning from full screen mode. Now that
@@ -1949,7 +1946,6 @@ class MainWindowController: PlayerWindowController {
 
     player.events.emit(.windowFullscreenChanged, data: false)
     NotificationCenter.default.post(name: .yinaFullscreenChanged, object: nil, userInfo: ["enable": false])
-    restoreFullscreenAfterPIPIfNeeded()
   }
 
   /// Called if the window failed to exit full screen mode.
@@ -1961,7 +1957,6 @@ class MainWindowController: PlayerWindowController {
   /// - Parameter window: The window that failed to exit to full screen mode.
   func windowDidFailToExitFullScreen(_ window: NSWindow) {
     log("AppKit failed to exit full screen mode! Restoring full screen state", level: .error)
-    clearPendingFullscreenRestore()
     guard case .animating(let toFullscreen, let priorWindowedFrame) = fsState,
             !toFullscreen else {
       // Must not occur! Represents an error in YINA or AppKit.
@@ -2198,6 +2193,7 @@ class MainWindowController: PlayerWindowController {
   }
 
   func showUI() {
+    guard pipStatus == .notInPIP else { return }
     if player.disableUI { return }
     guard !liveText.isActive, !interactiveMode.isActive else { return }
     updateOSCExtendedDynamicRange()
@@ -3147,6 +3143,25 @@ class MainWindowController: PlayerWindowController {
 
 extension MainWindowController: PIPViewControllerDelegate {
 
+  /// The system PiP window owns transport controls. Keep the original host
+  /// free of a stale OSC, especially when it remains in its full screen Space.
+  private func hideMainWindowControlsForPiP() {
+    destroyTimer()
+    animationState = .hidden
+    oscFloatingView.finishDissolveAppearance()
+    player.refreshSyncUITimer()
+    fadeableViews.forEach { view in
+      view.alphaValue = 0
+      if let button = view as? NSButton, standardWindowButtons.contains(button) {
+        view.alphaValue = 1e-100
+      } else {
+        view.isHidden = true
+      }
+    }
+    if !fsState.isFullscreen { titleTextField?.alphaValue = 0 }
+    window?.titleVisibility = .hidden
+  }
+
   private func startPiPSubtitleSession() {
     pipSubtitleGeneration &+= 1
     pipSubtitleSessionActive = true
@@ -3320,7 +3335,7 @@ extension MainWindowController: PIPViewControllerDelegate {
     player.finishSubtitleDissolve()
     startPiPSubtitleSession()
     liveText.clearAnalysis()
-    showUI()
+    hideMainWindowControlsForPiP()
 
     pipVideo = NSViewController()
     pipVideo.view = videoView
@@ -3338,32 +3353,24 @@ extension MainWindowController: PIPViewControllerDelegate {
     syncPIPPlaybackState()
 
     if let window = self.window {
-      // Native full screen gives the window its own Space. A window hidden inside that Space
-      // strands the app at the end of the Space switcher when it comes back, so leave full screen
-      // first and restore it once PiP closes. The hide waits for AppKit to finish the exit, which
-      // `windowDidExitFullScreen` performs.
-      let isFullscreen = fsState.isFullscreen || window.styleMask.contains(.fullScreen)
-      wasFullscreenBeforePIP = isFullscreen
-      isHidingWindowForPIP = isFullscreen
-      if isFullscreen {
-        window.toggleFullScreen(self)
-      } else {
-        let windowShouldDoNothing = window.isMiniaturized
-        let pipBehavior = windowShouldDoNothing ? .doNothing : Preference.enum(for: .windowBehaviorWhenPip) as Preference.WindowBehaviorWhenPip
-        switch pipBehavior {
-        case .doNothing:
-          break
-        case .hide:
-          isWindowHidden = true
-          window.orderOut(self)
-          break
-        case .minimize:
-          isWindowMiniaturizedDueToPip = true
-          window.miniaturize(self)
-          break
-        }
+      // Keep the original full screen window in its Space. Closing PiP can then
+      // return the video to that same window without destroying the Space.
+      let plan = PiPEntryPlan.make(
+        isFullscreen: fsState.isFullscreen || window.styleMask.contains(.fullScreen),
+        isMiniaturized: window.isMiniaturized,
+        preferredAction: Preference.enum(for: .windowBehaviorWhenPip),
+        pausePreference: Preference.bool(for: .pauseWhenPip))
+      switch plan.windowAction {
+      case .doNothing:
+        break
+      case .hide:
+        isWindowHidden = true
+        window.orderOut(self)
+      case .minimize:
+        isWindowMiniaturizedDueToPip = true
+        window.miniaturize(self)
       }
-      if Preference.bool(for: .pauseWhenPip) {
+      if plan.pausePlayback {
         player.pause()
       }
     }
@@ -3397,12 +3404,6 @@ extension MainWindowController: PIPViewControllerDelegate {
 
     addVideoViewToWindow()
     oscFloatingView.updatePosition()
-
-    if isRestoringWindow {
-      restoreFullscreenAfterPIPIfNeeded()
-    } else {
-      clearPendingFullscreenRestore()
-    }
 
     // Similarly, we need to run a redraw here as well. We check to make sure we are paused, because
     // this causes a janky animation in either case but as it's not necessary while the video is
@@ -3438,7 +3439,9 @@ extension MainWindowController: PIPViewControllerDelegate {
       pip.replacementWindow = window
 
       // Bring the window to the front and deminiaturize it
-      NSApp.activate(ignoringOtherApps: true)
+      if isWindowHidden || window.isMiniaturized || window.styleMask.contains(.fullScreen) {
+        NSApp.activate(ignoringOtherApps: true)
+      }
       window.deminiaturize(pip)
     } else {
       pip.replacementWindow = nil
@@ -3466,19 +3469,6 @@ extension MainWindowController: PIPViewControllerDelegate {
     // The system close button should dismiss PiP without restoring YINA's window.
     shouldRestoreWindowAfterPIP = false
     player.pause()
-  }
-
-  private func restoreFullscreenAfterPIPIfNeeded() {
-    guard wasFullscreenBeforePIP, pipStatus == .notInPIP,
-          case .windowed = fsState else { return }
-    clearPendingFullscreenRestore()
-    window?.toggleFullScreen(self)
-  }
-
-  /// Abandon any full screen restoration, for example when PiP closes without restoring the window.
-  private func clearPendingFullscreenRestore() {
-    wasFullscreenBeforePIP = false
-    isHidingWindowForPIP = false
   }
 
   func pipAction(_ pip: PIPViewController, skipInterval interval: TimeInterval) {
