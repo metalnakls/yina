@@ -36,6 +36,10 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface PIPViewController : NSViewController
 
+// PIP's -init does not route through NSViewController's designated initializers.
+// Swift subclasses must initialize their stored properties on this path too.
+- (instancetype)init NS_DESIGNATED_INITIALIZER;
+
 @property (nonatomic, copy, nullable) NSString *name;
 @property (nonatomic, weak, nullable) id<PIPViewControllerDelegate> delegate;
 @property (nonatomic, weak, nullable) NSWindow *replacementWindow;
