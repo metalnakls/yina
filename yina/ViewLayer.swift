@@ -81,7 +81,8 @@ class ViewLayer: CAMetalLayer, @unchecked Sendable {
     allowsNextDrawableTimeout = true
     autoresizingMask = [.layerWidthSizable, .layerHeightSizable]
     backgroundColor = NSColor.black.cgColor
-    contentsGravity = .resizeAspectFill
+    // Keep the last drawable fitted until mpv presents one at the new size.
+    contentsGravity = .resizeAspect
     isOpaque = true
   }
 
@@ -100,8 +101,13 @@ class ViewLayer: CAMetalLayer, @unchecked Sendable {
   override func layoutSublayers() {
     super.layoutSublayers()
     let scale = contentsScale
-    drawableSize = CGSize(width: max(bounds.width * scale, 1),
-                          height: max(bounds.height * scale, 1))
+    let size = CGSize(width: max(bounds.width * scale, 1),
+                      height: max(bounds.height * scale, 1))
+    guard drawableSize != size else { return }
+    drawableSize = size
+    // A view-frame notification can request a redraw before layer layout.
+    // Paused playback needs another draw after the final drawable size is set.
+    update(force: true)
   }
 
   override func nextDrawable() -> CAMetalDrawable? {
