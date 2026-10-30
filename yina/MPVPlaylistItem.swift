@@ -13,9 +13,9 @@ class MPVPlaylistItem: NSObject, Identifiable {
   /** Actually this is the path. Use `filename` to conform mpv API's naming. */
   var filename: String
 
-  /** Title or the real filename */
+  /** Local files keep their filename when playback discovers embedded titles. */
   var filenameForDisplay: String {
-    return title ?? (isNetworkResource ? filename : NSString(string: filename).lastPathComponent)
+    return isNetworkResource ? (title ?? filename) : NSString(string: filename).lastPathComponent
   }
 
   var isCurrent: Bool
