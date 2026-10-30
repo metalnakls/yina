@@ -1410,7 +1410,8 @@ class MPVController: NSObject {
         // condition, playback must be paused as soon as possible, so logging is done afterward.
         log("Pausing playback because \"pause when media is opened\" is enabled")
       }
-      DispatchQueue.main.async { self.player.fileEnded(dueToStopCommand) }
+      let completed = reason == MPV_END_FILE_REASON_EOF
+      DispatchQueue.main.async { self.player.fileEnded(dueToStopCommand, completed: completed) }
 
     case MPV_EVENT_COMMAND_REPLY:
       let reply = event.pointee.reply_userdata

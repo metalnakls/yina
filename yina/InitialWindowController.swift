@@ -517,8 +517,8 @@ class InitialWindowController: NSWindowController {
             guard resolvedURL.isFileURL,
                   Utility.playableFileExt.contains(resolvedURL.pathExtension.lowercased()) else { return nil }
             let url = resolvedURL.standardizedFileURL
-            let savedPosition = entry.mpvProgress?.second ?? 0
-            let position = url == lastURL && lastPosition > 0 ? lastPosition : savedPosition
+            let position = entry.mpvProgress?.second ??
+              (url == lastURL && lastPosition > 0 ? lastPosition : 0)
             return ShowFolderHistoryItem(url: url,
                                          lastPlayedAt: entry.addedDate,
                                          position: position,

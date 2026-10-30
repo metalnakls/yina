@@ -551,15 +551,15 @@ class Utility {
 
   static func playbackProgressFromWatchLater(_ mpvMd5: String) -> VideoTime? {
     let fileURL = Utility.watchLaterURL.appendingPathComponent(mpvMd5)
-    if let reader = StreamReader(path: fileURL.path),
-      let firstLine = reader.nextLine(),
-      firstLine.hasPrefix("start="),
-      let progressString = firstLine.components(separatedBy: "=").last,
-      let progress = Double(progressString) {
+    guard let reader = StreamReader(path: fileURL.path) else { return nil }
+    // mpv can prepend a filename comment, and a custom option list can move start.
+    while let line = reader.nextLine() {
+      guard line.hasPrefix("start=") else { continue }
+      guard let progress = Double(line.dropFirst("start=".count)),
+            progress.isFinite, progress >= 0 else { return nil }
       return VideoTime(progress)
-    } else {
-      return nil
     }
+    return nil
   }
 
   static func getLatestScreenshot(from path: String) -> URL? {

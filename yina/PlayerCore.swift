@@ -9,6 +9,65 @@
 import Cocoa
 import os.log
 
+/// Main-thread checkpoint policy, independent of whether playback controls are visible.
+/// Tokens prevent a reply for the previous file from changing the current file's policy.
+struct PlaybackPositionCheckpoint {
+  static let interval: TimeInterval = 10
+  private(set) var generation: UInt64 = 0
+  private(set) var failures = 0
+  private var lastPosition: Double?
+  private var lastRequestAt: TimeInterval?
+  private var inFlight = false
+  private var forcePending = false
+  private var completed = false
+
+  mutating func reset() {
+    generation &+= 1
+    failures = 0
+    lastPosition = nil
+    lastRequestAt = nil
+    inFlight = false
+    forcePending = false
+    completed = false
+  }
+
+  mutating func begin(position: Double, now: TimeInterval, force: Bool) -> UInt64? {
+    guard position.isFinite, position >= 0 else { return nil }
+    if completed { reset() }
+    if inFlight {
+      forcePending = forcePending || force
+      return nil
+    }
+    guard force || lastPosition != position,
+          force || (lastRequestAt.map({ now - $0 >= Self.interval }) ?? true) else { return nil }
+    lastPosition = position
+    lastRequestAt = now
+    inFlight = true
+    return generation
+  }
+
+  mutating func finish(token: UInt64, success: Bool) -> Bool {
+    guard token == generation else { return false }
+    inFlight = false
+    if success {
+      failures = 0
+    } else {
+      failures += 1
+      lastPosition = nil
+    }
+    let pending = forcePending
+    forcePending = false
+    return pending
+  }
+
+  mutating func finishMedia() -> Bool {
+    guard !completed else { return false }
+    reset()
+    completed = true
+    return true
+  }
+}
+
 class PlayerCore: NSObject {
   static let minimumVolume = 100.0
   static let maximumVolume = 400.0
@@ -1038,6 +1097,7 @@ class PlayerCore: NSObject {
     postNotification(.yinaSubtitleTextChanged)
   }
   private var cachedSavePositionOnQuit = true
+  private var playbackCheckpoint = PlaybackPositionCheckpoint()
   private var cachedRemaining: Double?
   private var cachedScaledRemaining: Double?
   var effectivePaused: Bool { requestedPause ?? (info.state == .paused) }
@@ -2336,6 +2396,43 @@ class PlayerCore: NSObject {
     Preference.set(font, for: .subTextFont)
   }
 
+  /// mpv consumes the previous watch-later file when resuming. Keep replacing it
+  /// during playback so a crash never depends on the normal stop/quit path.
+  func checkpointPlaybackPosition(force: Bool = false) {
+    guard cachedSavePositionOnQuit, info.state.loaded, !info.justStartedFile,
+          !info.isSeeking, info.currentURL != nil else { return }
+    if cachedEOF {
+      clearCompletedPlaybackCheckpoint()
+      return
+    }
+    guard let position = info.videoPosition?.second,
+          let token = playbackCheckpoint.begin(position: position,
+            now: ProcessInfo.processInfo.systemUptime, force: force) else { return }
+    mpv.asyncClient.command(["write-watch-later-config"]) { [weak self] error in
+      guard let self, self.playbackCheckpoint.generation == token else { return }
+      let pending = self.playbackCheckpoint.finish(token: token, success: error >= 0)
+      if error < 0 {
+        self.log("Playback position checkpoint failed (\(error))", level: .warning)
+        if self.playbackCheckpoint.failures <= 2 {
+          DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
+            guard let self, self.playbackCheckpoint.generation == token,
+                  self.playbackCheckpoint.failures > 0 else { return }
+            self.checkpointPlaybackPosition(force: true)
+          }
+        }
+      }
+      if pending { self.checkpointPlaybackPosition(force: true) }
+    }
+  }
+
+  func clearCompletedPlaybackCheckpoint() {
+    guard cachedSavePositionOnQuit, info.state != .shuttingDown, info.state != .shutDown,
+          let url = info.currentURL, playbackCheckpoint.finishMedia() else { return }
+    // Use the explicit path: the engine may already be advancing the playlist.
+    let path = url.isFileURL ? url.path : url.absoluteString
+    mpv.asyncClient.command(["delete-watch-later-config", path])
+  }
+
   func savePlaybackPosition() {
     finishSubtitleDissolve()
     mpv.asyncClient.flushLatest()
@@ -2351,7 +2448,7 @@ class PlayerCore: NSObject {
     guard cachedSavePositionOnQuit else { return }
 
     // The player must be active to be able to save the watch later configuration.
-    if info.state.active {
+    if info.state.active && !cachedEOF {
       log("Write watch later config")
       mpv.asyncClient.command(["write-watch-later-config"])
     }
@@ -2422,6 +2519,7 @@ class PlayerCore: NSObject {
   /// - Important: The event may be received after YINA has started to stop and shutdown the core. The event must be ignored if
   ///         the player is no longer active.
   func fileStarted(path: String) {
+    playbackCheckpoint.reset()
     cachedEOF = false
     cachedRemaining = nil
     cachedScaledRemaining = nil
@@ -2640,8 +2738,12 @@ class PlayerCore: NSObject {
     }
   }
 
-  func fileEnded(_ dueToStopCommand: Bool) {
+  func fileEnded(_ dueToStopCommand: Bool, completed: Bool = false) {
     let replacingMedia = info.state == .loading || info.state == .starting
+    if completed && !replacingMedia {
+      cachedEOF = true
+      clearCompletedPlaybackCheckpoint()
+    }
     MainActor.assumeIsolated {
       sharedShow.fileEnded(dueToStopCommand: dueToStopCommand && !replacingMedia)
     }
@@ -2813,6 +2915,7 @@ class PlayerCore: NSObject {
         mainWindow.videoView.displayActive()
       }
     }
+    if paused { checkpointPlaybackPosition(force: true) }
     if Preference.bool(for: .alwaysFloatOnTop) {
       mainWindow.setWindowFloatingOnTop(!paused)
     }
@@ -2841,6 +2944,7 @@ class PlayerCore: NSObject {
     // We should keep these flags until a MPV_EVENT_VIDEO_RECONFIG with the new video's size.
     info.justOpenedFile = false
     info.justStartedFile = false
+    checkpointPlaybackPosition(force: true)
 
     NowPlayingInfoManager.shared.updateInfo()
 
@@ -3236,6 +3340,7 @@ class PlayerCore: NSObject {
     if let value = values[MPVProperty.timeRemainingFull] as? Double, value.isFinite { cachedRemaining = value }
     if let value = values[MPVProperty.playtimeRemainingFull] as? Double, value.isFinite { cachedScaledRemaining = value }
     syncPosition()
+    checkpointPlaybackPosition()
     if info.state == .paused { syncUI(.time) }
   }
 
