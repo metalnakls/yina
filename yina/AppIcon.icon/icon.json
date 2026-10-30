@@ -6,19 +6,9 @@
     {
       "value" : {
         "linear-gradient" : [
-          "display-p3:0.60992,0.67269,1.00000,1.00000",
-          "display-p3:0.35941,0.21192,0.83701,1.00000"
-        ],
-        "orientation" : {
-          "start" : {
-            "x" : 0.5,
-            "y" : 0
-          },
-          "stop" : {
-            "x" : 0.5,
-            "y" : 0.7
-          }
-        }
+          "display-p3:0.65700,0.45445,0.84706,1.00000",
+          "display-p3:0.49920,0.34900,0.87922,1.00000"
+        ]
       }
     },
     {
@@ -28,7 +18,7 @@
   ],
   "groups" : [
     {
-      "blur-material" : 0.16,
+      "blur-material" : null,
       "layers" : [
         {
           "fill-specializations" : [
@@ -40,7 +30,7 @@
             {
               "appearance" : "dark",
               "value" : {
-                "automatic-gradient" : "display-p3:0.33333,0.79608,0.91373,1.00000"
+                "automatic-gradient" : "display-p3:0.61939,0.47971,0.91373,1.00000"
               }
             }
           ],
@@ -50,9 +40,9 @@
       ],
       "name" : "Big",
       "refractivity" : {
-        "depth" : 0.04,
+        "depth" : 0.12,
         "enabled" : true,
-        "strength" : -0.624
+        "strength" : 0.36
       },
       "shadow" : {
         "kind" : "layer-color",
@@ -64,7 +54,7 @@
       }
     },
     {
-      "blur-material" : 0.24,
+      "blur-material" : null,
       "hidden" : false,
       "layers" : [
         {
@@ -77,7 +67,7 @@
             {
               "appearance" : "dark",
               "value" : {
-                "automatic-gradient" : "display-p3:0.24365,0.42879,1.00000,1.00000"
+                "automatic-gradient" : "display-p3:0.55448,0.37822,1.00000,1.00000"
               }
             }
           ],
@@ -88,9 +78,9 @@
       "name" : "Medium",
       "opacity" : 0.75,
       "refractivity" : {
-        "depth" : 0,
+        "depth" : 0.34,
         "enabled" : true,
-        "strength" : 0.5
+        "strength" : 0.216640625
       },
       "shadow" : {
         "kind" : "layer-color",
