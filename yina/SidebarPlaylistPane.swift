@@ -515,93 +515,12 @@ extension SidebarPlaylistPane: NSMenuDelegate, NSMenuItemValidation {
   }
 
   private func buildSharedShowMenu(_ menu: NSMenu) {
-    menu.autoenablesItems = false
-    if let watchStatus = player.sharedShow.watchStatus {
-      let item = NSMenuItem(title: watchStatus, action: nil, keyEquivalent: "")
-      item.isEnabled = false
-      menu.addItem(item)
-    }
-    if let status = player.sharedShow.status {
-      let item = NSMenuItem(title: status, action: nil, keyEquivalent: "")
-      item.isEnabled = false
-      menu.addItem(item)
-    }
-    let watchingTogether = player.sharedShow.isHosting || player.sharedShow.followingWriter != nil
-    // Leave remains available while the share or current episode is unavailable.
-    if watchingTogether {
-      let leave = NSMenuItem(title: "Leave Watch Together", action: #selector(leaveWatchTogether(_:)), keyEquivalent: "")
-      leave.target = self
-      menu.addItem(leave)
-    }
-    if player.sharedShow.showID == nil {
-      if !watchingTogether {
-        let enable = NSMenuItem(title: "Enable for This Show…", action: #selector(enableSharedShow(_:)), keyEquivalent: "")
-        enable.target = self
-        menu.addItem(enable)
-      }
-    } else {
-      if !watchingTogether {
-        let host = NSMenuItem(title: "Host Watch Together", action: #selector(hostWatchTogether(_:)), keyEquivalent: "")
-        host.target = self
-        menu.addItem(host)
-      }
-      for record in player.sharedShow.positions.filter({
-        SharedPlaybackSync.target(for: $0) != nil
-      }).prefix(12) {
-        let follow = NSMenuItem(title: "Follow \(record.writerID.uuidString.prefix(6)) · \(URL(fileURLWithPath: record.relativePath).lastPathComponent)", action: #selector(followSharedViewer(_:)), keyEquivalent: "")
-        follow.target = self
-        follow.representedObject = record
-        follow.state = player.sharedShow.followingWriter == record.writerID ? .on : .off
-        menu.addItem(follow)
-      }
-    }
-    if !player.sharedShow.hostQueueItems.isEmpty {
-      let queueItem = NSMenuItem(title: "Shared Queue · \(player.sharedShow.hostQueueItems.count) episodes", action: nil, keyEquivalent: "")
-      let queue = NSMenu()
-      queue.autoenablesItems = false
-      for path in player.sharedShow.hostQueueItems {
-        let item = NSMenuItem(title: path, action: nil, keyEquivalent: "")
-        item.state = path == player.sharedShow.hostQueueCurrent ? .on : .off
-        item.isEnabled = false
-        queue.addItem(item)
-      }
-      queueItem.submenu = queue
-      menu.addItem(queueItem)
-    }
-    for record in player.sharedShow.positions.filter({ $0.relativePath == player.sharedShow.relativePath }).prefix(12) {
-      let viewer = record.participantID == SharedShowSession.participantID ? "This profile" : "Viewer \(record.participantID.uuidString.prefix(6))"
-      let position = VideoTime(record.position).stringRepresentation
-      let date = DateFormatter.localizedString(from: record.updatedAt, dateStyle: .short, timeStyle: .short)
-      let item = NSMenuItem(title: "Resume at \(position) · \(viewer) · \(date)", action: #selector(resumeSharedPosition(_:)), keyEquivalent: "")
-      item.target = self
-      item.representedObject = record
-      menu.addItem(item)
-    }
-    addDownloadRequestActions(to: menu)
-    if menu.items.isEmpty { menu.addItem(withTitle: "No saved positions yet", action: nil, keyEquivalent: "") }
+    SharedShowMenuContent.populate(menu, session: player.sharedShow, target: self,
+                                   canEnable: player.info.currentURL?.isFileURL == true && player.info.state.loaded)
   }
 
   private func addDownloadRequestActions(to menu: NSMenu) {
-    guard let status = player.sharedShow.requestStatus else { return }
-    menu.addItem(.separator())
-    if let name = player.sharedShow.requestFileName {
-      let file = NSMenuItem(title: "Request: \(name)", action: nil, keyEquivalent: "")
-      file.isEnabled = false
-      menu.addItem(file)
-    }
-    let info = NSMenuItem(title: status, action: nil, keyEquivalent: "")
-    info.isEnabled = false
-    menu.addItem(info)
-    if player.sharedShow.canRetryRequest {
-      let retry = NSMenuItem(title: "Retry Download Request", action: #selector(retryDownloadRequest(_:)), keyEquivalent: "")
-      retry.target = self
-      menu.addItem(retry)
-    }
-    if player.sharedShow.canWithdrawRequest {
-      let withdraw = NSMenuItem(title: "Withdraw Download Request", action: #selector(withdrawDownloadRequest(_:)), keyEquivalent: "")
-      withdraw.target = self
-      menu.addItem(withdraw)
-    }
+    SharedShowMenuContent.addDownloadRequestActions(to: menu, session: player.sharedShow, target: self)
   }
 
   @objc private func retryDownloadRequest(_ sender: NSMenuItem) { player.sharedShow.retryRequest() }

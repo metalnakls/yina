@@ -9,6 +9,8 @@ import tempfile
 
 repo = Path(__file__).resolve().parents[2]
 source = (repo / "yina/SidebarPlaylistPane.swift").read_text()
+menu_source = (repo / "yina/SharedShowMenu.swift").read_text()
+menu_content = menu_source
 
 
 def method(name: str) -> str:
@@ -28,7 +30,7 @@ def method(name: str) -> str:
 
 methods = "\n\n".join(
     method(name)
-    for name in ("updateSharedShowButton", "buildSharedShowMenu", "addDownloadRequestActions")
+    for name in ("updateSharedShowButton",)
 )
 rounding_source = (repo / "yina/Extensions.swift").read_text()
 rounding_start = rounding_source.index("  func roundedHalfDown() -> Double {")
@@ -60,9 +62,20 @@ final class SharedShowSession {
   var relativePath: String?
   var hostQueueItems: [String] = []
   var hostQueueCurrent: String?
+  var calls: [String] = []
+  func enableSharing(in window: NSWindow?) { calls.append("enable") }
+  func hostWatchTogether() { calls.append("host") }
+  func leaveWatchTogether() { calls.append("leave") }
+  func follow(_ record: SharedShowStore.Progress) { calls.append("follow") }
+  func resume(_ record: SharedShowStore.Progress) { calls.append("resume") }
+  func retryRequest() { calls.append("retry") }
+  func withdrawRequest() { calls.append("withdraw") }
 }
 
+class PlayerWindowController: NSWindowController { var player: PlayerCore! }
 final class PlayerCore {
+  static var playerCores: [PlayerCore] = []
+  let currentController = PlayerWindowController()
   final class State { var loaded = false }
   final class Info {
     var currentURL: URL?
@@ -76,6 +89,8 @@ enum Constants { enum Time { INFINITE_LINE } }
 extension Double {
 ROUNDING_METHOD
 }
+
+MENU_CONTENT
 
 final class SidebarPlaylistPane: NSView {
   let player: PlayerCore
@@ -98,6 +113,10 @@ final class SidebarPlaylistPane: NSView {
   @objc private func withdrawDownloadRequest(_ sender: NSMenuItem) {}
 
 PRODUCTION_METHODS
+  private func buildSharedShowMenu(_ menu: NSMenu) {
+    SharedShowMenuContent.populate(menu, session: player.sharedShow, target: self,
+                                   canEnable: player.info.currentURL?.isFileURL == true && player.info.state.loaded)
+  }
 
   func buttonEnabled() -> Bool { updateSharedShowButton(); return sharedShowButton.isEnabled }
   func menu() -> NSMenu { let value = NSMenu(); buildSharedShowMenu(value); return value }
@@ -116,6 +135,8 @@ func require(_ condition: @autoclosure () -> Bool, _ message: String) {
     _ = NSApplication.shared
     let player = PlayerCore()
     let pane = SidebarPlaylistPane(player: player)
+    require(item(pane.menu(), "Enable for This Show…")?.isEnabled == false,
+            "enable should require a loaded local episode")
 
     // A follower can leave even when the show descriptor and episode are gone.
     player.sharedShow.followingWriter = UUID()
@@ -147,6 +168,7 @@ func require(_ condition: @autoclosure () -> Bool, _ message: String) {
       relativePath: "Season 3/Old.mkv", position: 15, duration: 90, activity: .playing,
       playbackRate: 1, watchTogether: true)
     player.sharedShow.positions = [fresh, stale]
+    player.info.state.loaded = true
     menu = pane.menu()
     require(item(menu, "Host Watch Together")?.isEnabled == true, "fresh local episode cannot host")
     let follow = menu.items.first { $0.title.contains("Next.mkv") }
@@ -177,10 +199,33 @@ func require(_ condition: @autoclosure () -> Bool, _ message: String) {
     menu = pane.menu()
     require(item(menu, "Retry Download Request") == nil, "Retry offered when unavailable")
     require(item(menu, "Withdraw Download Request") == nil, "Withdraw offered when unavailable")
-    print("PASS: production sidebar button/menu methods, follower, EOF, host, queue, and request actions")
+    let second = PlayerCore()
+    second.info.currentURL = URL(fileURLWithPath: "/tmp/second.mkv")
+    second.info.state.loaded = true
+    var active: PlayerCore? = player
+    let fileMenu = NSMenu(title: "Shared Show")
+    let controller = SharedShowMenuController(activePlayer: { active })
+    fileMenu.delegate = controller
+    active = second
+    fileMenu.delegate?.menuNeedsUpdate?(fileMenu)
+    require(item(fileMenu, "Enable for This Show…")?.isEnabled == true,
+            "File menu is unavailable with the sidebar closed")
+    fileMenu.performActionForItem(at: fileMenu.index(of: item(fileMenu, "Enable for This Show…")!))
+    require(second.sharedShow.calls == ["enable"] && player.sharedShow.calls.isEmpty,
+            "File action did not use the active player")
+    active = player
+    fileMenu.delegate?.menuNeedsUpdate?(fileMenu)
+    fileMenu.performActionForItem(at: fileMenu.index(of: item(fileMenu, "Host Watch Together")!))
+    require(player.sharedShow.calls == ["host"] && second.sharedShow.calls == ["enable"],
+            "File action routed to a previous player")
+    active = nil
+    fileMenu.delegate?.menuNeedsUpdate?(fileMenu)
+    require(item(fileMenu, "Open a local episode to share")?.isEnabled == false,
+            "empty application should explain how to start sharing")
+    print("PASS: shared menu states and File actions follow the selected player without sidebar")
   }
 }
-'''.replace("PRODUCTION_METHODS", methods).replace("ROUNDING_METHOD", rounding_method).replace(
+'''.replace("MENU_CONTENT", menu_content).replace("PRODUCTION_METHODS", methods).replace("ROUNDING_METHOD", rounding_method).replace(
     "INFINITE_LINE", infinite_line
 )
 

@@ -80,6 +80,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
   private(set) var dockMenu: NSMenu!
 
   private var applicationMenus: ApplicationMenus!
+  private let sharedShowMenuController = SharedShowMenuController()
 
   func installApplicationMenus(in application: NSApplication) {
     updaterController = SPUStandardUpdaterController(startingUpdater: false,
@@ -89,6 +90,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     applicationMenus = menus
     menuController = MenuController()
     menuController.connectMenus(menus)
+    menus.menu("sharedShowMenu").delegate = sharedShowMenuController
     dockMenu = menus.dockMenu
     menus.install(in: application)
     menus.configureRecentDocuments(target: self, openAction: #selector(openRecentDocument(_:)), urls: {

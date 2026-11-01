@@ -107,6 +107,7 @@
 		C686D810C444D60F203986B9 /* libzstd.1.dylib in Copy Dylibs */ = {isa = PBXBuildFile; fileRef = 61D13EDEC953A4243AACABF1 /* libzstd.1.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		A73B00AA2026102600000004 /* SubtitleLanguagePairing.swift in Sources */ = {isa = PBXBuildFile; fileRef = A73B00AA2026102600000003 /* SubtitleLanguagePairing.swift */; };
 		A10F517E000000000000000B /* ApplicationMain.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10F517E000000000000000C /* ApplicationMain.swift */; };
+		A10F517E0000000000000019 /* SharedShowMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10F517E000000000000001A /* SharedShowMenu.swift */; };
 		A10F517E0000000000000009 /* ApplicationMenus.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10F517E000000000000000A /* ApplicationMenus.swift */; };
 		A10F517E0000000000000007 /* InspectorWindowViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10F517E0000000000000008 /* InspectorWindowViews.swift */; };
 		A10F517E0000000000000005 /* NewFilterSheetViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10F517E0000000000000006 /* NewFilterSheetViewController.swift */; };
@@ -586,6 +587,7 @@
 		61D13EDEC953A4243AACABF1 /* libzstd.1.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = "libzstd.1.dylib"; path = "deps/lib/libzstd.1.dylib"; sourceTree = "<group>"; };
 		A73B00AA2026102600000003 /* SubtitleLanguagePairing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubtitleLanguagePairing.swift; sourceTree = "<group>"; };
 		A10F517E000000000000000C /* ApplicationMain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationMain.swift; sourceTree = "<group>"; };
+		A10F517E000000000000001A /* SharedShowMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedShowMenu.swift; sourceTree = "<group>"; };
 		A10F517E000000000000000A /* ApplicationMenus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationMenus.swift; sourceTree = "<group>"; };
 		A10F517E0000000000000008 /* InspectorWindowViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InspectorWindowViews.swift; sourceTree = "<group>"; };
 		A10F517E0000000000000006 /* NewFilterSheetViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewFilterSheetViewController.swift; sourceTree = "<group>"; };
@@ -1409,6 +1411,7 @@
 				840D479F1DFEFC49000D9A64 /* KeyRecordView.swift */,
 				A10F517E0000000000000002 /* FilterShortcutSheet.swift */,
 				A10F517E000000000000000A /* ApplicationMenus.swift */,
+				A10F517E000000000000001A /* SharedShowMenu.swift */,
 				A10F517E000000000000000C /* ApplicationMain.swift */,
 				A10F517E0000000000000008 /* InspectorWindowViews.swift */,
 				A10F517E0000000000000006 /* NewFilterSheetViewController.swift */,
@@ -1982,6 +1985,7 @@
 				840D47A01DFEFC49000D9A64 /* KeyRecordView.swift in Sources */,
 				A10F517E0000000000000001 /* FilterShortcutSheet.swift in Sources */,
 				A10F517E0000000000000009 /* ApplicationMenus.swift in Sources */,
+				A10F517E0000000000000019 /* SharedShowMenu.swift in Sources */,
 				A10F517E000000000000000B /* ApplicationMain.swift in Sources */,
 				A10F517E0000000000000007 /* InspectorWindowViews.swift in Sources */,
 				A10F517E0000000000000005 /* NewFilterSheetViewController.swift in Sources */,

@@ -73,7 +73,7 @@ final class ApplicationMenus {
     item("open").title = "Open File…"
     for command in [item("open"), item("openURL"), recent] { move(command, to: file) }
     file.addItem(.separator())
-    for binding in ["jumpTo", "screenshot", "playlist", "pluginMenuItem"] {
+    for binding in ["jumpTo", "screenshot", "playlist", "sharedShow", "pluginMenuItem"] {
       move(item(binding), to: file)
     }
     item("screenshot").title = "Screenshot"
@@ -265,6 +265,9 @@ final class ApplicationMenus {
           .item("Playlist Loop", binding: "playlistLoop", modifiers: []),
           .item("Playlist", binding: "playlist", modifiers: [], submenu:
             .menu("Playlist", binding: "playlistMenu", items: [
+            ])),
+          .item("Shared Show", binding: "sharedShow", modifiers: [], submenu:
+            .menu("Shared Show", binding: "sharedShowMenu", items: [
             ])),
           .separator(),
           .item("Next Media", binding: "nextMedia", modifiers: []),

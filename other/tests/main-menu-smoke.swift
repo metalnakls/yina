@@ -66,6 +66,8 @@ private struct Contract: Decodable {
     }
     precondition(menus.mainMenu.items.filter { !$0.isHidden }.map(\.title) ==
                  ["yina", "File", "View", "Chapters", "Window", "Help"])
+    let sharedShow = menus.menu("fileMenu").items.first { $0.title == "Shared Show" }
+    precondition(sharedShow?.submenu === menus.menu("sharedShowMenu"), "Shared Show missing from File menu")
     // Removed commands remain available to player shortcuts without appearing in the menu bar.
     for binding in ["pause", "nextMedia", "previousMedia", "fullScreen", "liveText", "showExtensions"] {
       precondition(menus.item(binding).menu !== menus.menu("fileMenu"))

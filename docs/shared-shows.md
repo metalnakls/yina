@@ -7,10 +7,10 @@ subtitle selection keep their behavior.
 
 ## Using it
 
-Open a local or mounted SMB episode normally. Use **Shared Show** in the Playlist
-pane's footer or the current episode's context menu. A valid Glass descriptor or
-legacy inventory is discovered automatically, within 12 ancestors and the volume
-boundary. For a folder without a descriptor, **Enable for This Show…** lets you
+Open a local or mounted SMB episode normally. Use **File → Shared Show**,
+the Playlist pane's **Shared Show** footer, or the current episode's context
+menu. A valid Glass descriptor or legacy inventory is discovered automatically,
+within 12 ancestors and the volume boundary. For a folder without a descriptor, **Enable for This Show…** lets you
 select its root explicitly. Opening an ordinary file never creates a descriptor
 in a guessed folder.
 

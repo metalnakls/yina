@@ -8,7 +8,7 @@ has the mapped transfer details.
 
 ## Setup and storage
 
-1. Open an episode and open **Playlist → Shared Show**. If the show has no Glass
+1. Open an episode and open **File → Shared Show**. If the show has no Glass
    metadata, use **Enable for This Show…** and select the exact show folder.
 2. Check that the root has one hidden `.yina/` folder. Its `show.json` identity
    must match on both Macs. Each player writes its own progress file.
