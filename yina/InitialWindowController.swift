@@ -76,6 +76,7 @@ class InitialWindowController: NSWindowController {
   private var isRecentListKeyboardActive = false
   private let showFolderShelf = ShowFolderShelfView()
   private var shelfWindow: NSWindow?
+  private var isShowingWelcome = false
   private var mainViewHeightConstraint: NSLayoutConstraint?
   private var recentScrollOffset: CGFloat = 0
   private var recentContentHeight: CGFloat?
@@ -365,6 +366,7 @@ class InitialWindowController: NSWindowController {
   }
 
   override func showWindow(_ sender: Any?) {
+    isShowingWelcome = true
     updateRecentLayout(resetScrollPosition: true, preserveTop: false)
     centerWelcomeComposition()
     super.showWindow(sender)
@@ -390,12 +392,19 @@ class InitialWindowController: NSWindowController {
   }
 
   @objc private func initialWindowWillClose() {
+    isShowingWelcome = false
+    updateShelfWindowVisibility()
     openRequestGeneration &+= 1
     if let token = pendingMediaPreparationToken { player?.abandonMediaPreparation(token) }
     pendingMediaPreparationToken = nil
     mediaOpenQueue.cancelAllOperations()
     stopAvailabilityRefresh()
-    shelfWindow?.orderOut(nil)
+  }
+
+  override func close() {
+    isShowingWelcome = false
+    updateShelfWindowVisibility()
+    super.close()
   }
 
   private func centerWelcomeComposition() {
@@ -448,11 +457,17 @@ class InitialWindowController: NSWindowController {
 
   private func updateShelfWindowVisibility() {
     guard let shelfWindow else { return }
-    let shouldShow = window?.isVisible == true && !showFolders.isEmpty
+    let shouldShow = isShowingWelcome && window?.isVisible == true && !showFolders.isEmpty
     shelfWindow.alphaValue = shouldShow ? 1 : 0
     shelfWindow.ignoresMouseEvents = !shouldShow
-    if shouldShow && !shelfWindow.isVisible {
-      shelfWindow.orderFront(nil)
+    if shouldShow {
+      if shelfWindow.parent !== window { window?.addChildWindow(shelfWindow, ordered: .above) }
+      if !shelfWindow.isVisible { shelfWindow.orderFront(nil) }
+    } else {
+      // A child can be reordered by AppKit after orderOut during a Space transition.
+      // Detach it as well, and prevent late artwork/layout replies from reattaching it.
+      shelfWindow.parent?.removeChildWindow(shelfWindow)
+      shelfWindow.orderOut(nil)
     }
   }
 
