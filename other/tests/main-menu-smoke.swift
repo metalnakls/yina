@@ -96,12 +96,24 @@ private struct Contract: Decodable {
 
     // Exercise native-list adaptation without reading or modifying the user's recent documents.
     var urls = [URL(fileURLWithPath: "/tmp/first/movie.mkv"), URL(fileURLWithPath: "/tmp/second/movie.mkv")]
+    let gate = DispatchSemaphore(value: 0)
     var clears = 0
     menus.configureRecentDocuments(target: delegate, openAction: #selector(MenuTarget.openRecent(_:)),
-                                   urls: { urls }, clear: { urls = []; clears += 1 })
+                                   urls: { gate.wait(); return urls }, clear: { urls = []; clears += 1 })
     let recent = menus.menu("recentDocumentsMenu")
     // Native recents are populated when the menu opens, not during startup.
     recent.delegate?.menuNeedsUpdate?(recent)
+    precondition(recent.numberOfItems == 1)
+    let start = Date()
+    recent.delegate?.menuWillOpen?(recent)
+    recent.delegate?.menuNeedsUpdate?(recent)
+    precondition(Date().timeIntervalSince(start) < 0.1, "Blocked keyboard/menu handling")
+    precondition(recent.numberOfItems == 1)
+    gate.signal()
+    let deadline = Date().addingTimeInterval(2)
+    while recent.numberOfItems != 4 && Date() < deadline {
+      RunLoop.main.run(until: Date().addingTimeInterval(0.01))
+    }
     precondition(recent.numberOfItems == 4)
     precondition(recent.items[0].toolTip != recent.items[1].toolTip)
     recent.performActionForItem(at: 1)

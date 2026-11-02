@@ -2285,9 +2285,12 @@ class MainWindowController: PlayerWindowController {
       window?.representedURL = nil
       window?.title = player.getMediaTitle()
     } else {
-      window?.representedURL = player.info.currentURL
+      // Mounted volumes can disappear independently of playback. AppKit resolves a
+      // represented URL again during fullscreen transitions, synchronously on main.
+      let isMountedFile = player.info.currentURL?.path.hasPrefix("/Volumes/") == true
+      window?.representedURL = isMountedFile ? nil : player.info.currentURL
       if let currentURL = player.info.currentURL {
-        window?.setTitleWithRepresentedFilename(currentURL.path)
+        if !isMountedFile { window?.setTitleWithRepresentedFilename(currentURL.path) }
         let fileName = Preference.bool(for: .showExtensions)
           ? currentURL.lastPathComponent
           : currentURL.deletingPathExtension().lastPathComponent

@@ -439,6 +439,10 @@ final class RecentDocumentsMenuController: NSObject, NSMenuDelegate {
   private let openAction: Selector
   private let urls: () -> [URL]
   private let clear: () -> Void
+  private var cachedURLs: [URL] = []
+  private var generation = 0
+  private var refreshing = false
+  private let refreshQueue = DispatchQueue(label: "yina.recent-menu", qos: .utility)
 
   init(target: AnyObject, openAction: Selector, urls: @escaping () -> [URL], clear: @escaping () -> Void) {
     self.target = target
@@ -447,9 +451,28 @@ final class RecentDocumentsMenuController: NSObject, NSMenuDelegate {
     self.clear = clear
   }
 
+  func menuWillOpen(_ menu: NSMenu) {
+    guard !refreshing else { return }
+    refreshing = true
+    let requestGeneration = generation
+    let provider = urls
+    refreshQueue.async { [weak self, weak menu] in
+      let documents = provider()
+      DispatchQueue.main.async {
+        guard let self else { return }
+        self.refreshing = false
+        guard self.generation == requestGeneration else { return }
+        self.cachedURLs = documents
+        if let menu { self.menuNeedsUpdate(menu) }
+      }
+    }
+  }
+
   func menuNeedsUpdate(_ menu: NSMenu) {
+    // AppKit calls this during keyboard-equivalent traversal, even with the menu closed.
+    // Never resolve the system recent-document bookmarks here.
     menu.removeAllItems()
-    let documents = urls()
+    let documents = cachedURLs
     for url in documents {
       let item = NSMenuItem(title: url.isFileURL ? url.lastPathComponent : url.absoluteString,
                             action: openAction, keyEquivalent: "")
@@ -466,6 +489,8 @@ final class RecentDocumentsMenuController: NSObject, NSMenuDelegate {
   }
 
   @objc private func clearDocuments(_ sender: NSMenuItem) {
+    generation += 1
+    cachedURLs = []
     clear()
     if let menu = sender.menu { menuNeedsUpdate(menu) }
   }

@@ -93,12 +93,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     menus.menu("sharedShowMenu").delegate = sharedShowMenuController
     dockMenu = menus.dockMenu
     menus.install(in: application)
+    let recentDefaults = AppEnvironment.defaults
     menus.configureRecentDocuments(target: self, openAction: #selector(openRecentDocument(_:)), urls: {
       guard !AppEnvironment.isCleanStart else { return [] }
-      let documents = NSDocumentController.shared
-      return Array(documents.recentDocumentURLs.prefix(documents.maximumRecentDocumentCount))
+      // Read plain URL strings, never AppKit bookmarks. NSDocumentController is
+      // main-actor API and moving its resolver to a worker is not safe either.
+      if let saved = recentDefaults.stringArray(forKey: "recentMenuURLs") {
+        return saved.compactMap { URL(string: $0) }
+      }
+      guard Preference.bool(for: .recordRecentFiles) else { return [] }
+      return HistoryController.shared.$history.withLock { Array($0.prefix(20).map(\.url)) }
     }, clear: {
       guard !AppEnvironment.isCleanStart else { return }
+      recentDefaults.set([String](), forKey: "recentMenuURLs")
       NSDocumentController.shared.clearRecentDocuments(nil)
     })
   }
@@ -1190,6 +1197,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
   /// - Parameter url: The URL to evaluate.
   func noteNewRecentDocumentURL(_ url: URL) {
     guard !AppEnvironment.isCleanStart else { return }
+    var recent = AppEnvironment.defaults.stringArray(forKey: "recentMenuURLs") ??
+      HistoryController.shared.$history.withLock { Array($0.prefix(20).map { $0.url.absoluteString }) }
+    recent.removeAll { $0 == url.absoluteString }
+    recent.insert(url.absoluteString, at: 0)
+    AppEnvironment.defaults.set(Array(recent.prefix(20)), forKey: "recentMenuURLs")
     NSDocumentController.shared.noteNewRecentDocumentURL(url)
     saveRecentDocuments()
   }
