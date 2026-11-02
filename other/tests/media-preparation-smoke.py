@@ -57,6 +57,7 @@ private final class PlayerCore {{
   private(set) var openedURLs: [URL] = []
 
   private func scheduleIdleRetirement() {{ retirementRequests += 1 }}
+  private func cancelRemotePlaybackRecovery() {{}}
 {methods}
 
   func invalidateForTest() {{ invalidateMediaPreparation() }}

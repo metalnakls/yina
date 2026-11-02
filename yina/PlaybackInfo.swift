@@ -88,6 +88,9 @@ class PlaybackInfo {
     }
   }
   var isNetworkResource: Bool = false
+  /// Cached during preparation; never stat a mounted NAS from the UI thread.
+  var isRemoteFile: Bool = false
+  var isRemotePlayback: Bool { isNetworkResource || isRemoteFile }
   var mpvMd5: String?
 
   var videoWidth: Int?

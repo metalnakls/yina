@@ -1393,7 +1393,8 @@ class MPVController: NSObject {
       }
 
     case MPV_EVENT_END_FILE:
-      let reason = event.pointee.data.load(as: mpv_end_file_reason.self)
+      let end = event.pointee.data.load(as: mpv_event_end_file.self)
+      let reason = end.reason
       let dueToStopCommand = reason == MPV_END_FILE_REASON_STOP
       // When the YINA "Pause" setting is enabled under "When media is opened" YINA must tell mpv to
       // pause playback ASAP. Events are delivered asynchronously. If the YINA
@@ -1405,13 +1406,18 @@ class MPVController: NSObject {
       // only available to the main thread along with the requirement to pause playback ASAP we will
       // not leave this to the PlayerCore function and handle this now before calling fileEnded.
       if !dueToStopCommand, Preference.bool(for: .pauseWhenOpen) {
-        setFlag(MPVOption.PlaybackControl.pause, true, level: .verbose)
+        setAsync(MPVOption.PlaybackControl.pause, .flag(true))
         // Normally a log message is emitted before calling mpv, but in this case, due to the race
         // condition, playback must be paused as soon as possible, so logging is done afterward.
         log("Pausing playback because \"pause when media is opened\" is enabled")
       }
       let completed = reason == MPV_END_FILE_REASON_EOF
-      DispatchQueue.main.async { self.player.fileEnded(dueToStopCommand, completed: completed) }
+      let failed = reason == MPV_END_FILE_REASON_ERROR &&
+        (end.error == MPV_ERROR_LOADING_FAILED.rawValue || end.error == MPV_ERROR_GENERIC.rawValue)
+      DispatchQueue.main.async {
+        self.player.fileEnded(dueToStopCommand, completed: completed,
+                              failed: failed, playlistEntryID: end.playlist_entry_id)
+      }
 
     case MPV_EVENT_COMMAND_REPLY:
       let reply = event.pointee.reply_userdata

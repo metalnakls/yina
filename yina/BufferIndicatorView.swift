@@ -66,8 +66,12 @@ class BufferIndicatorView: TranslucentView {
 
   func update() {
     guard mainWindow.loaded else { return }
+    if player.isWaitingForRemoteMedia || player.isWaitingForPlayback {
+      updateNetworkState()
+      return
+    }
 
-    if player.info.isNetworkResource {
+    if player.info.isRemotePlayback {
       isHidden = false
       progressLabel.stringValue = NSLocalizedString("main.opening_stream", comment:"Opening stream…")
       detailLabel.isHidden = true
@@ -83,6 +87,19 @@ class BufferIndicatorView: TranslucentView {
   ///     [paused-for-cache](https://mpv.io/manual/stable/#command-interface-paused-for-cache) is `true`
   ///     and can not be used to provide an indication of progress when seeking.
   func updateNetworkState() {
+    if player.isWaitingForRemoteMedia {
+      progressLabel.stringValue = NSLocalizedString("main.reconnecting", comment: "Reconnecting…")
+      detailLabel.stringValue = NSLocalizedString("main.reconnecting_paused", comment: "Playback paused")
+      detailLabel.isHidden = false
+      isHidden = false
+      return
+    }
+    if player.isWaitingForPlayback {
+      progressLabel.stringValue = NSLocalizedString("main.resuming", comment: "Resuming…")
+      detailLabel.isHidden = true
+      isHidden = false
+      return
+    }
     guard player.info.pausedForCache && Preference.bool(for: .showBufferingThrobber)
             || player.info.isSeeking && Preference.bool(for: .showSeekingThrobber) else {
       isHidden = true

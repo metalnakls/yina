@@ -25,6 +25,11 @@ final class PlayerCore {
   let mpv = Engine()
   var cachedSavePositionOnQuit = true
   var cachedEOF = false
+  var remoteRecovery = RemotePlaybackRecovery()
+  var playbackResumeWait = PlaybackResumeWait()
+  func cancelPlaybackResumeWait() {}
+  var isWaitingForRemoteMedia: Bool { false }
+  func beginRemotePlaybackRecovery(failed: Bool, completed: Bool, playlistEntryID: Int64 = 0) -> Bool { false }
   var cachedRemaining: Double?, cachedScaledRemaining: Double?
   enum Sync { case time }
   func syncPosition() {}
