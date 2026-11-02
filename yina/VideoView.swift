@@ -38,6 +38,8 @@ class VideoView: NSView {
   // cached indicator to prevent unnecessary updates of DisplayLink
   var currentDisplay: CGDirectDisplayID?
   private var currentDisplaySupportsEDR: Bool?
+  private var edrRefreshGeneration: UInt64 = 0
+  private var edrSourceMetadata: [String: String] = [:]
 
   var isIdle = true
   private var displayIdleTimer: Timer?
@@ -258,8 +260,8 @@ class VideoView: NSView {
     guard currentDisplay != displayId || currentDisplaySupportsEDR != supportsEDR else { return }
     currentDisplay = displayId
     currentDisplaySupportsEDR = supportsEDR
-    player.mpv.setDouble(MPVOption.Video.displayFpsOverride,
-                         Double(screen.maximumFramesPerSecond))
+    player.mpv.setAsync(MPVOption.Video.displayFpsOverride,
+                        .double(Double(screen.maximumFramesPerSecond)))
     refreshEdrMode()
   }
 
@@ -335,7 +337,7 @@ class VideoView: NSView {
       log("Falling back to standard display refresh rate: 60 from \(actualFps)")
       actualFps = 60
     }
-    player.mpv.setDouble(MPVOption.Video.displayFpsOverride, actualFps)
+    player.mpv.setAsync(MPVOption.Video.displayFpsOverride, .double(actualFps))
 
     refreshEdrMode()
   }
@@ -422,9 +424,9 @@ class VideoView: NSView {
     let screenColorSpace = player.mainWindow.window?.screen?.colorSpace
     if !Preference.bool(for: .loadIccProfile) {
       logHDR("Not using ICC profile due to user preference")
-      player.mpv.setFlag(MPVOption.GPURendererOptions.iccProfileAuto, false)
+      setRenderFlag(MPVOption.GPURendererOptions.iccProfileAuto, false)
 #if IINA_ENABLE_METAL_RENDERER
-      player.mpv.setString(MPVOption.GPURendererOptions.iccProfile, "")
+      setRenderString(MPVOption.GPURendererOptions.iccProfile, "")
 #endif
     } else if let screenColorSpace {
       let name = screenColorSpace.localizedName ?? "unnamed"
@@ -432,22 +434,22 @@ class VideoView: NSView {
 #if IINA_ENABLE_METAL_RENDERER
       if let profilePath = currentICCProfilePath() {
         logHDR("Loading ICC profile: \(profilePath)")
-        player.mpv.setString(MPVOption.GPURendererOptions.iccProfile, profilePath)
+        setRenderString(MPVOption.GPURendererOptions.iccProfile, profilePath)
       } else {
         logHDR("Failed to find ICC profile to load", level: .error)
-        player.mpv.setString(MPVOption.GPURendererOptions.iccProfile, "")
+        setRenderString(MPVOption.GPURendererOptions.iccProfile, "")
       }
 #else
       // Set MPV_RENDER_PARAM_ICC_PROFILE before enabling icc-profile-auto to true as mpv requires
       // that parameter be set in the render context when icc-profile-auto is in use.
       videoLayer.setRenderICCProfile(screenColorSpace)
-      player.mpv.setFlag(MPVOption.GPURendererOptions.iccProfileAuto, true)
+      setRenderFlag(MPVOption.GPURendererOptions.iccProfileAuto, true)
 #endif
     } else {
       logHDR("Failed to find display color space", level: .error)
-      player.mpv.setFlag(MPVOption.GPURendererOptions.iccProfileAuto, false)
+      setRenderFlag(MPVOption.GPURendererOptions.iccProfileAuto, false)
 #if IINA_ENABLE_METAL_RENDERER
-      player.mpv.setString(MPVOption.GPURendererOptions.iccProfile, "")
+      setRenderString(MPVOption.GPURendererOptions.iccProfile, "")
 #endif
     }
 
@@ -455,11 +457,11 @@ class VideoView: NSView {
     // libplacebo owns the CAMetalLayer format, color space, and EDR state.
     // YINA continues to own display detection and mpv's output policy.
     // Clear the HDR hint as well as PQ output when falling back to an SDR display.
-    player.mpv.setFlag(MPVOption.GPURendererOptions.targetColorspaceHint, false)
-    player.mpv.setFlag(MPVOption.GPURendererOptions.inverseToneMapping, false)
-    player.mpv.setString(MPVOption.GPURendererOptions.targetTrc, "auto")
-    player.mpv.setString(MPVOption.GPURendererOptions.targetPrim, "auto")
-    player.mpv.setFlag(MPVOption.Screenshot.screenshotTagColorspace, false)
+    setRenderFlag(MPVOption.GPURendererOptions.targetColorspaceHint, false)
+    setRenderFlag(MPVOption.GPURendererOptions.inverseToneMapping, false)
+    setRenderString(MPVOption.GPURendererOptions.targetTrc, "auto")
+    setRenderString(MPVOption.GPURendererOptions.targetPrim, "auto")
+    setRenderFlag(MPVOption.Screenshot.screenshotTagColorspace, false)
 #else
     let sdrColorSpace = screenColorSpace?.cgColorSpace ?? VideoView.SRGB
     if videoLayer.colorspace != sdrColorSpace {
@@ -471,9 +473,9 @@ class VideoView: NSView {
       log("Setting layer color space to \(name)")
       videoLayer.colorspace = sdrColorSpace
       videoLayer.wantsExtendedDynamicRangeContent = false
-      player.mpv.setString(MPVOption.GPURendererOptions.targetTrc, "auto")
-      player.mpv.setString(MPVOption.GPURendererOptions.targetPrim, "auto")
-      player.mpv.setFlag(MPVOption.Screenshot.screenshotTagColorspace, false)
+      setRenderString(MPVOption.GPURendererOptions.targetTrc, "auto")
+      setRenderString(MPVOption.GPURendererOptions.targetPrim, "auto")
+      setRenderFlag(MPVOption.Screenshot.screenshotTagColorspace, false)
     }
 #endif
   }
@@ -553,6 +555,26 @@ class VideoView: NSView {
 
 extension VideoView {
   func refreshEdrMode() {
+    guard player.mainWindow.loaded, player.info.state.loaded, let displayId = currentDisplay,
+          let mpv = player.mpv else { return }
+    // Wake/display callbacks run on the UI thread even while NAS I/O can stall mpv.
+    // Fetch a snapshot asynchronously and discard it if playback or the display changes.
+    edrRefreshGeneration &+= 1
+    let generation = edrRefreshGeneration
+    let media = player.info.currentURL
+    mpv.getStringsAsync([MPVProperty.videoParamsGamma, MPVProperty.videoParamsPrimaries,
+                         MPVProperty.videoParamsSigPeak,
+                         "option-info/\(MPVOption.GPURendererOptions.targetPeak)/default-value",
+                         "option-info/\(MPVOption.GPURendererOptions.toneMapping)/default-value"]) { [weak self] values in
+      guard let self, let player = self.player, self.edrRefreshGeneration == generation,
+            self.currentDisplay == displayId, player.info.state.loaded,
+            player.info.currentURL == media else { return }
+      self.edrSourceMetadata = values
+      self.applyEdrMode()
+    }
+  }
+
+  private func applyEdrMode() {
     guard player.mainWindow.loaded, player.info.state.loaded, let displayId = currentDisplay else { return }
     if let screen = self.window?.screen {
       NSScreen.logEDR("Refreshing HDR for \(player.subsystem.rawValue) on display\(displayId)",
@@ -560,9 +582,9 @@ extension VideoView {
     }
     // Missing source metadata is not proof of SDR. Never enable expansion while
     // opening/seeking between sources before mpv has reported the transfer function.
-    guard let gamma = player.mpv?.getString(MPVProperty.videoParamsGamma),
+    guard let gamma = edrSourceMetadata[MPVProperty.videoParamsGamma],
           !gamma.isEmpty, gamma != "unknown", gamma != "auto" else {
-      player.mpv?.setFlag(MPVOption.GPURendererOptions.inverseToneMapping, false)
+      setRenderFlag(MPVOption.GPURendererOptions.inverseToneMapping, false)
       return
     }
     let edrEnabled: Bool?
@@ -590,10 +612,9 @@ extension VideoView {
   /// - Returns: `true` if the video is known to be a HDR video, `false` if the video is SDR or the required information is not
   ///     available.
   private func isHDRVideo() -> Bool {
-    guard let mpv = player.mpv else { return false }
-    guard let gamma = mpv.getString(MPVProperty.videoParamsGamma) else { return false }
-    let primaries = mpv.getString(MPVProperty.videoParamsPrimaries) ?? "unknown"
-    let peak = mpv.getDouble(MPVProperty.videoParamsSigPeak)
+    guard let gamma = edrSourceMetadata[MPVProperty.videoParamsGamma] else { return false }
+    let primaries = edrSourceMetadata[MPVProperty.videoParamsPrimaries] ?? "unknown"
+    let peak = Double(edrSourceMetadata[MPVProperty.videoParamsSigPeak] ?? "") ?? 0
     logHDR("Video gamma=\(gamma), primaries=\(primaries), sig_peak=\(peak)")
     // Transfer, not gamut, identifies PQ/HLG. HDR can use BT.709 primaries;
     // treating that as SDR would enable inverse tone mapping on native HDR.
@@ -601,7 +622,7 @@ extension VideoView {
   }
 
   func requestEdrMode() -> Bool? {
-    guard let mpv = player.mpv else { return false }
+    guard player.mpv != nil else { return false }
 
     guard (window?.screen?.maximumPotentialExtendedDynamicRangeColorComponentValue ?? 1.0) > 1.0 else {
       logHDR("HDR video was found but the display does not support EDR mode")
@@ -610,7 +631,7 @@ extension VideoView {
 
     guard player.info.hdrEnabled else { return nil }
 
-    let primaries = mpv.getString(MPVProperty.videoParamsPrimaries) ?? "bt.2020"
+    let primaries = edrSourceMetadata[MPVProperty.videoParamsPrimaries] ?? "bt.2020"
     let name: CFString
     switch primaries {
     case "display-p3":
@@ -631,25 +652,25 @@ extension VideoView {
     videoLayer.wantsExtendedDynamicRangeContent = true
     videoLayer.colorspace = CGColorSpace(name: name)
 #endif
-    mpv.setFlag(MPVOption.GPURendererOptions.iccProfileAuto, false)
+    setRenderFlag(MPVOption.GPURendererOptions.iccProfileAuto, false)
 #if IINA_ENABLE_METAL_RENDERER
-    mpv.setFlag(MPVOption.GPURendererOptions.targetColorspaceHint, true)
-    mpv.setString(MPVOption.GPURendererOptions.targetColorspaceHintMode, "source")
-    mpv.setString(MPVOption.GPURendererOptions.iccProfile, "")
+    setRenderFlag(MPVOption.GPURendererOptions.targetColorspaceHint, true)
+    setRenderString(MPVOption.GPURendererOptions.targetColorspaceHintMode, "source")
+    setRenderString(MPVOption.GPURendererOptions.iccProfile, "")
 #endif
 #if IINA_ENABLE_METAL_RENDERER
-    mpv.setString(MPVOption.GPURendererOptions.targetPrim,
+    setRenderString(MPVOption.GPURendererOptions.targetPrim,
                   primaries == "display-p3" ? "display-p3" : "bt.2020")
     // The pinned libmpv Metal backend selects its swapchain from target-trc;
     // it does not implement target-colorspace-hint-mode. Explicitly preserve
     // the source transfer instead of falling back to an SDR swapchain.
-    let transfer = mpv.getString(MPVProperty.videoParamsGamma) == "hlg" ? "hlg" : "pq"
-    mpv.setString(MPVOption.GPURendererOptions.targetTrc, transfer)
+    let transfer = edrSourceMetadata[MPVProperty.videoParamsGamma] == "hlg" ? "hlg" : "pq"
+    setRenderString(MPVOption.GPURendererOptions.targetTrc, transfer)
 #else
-    mpv.setString(MPVOption.GPURendererOptions.targetPrim, primaries)
-    mpv.setString(MPVOption.GPURendererOptions.targetTrc, "pq")
+    setRenderString(MPVOption.GPURendererOptions.targetPrim, primaries)
+    setRenderString(MPVOption.GPURendererOptions.targetTrc, "pq")
 #endif
-    mpv.setFlag(MPVOption.Screenshot.screenshotTagColorspace, true)
+    setRenderFlag(MPVOption.Screenshot.screenshotTagColorspace, true)
     return true
   }
 
@@ -659,7 +680,7 @@ extension VideoView {
   /// This keeps the conversion in mpv's per-frame color pipeline. YINA only selects an HDR output
   /// colorspace and reports the display peak; it does not render a second copy or apply its own shader.
   private func requestEdrModeForSDR() -> Bool? {
-    guard let mpv = player.mpv else { return false }
+    guard player.mpv != nil else { return false }
 
     guard (window?.screen?.maximumPotentialExtendedDynamicRangeColorComponentValue ?? 1.0) > 1.0 else {
       logHDR("Tone mapping is enabled but the display does not support EDR mode")
@@ -669,13 +690,13 @@ extension VideoView {
     guard player.info.hdrEnabled else { return nil }
 
     logHDR("Using mpv inverse tone mapping for SDR video")
-    mpv.setFlag(MPVOption.GPURendererOptions.iccProfileAuto, false)
-    mpv.setString(MPVOption.GPURendererOptions.iccProfile, "")
-    mpv.setFlag(MPVOption.GPURendererOptions.targetColorspaceHint, true)
-    mpv.setString(MPVOption.GPURendererOptions.targetColorspaceHintMode, "target")
-    mpv.setString(MPVOption.GPURendererOptions.targetPrim, "display-p3")
-    mpv.setString(MPVOption.GPURendererOptions.targetTrc, "pq")
-    mpv.setFlag(MPVOption.Screenshot.screenshotTagColorspace, true)
+    setRenderFlag(MPVOption.GPURendererOptions.iccProfileAuto, false)
+    setRenderString(MPVOption.GPURendererOptions.iccProfile, "")
+    setRenderFlag(MPVOption.GPURendererOptions.targetColorspaceHint, true)
+    setRenderString(MPVOption.GPURendererOptions.targetColorspaceHintMode, "target")
+    setRenderString(MPVOption.GPURendererOptions.targetPrim, "display-p3")
+    setRenderString(MPVOption.GPURendererOptions.targetTrc, "pq")
+    setRenderFlag(MPVOption.Screenshot.screenshotTagColorspace, true)
     return true
   }
 #endif
@@ -688,22 +709,22 @@ extension VideoView {
   ///
   /// Otherwise these options will be set to their default values.
   private func setToneMappingForHDR(passthrough: Bool) {
-    guard let mpv = player.mpv else { return }
-    mpv.setFlag(MPVOption.GPURendererOptions.inverseToneMapping, false)
+    guard player.mpv != nil else { return }
+    setRenderFlag(MPVOption.GPURendererOptions.inverseToneMapping, false)
     // Native HDR uses source metadata. Do not remap it to an inferred display
     // peak here and then have ColorSync map that output to the display again.
     guard !passthrough, Preference.bool(for: .enableToneMapping) else {
       // Reset options to their defaults.
-      mpv.setStringToDefault(MPVOption.GPURendererOptions.targetPeak)
-      mpv.setStringToDefault(MPVOption.GPURendererOptions.toneMapping)
+      setRenderOptionToDefault(MPVOption.GPURendererOptions.targetPeak)
+      setRenderOptionToDefault(MPVOption.GPURendererOptions.toneMapping)
       return
     }
     let targetPeak = toneMappingTargetPeak()
     let algorithm = String(describing: Preference.enum(for: .toneMappingAlgorithm) as
                            Preference.ToneMappingAlgorithmOption)
     logHDR("Will enable tone mapping: target-peak=\(targetPeak) algorithm=\(algorithm)")
-    mpv.setString(MPVOption.GPURendererOptions.targetPeak, targetPeak)
-    mpv.setString(MPVOption.GPURendererOptions.toneMapping, algorithm)
+    setRenderString(MPVOption.GPURendererOptions.targetPeak, targetPeak)
+    setRenderString(MPVOption.GPURendererOptions.toneMapping, algorithm)
   }
 
   /// Return the output peak requested by the user, or YINA's best measurement of the display peak.
@@ -748,21 +769,37 @@ extension VideoView {
 
   /// Ask mpv to inverse-tone-map SDR into EDR when the display and renderer support it.
   private func setToneMappingForSDR(usingEDR: Bool) {
-    guard let mpv = player.mpv else { return }
+    guard player.mpv != nil else { return }
     guard Preference.bool(for: .enableToneMapping), usingEDR else {
       // Reset options to their defaults.
-      mpv.setFlag(MPVOption.GPURendererOptions.inverseToneMapping, false)
-      mpv.setStringToDefault(MPVOption.GPURendererOptions.targetPeak)
-      mpv.setStringToDefault(MPVOption.GPURendererOptions.toneMapping)
+      setRenderFlag(MPVOption.GPURendererOptions.inverseToneMapping, false)
+      setRenderOptionToDefault(MPVOption.GPURendererOptions.targetPeak)
+      setRenderOptionToDefault(MPVOption.GPURendererOptions.toneMapping)
       return
     }
     let targetPeak = toneMappingTargetPeak()
     let algorithm = String(describing: Preference.enum(for: .toneMappingAlgorithm) as
                            Preference.ToneMappingAlgorithmOption)
     logHDR("Will expand SDR into EDR: target-peak=\(targetPeak) algorithm=\(algorithm)")
-    mpv.setFlag(MPVOption.GPURendererOptions.inverseToneMapping, true)
-    mpv.setString(MPVOption.GPURendererOptions.targetPeak, targetPeak)
-    mpv.setString(MPVOption.GPURendererOptions.toneMapping, algorithm)
+    setRenderFlag(MPVOption.GPURendererOptions.inverseToneMapping, true)
+    setRenderString(MPVOption.GPURendererOptions.targetPeak, targetPeak)
+    setRenderString(MPVOption.GPURendererOptions.toneMapping, algorithm)
+  }
+
+  private func setRenderFlag(_ name: String, _ value: Bool) {
+    player.mpv?.setAsync(name, .flag(value))
+  }
+
+  private func setRenderString(_ name: String, _ value: String) {
+    player.mpv?.setAsync(name, .string(value))
+  }
+
+  private func setRenderOptionToDefault(_ name: String) {
+    guard let value = edrSourceMetadata["option-info/\(name)/default-value"] else {
+      logHDR("Failed to obtain default for option: \(name)", level: .warning)
+      return
+    }
+    setRenderString(name, value)
   }
 
   // MARK: - Utils

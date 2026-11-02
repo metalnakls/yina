@@ -12,9 +12,9 @@ start = source.index("  private func setToneMappingForHDR(passthrough: Bool) {")
 end = source.index("\n  /// Return the output peak", start)
 policy = source[start:end].replace("private func", "func", 1)
 
-start = source.index('    let transfer = mpv.getString(MPVProperty.videoParamsGamma)')
+start = source.index('    let transfer = edrSourceMetadata[MPVProperty.videoParamsGamma]')
 end = source.index('\n#else', start)
-transfer_policy = "  func applyTransfer() { let mpv = player.mpv!\n" + source[start:end] + "\n  }\n"
+transfer_policy = "  func applyTransfer() {\n" + source[start:end] + "\n  }\n"
 
 harness = r'''
 import Foundation
@@ -51,7 +51,15 @@ final class Player {
 }
 final class Probe {
   let player: Player
-  init(_ gamma: String?, _ primaries: String?) { player = Player(MPV(gamma, primaries)) }
+  var edrSourceMetadata: [String: String] = [:]
+  init(_ gamma: String?, _ primaries: String?) {
+    player = Player(MPV(gamma, primaries))
+    edrSourceMetadata[MPVProperty.videoParamsGamma] = gamma
+    edrSourceMetadata[MPVProperty.videoParamsPrimaries] = primaries
+  }
+  func setRenderFlag(_ name: String, _ value: Bool) { player.mpv!.setFlag(name, value) }
+  func setRenderString(_ name: String, _ value: String) { player.mpv!.setString(name, value) }
+  func setRenderOptionToDefault(_ name: String) { player.mpv!.setStringToDefault(name) }
   func logHDR(_ value: String, level: Level = .warning) { }
   func toneMappingTargetPeak() -> String { "1600" }
 ''' + classification + policy + transfer_policy + r'''

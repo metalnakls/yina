@@ -96,6 +96,15 @@ client.command(["set", "pause", "no"]) { error in
   }
 }
 wait { done }
+done = false
+let defaults = ["option-info/target-peak/default-value", "option-info/tone-mapping/default-value"]
+client.get(defaults, strings: true) { values in
+  for name in defaults {
+    precondition(values[name] is String, "HDR option default missing from async string replies: \(name)")
+  }
+  done = true
+}
+wait { done }
 var completions = 0
 for _ in 0..<20 { client.get(["speed"]) { _ in completions += 1 } }
 client.invalidate()
