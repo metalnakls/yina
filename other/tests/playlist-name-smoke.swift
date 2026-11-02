@@ -1,4 +1,9 @@
 import Cocoa
+enum Preference {
+  enum Key { case showExtensions }
+  static var showsExtensions = true
+  static func bool(for _: Key) -> Bool { showsExtensions }
+}
 @main struct PlaylistNameSmoke {
   static func main() {
     let item = MPVPlaylistItem(filename: "/Volumes/Shows/S03E03 — Walk with Me.mkv", isCurrent: false, isPlaying: false, title: nil)
@@ -9,6 +14,10 @@ import Cocoa
     precondition(item.filenameForDisplay == original)
     item.isCurrent = false
     item.isPlaying = false
+    precondition(item.filenameForDisplay == original)
+    Preference.showsExtensions = false
+    precondition(item.filenameForDisplay == "S03E03 — Walk with Me")
+    Preference.showsExtensions = true
     precondition(item.filenameForDisplay == original)
     let stream = MPVPlaylistItem(filename: "https://example.com/video", isCurrent: false, isPlaying: false, title: "Stream title")
     precondition(stream.filenameForDisplay == "Stream title")

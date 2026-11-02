@@ -15,7 +15,9 @@ class MPVPlaylistItem: NSObject, Identifiable {
 
   /** Local files keep their filename when playback discovers embedded titles. */
   var filenameForDisplay: String {
-    return isNetworkResource ? (title ?? filename) : NSString(string: filename).lastPathComponent
+    if isNetworkResource { return title ?? filename }
+    let name = NSString(string: filename).lastPathComponent
+    return Preference.bool(for: .showExtensions) ? name : NSString(string: name).deletingPathExtension
   }
 
   var isCurrent: Bool

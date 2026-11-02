@@ -161,6 +161,10 @@ class SidebarPlaylistPane: NSView, SidebarPane {
     prefObserver.addAll(.playlistShowMetadata, .playlistShowMetadataInMusicMode) { [unowned self] _ in
       updateTable()
     }
+    prefObserver.add(.showExtensions) { [weak self] _ in
+      // The filenames are cached already; a display preference must not wait for mpv.
+      self?.tableView.reloadData()
+    }
 
     player.observe(.yinaFileLoaded) { [unowned self] _ in
       updateTable()
@@ -835,7 +839,7 @@ class PlaylistTrackCellView: NSTableCellView {
   func update(pane: SidebarPlaylistPane, player: PlayerCore, item: MPVPlaylistItem, row: Int) {
     // file name
     let filename = item.filenameForDisplay
-    let displayStr: String = NSString(string: filename).deletingPathExtension
+    let displayStr = Preference.bool(for: .showExtensions) ? NSString(string: filename).deletingPathExtension : filename
 
     func getCachedMetadata() -> (artist: String, title: String)? {
       guard Preference.bool(for: .playlistShowMetadata) else { return nil }
