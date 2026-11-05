@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		EC2026110500000000000005 /* SubtitleTimingStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC2026110500000000000006 /* SubtitleTimingStore.swift */; };
 		EC2026110500000000000003 /* OnlineSubtitleCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC2026110500000000000004 /* OnlineSubtitleCache.swift */; };
 		EC2026110500000000000001 /* OnlineSubtitleQuery.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC2026110500000000000002 /* OnlineSubtitleQuery.swift */; };
 		A9F100000000000000000001 /* PiPTransitionTrace.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9F100000000000000000002; };
@@ -539,6 +540,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		EC2026110500000000000006 /* SubtitleTimingStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubtitleTimingStore.swift; sourceTree = "<group>"; };
 		EC2026110500000000000004 /* OnlineSubtitleCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnlineSubtitleCache.swift; sourceTree = "<group>"; };
 		EC2026110500000000000002 /* OnlineSubtitleQuery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnlineSubtitleQuery.swift; sourceTree = "<group>"; };
 		A9F100000000000000000002 /* PiPTransitionTrace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PiPTransitionTrace.swift; sourceTree = "<group>"; };
@@ -1575,6 +1577,7 @@
 			children = (
 				E38099C22FC05B2E00D3333E /* Pages */,
 				E34BC2A72C27C01800A94680 /* SettingsLocalization.swift */,
+				EC2026110500000000000006 /* SubtitleTimingStore.swift */,
 				EC2026110500000000000004 /* OnlineSubtitleCache.swift */,
 				EC2026110500000000000002 /* OnlineSubtitleQuery.swift */,
 				EC2026102900000000000002 /* PlaybackSettingsView.swift */,
@@ -2003,6 +2006,7 @@
 				E36E8D7C24F6052F00B8C097 /* GuideWindowController.swift in Sources */,
 				84817C981DBDCE4300CC2279 /* RoundedColorWell.swift in Sources */,
 				E38372922443634500F57718 /* LanguageTokenField.swift in Sources */,
+				EC2026110500000000000005 /* SubtitleTimingStore.swift in Sources */,
 				EC2026110500000000000003 /* OnlineSubtitleCache.swift in Sources */,
 				EC2026110500000000000001 /* OnlineSubtitleQuery.swift in Sources */,
 				EC2026102900000000000001 /* PlaybackSettingsView.swift in Sources */,

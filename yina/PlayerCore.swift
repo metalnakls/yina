@@ -407,6 +407,59 @@ class PlayerCore: NSObject {
   /// "music mode" status again, change this to `false` so that the preference is honored again.
   var overrideAutoSwitchToMusicMode = false
 
+  private static let subtitleTimingQueue = DispatchQueue(label: "yina.subtitle-timing", qos: .utility)
+  private static let subtitleTimingStore = SubtitleTimingStore(root: Utility.appSupportDirUrl.appendingPathComponent("SubtitleTiming", isDirectory: true))
+  private var subtitleTimingSession = SubtitleTimingSession()
+
+  private func subtitleTimingContext(forPrimary: Bool) -> SubtitleTimingContext? {
+    guard let media = info.currentURL,
+          let track = info.currentTrack(forPrimary ? .sub : .secondSub), track.id > 0 else { return nil }
+    let identity: SubtitleTimingTrack
+    if let path = track.externalFilename { identity = .external(URL(fileURLWithPath: path)) }
+    else { identity = .embedded(track.srcId ?? track.id) }
+    return SubtitleTimingContext(media: media, track: identity)
+  }
+
+  private func saveSubtitleTiming(_ delay: Double, request: SubtitleTimingSession.Request) {
+    Self.subtitleTimingQueue.async {
+      do { try Self.subtitleTimingStore.save(delay, for: request.context) }
+      catch { Logger.log("Could not save subtitle timing: \(error.localizedDescription)", level: .error) }
+    }
+  }
+
+  private func confirmSubtitleTiming(_ delay: Double, request: SubtitleTimingSession.Request, option: String) {
+    mpv.getPropertiesAsync([option]) { [weak self] values in
+      guard let self, let actual = values[option] as? Double, actual == delay else { return }
+      self.subtitleTimingSession.confirm(actual, request: request)
+    }
+  }
+
+  private func restoreSubtitleTiming(forPrimary: Bool) {
+    let slot: SubtitleTimingSession.Slot = forPrimary ? .primary : .secondary
+    let context = subtitleTimingContext(forPrimary: forPrimary)
+    guard subtitleTimingSession.selection(slot) != context else { return }
+    let request = subtitleTimingSession.select(context, slot: slot)
+    let option = forPrimary ? MPVOption.Subtitles.subDelay : MPVOption.Subtitles.secondarySubDelay
+    mpv.asyncClient.discardLatest([option])
+    guard let request else {
+      mpv.setAsync(option, .double(0))
+      return
+    }
+    Self.subtitleTimingQueue.async { [weak self] in
+      let delay = Self.subtitleTimingStore.load(request.context) ?? 0
+      DispatchQueue.main.async {
+        guard let self, self.info.state.active,
+              self.subtitleTimingSession.prepareRestore(delay, request: request) else { return }
+        if forPrimary { self.info.subDelay = delay }
+        self.postNotification(.yinaSubDelayChanged)
+        self.mpv.asyncClient.set(option, .double(delay)) { [weak self] error in
+          guard error >= 0 else { return }
+          self?.confirmSubtitleTiming(delay, request: request, option: option)
+        }
+      }
+    }
+  }
+
   var isSearchingOnlineSubtitle = false
   private lazy var onlineSubtitleWindow = OnlineSubtitleWindowController()
 
@@ -2030,8 +2083,20 @@ class PlayerCore: NSObject {
   }
 
   func setSubDelay(_ delay: Double, forPrimary: Bool = true) {
+    guard delay.isFinite else { return }
+    if !Thread.isMainThread {
+      DispatchQueue.main.async { self.setSubDelay(delay, forPrimary: forPrimary) }
+      return
+    }
     let option = forPrimary ? MPVOption.Subtitles.subDelay : MPVOption.Subtitles.secondarySubDelay
+    let request = subtitleTimingContext(forPrimary: forPrimary).map {
+      subtitleTimingSession.edit(delay, context: $0, slot: forPrimary ? .primary : .secondary)
+    }
+    if let request { saveSubtitleTiming(delay, request: request) }
+    if forPrimary { info.subDelay = delay }
+    postNotification(.yinaSubDelayChanged)
     mpv.setAsync(option, .double(delay), coalescing: true)
+    if let request { confirmSubtitleTiming(delay, request: request, option: option) }
   }
 
   func appendToPlaylist(_ path: String, silent: Bool = false) {
@@ -2698,6 +2763,7 @@ class PlayerCore: NSObject {
   /// - Important: The event may be received after YINA has started to stop and shutdown the core. The event must be ignored if
   ///         the player is no longer active.
   func fileStarted(path: String) {
+    subtitleTimingSession.reset()
     let url = path.contains("://") ?
       URL(string: path.addingPercentEncoding(withAllowedCharacters: .urlAllowed) ?? path) :
       URL(fileURLWithPath: path)
@@ -3190,6 +3256,9 @@ class PlayerCore: NSObject {
   }
 
   func secondarySubDelayChanged(_ delay: Double) {
+    let observation = subtitleTimingSession.observe(delay, slot: .secondary)
+    guard observation.accepted else { return }
+    if let request = observation.save { saveSubtitleTiming(delay, request: request) }
     sendOSD(.secondSubDelay(delay))
     postNotification(.yinaSubDelayChanged)
   }
@@ -3211,6 +3280,7 @@ class PlayerCore: NSObject {
       return
     }
     info.secondSid = selectedID
+    restoreSubtitleTiming(forPrimary: false)
     postNotification(.yinaSIDChanged)
     sendOSD(.track(info.currentTrack(.secondSub) ?? .noneSubTrack))
     if isInMiniPlayer {
@@ -3243,6 +3313,7 @@ class PlayerCore: NSObject {
               !info.justOpenedFile, !info.justStartedFile, lastPairedAudioID == info.aid {
       rememberSubtitleSelection(info.sid ?? 0)
     }
+    restoreSubtitleTiming(forPrimary: true)
     postNotification(.yinaSIDChanged)
     sendOSD(.track(info.currentTrack(.sub) ?? .noneSubTrack))
     if isInMiniPlayer {
@@ -3272,6 +3343,9 @@ class PlayerCore: NSObject {
   }
 
   func subDelayChanged(_ delay: Double) {
+    let observation = subtitleTimingSession.observe(delay, slot: .primary)
+    guard observation.accepted else { return }
+    if let request = observation.save { saveSubtitleTiming(delay, request: request) }
     info.subDelay = delay
     sendOSD(.subDelay(delay))
     postNotification(.yinaSubDelayChanged)
@@ -3300,6 +3374,8 @@ class PlayerCore: NSObject {
     log("Track list changed")
     getTrackInfo()
     getSelectedTracks()
+    restoreSubtitleTiming(forPrimary: true)
+    restoreSubtitleTiming(forPrimary: false)
     // File load and later track-list changes share this guard: a secondary
     // stream is opt-in, must still exist, and must differ from the primary.
     if (info.secondSid ?? 0) > 0,
