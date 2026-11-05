@@ -94,7 +94,7 @@ final class PlaybackSettingsWindowController: NSWindowController, NSWindowDelega
       deviceRefreshGeneration &+= 1
       let names: [Notification.Name] = [
         .yinaTracklistChanged, .yinaVIDChanged, .yinaAIDChanged, .yinaSIDChanged,
-        .yinaVideoEqualizerChanged, .yinaAFChanged, .yinaSubVisibilityChanged,
+        .yinaVideoEqualizerChanged, .yinaAFChanged, .yinaSubVisibilityChanged, .yinaSubDelayChanged,
         .yinaFileLoaded, .yinaPlayerStopped, .yinaPlayerShutdown,
       ]
       for name in names {
@@ -132,6 +132,7 @@ final class PlaybackSettingsWindowController: NSWindowController, NSWindowDelega
     snapshot.secondarySubtitleID = info.secondSid ?? 0
     snapshot.subtitleStyle = Preference.integer(for: .subStyle)
     snapshot.subtitleOverride = Preference.integer(for: .subOverrideLevel)
+    snapshot.subtitleDelay = info.subDelay
     snapshot.subtitleVisible = info.isSubVisible
     snapshot.imageSubtitles = info.currentTrack(.sub)?.isImageSub == true
     model.receive(snapshot)
@@ -199,6 +200,7 @@ final class PlaybackSettingsWindowController: NSWindowController, NSWindowDelega
       deviceRefreshGeneration &+= 1
       audioDevice = device
       player.setAudioDevice(device)
+    case .subtitleDelay(let delay): player.setSubDelay(delay)
     case .onlineSubtitles:
       player.mainWindow.menuActionHandler.menuFindOnlineSub(.dummy)
     case .externalAudio: loadExternalFile(audio: true, player: player)

@@ -35,6 +35,7 @@ struct PlaybackSettingsSnapshot: Equatable {
   var secondarySubtitleID = 0
   var subtitleStyle = 0
   var subtitleOverride = 0
+  var subtitleDelay = 0.0
   var subtitleVisible = true
   var imageSubtitles = false
 }
@@ -45,6 +46,7 @@ enum PlaybackSettingsAction {
   case style(Int), subtitleOverride(Int), subtitleVisibility(Bool)
   case externalAudio, externalSubtitles, onlineSubtitles
   case audioDevice(String)
+  case subtitleDelay(Double)
 }
 
 @MainActor
@@ -71,6 +73,7 @@ final class PlaybackSettingsModel: ObservableObject {
       // and other playback changes. mpv notifications can lag a slider command.
       next.videoValues = snapshot.videoValues
       next.audioGains = snapshot.audioGains
+      next.subtitleDelay = snapshot.subtitleDelay
     }
     if !value.hasMedia { editing = false }
     if next != snapshot { snapshot = next }
@@ -97,6 +100,35 @@ final class PlaybackSettingsModel: ObservableObject {
       for index in Self.audioBands[band] { self.snapshot.audioGains[index] = value.rounded() }
       self.perform(.equalizer(self.snapshot.audioGains))
     })
+  }
+
+  var subtitleTimingDescription: String {
+    let delay = snapshot.subtitleDelay
+    if abs(delay) < 0.05 { return "Original timing" }
+    let seconds = abs(delay).formatted(.number.precision(.fractionLength(1)))
+    return "\(seconds) s \(delay < 0 ? "earlier" : "later")"
+  }
+
+  // Preserve the old subtitle slider's ±5-second range, expanding symmetrically
+  // for offsets set through keyboard shortcuts or the fine adjustment buttons.
+  var subtitleTimingRange: ClosedRange<Double> {
+    let extent = max(5, ceil(abs(snapshot.subtitleDelay)))
+    return -extent...extent
+  }
+
+  func subtitleDelayBinding() -> Binding<Double> {
+    Binding(get: { self.snapshot.subtitleDelay }, set: { self.setSubtitleDelay($0) })
+  }
+
+  func setSubtitleDelay(_ value: Double) {
+    guard value.isFinite else { return }
+    let delay = (value * 10).rounded() / 10
+    snapshot.subtitleDelay = delay == 0 ? 0 : delay
+    perform(.subtitleDelay(snapshot.subtitleDelay))
+  }
+
+  func nudgeSubtitleDelay(_ amount: Double) {
+    setSubtitleDelay(snapshot.subtitleDelay + amount)
   }
 
   func resetImage() {
@@ -340,6 +372,7 @@ struct PlaybackSettingsView: View {
       }
         .buttonStyle(.borderless)
         .disabled(!model.snapshot.hasMedia)
+      subtitleTiming
       LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3), spacing: 10) {
         ForEach(model.styles) { style in
           Button {
@@ -385,6 +418,41 @@ struct PlaybackSettingsView: View {
     .padding(sectionInset)
     .background(consoleSurface)
     .contextMenu { subtitleMenu }
+  }
+
+  private var subtitleTiming: some View {
+    VStack(alignment: .leading) {
+      HStack {
+        Text("Subtitle timing").font(.headline)
+        Spacer()
+        Button("Reset") { model.setSubtitleDelay(0) }
+          .buttonStyle(.borderless)
+          .disabled(model.snapshot.subtitleDelay == 0)
+      }
+      HStack {
+        Button { model.nudgeSubtitleDelay(-0.1) } label: {
+          Label("Earlier", systemImage: "arrow.left")
+        }
+        .buttonStyle(.borderless)
+        .help("Show subtitles 0.1 seconds earlier")
+        Slider(value: model.subtitleDelayBinding(), in: model.subtitleTimingRange, step: 0.1,
+               onEditingChanged: model.setEditing) { Text("Subtitle timing") }
+          .labelsHidden()
+          .accessibilityValue(model.subtitleTimingDescription)
+          .help("Move left to show subtitles earlier, or right to show them later")
+        Button { model.nudgeSubtitleDelay(0.1) } label: {
+          Label("Later", systemImage: "arrow.right")
+        }
+        .buttonStyle(.borderless)
+        .help("Show subtitles 0.1 seconds later")
+      }
+      Text(model.subtitleTimingDescription)
+        .font(.callout.monospacedDigit())
+        .frame(maxWidth: .infinity)
+      Text("If text appears after the words, move it earlier.")
+        .font(.caption).foregroundStyle(.secondary)
+    }
+    .disabled(!model.snapshot.hasMedia || model.snapshot.subtitleID == 0)
   }
 
   private var consoleSurface: some View {
