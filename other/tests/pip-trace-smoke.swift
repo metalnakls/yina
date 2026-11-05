@@ -3,10 +3,12 @@ import Cocoa
 @main struct PiPTraceSmoke {
   static func main() throws {
     NSApplication.shared.setActivationPolicy(.prohibited)
+    let kind = CommandLine.arguments.count > 2 ? CommandLine.arguments[2] : "pip"
+    let duration: TimeInterval = kind == "pip" ? 4 : 12
     let root = URL(fileURLWithPath: CommandLine.arguments[1], isDirectory: true)
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
     for index in 0..<45 {
-      try Data().write(to: root.appendingPathComponent(String(format: "pip-%04d.jsonl", index)))
+      try Data().write(to: root.appendingPathComponent(String(format: "\(kind)-%04d.jsonl", index)))
     }
     let window = NSWindow(contentRect: NSRect(x: 100, y: 100, width: 320, height: 180),
                           styleMask: [.titled], backing: .buffered, defer: false)
@@ -15,15 +17,16 @@ import Cocoa
     let overlay = NSView(frame: video.frame)
     window.contentView!.addSubview(video)
     window.contentView!.addSubview(overlay)
-    let trace = PiPTransitionTrace(source: window, video: video, overlay: overlay, directory: root)
+    let trace = PiPTransitionTrace(source: window, video: video, overlay: overlay, directory: root, kind: kind, duration: duration)
     var finished = false
     trace.onFinish = { finished = true }
+    trace.onSample = { [weak trace] in trace?.record("state-sample-hook") }
     DispatchQueue.global().async {
       for index in 0..<500 { trace.record("render-probe", "index=\(index)") }
     }
     overlay.isHidden = true
     trace.sample("hidden-probe")
-    let deadline = Date().addingTimeInterval(8)
+    let deadline = Date().addingTimeInterval(duration + 4)
     while !finished && Date() < deadline { RunLoop.main.run(until: Date().addingTimeInterval(0.01)) }
     precondition(finished && !trace.isActive, "Trace must stop automatically")
     trace.record("after-finish-must-not-appear")
@@ -44,7 +47,8 @@ import Cocoa
     precondition(rows.filter { $0["event"] as? String == "render-probe" }.count == 500)
     precondition(rows.contains { $0["event"] as? String == "hidden-probe" && ($0["detail"] as? String)?.contains("hidden=true") == true })
     precondition(!rows.contains { $0["event"] as? String == "after-finish-must-not-appear" })
-    precondition(rows.count <= 4096)
-    print("PASS: automatic four-second capture, concurrent render events, window state, JSONL persistence, retention and shutdown (\(rows.count) events)")
+    precondition(rows.contains { $0["event"] as? String == "state-sample-hook" })
+    precondition(rows.count <= Int(duration * 1024))
+    print("PASS: automatic \(duration)-second \(kind) capture, concurrent render events, window state, JSONL persistence, retention and shutdown (\(rows.count) events)")
   }
 }

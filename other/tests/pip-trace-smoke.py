@@ -10,4 +10,5 @@ with tempfile.TemporaryDirectory(prefix="yina-pip-trace-") as directory:
     subprocess.run(["xcrun", "swiftc", "-module-cache-path", "/private/tmp/yina-event-module-cache",
                     str(repo / "yina/PiPTransitionTrace.swift"),
                     str(repo / "other/tests/pip-trace-smoke.swift"), "-o", str(binary)], check=True)
-    subprocess.run([str(binary), str(root / "traces")], check=True, timeout=15)
+    for kind in ["pip", "resume"]:
+        subprocess.run([str(binary), str(root / kind), kind], check=True, timeout=25)

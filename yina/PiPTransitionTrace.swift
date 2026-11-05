@@ -19,24 +19,27 @@ final class PiPTransitionTrace: @unchecked Sendable {
   private weak var video: NSView?
   private weak var overlay: NSView?
   private var ticks = 0
+  private let duration: TimeInterval
+  var onSample: (() -> Void)?
   var onFinish: (() -> Void)?
 
   var isActive: Bool { lock.lock(); defer { lock.unlock() }; return active }
 
-  init(source: NSWindow?, video: NSView, overlay: NSView, directory: URL? = nil) {
+  init(source: NSWindow?, video: NSView, overlay: NSView, directory: URL? = nil, kind: String = "pip", duration: TimeInterval = 4) {
     precondition(Thread.isMainThread)
+    self.duration = duration
     self.source = source
     self.video = video
     self.overlay = overlay
     let root = directory ?? FileManager.default.homeDirectoryForCurrentUser
-      .appendingPathComponent("Library/Logs/tsmc.yina/PiPTransitions", isDirectory: true)
-    file = root.appendingPathComponent("pip-\(Int(Date().timeIntervalSince1970 * 1000))-\(UUID().uuidString).jsonl")
+      .appendingPathComponent("Library/Logs/tsmc.yina/\(kind == "pip" ? "PiPTransitions" : "PlaybackResume")", isDirectory: true)
+    file = root.appendingPathComponent("\(kind)-\(Int(Date().timeIntervalSince1970 * 1000))-\(UUID().uuidString).jsonl")
     let file = self.file
     Self.writer.async {
       do {
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         let previous = try FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)
-          .filter { $0.lastPathComponent.hasPrefix("pip-") && $0.pathExtension == "jsonl" }
+          .filter { $0.lastPathComponent.hasPrefix("\(kind)-") && $0.pathExtension == "jsonl" }
           .sorted { $0.lastPathComponent > $1.lastPathComponent }
         for old in previous.dropFirst(39) { try FileManager.default.removeItem(at: old) }
         guard FileManager.default.createFile(atPath: file.path, contents: nil) else {
@@ -71,8 +74,8 @@ final class PiPTransitionTrace: @unchecked Sendable {
       guard let self else { return }
       self.sample("tick")
       self.ticks += 1
-      if self.ticks % 15 == 0 { self.flush() }
-      if CACurrentMediaTime() - self.started >= 4 { self.finish() }
+      if self.ticks % 15 == 0 { self.onSample?(); self.flush() }
+      if CACurrentMediaTime() - self.started >= self.duration { self.finish() }
     }
     self.timer = timer
     RunLoop.main.add(timer, forMode: .common)
@@ -87,7 +90,7 @@ final class PiPTransitionTrace: @unchecked Sendable {
     let time = CACurrentMediaTime() - started
     lock.lock()
     defer { lock.unlock() }
-    guard active, count < 4096 else { return }
+    guard active, count < Int(duration * 1024) else { return }
     // JSON encoding is deferred to the writer, avoiding allocation-heavy serialization
     // in Metal presentation callbacks. Keep fields delimited until then.
     pending.append("\(time)\t\(event)\t\(detail)")
@@ -161,6 +164,7 @@ final class PiPTransitionTrace: @unchecked Sendable {
     flush()
     onFinish?()
     onFinish = nil
+    onSample = nil
   }
 
   deinit {

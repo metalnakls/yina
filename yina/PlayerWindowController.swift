@@ -503,7 +503,7 @@ class PlayerWindowController: NSWindowController, NSWindowDelegate {
   internal func performMouseAction(_ action: Preference.MouseClickAction) {
     switch action {
     case .pause:
-      player.togglePause()
+      player.togglePause(source: "video-click")
     default:
       break
     }
@@ -740,7 +740,7 @@ class PlayerWindowController: NSWindowController, NSWindowDelegate {
   }
 
   @IBAction func playButtonAction(_ sender: NSButton) {
-    player.togglePause()
+    player.togglePause(source: "play-button")
   }
 
   @IBAction func muteButtonAction(_ sender: NSButton) {

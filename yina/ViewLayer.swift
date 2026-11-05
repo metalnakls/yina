@@ -51,6 +51,7 @@ class ViewLayer: CAMetalLayer, @unchecked Sendable {
   }
 
   @Atomic var pipTrace: PiPTransitionTrace? = nil
+  @Atomic var resumeTrace: PiPTransitionTrace? = nil
 
   private weak var videoView: VideoView!
   private let renderQueue = DispatchQueue(label: "tsmc.yina.mpvmetal", qos: .userInteractive)
@@ -114,10 +115,10 @@ class ViewLayer: CAMetalLayer, @unchecked Sendable {
   }
 
   override func nextDrawable() -> CAMetalDrawable? {
-    let trace = pipTrace
+    let traces = [pipTrace, resumeTrace].compactMap { $0 }
     let began = CACurrentMediaTime()
     let drawable = super.nextDrawable()
-    if let trace, trace.isActive {
+    for trace in traces where trace.isActive {
       trace.record("drawable-acquired", "wait=\(CACurrentMediaTime() - began) available=\(drawable != nil)")
       drawable?.addPresentedHandler { drawable in
         trace.record("drawable-presented", "id=\(drawable.drawableID) presented=\(drawable.presentedTime)")
@@ -174,10 +175,12 @@ class ViewLayer: CAMetalLayer, @unchecked Sendable {
             mpv_render_param(type: type, data: UnsafeMutableRawPointer(value)),
             mpv_render_param()
           ]
-          let trace = self.pipTrace
+          let traces = [self.pipTrace, self.resumeTrace].compactMap { $0 }
           let began = CACurrentMediaTime()
           let result = mpv_render_context_render(context, &params)
-          trace?.record("render", "present=\(canPresent) force=\(force) result=\(result) elapsed=\(CACurrentMediaTime() - began)")
+          for trace in traces {
+            trace.record("render", "present=\(canPresent) force=\(force) result=\(result) elapsed=\(CACurrentMediaTime() - began)")
+          }
         }
         if !canPresent { self.failPendingSnapshot() }
       }

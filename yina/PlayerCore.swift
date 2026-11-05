@@ -1202,13 +1202,58 @@ class PlayerCore: NSObject {
   private var cachedScaledRemaining: Double?
   var effectivePaused: Bool { requestedPause ?? (info.state == .paused) }
 
-  func togglePause(_ set: Bool? = nil) {
+  @Atomic var playbackTrace: PiPTransitionTrace? = nil
+
+  /// Preserve the first attempt and subsequent clicks in one twelve-second capture.
+  private func tracePlaybackControl(_ action: String) {
+    guard mainWindow.loaded else { return }
+    if playbackTrace == nil {
+      let trace = PiPTransitionTrace(source: mainWindow.window, video: mainWindow.videoView,
+        overlay: mainWindow.pipOverlayView, kind: "resume", duration: 12)
+      playbackTrace = trace
+#if IINA_ENABLE_METAL_RENDERER
+      mainWindow.videoView.videoLayer.resumeTrace = trace
+#endif
+      trace.onFinish = { [weak self] in
+        self?.playbackTrace = nil
+#if IINA_ENABLE_METAL_RENDERER
+        self?.mainWindow.videoView.videoLayer.resumeTrace = nil
+#endif
+      }
+      var queryPending = false
+      trace.onSample = { [weak self, weak trace] in
+        guard let self, let trace, trace.isActive else { return }
+        trace.record("transport-state", self.playbackTraceState)
+        guard !queryPending, self.info.state.active else { return }
+        queryPending = true
+        trace.record("mpv-state-query")
+        self.mpv.asyncClient.get(["pause", "paused-for-cache", "core-idle", "idle-active",
+          "eof-reached", "time-pos", "speed", "cache-buffering-state", "vo-configured"], strings: true) { values in
+          queryPending = false
+          trace.record("mpv-state-reply", values.keys.sorted().map {
+            "\($0)=\(values[$0]!)"
+          }.joined(separator: " "))
+        }
+      }
+    }
+    playbackTrace?.record(action, playbackTraceState)
+  }
+
+  private var playbackTraceState: String {
+    "state=\(info.state) requestedPause=\(String(describing: requestedPause)) effectivePaused=\(effectivePaused) generation=\(transportGeneration) eof=\(cachedEOF) remoteWait=\(isWaitingForRemoteMedia) seeking=\(info.isSeeking) cachePaused=\(info.pausedForCache) position=\(info.videoPosition?.second ?? -1)"
+  }
+
+  func togglePause(_ set: Bool? = nil, source: String = "toggle") {
+    tracePlaybackControl("input:\(source) explicit=\(String(describing: set))")
     let paused = set ?? !effectivePaused
     paused ? pause() : resume()
   }
 
   private func setPauseAsynchronously(_ paused: Bool, generation: UInt64) {
+    let trace = playbackTrace
+    trace?.record("pause-submit", "paused=\(paused) generation=\(generation)")
     mpv.asyncClient.set(MPVOption.PlaybackControl.pause, .flag(paused)) { [weak self] error in
+      trace?.record("pause-reply", "paused=\(paused) generation=\(generation) error=\(error) currentGeneration=\(self?.transportGeneration ?? 0)")
       guard let self, self.transportGeneration == generation else { return }
       if error < 0 {
         self.requestedPause = nil
@@ -1228,6 +1273,7 @@ class PlayerCore: NSObject {
   ///     asleep. Thus `setFlag` **must not** be called if the `mpv` core is idle or stopping. See issue
   ///     [#4520](https://github.com/iina/iina/issues/4520)
   func pause() {
+    tracePlaybackControl("pause-called")
     cancelPlaybackResumeWait()
     guard info.state.active else { return }
     guard !isWaitingForRemoteMedia else { return }
@@ -1256,6 +1302,7 @@ class PlayerCore: NSObject {
   /// - Important: Although primary responsibility for ensuring the display link is running when playback is in progress belongs to
   ///     the `pauseChanged` method, this method calls `displayActive` to provide more time for the display link to start up.
   func resume() {
+    tracePlaybackControl("resume-called")
     guard info.state.active else { return }
     if isWaitingForRemoteMedia {
       remoteRecoveryRetry?.cancel()
@@ -1269,7 +1316,9 @@ class PlayerCore: NSObject {
     let generation = transportGeneration
     requestedPause = false
     startPlaybackResumeWait(generation: generation)
+    playbackTrace?.record("display-active-begin")
     measureResumeStage("displayActive") { mainWindow.videoView.displayActive() }
+    playbackTrace?.record("display-active-end")
     if cachedEOF {
       finishSubtitleDissolve()
       invalidateSyncedDisplayPosition()
@@ -3043,6 +3092,7 @@ class PlayerCore: NSObject {
   }
 
   func pauseChanged(_ paused: Bool) {
+    playbackTrace?.record("pause-observer-main", "paused=\(paused) \(playbackTraceState)")
     if paused && requestedPause != false { cancelPlaybackResumeWait() }
     if requestedPause == paused { requestedPause = nil }
     guard mainWindow.loaded, info.state.loaded else { return }
@@ -3080,6 +3130,7 @@ class PlayerCore: NSObject {
   }
 
   func playbackRestarted() {
+    playbackTrace?.record("playback-restarted", playbackTraceState)
     log("Playback restarted")
 
     // Important to synchronize the time as mpv may slightly alter the playback position during a

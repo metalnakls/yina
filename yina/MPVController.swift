@@ -1562,6 +1562,7 @@ class MPVController: NSObject {
         logPropertyValueError(MPVOption.PlaybackControl.pause, property.format)
         break
       }
+      player.playbackTrace?.record("pause-observer-mpv", "paused=\(paused)")
       DispatchQueue.main.async { self.player.pauseChanged(paused) }
 
     case MPVProperty.chapter:
