@@ -23,12 +23,12 @@ import SwiftUI
     model.receive(state)
     precondition(model.snapshot.subtitleDelay == 1.3, "Delayed playback notification moved the dragged thumb")
     model.setEditing(false)
-    state.subtitleDelay = -8.2
+    state.subtitleDelay = -48.2
     model.receive(state)
-    precondition(model.snapshot.subtitleDelay == -8.2 && model.subtitleTimingRange == -9...9,
+    precondition(model.snapshot.subtitleDelay == -48.2 && model.subtitleTimingRange == -49...49,
                  "External keyboard changes must update the control with zero still centered")
     model.setSubtitleDelay(0)
-    precondition(sent.last == 0 && model.subtitleTimingRange == -5...5,
+    precondition(sent.last == 0 && model.subtitleTimingRange == -40...40,
                  "Reset must restore subtitle timing, not audio delay")
     let count = sent.count
     model.setSubtitleDelay(.nan)

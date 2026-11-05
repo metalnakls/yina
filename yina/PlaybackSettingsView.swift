@@ -109,10 +109,10 @@ final class PlaybackSettingsModel: ObservableObject {
     return "\(seconds) s \(delay < 0 ? "earlier" : "later")"
   }
 
-  // Preserve the old subtitle slider's ±5-second range, expanding symmetrically
-  // for offsets set through keyboard shortcuts or the fine adjustment buttons.
+  // Keep zero centered across the requested ±40-second adjustment range.
+  // Expand symmetrically for larger offsets set outside this control.
   var subtitleTimingRange: ClosedRange<Double> {
-    let extent = max(5, ceil(abs(snapshot.subtitleDelay)))
+    let extent = max(40, ceil(abs(snapshot.subtitleDelay)))
     return -extent...extent
   }
 
