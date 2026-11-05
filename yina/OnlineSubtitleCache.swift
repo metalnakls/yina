@@ -1,11 +1,12 @@
 import Foundation
 import CryptoKit
 
-/// Downloaded subtitles are user-selected files, retained in Application Support.
+/// Retain downloaded subtitles in the system cache, with no app-driven eviction.
 /// All callers perform this local disk work off the main thread. No media or NAS
 /// metadata is read to form a cache key.
 struct OnlineSubtitleCache {
   let root: URL
+  var legacyRoot: URL? = nil
   private let fm = FileManager.default
 
   private struct Manifest: Codable {
@@ -14,8 +15,11 @@ struct OnlineSubtitleCache {
   }
 
   func subtitles(for media: URL) -> [URL] {
+    try? migrateLegacyFiles()
     let folder = mediaFolder(media)
-    guard let manifest = readManifest(in: folder) else { return [] }
+    guard let manifest = readManifest(in: folder) else {
+      return legacyRoot.map { OnlineSubtitleCache(root: $0).subtitles(for: media) } ?? []
+    }
     return manifest.selected.compactMap { relative in
       guard manifest.files.contains(relative), safeRelativePath(relative) else { return nil }
       let file = folder.appendingPathComponent(relative)
@@ -26,6 +30,7 @@ struct OnlineSubtitleCache {
   /// Retain earlier downloads as well as the latest selection. Write the manifest
   /// last, so an interrupted write cannot replace a working selection with gaps.
   func store(_ urls: [URL], for media: URL) throws -> [URL] {
+    try? migrateLegacyFiles()
     let folder = mediaFolder(media)
     var manifest = readManifest(in: folder) ?? Manifest(files: [], selected: [])
     var selected: [String] = []
@@ -48,18 +53,44 @@ struct OnlineSubtitleCache {
   }
 
   func download(for key: String) -> URL? {
+    try? migrateLegacyFiles()
     let folder = downloadFolder(key)
-    guard let files = try? fm.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil) else { return nil }
+    guard let files = try? fm.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil) else {
+      return legacyRoot.flatMap { OnlineSubtitleCache(root: $0).download(for: key) }
+    }
     return files.sorted { $0.lastPathComponent < $1.lastPathComponent }.first(where: valid)
   }
 
   func storeDownload(_ data: Data, filename: String, key: String) throws -> URL {
+    try? migrateLegacyFiles()
     guard !data.isEmpty, safeName(filename) else { throw CocoaError(.fileWriteInvalidFileName) }
     let folder = downloadFolder(key)
     try fm.createDirectory(at: folder, withIntermediateDirectories: true)
     let file = folder.appendingPathComponent(filename)
     try data.write(to: file, options: .atomic)
     return file
+  }
+
+  /// Move individual files rather than deleting the old tree: an older running
+  /// app may still write there. Conflicts stay recoverable inside Caches.
+  func migrateLegacyFiles() throws {
+    guard let legacyRoot, legacyRoot != root,
+          let enumerator = fm.enumerator(at: legacyRoot, includingPropertiesForKeys: [.isRegularFileKey]) else { return }
+    let files = enumerator.compactMap { $0 as? URL }.filter {
+      (try? $0.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true
+    }
+    let legacyPath = legacyRoot.resolvingSymlinksInPath().path
+    for source in files {
+      let path = source.resolvingSymlinksInPath().path
+      guard path.hasPrefix(legacyPath + "/") else { continue }
+      let relative = String(path.dropFirst(legacyPath.count + 1))
+      var destination = root.appendingPathComponent(relative)
+      if fm.fileExists(atPath: destination.path) {
+        destination = root.appendingPathComponent("Recovered/\(UUID().uuidString)").appendingPathComponent(relative)
+      }
+      try fm.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
+      try fm.moveItem(at: source, to: destination)
+    }
   }
 
   private func mediaFolder(_ media: URL) -> URL {

@@ -27,7 +27,9 @@ protocol OnlineSubtitleFetcher {
 
 class OnlineSubtitle: NSObject {
   static let cacheQueue = DispatchQueue(label: "yina.online-subtitle-cache", qos: .utility)
-  static let cache = OnlineSubtitleCache(root: Utility.appSupportDirUrl.appendingPathComponent("OnlineSubtitles", isDirectory: true))
+  static let cache = OnlineSubtitleCache(
+    root: Utility.cacheURL.appendingPathComponent("OnlineSubtitles", isDirectory: true),
+    legacyRoot: Utility.appSupportDirUrl.appendingPathComponent("OnlineSubtitles", isDirectory: true))
 
   enum CommonError: Error {
     case noResult

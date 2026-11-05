@@ -39,6 +39,13 @@ import Foundation
     let manifest = newer[0].deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("manifest.json")
     try Data("not JSON".utf8).write(to: manifest)
     precondition(restarted.subtitles(for: media).isEmpty, "Corrupt manifest must be a cache miss")
+    let oldRoot = fixture.appendingPathComponent("legacy-support")
+    let old = OnlineSubtitleCache(root: oldRoot)
+    let oldPayload = try old.store([source], for: media)[0]
+    let migrated = OnlineSubtitleCache(root: fixture.appendingPathComponent("Caches"), legacyRoot: oldRoot)
+    let recovered = migrated.subtitles(for: media)
+    precondition(recovered.count == 1 && fm.fileExists(atPath: recovered[0].path), "Migration lost cached subtitles")
+    precondition(!fm.fileExists(atPath: oldPayload.path), "Subtitle payload remained in Application Support")
     print("PASS: restart persistence, deleted temporary files, show separation, release preservation, selected release, provider IDs, invalid paths, missing files, corrupt manifest")
   }
 }
