@@ -447,7 +447,11 @@ extension MainMenuActionHandler {
         for url in urls {
           Logger.log("Saved subtitle to \(url.path)")
           self.player.loadExternalSubFile(url)
+          if let existing = self.player.info.$subTracks.withLock({ $0.first { $0.externalFilename == url.path } }) {
+            self.player.setTrack(existing.id, forType: .sub)
+          }
         }
+        self.player.requestSubtitleVisibility(true)
         self.player.showOnlineSubtitleMessage(.downloadedSub(
           urls.map({ $0.lastPathComponent }).joined(separator: "\n")
         ))

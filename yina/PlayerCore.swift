@@ -2775,6 +2775,13 @@ class PlayerCore: NSObject {
           try checkTicket(currentTicket)
           setTrack(1, forType: .sub)
         }
+        // Restore the previous downloaded selection without contacting a provider.
+        if let url {
+          for sub in OnlineSubtitle.cache.subtitles(for: url) {
+            try checkTicket(currentTicket)
+            loadExternalSubFile(sub, suppressError: true)
+          }
+        }
         autoSearchOnlineSub()
       } catch TicketExpiredError.ticketExpired {
         log("Background task stopping due to ticket expiration")

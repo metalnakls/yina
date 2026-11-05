@@ -42,26 +42,29 @@ class OpenSub {
     ///            the downloaded subtitle.
     override func download() -> Promise<[URL]> {
       let fileId = subtitle.attributes.files[0].fileId
-      return OpenSubClient.shared.download(fileId: fileId).then { downloadResponse in
-        OpenSubClient.shared.downloadFileContents(downloadResponse.link).then { data in
-          Promise { resolver in
-            // This check was added after Open Subtitles returned a subtitle file of zero length.
-            // Better to catch this error early to make it obvious what the problem is rather than
-            // creating a zero length file that triggers a failure during loading.
-            if data.isEmpty {
-              resolver.reject(Error.emptyFile(
-                "Subtitle file \"\(downloadResponse.fileName)\" with ID \(fileId) is empty, no contents"))
-              return
+      let cacheKey = "opensubtitles:\(fileId)"
+      return Promise<URL?> { resolver in
+        OnlineSubtitle.cacheQueue.async {
+          resolver.fulfill(OnlineSubtitle.cache.download(for: cacheKey))
+        }
+      }.then { cached -> Promise<[URL]> in
+        if let cached { return .value([cached]) }
+        return OpenSubClient.shared.download(fileId: fileId).then { downloadResponse in
+          OpenSubClient.shared.downloadFileContents(downloadResponse.link).then { data -> Promise<[URL]> in
+            guard !data.isEmpty else {
+              throw Error.emptyFile("Subtitle file \"\(downloadResponse.fileName)\" with ID \(fileId) is empty, no contents")
             }
-            let remaining = String(downloadResponse.remaining)
-            let requests = String(downloadResponse.requests)
-            log("Download #\(requests), remaining quota \(remaining), quota resets in \(downloadResponse.resetTime)")
-            let subFilename = "[\(self.index)]\(downloadResponse.fileName)"
-            guard let url = data.saveToFolder(Utility.tempDirURL, filename: subFilename) else {
-              resolver.reject(OnlineSubtitle.CommonError.fsError)
-              return
+            log("Download #\(downloadResponse.requests), remaining quota \(downloadResponse.remaining), quota resets in \(downloadResponse.resetTime)")
+            return Promise { resolver in
+              OnlineSubtitle.cacheQueue.async {
+                do {
+                  let url = try OnlineSubtitle.cache.storeDownload(data, filename: downloadResponse.fileName, key: cacheKey)
+                  resolver.fulfill([url])
+                } catch {
+                  resolver.reject(OnlineSubtitle.CommonError.fsError)
+                }
+              }
             }
-            resolver.fulfill([url])
           }
         }
       }

@@ -26,6 +26,9 @@ protocol OnlineSubtitleFetcher {
 }
 
 class OnlineSubtitle: NSObject {
+  static let cacheQueue = DispatchQueue(label: "yina.online-subtitle-cache", qos: .utility)
+  static let cache = OnlineSubtitleCache(root: Utility.appSupportDirUrl.appendingPathComponent("OnlineSubtitles", isDirectory: true))
+
   enum CommonError: Error {
     case noResult
     case canceled
@@ -197,6 +200,20 @@ class OnlineSubtitle: NSObject {
   }
 
   static func search(forFile url: URL, player: PlayerCore, providerID: String? = nil, callback: @escaping ([URL]) -> Void) {
+    if providerID == nil {
+      cacheQueue.async {
+        let cached = cache.subtitles(for: url)
+        DispatchQueue.main.async {
+          if cached.isEmpty { searchProvider(forFile: url, player: player, providerID: nil, callback: callback) }
+          else { callback(cached) }
+        }
+      }
+    } else {
+      searchProvider(forFile: url, player: player, providerID: providerID, callback: callback)
+    }
+  }
+
+  private static func searchProvider(forFile url: URL, player: PlayerCore, providerID: String?, callback: @escaping ([URL]) -> Void) {
     let id = providerID ?? Preference.string(for: .onlineSubProvider) ?? Providers.openSub.id
     switch id {
     case Providers.openSub.id:
@@ -218,7 +235,17 @@ class OnlineSubtitle: NSObject {
     log("Search subtitle from \(provider.name)...")
     player.showOnlineSubtitleMessage(.startFindingSub(provider.name))
 
-    provider.fetchSubtitles(url: url, player: player).done {
+    provider.fetchSubtitles(url: url, player: player).then { urls -> Promise<[URL]> in
+      Promise { resolver in
+        cacheQueue.async {
+          do { resolver.fulfill(try cache.store(urls, for: url)) }
+          catch {
+            log("Could not retain downloaded subtitles: \(error.localizedDescription)", level: .error)
+            resolver.fulfill(urls)
+          }
+        }
+      }
+    }.done {
       callback($0)
     }.catch { err in
       let osdMessage: OSDMessage
