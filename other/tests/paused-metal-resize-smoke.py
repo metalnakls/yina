@@ -15,7 +15,7 @@ with tempfile.TemporaryDirectory(prefix="yina-paused-metal-resize-") as director
     header.write_text("#include <mpv/client.h>\n#include <mpv/render.h>\n#include <mpv/render_mtl.h>\n")
     binary = root / "resize"
     sources = [repo / "yina" / name for name in
-               ["Lock.swift", "Atomic.swift", "ReadWriteLock.swift", "ReadWriteAtomic.swift", "ViewLayer.swift"]]
+               ["Lock.swift", "Atomic.swift", "ReadWriteLock.swift", "ReadWriteAtomic.swift", "PiPTransitionTrace.swift", "ViewLayer.swift"]]
     subprocess.run(["xcrun", "swiftc", "-D", "IINA_ENABLE_METAL_RENDERER",
                     "-module-cache-path", "/private/tmp/yina-event-module-cache",
                     "-I", str(repo / "deps/include"), "-import-objc-header", str(header),

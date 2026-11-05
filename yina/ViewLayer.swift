@@ -50,6 +50,8 @@ class ViewLayer: CAMetalLayer, @unchecked Sendable {
     }
   }
 
+  @Atomic var pipTrace: PiPTransitionTrace? = nil
+
   private weak var videoView: VideoView!
   private let renderQueue = DispatchQueue(label: "tsmc.yina.mpvmetal", qos: .userInteractive)
   private let snapshotQueue = DispatchQueue(label: "tsmc.yina.mpvmetal.snapshot", qos: .userInitiated)
@@ -104,6 +106,7 @@ class ViewLayer: CAMetalLayer, @unchecked Sendable {
     let size = CGSize(width: max(bounds.width * scale, 1),
                       height: max(bounds.height * scale, 1))
     guard drawableSize != size else { return }
+    pipTrace?.record("drawable-resize", "old=\(drawableSize) new=\(size)")
     drawableSize = size
     // A view-frame notification can request a redraw before layer layout.
     // Paused playback needs another draw after the final drawable size is set.
@@ -111,7 +114,15 @@ class ViewLayer: CAMetalLayer, @unchecked Sendable {
   }
 
   override func nextDrawable() -> CAMetalDrawable? {
+    let trace = pipTrace
+    let began = CACurrentMediaTime()
     let drawable = super.nextDrawable()
+    if let trace, trace.isActive {
+      trace.record("drawable-acquired", "wait=\(CACurrentMediaTime() - began) available=\(drawable != nil)")
+      drawable?.addPresentedHandler { drawable in
+        trace.record("drawable-presented", "id=\(drawable.drawableID) presented=\(drawable.presentedTime)")
+      }
+    }
     let pending = snapshotLock.withLock { () -> SnapshotRequest? in
       guard drawable != nil else { return nil }
       let pending = pendingSnapshot
@@ -163,7 +174,10 @@ class ViewLayer: CAMetalLayer, @unchecked Sendable {
             mpv_render_param(type: type, data: UnsafeMutableRawPointer(value)),
             mpv_render_param()
           ]
-          mpv_render_context_render(context, &params)
+          let trace = self.pipTrace
+          let began = CACurrentMediaTime()
+          let result = mpv_render_context_render(context, &params)
+          trace?.record("render", "present=\(canPresent) force=\(force) result=\(result) elapsed=\(CACurrentMediaTime() - began)")
         }
         if !canPresent { self.failPendingSnapshot() }
       }

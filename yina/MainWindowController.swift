@@ -516,6 +516,8 @@ class MainWindowController: PlayerWindowController {
 
   // MARK: - PIP
 
+  var pipTransitionTrace: PiPTransitionTrace?
+
   lazy var _pip: PIPViewController = {
     let pip = VideoPIPViewController()
     pip.delegate = self
@@ -3221,6 +3223,7 @@ extension MainWindowController: PIPViewControllerDelegate {
   /// Called when the system PiP controller obtains or releases its actual
   /// host window. PiP can present asynchronously on some macOS versions.
   func pipHostWindowDidChange(_ window: NSWindow?) {
+    pipTransitionTrace?.sample("pip-host-change")
     guard pipStatus == .inPIP else { return }
     pipSubtitleHostWindow = window
     refreshPiPSubtitlePanel()
@@ -3344,25 +3347,42 @@ extension MainWindowController: PIPViewControllerDelegate {
   func enterPIP() {
     guard pipStatus == .notInPIP else { return }
     if case .animating = fsState { return }
+    pipTransitionTrace?.finish()
+    let trace = PiPTransitionTrace(source: window, video: videoView, overlay: pipOverlayView)
+    pipTransitionTrace = trace
+#if IINA_ENABLE_METAL_RENDERER
+    videoView.videoLayer.pipTrace = trace
+#endif
+    trace.onFinish = { [weak self] in
+      self?.pipTransitionTrace = nil
+#if IINA_ENABLE_METAL_RENDERER
+      self?.videoView.videoLayer.pipTrace = nil
+#endif
+    }
     shouldRestoreWindowAfterPIP = true
     pipStatus = .inPIP
     player.finishSubtitleDissolve()
     startPiPSubtitleSession()
     liveText.clearAnalysis()
     hideMainWindowControlsForPiP()
+    pipTransitionTrace?.sample("controls-hidden")
 
     pipVideo = NSViewController()
     pipVideo.view = videoView
     pip.playing = player.info.state == .playing
     pip.title = window?.title
 
+    pipTransitionTrace?.sample("before-system-present")
     pip.presentAsPicture(inPicture: pipVideo)
+    pipTransitionTrace?.sample("after-system-present")
     // Unhiding the overlay samples and blurs the window backdrop, which is a full-window
     // operation. Doing it on the next main loop turn keeps that cost out of the first frame of
     // the PiP presentation animation.
     DispatchQueue.main.async { [weak self] in
       guard let self, self.pipStatus == .inPIP else { return }
+      self.pipTransitionTrace?.sample("before-backdrop-reveal")
       self.pipOverlayView.isHidden = false
+      self.pipTransitionTrace?.sample("after-backdrop-reveal")
     }
     syncPIPPlaybackState()
 
@@ -3435,6 +3455,7 @@ extension MainWindowController: PIPViewControllerDelegate {
   }
 
   func prepareForPIPClosure(_ pip: PIPViewController, restoringWindow: Bool) {
+    pipTransitionTrace?.sample("prepare-close")
     guard pipStatus == .inPIP else { return }
     // This is called right before we're about to close the PIP
     pipStatus = .intermediate

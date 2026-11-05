@@ -555,6 +555,7 @@ class VideoView: NSView {
 
 extension VideoView {
   func refreshEdrMode() {
+    player.mainWindow.pipTransitionTrace?.sample("hdr-refresh-request")
     guard player.mainWindow.loaded, player.info.state.loaded, let displayId = currentDisplay,
           let mpv = player.mpv else { return }
     // Wake/display callbacks run on the UI thread even while NAS I/O can stall mpv.
@@ -575,6 +576,7 @@ extension VideoView {
   }
 
   private func applyEdrMode() {
+    player.mainWindow.pipTransitionTrace?.sample("hdr-apply")
     guard player.mainWindow.loaded, player.info.state.loaded, let displayId = currentDisplay else { return }
     if let screen = self.window?.screen {
       NSScreen.logEDR("Refreshing HDR for \(player.subsystem.rawValue) on display\(displayId)",
@@ -787,10 +789,12 @@ extension VideoView {
   }
 
   private func setRenderFlag(_ name: String, _ value: Bool) {
+    player.mainWindow.pipTransitionTrace?.record("render-option", "\(name)=\(value)")
     player.mpv?.setAsync(name, .flag(value))
   }
 
   private func setRenderString(_ name: String, _ value: String) {
+    player.mainWindow.pipTransitionTrace?.record("render-option", "\(name)=\(value)")
     player.mpv?.setAsync(name, .string(value))
   }
 
