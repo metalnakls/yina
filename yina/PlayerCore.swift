@@ -408,6 +408,24 @@ class PlayerCore: NSObject {
   var overrideAutoSwitchToMusicMode = false
 
   var isSearchingOnlineSubtitle = false
+  private lazy var onlineSubtitleWindow = OnlineSubtitleWindowController()
+
+  func showOnlineSubtitleMessage(_ message: OSDMessage, accessoryView: NSView? = nil,
+                                chooser: SubChooseViewController? = nil) {
+    DispatchQueue.main.async { [self] in
+      onlineSubtitleWindow.present(message, accessoryView: accessoryView,
+                                   chooser: chooser)
+    }
+  }
+
+  func hideOnlineSubtitleWindow() {
+    DispatchQueue.main.async { [self] in onlineSubtitleWindow.dismiss() }
+  }
+
+  func showOnlineSubtitleWindow() {
+    onlineSubtitleWindow.showWindow(nil)
+    onlineSubtitleWindow.window?.makeKeyAndOrderFront(nil)
+  }
 
   private var loopModeBeforeShortFileAutoLoop: LoopMode?
   private var keepCurrentFileWindowed = false

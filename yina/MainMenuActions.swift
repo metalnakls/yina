@@ -428,18 +428,27 @@ extension MainMenuActionHandler {
 
   @objc func menuFindOnlineSub(_ sender: NSMenuItem) {
     // return if last search is not finished
-    guard let url = player.info.currentURL, !player.isSearchingOnlineSubtitle else { return }
+    guard let url = player.info.currentURL else { return }
+    if player.isSearchingOnlineSubtitle {
+      player.showOnlineSubtitleWindow()
+      return
+    }
 
     player.isSearchingOnlineSubtitle = true
     OnlineSubtitle.search(forFile: url, player: player, providerID: sender.representedObject as? String) { urls in
+      guard self.player.info.currentURL == url else {
+        self.player.isSearchingOnlineSubtitle = false
+        self.player.hideOnlineSubtitleWindow()
+        return
+      }
       if urls.isEmpty {
-        self.player.sendOSD(.foundSub(0))
+        self.player.showOnlineSubtitleMessage(.foundSub(0))
       } else {
         for url in urls {
           Logger.log("Saved subtitle to \(url.path)")
           self.player.loadExternalSubFile(url)
         }
-        self.player.sendOSD(.downloadedSub(
+        self.player.showOnlineSubtitleMessage(.downloadedSub(
           urls.map({ $0.lastPathComponent }).joined(separator: "\n")
         ))
       }

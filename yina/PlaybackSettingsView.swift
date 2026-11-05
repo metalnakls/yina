@@ -43,7 +43,7 @@ enum PlaybackSettingsAction {
   case image(Int, Int), equalizer([Double])
   case track(PlaybackSettingsTrackKind, Int), crop(String)
   case style(Int), subtitleOverride(Int), subtitleVisibility(Bool)
-  case externalAudio, externalSubtitles
+  case externalAudio, externalSubtitles, onlineSubtitles
   case audioDevice(String)
 }
 
@@ -335,6 +335,11 @@ struct PlaybackSettingsView: View {
           .menuStyle(.borderlessButton).fixedSize()
           .accessibilityLabel("Subtitle options")
       }
+      Button { model.perform(.onlineSubtitles) } label: {
+        Label("Find Online Subtitles…", systemImage: "magnifyingglass")
+      }
+        .buttonStyle(.borderless)
+        .disabled(!model.snapshot.hasMedia)
       LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3), spacing: 10) {
         ForEach(model.styles) { style in
           Button {

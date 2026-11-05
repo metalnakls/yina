@@ -71,7 +71,7 @@ class JSPluginSub {
       }
       let api = plugin.apis["subtitle"] as! JavascriptAPISubtitle
       return search(api: api, id: provider.id).then { subs in
-        self.showSubSelectWindow(with: subs)
+        self.showSubSelectWindow(with: subs, player: player)
       }
     }
 
@@ -94,13 +94,14 @@ class JSPluginSub {
       }
     }
 
-    func showSubSelectWindow(with subs: [Subtitle]) -> Promise<[Subtitle]> {
+    func showSubSelectWindow(with subs: [Subtitle], player: PlayerCore) -> Promise<[Subtitle]> {
       return Promise { resolver in
         // return when found 0 or 1 sub
         if subs.count <= 1 {
           resolver.fulfill(subs)
           return
         }
+        subChooseViewController.player = player
         subChooseViewController.subtitles = subs
         // prevent self being deallocated for unknown reason
         subChooseViewController.context = self
@@ -111,7 +112,7 @@ class JSPluginSub {
         subChooseViewController.userCanceledAction = {
           resolver.reject(OnlineSubtitle.CommonError.canceled)
         }
-        PlayerCore.active.sendOSD(.foundSub(subs.count), autoHide: false, accessoryView: subChooseViewController.view)
+        player.showOnlineSubtitleMessage(.foundSub(subs.count), accessoryView: subChooseViewController.view, chooser: subChooseViewController)
         subChooseViewController.refresh()
       }
     }

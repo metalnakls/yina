@@ -199,6 +199,8 @@ final class PlaybackSettingsWindowController: NSWindowController, NSWindowDelega
       deviceRefreshGeneration &+= 1
       audioDevice = device
       player.setAudioDevice(device)
+    case .onlineSubtitles:
+      player.mainWindow.menuActionHandler.menuFindOnlineSub(.dummy)
     case .externalAudio: loadExternalFile(audio: true, player: player)
     case .externalSubtitles: loadExternalFile(audio: false, player: player)
     default: break

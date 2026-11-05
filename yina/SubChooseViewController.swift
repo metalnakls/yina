@@ -40,6 +40,7 @@ class SubChooseViewController: NSViewController {
   var userDoneAction: (([OnlineSubtitle]) -> Void)?
   var userCanceledAction: (() -> Void)?
 
+  weak var player: PlayerCore?
   var context: Any?
 
   override func loadView() {
@@ -68,14 +69,14 @@ class SubChooseViewController: NSViewController {
     }
     guard !selectedSubtitles.isEmpty else { return }
     userDoneAction(selectedSubtitles)
-    PlayerCore.active.hideOSD()
+    player?.hideOnlineSubtitleWindow()
     context = nil
   }
 
-  private func cancelSubtitleSelection() {
+  func cancelSubtitleSelection() {
     guard let userCanceledAction else { return }
     userCanceledAction()
-    PlayerCore.active.hideOSD()
+    player?.hideOnlineSubtitleWindow()
     context = nil
   }
 }
@@ -149,5 +150,78 @@ private struct SubtitleChooserView: View {
     }
     .frame(minWidth: 480, idealWidth: 600, maxWidth: 600,
            minHeight: 200, idealHeight: 200)
+  }
+}
+
+
+/// Subtitle search is an interactive workflow, independent of playback OSD.
+final class OnlineSubtitleWindowController: NSWindowController, NSWindowDelegate {
+  private var chooser: SubChooseViewController?
+
+  init() {
+    let panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 600, height: 200),
+                        styleMask: [.titled, .closable, .utilityWindow],
+                        backing: .buffered, defer: false)
+    panel.title = "Online Subtitles"
+    panel.isReleasedWhenClosed = false
+    panel.level = .floating
+    panel.collectionBehavior = [.fullScreenAuxiliary, .moveToActiveSpace]
+    super.init(window: panel)
+    panel.delegate = self
+    panel.center()
+  }
+
+  required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+  func present(_ message: OSDMessage, accessoryView: NSView?, chooser: SubChooseViewController?) {
+    self.chooser = chooser
+    guard let window else { return }
+    if let accessoryView {
+      window.contentView = accessoryView
+    } else {
+      let (title, type) = message.titleAndType()
+      let label = NSTextField(wrappingLabelWithString: title)
+      label.alignment = .center
+      let stack = NSStackView(views: [label])
+      stack.orientation = .vertical
+      stack.alignment = .centerX
+      if case .withText(let detail) = type {
+        let detailLabel = NSTextField(wrappingLabelWithString: detail)
+        detailLabel.textColor = .secondaryLabelColor
+        detailLabel.alignment = .center
+        stack.addArrangedSubview(detailLabel)
+      }
+      switch message {
+      case .startFindingSub, .downloadingSub:
+        let spinner = NSProgressIndicator()
+        spinner.style = .spinning
+        spinner.startAnimation(nil)
+        stack.addArrangedSubview(spinner)
+      default: break
+      }
+      let content = NSView(frame: NSRect(x: 0, y: 0, width: 600, height: 200))
+      stack.translatesAutoresizingMaskIntoConstraints = false
+      content.addSubview(stack)
+      NSLayoutConstraint.activate([
+        stack.centerXAnchor.constraint(equalTo: content.centerXAnchor),
+        stack.centerYAnchor.constraint(equalTo: content.centerYAnchor),
+        stack.leadingAnchor.constraint(greaterThanOrEqualTo: content.layoutMarginsGuide.leadingAnchor),
+        stack.trailingAnchor.constraint(lessThanOrEqualTo: content.layoutMarginsGuide.trailingAnchor),
+      ])
+      window.contentView = content
+    }
+    showWindow(nil)
+    window.makeKeyAndOrderFront(nil)
+  }
+
+  func dismiss() {
+    chooser = nil
+    window?.orderOut(nil)
+  }
+
+  func windowWillClose(_ notification: Notification) {
+    let selection = chooser
+    chooser = nil
+    selection?.cancelSubtitleSelection()
   }
 }

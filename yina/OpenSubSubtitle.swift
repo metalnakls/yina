@@ -149,7 +149,7 @@ class OpenSub {
         }.then { hash in
           self.searchForSubtitles(url, hash, player.getMediaTitle())
         }.then { subs in
-          self.showSubSelectWindow(with: subs)
+          self.showSubSelectWindow(with: subs, player: player)
         }
     }
 
@@ -316,7 +316,7 @@ class OpenSub {
     /// - Returns: An array containing one or more `Subtitle` objects.
     func searchForSubtitles(_ url: URL, _ hash: String?, _ mediaTitle: String) -> Promise<[Subtitle]> {
       // When streaming prefer the movie's title.
-      let searchString = url.isFileURL ? url.deletingPathExtension().lastPathComponent : mediaTitle
+      let searchString = OnlineSubtitleQuery.searchString(for: url, mediaTitle: mediaTitle)
       if let hash {
         log("Searching for subtitles of movies with hash \(hash) and matching '\(searchString)'")
       } else {
@@ -364,13 +364,14 @@ class OpenSub {
       }
     }
 
-    func showSubSelectWindow(with subs: [Subtitle]) -> Promise<[Subtitle]> {
+    func showSubSelectWindow(with subs: [Subtitle], player: PlayerCore) -> Promise<[Subtitle]> {
       return Promise { resolver in
         // return when found 0 or 1 sub
         if subs.count <= 1 {
           resolver.fulfill(subs)
           return
         }
+        subChooseViewController.player = player
         subChooseViewController.subtitles = subs
         subChooseViewController.context = self
 
@@ -380,7 +381,7 @@ class OpenSub {
         subChooseViewController.userCanceledAction = {
           resolver.reject(OnlineSubtitle.CommonError.canceled)
         }
-        PlayerCore.active.sendOSD(.foundSub(subs.count), autoHide: false, accessoryView: subChooseViewController.view)
+        player.showOnlineSubtitleMessage(.foundSub(subs.count), accessoryView: subChooseViewController.view, chooser: subChooseViewController)
         subChooseViewController.refresh()
       }
     }

@@ -143,9 +143,9 @@ class Assrt {
         if !self.checkToken() {
           throw OnlineSubtitle.CommonError.canceled
         }
-        return self.search(url.deletingPathExtension().lastPathComponent)
+        return self.search(OnlineSubtitleQuery.searchString(for: url, mediaTitle: player.getMediaTitle()))
       }.then { subs in
-        self.showSubSelectWindow(with: subs)
+        self.showSubSelectWindow(with: subs, player: player)
       }.thenMap { sub -> Promise<Subtitle> in
         self.loadDetails(forSub: sub)
       }
@@ -236,13 +236,14 @@ class Assrt {
       }
     }
 
-    func showSubSelectWindow(with subs: [Subtitle]) -> Promise<[Subtitle]> {
+    func showSubSelectWindow(with subs: [Subtitle], player: PlayerCore) -> Promise<[Subtitle]> {
       return Promise { resolver in
         // return when found 0 or 1 sub
         if subs.count <= 1 {
           resolver.fulfill(subs)
           return
         }
+        subChooseViewController.player = player
         subChooseViewController.subtitles = subs
         subChooseViewController.context = self
 
@@ -254,7 +255,7 @@ class Assrt {
         subChooseViewController.userCanceledAction = {
           resolver.reject(OnlineSubtitle.CommonError.canceled)
         }
-        PlayerCore.active.sendOSD(.foundSub(subs.count), autoHide: false, accessoryView: subChooseViewController.view)
+        player.showOnlineSubtitleMessage(.foundSub(subs.count), accessoryView: subChooseViewController.view, chooser: subChooseViewController)
         subChooseViewController.refresh()
       }
     }

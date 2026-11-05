@@ -149,7 +149,7 @@ class OnlineSubtitle: NSObject {
         if subtitles.isEmpty {
           throw OnlineSubtitle.CommonError.noResult
         } else {
-          player.sendOSD(.downloadingSub(subtitles.count, name))
+          player.showOnlineSubtitleMessage(.downloadingSub(subtitles.count, name))
         }
       }.thenFlatMap { subtitle in
         subtitle.download()
@@ -216,12 +216,10 @@ class OnlineSubtitle: NSObject {
 
   fileprivate static func _search<P: ProviderProtocol>(using provider: P, forFile url: URL, _ player: PlayerCore, _ callback: @escaping ([URL]) -> Void) {
     log("Search subtitle from \(provider.name)...")
-    player.sendOSD(.startFindingSub(provider.name), autoHide: false)
+    player.showOnlineSubtitleMessage(.startFindingSub(provider.name))
 
     provider.fetchSubtitles(url: url, player: player).done {
       callback($0)
-    }.ensure {
-      player.hideOSD()
     }.catch { err in
       let osdMessage: OSDMessage
       let prefix = "Failed to obtain subtitles for \(url) from \(provider.name). "
@@ -270,13 +268,13 @@ class OnlineSubtitle: NSObject {
         // Operation dismissed by, for example, a plugin with custom implementation.
         log("Default subtitle search wokflow dismissed")
         player.isSearchingOnlineSubtitle = false
+        player.hideOnlineSubtitleWindow()
         return
       default:
         osdMessage = .networkError
         log("\(prefix)\(err.localizedDescription)", level: .error)
       }
-      let timeout: Float? = shouldExtendTimeout(for: osdMessage) ? 5 : nil
-      player.sendOSD(osdMessage, forcedTimeout: timeout)
+      player.showOnlineSubtitleMessage(osdMessage)
       player.isSearchingOnlineSubtitle = false
     }
   }
@@ -299,15 +297,6 @@ class OnlineSubtitle: NSObject {
       return osdMessageForOpenSubErrorResponse(response, fallback: fallback, providerName: providerName)
     default:
       return fallback
-    }
-  }
-
-  private static func shouldExtendTimeout(for osdMessage: OSDMessage) -> Bool {
-    switch osdMessage {
-    case .onlineSubQuotaExceeded:
-      return true
-    default:
-      return false
     }
   }
 
