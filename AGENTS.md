@@ -22,7 +22,9 @@ yina uses one version number for both `CFBundleVersion` and `CFBundleShortVersio
 
 The release version lives in the `VERSION` file at the repository root. Local builds derive a date-based version (`YYYYMMDDHHMM`) so debugging never modifies the repository. Releases pass `YINA_VERSION="$(cat VERSION)"` to `other/build_install_nightly.sh`.
 
-Bump `VERSION` in the same commit as the change you want to ship. This is yina's own scheme: it does not track upstream IINA's version numbers. Keep upstream's history and provenance intact, but do not adopt its versioning.
+Change `VERSION` or other release-version settings only when the user explicitly instructs you to update the version. Otherwise preserve the release version; requests to implement, fix, commit, build, install, or publish do not authorize a version bump. When explicitly requested, include the version change in the corresponding release commit. Local builds continue to use the build script's date-based version.
+
+This is yina's own scheme: it does not track upstream IINA's version numbers. Keep upstream's history and provenance intact, but do not adopt its versioning.
 
 Cut releases from the `meh` branch only. `other/release.sh --dry-run` builds and verifies the ad-hoc Release app, creates `yina.zip`, signs it with the Keychain Sparkle key, and writes the appcast without publishing. After explicit push/release authorization, push the reviewed `meh` commit and run `other/release.sh`. It requires that exact commit on `yina/meh`, publishes the version tag and GitHub release, then deploys `site/index.html` and the feed through `gh-pages`. Never publish upstream IINA tags as yina releases.
 
