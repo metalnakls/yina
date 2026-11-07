@@ -127,6 +127,139 @@ index 534c28a12..ba8d93a49 100644
 @@ -1840 +1842 @@ if get_option('libmpv')
 -               'include/mpv/render_gl.h', 'include/mpv/stream_cb.h']
 +               'include/mpv/render_gl.h', 'include/mpv/render_mtl.h', 'include/mpv/stream_cb.h']
+diff --git a/video/out/gpu_next/libmpv_gpu_next.c b/video/out/gpu_next/libmpv_gpu_next.c
+index 81d36b957..9730e3172 100644
+--- a/video/out/gpu_next/libmpv_gpu_next.c
++++ b/video/out/gpu_next/libmpv_gpu_next.c
+@@ -42,0 +43,2 @@
++#include "video/out/gpu/hwdec.h"
++#include "video/out/placebo/ra_pl.h"
+@@ -46,0 +49 @@
++#include "mpv/render_mtl.h"
+@@ -76,0 +80 @@ struct frame_priv {
++    struct ra_hwdec_mapper *mapper;
+@@ -81,0 +86,3 @@ struct priv {
++    struct ra_ctx ra_ctx;
++    struct ra_hwdec_ctx hwdec_ctx;
++
+@@ -120,0 +128,36 @@ static bool map_frame(pl_gpu gpu, pl_tex *tex,
++    // Import VideoToolbox's CVPixelBuffer planes as Metal textures. Keep the
++    // mapper and decoder surface alive for this queued frame, until unmap.
++    struct ra_hwdec *hwdec = ra_hwdec_get(&p->hwdec_ctx, mpi->imgfmt);
++    if (hwdec) {
++        fp->mapper = ra_hwdec_mapper_create(hwdec, &mpi->params);
++        if (!fp->mapper || ra_hwdec_mapper_map(fp->mapper, mpi) < 0) {
++            ra_hwdec_mapper_free(&fp->mapper);
++            talloc_free(mpi);
++            return false;
++        }
++        struct mp_image_params par = fp->mapper->dst_params;
++        mp_image_params_guess_csp(&par);
++        frame->color = par.color;
++        frame->repr = par.repr;
++        struct mp_imgfmt_desc desc = mp_imgfmt_get_desc(par.imgfmt);
++        frame->num_planes = desc.num_planes;
++        for (int n = 0; n < frame->num_planes; n++) {
++            struct pl_plane *plane = &frame->planes[n];
++            plane->texture = (pl_tex)fp->mapper->tex[n]->priv;
++            int *map = plane->component_mapping;
++            for (int c = 0; c < mp_imgfmt_desc_get_num_comps(&desc); c++) {
++                if (desc.comps[c].plane != n)
++                    continue;
++                int index = plane->components++;
++                while (index > 0 &&
++                       desc.comps[map[index - 1]].offset > desc.comps[c].offset) {
++                    map[index] = map[index - 1];
++                    index--;
++                }
++                map[index] = c;
++            }
++        }
++        pl_frame_set_chroma_location(frame, par.chroma_location);
++        return true;
++    }
++
+@@ -171,0 +215 @@ static void unmap_frame(pl_gpu gpu, struct pl_frame *frame,
++    ra_hwdec_mapper_free(&fp->mapper);
+@@ -325,0 +370,17 @@ static int init(struct render_backend *ctx, mpv_render_param *params)
++    if (strcmp(api, MPV_RENDER_API_TYPE_METAL) == 0) {
++        p->ra_ctx = (struct ra_ctx) {
++            .global = ctx->global,
++            .log = ctx->log,
++            .ra = ra_create_pl(p->ctx->gpu, ctx->log),
++        };
++        if (!p->ra_ctx.ra)
++            return MPV_ERROR_UNSUPPORTED;
++        p->hwdec_ctx = (struct ra_hwdec_ctx) {
++            .global = ctx->global,
++            .log = ctx->log,
++            .ra_ctx = &p->ra_ctx,
++        };
++        struct gl_video_opts *opts = p->opts_cache->opts;
++        ra_hwdec_ctx_init(&p->hwdec_ctx, ctx->hwdec_devs,
++                          opts->hwdec_interop, true);
++    }
+@@ -333,0 +395,2 @@ static bool check_format(struct render_backend *ctx, int imgfmt)
++    if (ra_hwdec_get(&p->hwdec_ctx, imgfmt))
++        return true;
+@@ -382,0 +446 @@ static void screenshot(struct render_backend *ctx, struct vo_frame *frame,
++    struct mp_image *downloaded = NULL;
+@@ -402,0 +467,9 @@ static void screenshot(struct render_backend *ctx, struct vo_frame *frame,
++    if (mpi->fmt.flags & MP_IMGFLAG_HWACCEL) {
++        downloaded = mp_image_hw_download(mpi, NULL);
++        if (!downloaded) {
++            pl_tex_destroy(p->ctx->gpu, &fbo);
++            return;
++        }
++        mpi = downloaded;
++    }
++
+@@ -462,0 +536 @@ done:
++    talloc_free(downloaded);
+@@ -885,2 +958,0 @@ static void destroy(struct render_backend *ctx)
+-    hwdec_devices_destroy(ctx->hwdec_devs);
+-    ctx->hwdec_devs = NULL;
+@@ -900,0 +973,5 @@ static void destroy(struct render_backend *ctx)
++    ra_hwdec_ctx_uninit(&p->hwdec_ctx);
++    hwdec_devices_destroy(ctx->hwdec_devs);
++    ctx->hwdec_devs = NULL;
++    if (p->ra_ctx.ra)
++        ra_free(&p->ra_ctx.ra);
+diff --git a/video/out/hwdec/hwdec_vt_pl.m b/video/out/hwdec/hwdec_vt_pl.m
+index 82df4e94a..75b7b9269 100644
+--- a/video/out/hwdec/hwdec_vt_pl.m
++++ b/video/out/hwdec/hwdec_vt_pl.m
+@@ -29,0 +30,4 @@
++#include <libplacebo/config.h>
++#ifdef PL_HAVE_METAL
++#include <libplacebo/metal.h>
++#endif
+@@ -50,0 +55,4 @@ static bool check_hwdec(const struct ra_hwdec *hw)
++#ifdef PL_HAVE_METAL
++    if (pl_metal_get(gpu))
++        return true;
++#endif
+@@ -85,0 +94,7 @@ static int mapper_init(struct ra_hwdec_mapper *mapper)
++#ifdef PL_HAVE_METAL
++    pl_metal metal = pl_metal_get(ra_pl_get(mapper->ra));
++    if (metal) {
++        mtl_device = (id<MTLDevice>)metal->device;
++        [mtl_device retain];
++    }
++#endif
+@@ -271 +286,11 @@ static int mapper_map(struct ra_hwdec_mapper *mapper)
+-        pl_tex pltex = pl_tex_create(gpu, &tex_params);
++        pl_tex pltex;
++#ifdef PL_HAVE_METAL
++        if (pl_metal_get(gpu)) {
++            pltex = pl_metal_wrap(gpu, pl_metal_wrap_params(
++                .texture = CVMetalTextureGetTexture(p->mtl_planes[i]),
++            ));
++        } else
++#endif
++        {
++            pltex = pl_tex_create(gpu, &tex_params);
++        }
 diff --git a/video/out/mac/view.swift b/video/out/mac/view.swift
 index c341b3154..39c419101 100644
 --- a/video/out/mac/view.swift
@@ -135,3 +268,11 @@ index c341b3154..39c419101 100644
 +#if HAVE_MACOS_COCOA_CB
 @@ -35,0 +37 @@ class View: NSView, CALayerDelegate {
 +#endif
+diff --git a/video/out/placebo/ra_pl.c b/video/out/placebo/ra_pl.c
+index 14ae62770..481548938 100644
+--- a/video/out/placebo/ra_pl.c
++++ b/video/out/placebo/ra_pl.c
+@@ -114 +114,2 @@ static void destroy_ra_pl(struct ra *ra)
+-    talloc_free(ra);
++    // ra_free owns this allocation and its talloc children. The pl_gpu is
++    // borrowed from the rendering context and must outlive this wrapper.

@@ -16,8 +16,8 @@ static void fail(const char *step, int error)
 
 int main(int argc, const char **argv)
 {
-    if (argc != 2) {
-        fprintf(stderr, "usage: %s <video>\n", argv[0]);
+    if (argc != 2 && argc != 3) {
+        fprintf(stderr, "usage: %s <video> [expected-hwdec]\n", argv[0]);
         return 2;
     }
 
@@ -45,7 +45,7 @@ int main(int argc, const char **argv)
             fail("mpv_create", MPV_ERROR_NOMEM);
         mpv_set_option_string(mpv, "vo", "libmpv");
         mpv_set_option_string(mpv, "ao", "null");
-        mpv_set_option_string(mpv, "hwdec", "videotoolbox");
+        mpv_set_option_string(mpv, "hwdec", "auto");
         mpv_set_option_string(mpv, "video-sync", "display-desync");
         mpv_set_option_string(mpv, "screenshot-sw", "yes");
         int error = mpv_initialize(mpv);
@@ -74,7 +74,7 @@ int main(int argc, const char **argv)
 
         bool configured = false;
         int rendered = 0;
-        for (int tick = 0; tick < 600 && rendered < 3; tick++) {
+        for (int tick = 0; tick < 600 && rendered < 60; tick++) {
             NSEvent *event;
             while ((event = [NSApp nextEventMatchingMask:NSEventMaskAny
                                                  untilDate:[NSDate date]
@@ -114,11 +114,20 @@ int main(int argc, const char **argv)
             return 2;
         }
 
+        char *hwdec = mpv_get_property_string(mpv, "hwdec-current");
+        if (argc == 3 && (!hwdec || strcmp(hwdec, argv[2]) != 0)) {
+            fprintf(stderr, "Expected %s, got %s\n", argv[2], hwdec ?: "none");
+            mpv_free(hwdec);
+            return 3;
+        }
+        printf("Selected hardware decoder: %s\n", hwdec ?: "none");
+        mpv_free(hwdec);
+
         NSString *screenshotPath = [NSTemporaryDirectory()
             stringByAppendingPathComponent:@"yina-metal-smoke.png"];
         unlink(screenshotPath.fileSystemRepresentation);
         const char *screenshotCommand[] = {
-            "screenshot-to-file", screenshotPath.fileSystemRepresentation, "subtitles", NULL
+            "screenshot-to-file", screenshotPath.fileSystemRepresentation, getenv("YINA_TEST_WINDOW_SCREENSHOT") ? "window" : "subtitles", NULL
         };
         error = mpv_command_async(mpv, 1, screenshotCommand);
         if (error < 0)

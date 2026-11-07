@@ -37,3 +37,27 @@ ruby other/metal-deps/update-xcode-libraries.rb build/metal-deps/package/lib
 Build the temporary Metal renderer by adding `IINA_ENABLE_METAL_RENDERER` to
 `SWIFT_ACTIVE_COMPILATION_CONDITIONS`. Without that internal condition, YINA
 continues to compile its OpenGL fallback.
+
+## Direct VideoToolbox on Metal
+
+The pinned experimental `libmpv_gpu_next` backend originally exposed an empty
+hardware-device list and accepted only software image planes. Consequently,
+`hwdec=auto` selected `videotoolbox-copy` even without video filters. The local
+patch initializes mpv's hardware-decoder interop against the libplacebo RA,
+advertises supported hardware formats, and keeps a mapper alive with each queued
+frame. CVMetalTextureCache imports the decoder's CVPixelBuffer planes; native
+Metal wraps those textures with `pl_metal_wrap` rather than the Vulkan-oriented
+`PL_HANDLE_MTL_TEX` import interface. No CPU plane upload is performed for these
+hardware frames. Software decoding and explicitly requested copy-back remain
+available when needed. Explicit screenshots may still read frames back to CPU.
+
+Mapper cleanup precedes hardware-device/RA teardown. The patch also corrects the
+RA wrapper destructor to leave allocation disposal to `ra_free`, avoiding a
+double free once the importer uses that lifecycle.
+
+`bash other/tests/metal-videotoolbox-smoke.sh` generates H.264, 10-bit HEVC and
+MPEG-2 fixtures. It asserts `hwdec-current=videotoolbox` for the first two and
+software fallback for MPEG-2, renders sixty frames per file, checks software and
+renderer screenshots, and tears each context down. The direct-decoder assertion
+failed with `videotoolbox-copy` before this patch. This establishes the removal of
+copy-back for supported playback, not a measured percentage of total app RAM.
