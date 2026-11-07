@@ -1,5 +1,5 @@
 diff --git a/audio/out/ao_avfoundation.m b/audio/out/ao_avfoundation.m
-index 09f3ef002..c779b1159 100644
+index 09f3ef002..a1c98a22e 100644
 --- a/audio/out/ao_avfoundation.m
 +++ b/audio/out/ao_avfoundation.m
 @@ -38,0 +39 @@
@@ -53,12 +53,18 @@ index 09f3ef002..c779b1159 100644
 @@ -172 +184 @@ static bool set_pause(struct ao *ao, bool paused)
 -        [p->synchronizer setRate:1];
 +        dispatch_sync(p->queue, block);
-@@ -173,0 +186,26 @@ static bool set_pause(struct ao *ao, bool paused)
+@@ -173,0 +186,32 @@ static bool set_pause(struct ao *ao, bool paused)
 +}
 +
 +static void start(struct ao *ao)
 +{
-+    on_queue_sync(ao, ^{ start_on_queue(ao); });
++    // mpv calls start only when logically unpaused. After ao_reset it clears
++    // hw_paused, so resume may arrive here without set_pause(false).
++    on_queue_sync(ao, ^{
++        struct priv *p = ao->priv;
++        p->paused = false;
++        start_on_queue(ao);
++    });
 +}
 +
 +static void stop(struct ao *ao)
@@ -80,7 +86,7 @@ index 09f3ef002..c779b1159 100644
 +            request_media_data(ao);
 +        }
 +    });
-@@ -209,6 +247,13 @@ static int control(struct ao *ao, enum aocontrol cmd, void *arg)
+@@ -209,6 +253,13 @@ static int control(struct ao *ao, enum aocontrol cmd, void *arg)
 -    char *name = cfstr_get_cstr((CFStringRef)notification.name);
 -    MP_WARN(ao, "restarting due to system notification; this will cause desync\n");
 -    MP_VERBOSE(ao, "notification name: %s\n", name);
@@ -100,12 +106,12 @@ index 09f3ef002..c779b1159 100644
 +}
 +- (void)invalidate {
 +    @synchronized (self) { ao = NULL; }
-@@ -250,0 +296 @@ static int init(struct ao *ao)
+@@ -250,0 +302 @@ static int init(struct ao *ao)
 +    dispatch_queue_set_specific(p->queue, &queue_key, &queue_key, NULL);
-@@ -335,0 +382,2 @@ static void uninit(struct ao *ao)
+@@ -335,0 +388,2 @@ static void uninit(struct ao *ao)
 +    [[NSNotificationCenter defaultCenter] removeObserver:p->observer];
 +    [p->observer invalidate];
-@@ -343 +390,0 @@ static void uninit(struct ao *ao)
+@@ -343 +396,0 @@ static void uninit(struct ao *ao)
 -    [[NSNotificationCenter defaultCenter] removeObserver:p->observer];
 diff --git a/meson.build b/meson.build
 index 534c28a12..ba8d93a49 100644

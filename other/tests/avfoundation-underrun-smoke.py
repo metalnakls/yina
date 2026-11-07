@@ -58,13 +58,14 @@ int main(void) { @autoreleasepool {
     dispatch_sync(p.queue, ^{ afterEmpty=ao.reads; });
     [NSThread sleepForTimeInterval:0.1];
     dispatch_sync(p.queue, ^{ NSCAssert(ao.reads==afterEmpty, @"pause stops callbacks"); ao.available=4800; });
-    // A renderer reset while paused must not start feeding until mpv unpauses.
-    dispatch_sync(p.queue, ^{ stop(&ao); start(&ao); });
+    // mpv ao_reset clears hw_paused. A later unpause invokes start(), not
+    // set_pause(false). Reset itself must remain stopped.
+    stop(&ao);
     [NSThread sleepForTimeInterval:0.1];
     dispatch_sync(p.queue, ^{ NSCAssert(ao.reads==afterEmpty, @"paused reset remains paused"); });
-    set_pause(&ao, false);
+    start(&ao);
     [NSThread sleepForTimeInterval:0.1];
-    dispatch_sync(p.queue, ^{ NSCAssert(ao.available==0 && ao.reads>afterEmpty, @"resume feeds returned data"); });
+    dispatch_sync(p.queue, ^{ NSCAssert(ao.available==0 && ao.reads>afterEmpty, @"start after paused reset must resume without another set_pause callback"); });
     stop(&ao);
     dispatch_sync(p.queue, ^{ ao.eof=true; ao.streaming=true; start(&ao); });
     [NSThread sleepForTimeInterval:0.1];
