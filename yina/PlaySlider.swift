@@ -112,7 +112,6 @@ final class PlaySlider: NSSlider {
   private var floatingCell: FloatingPlaySliderCell!
   private var chapterMarks: SliderChapterMarks!
   private(set) var isDraggingPlaybackThumb = false
-  private var resumeAfterTracking = false
 
   /// Knob representing the A loop point for the mpv A-B loop feature.
   var abLoopA: PlaySliderLoopKnob { abLoopAKnob }
@@ -250,17 +249,15 @@ final class PlaySlider: NSSlider {
     guard !isDraggingPlaybackThumb else { return }
     isDraggingPlaybackThumb = true
     let player = playerCore
-    resumeAfterTracking = player.info.state == .playing
     player.mainWindow.liveText.clearAnalysis()
-    player.pause()
+    player.setScrubbing(.slider, active: true)
     player.mainWindow.thumbnailPeekView.isHidden = true
   }
 
   @objc private func trackingEnded() {
     guard isDraggingPlaybackThumb else { return }
     isDraggingPlaybackThumb = false
-    if resumeAfterTracking { playerCore.resume() }
-    resumeAfterTracking = false
+    playerCore.setScrubbing(.slider, active: false)
     chapterMarks.needsDisplay = true
   }
 

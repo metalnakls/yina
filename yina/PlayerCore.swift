@@ -565,7 +565,6 @@ class PlayerCore: NSObject {
 
   /// Media waiting for the initial player window to finish creating its render context
   /// and controls. Loading starts after that setup so callbacks see initialized views.
-  private var pendingWindowLoadPath: String?
 
   private static let mediaOpeningLog = OSLog(subsystem: "tsmc.yina", category: "MediaOpening")
   private var mediaOpeningStartedAt: CFTimeInterval?
@@ -919,9 +918,8 @@ class PlayerCore: NSObject {
     cancelRemotePlaybackRecovery()
     idleRetirement?.cancel()
     idleRetirement = nil
-    transportGeneration &+= 1
-    requestedPause = nil
-    cachedEOF = false
+    guard transport.beginOpen(path: path, pauseWhenOpen: Preference.bool(for: .pauseWhenOpen)) else { return }
+    publishTransport()
     mpv.resetPlaybackObservation()
     subtitleText = ""
     secondarySubtitleText = ""
@@ -947,14 +945,11 @@ class PlayerCore: NSObject {
     info.videoTracks = []
     info.videoWidth = nil
     if isNetwork {
+      let generation = transport.generation
       Task { @MainActor in
+        guard transport.generation == generation, transport.isOpening else { return }
         AppDelegate.shared.openURLWindow.showLoadingScreen(playerCore: self)
       }
-    }
-
-    if !mpv.getFlag(MPVOption.PlaybackControl.pause) {
-      log("Pausing playback before running load command")
-      mpv.setFlag(MPVOption.PlaybackControl.pause, true, level: .verbose)
     }
 
     // If this mpv core is being reused icc-profile-auto may have been left set to true. This option
@@ -975,8 +970,6 @@ class PlayerCore: NSObject {
     miniPlayer.pendingShow = true
     info.justOpenedFile = true
     keepCurrentFileWindowed = false
-    info.state = .loading
-    pendingWindowLoadPath = path
 
     // Finish creating the initial player window before starting mpv. Later opens use the
     // already-loaded window and start immediately.
@@ -990,12 +983,10 @@ class PlayerCore: NSObject {
     startPendingWindowLoad()
   }
 
-  func startPendingWindowLoad() {
-    guard let path = pendingWindowLoadPath else { return }
-    pendingWindowLoadPath = nil
+  private func startPendingWindowLoad() {
     recordMediaOpeningStage("load requested")
-    mpv.command(.loadfile, args: [path], level: .verbose)
-    recordMediaOpeningStage("load command returned")
+    transport.submitOpen()
+    runTransport()
   }
 
   static func loadKeyBindings() {
@@ -1134,10 +1125,9 @@ class PlayerCore: NSObject {
     mediaPreparationGeneration &+= 1
     mediaPreparationPending = false
     preparingURL = nil
-    transportGeneration &+= 1
-    requestedPause = nil
+    transport.shutDown(complete: false)
+    publishTransport()
     finishSubtitleDissolve()
-    info.state = .shuttingDown
     guard !backgroundTaskInUse else { return }
     log("Shutting down")
     savePlayerState()
@@ -1168,7 +1158,8 @@ class PlayerCore: NSObject {
     let isMPVInitiated = info.state != .shuttingDown
     let suffix = isMPVInitiated ? " (initiated by mpv)" : ""
     log("Player has shutdown\(suffix)")
-    info.state = .shutDown
+    transport.shutDown(complete: true)
+    publishTransport()
     if isMPVInitiated {
       // The user must have used mpv's IPC interface to send a quit command directly to mpv. Must
       // perform the actions that were skipped when YINA's normal shutdown process was bypassed.
@@ -1251,9 +1242,9 @@ class PlayerCore: NSObject {
 
   // MARK: - MPV commands
 
-  private var requestedPause: Bool?
-  private var transportGeneration: UInt64 = 0
-  private var cachedEOF = false
+  private var transport = PlaybackTransport()
+  private var publishedEffectivePause: Bool?
+  var isPreparingMedia: Bool { mediaPreparationPending || pendingUrl != nil || transport.isOpening }
   private(set) var subtitleText = ""
   private(set) var secondarySubtitleText = ""
 
@@ -1272,7 +1263,7 @@ class PlayerCore: NSObject {
   var isWaitingForPlayback: Bool { playbackResumeWait.visible(now: ProcessInfo.processInfo.systemUptime) }
   private var cachedRemaining: Double?
   private var cachedScaledRemaining: Double?
-  var effectivePaused: Bool { requestedPause ?? (info.state == .paused) }
+  var effectivePaused: Bool { transport.effectivePaused }
 
   @Atomic var playbackTrace: PiPTransitionTrace? = nil
 
@@ -1312,49 +1303,37 @@ class PlayerCore: NSObject {
   }
 
   private var playbackTraceState: String {
-    "state=\(info.state) requestedPause=\(String(describing: requestedPause)) effectivePaused=\(effectivePaused) generation=\(transportGeneration) eof=\(cachedEOF) remoteWait=\(isWaitingForRemoteMedia) seeking=\(info.isSeeking) cachePaused=\(info.pausedForCache) position=\(info.videoPosition?.second ?? -1)"
+    "state=\(info.state) requestedPause=\(String(describing: transport.requestedPause)) effectivePaused=\(effectivePaused) generation=\(transport.generation) eof=\(transport.eof) remoteWait=\(isWaitingForRemoteMedia) seeking=\(info.isSeeking) cachePaused=\(info.pausedForCache) position=\(info.videoPosition?.second ?? -1)"
   }
 
   func togglePause(_ set: Bool? = nil, source: String = "toggle") {
+    guard Thread.isMainThread else {
+      DispatchQueue.main.async { [weak self] in self?.togglePause(set, source: source) }
+      return
+    }
     tracePlaybackControl("input:\(source) explicit=\(String(describing: set))")
     let paused = set ?? !effectivePaused
     paused ? pause() : resume()
   }
 
-  private func setPauseAsynchronously(_ paused: Bool, generation: UInt64) {
-    let trace = playbackTrace
-    trace?.record("pause-submit", "paused=\(paused) generation=\(generation)")
-    mpv.asyncClient.set(MPVOption.PlaybackControl.pause, .flag(paused)) { [weak self] error in
-      trace?.record("pause-reply", "paused=\(paused) generation=\(generation) error=\(error) currentGeneration=\(self?.transportGeneration ?? 0)")
-      guard let self, self.transportGeneration == generation else { return }
-      if error < 0 {
-        self.requestedPause = nil
-        self.log("Playback control failed (\(error))", level: .warning)
-        self.syncUI(.playButton)
-      }
-    }
-  }
-
-  /// Pause playback.
-  /// - Important: Setting the `pause` property will cause `mpv` to emit a `MPV_EVENT_PROPERTY_CHANGE` event. The
-  ///     event will still be emitted even if the `mpv` core is idle. If the setting `Pause when machine goes to sleep` is
-  ///     enabled then `PlayerWindowController` will call this method in response to a
-  ///     `NSWorkspace.willSleepNotification`. That happens even if the window is closed and the player is idle. In
-  ///     response the event handler in `MPVController` will call `VideoView.displayIdle`. The suspicion is that calling this
-  ///     method results in a call to `CVDisplayLinkCreateWithActiveCGDisplays` which fails because the display is
-  ///     asleep. Thus `setFlag` **must not** be called if the `mpv` core is idle or stopping. See issue
-  ///     [#4520](https://github.com/iina/iina/issues/4520)
   func pause() {
+    guard Thread.isMainThread else {
+      DispatchQueue.main.async { [weak self] in self?.pause() }
+      return
+    }
     tracePlaybackControl("pause-called")
     cancelPlaybackResumeWait()
-    guard info.state.active else { return }
-    guard !isWaitingForRemoteMedia else { return }
+    guard info.state.active, !isWaitingForRemoteMedia else { return }
     sharedPlaybackControlChanged()
-    log("Pausing playback")
-    transportGeneration &+= 1
-    requestedPause = true
-    setPauseAsynchronously(true, generation: transportGeneration)
-    syncUI(.playButton)
+    transport.setPaused(true)
+    runTransport()
+  }
+
+  func setScrubbing(_ hold: PlaybackTransport.Hold, active: Bool) {
+    guard transport.isReady else { return }
+    if active { sharedPlaybackControlChanged() }
+    transport.setHold(hold, active: active)
+    runTransport()
   }
 
   private static let resumeTimingLog = OSLog(subsystem: "tsmc.yina", category: "PlaybackResume")
@@ -1374,6 +1353,10 @@ class PlayerCore: NSObject {
   /// - Important: Although primary responsibility for ensuring the display link is running when playback is in progress belongs to
   ///     the `pauseChanged` method, this method calls `displayActive` to provide more time for the display link to start up.
   func resume() {
+    guard Thread.isMainThread else {
+      DispatchQueue.main.async { [weak self] in self?.resume() }
+      return
+    }
     tracePlaybackControl("resume-called")
     guard info.state.active else { return }
     if isWaitingForRemoteMedia {
@@ -1383,31 +1366,83 @@ class PlayerCore: NSObject {
       return
     }
     sharedPlaybackControlChanged()
-    log("Resuming playback")
-    transportGeneration &+= 1
-    let generation = transportGeneration
-    requestedPause = false
-    startPlaybackResumeWait(generation: generation)
-    playbackTrace?.record("display-active-begin")
+    transport.setPaused(false)
+    startPlaybackResumeWait(generation: transport.generation)
     measureResumeStage("displayActive") { mainWindow.videoView.displayActive() }
-    playbackTrace?.record("display-active-end")
-    if cachedEOF {
-      finishSubtitleDissolve()
-      invalidateSyncedDisplayPosition()
-      mpv.asyncClient.command(["seek", "0", "absolute+exact"]) { [weak self] error in
-        guard let self, self.transportGeneration == generation, self.info.state.active else { return }
-        guard error >= 0 else {
-          self.requestedPause = nil
-          self.log("Restart seek failed (\(error))", level: .warning)
-          self.syncUI(.playButton)
-          return
-        }
-        self.setPauseAsynchronously(false, generation: generation)
-      }
-    } else {
-      setPauseAsynchronously(false, generation: generation)
+    runTransport()
+  }
+
+  private func publishTransport() {
+    dispatchPrecondition(condition: .onQueue(.main))
+    let previous = info.state
+    let state = transport.state
+    let pauseChanged = (previous == .playing || previous == .paused) &&
+      (state == .playing || state == .paused) && previous != state
+    if pauseChanged { syncUITime() }
+    info.updateTransportState(state, seeking: transport.isSeeking)
+    if pauseChanged { handlePlaybackPauseChange(state == .paused) }
+  }
+
+  private func runTransport() {
+    publishTransport()
+    if mainWindow.loaded, info.state.active, publishedEffectivePause != effectivePaused {
+      publishedEffectivePause = effectivePaused
+      syncUI(.playButton)
+    } else if !info.state.active {
+      publishedEffectivePause = nil
     }
-    syncUI(.playButton)
+    guard let request = transport.nextRequest() else { return }
+    let complete: (Int32) -> Void = { [weak self] error in
+      self?.completeTransport(request, error: error)
+    }
+    switch request.command {
+    case .pause(let paused):
+      playbackTrace?.record("pause-submit", "paused=\(paused) generation=\(request.generation)")
+      mpv.asyncClient.set(MPVOption.PlaybackControl.pause, .flag(paused), completion: complete)
+    case .load(let path):
+      mpv.asyncClient.command(["loadfile", path], completion: complete)
+    case .playlist(let arguments):
+      mpv.asyncClient.command(arguments, completion: complete)
+    case .seek(let arguments, _):
+      finishSubtitleDissolve()
+      mainWindow.videoView.displayActive()
+      invalidateSyncedDisplayPosition()
+      mpv.asyncClient.command(arguments, completion: complete)
+    case .frameStep(let backwards):
+      mainWindow.videoView.displayActive()
+      mpv.asyncClient.command([backwards ? "frame-back-step" : "frame-step"], completion: complete)
+    case .stop:
+      mpv.asyncClient.command(["stop"], completion: complete)
+    }
+  }
+
+  private func completeTransport(_ request: PlaybackTransport.Request, error: Int32) {
+    if case .pause(let paused) = request.command {
+      playbackTrace?.record("pause-reply", "paused=\(paused) generation=\(request.generation) error=\(error)")
+    }
+    let result = transport.complete(request, success: error >= 0)
+    switch result {
+    case .loadFailed:
+      cancelPlaybackResumeWait()
+      currentController.pendingShow = false
+      publishTransport()
+      if AppDelegate.shared.openURLWindow.window?.isVisible == true {
+        MainActor.assumeIsolated { AppDelegate.shared.openURLWindow.failedToLoadURL() }
+      } else {
+        Utility.showAlert("error_open")
+      }
+      currentController.close()
+    case .pauseFailed, .seekFailed:
+      cancelPlaybackResumeWait()
+      log("Playback command failed (\(error))", level: .warning)
+    case .playlistFailed:
+      log("Playlist step rejected (\(error))", level: .verbose)
+    case .accepted:
+      if case .load = request.command { recordMediaOpeningStage("load command returned") }
+    case .obsolete:
+      break
+    }
+    runTransport()
   }
 
   /// Stop playback and unload the media.
@@ -1428,6 +1463,10 @@ class PlayerCore: NSObject {
   ///     and call this method again to continue the process of stopping. It is important to stop the background task as if it is still
   ///     running when the mpv core is shutdown it may call into mpv triggering a crash.
   func stop() {
+    guard Thread.isMainThread else {
+      DispatchQueue.main.async { [weak self] in self?.stop() }
+      return
+    }
     cancelRemotePlaybackRecovery()
     sharedShowLocalMediaChangeRequested()
     if Thread.isMainThread {
@@ -1438,27 +1477,14 @@ class PlayerCore: NSObject {
     mediaPreparationGeneration &+= 1
     mediaPreparationPending = false
     preparingURL = nil
-    transportGeneration &+= 1
-    requestedPause = nil
     guard info.state != .shutDown else { return }
     mediaOpeningStartedAt = nil
     savePlaybackPosition()
 
     lastSyncedDisplayPosition = nil
 
-    // The player may already be stopped in which case the state must not be set to stopping.
-    if info.state != .idle {
-      let wasPaused = info.state == .paused
-      // Setting of state must come after saving playback position or that method will not save the
-      // watch later configuration.
-      info.state = .stopping
-
-      // Make sure playback is paused to free up machine resources when quitting.
-      if !wasPaused {
-        log("Pausing playback before sending stop command")
-        mpv.setAsync(MPVOption.PlaybackControl.pause, .flag(true))
-      }
-    }
+    transport.beginStop()
+    publishTransport()
 
     // Must first stop the background task if it is running.
     if backgroundTaskInUse {
@@ -1476,8 +1502,8 @@ class PlayerCore: NSObject {
     refreshSyncUITimer()
 
     // Do not send a stop command to mpv if it is already stopped.
-    guard info.state != .idle else { return }
-    mpv.asyncClient.command(["stop"])
+    transport.submitStop()
+    runTransport()
   }
 
   func toggleMute(_ set: Bool? = nil) {
@@ -1486,6 +1512,10 @@ class PlayerCore: NSObject {
   }
 
   func seek(percent: Double, forceExact: Bool = false) {
+    guard Thread.isMainThread else {
+      DispatchQueue.main.async { [weak self] in self?.seek(percent: percent, forceExact: forceExact) }
+      return
+    }
     sharedPlaybackControlChanged()
     var percent = percent
     // mpv will play next file automatically when seek to EOF.
@@ -1497,21 +1527,22 @@ class PlayerCore: NSObject {
     }
     let useExact = forceExact ? true : Preference.bool(for: .useExactSeek)
     let seekMode = useExact ? "absolute-percent+exact" : "absolute-percent"
-    invalidateSyncedDisplayPosition()
-    mpv.command(.seek, args: ["\(percent)", seekMode], checkError: false, level: .verbose)
+    submitSeek(["seek", String(percent), seekMode])
   }
 
   func seek(relativeSecond: Double, option: Preference.SeekOption) {
+    guard Thread.isMainThread else {
+      DispatchQueue.main.async { [weak self] in self?.seek(relativeSecond: relativeSecond, option: option) }
+      return
+    }
     sharedPlaybackControlChanged()
     switch option {
 
     case .relative:
-      invalidateSyncedDisplayPosition()
-      mpv.command(.seek, args: ["\(relativeSecond)", "relative"], checkError: false, level: .verbose)
+      submitSeek(["seek", String(relativeSecond), "relative"])
 
     case .exact:
-      invalidateSyncedDisplayPosition()
-      mpv.command(.seek, args: ["\(relativeSecond)", "relative+exact"], checkError: false)
+      submitSeek(["seek", String(relativeSecond), "relative+exact"])
 
     case .auto:
       // for each file , try use exact and record interval first
@@ -1524,29 +1555,37 @@ class PlayerCore: NSObject {
         triedUsingExactSeekForCurrentFile = true
       }
       let seekMode = useExactSeekForCurrentFile ? "relative+exact" : "relative"
-      invalidateSyncedDisplayPosition()
-      mpv.command(.seek, args: ["\(relativeSecond)", seekMode], checkError: false)
+      submitSeek(["seek", String(relativeSecond), seekMode])
 
     }
   }
 
   func seek(absoluteSecond: Double) {
+    seekFromInput(["seek", String(absoluteSecond), "absolute+exact"])
+  }
+
+  func seekFromInput(_ arguments: [String]) {
+    guard Thread.isMainThread else {
+      DispatchQueue.main.async { [weak self] in self?.seekFromInput(arguments) }
+      return
+    }
     sharedPlaybackControlChanged()
-    invalidateSyncedDisplayPosition()
-    mpv.command(.seek, args: ["\(absoluteSecond)", "absolute+exact"])
+    submitSeek(arguments)
+  }
+
+  private func submitSeek(_ arguments: [String]) {
+    transport.seek(arguments)
+    runTransport()
   }
 
   func frameStep(backwards: Bool) {
-    sharedPlaybackControlChanged()
-    // When playback is paused the display link is stopped in order to avoid wasting energy on
-    // It must be running when stepping to avoid slowdowns caused by mpv waiting for YINA to call
-    // mpv_render_report_swap.
-    mainWindow.videoView.displayActive()
-    if backwards {
-      mpv.command(.frameBackStep)
-    } else {
-      mpv.command(.frameStep)
+    guard Thread.isMainThread else {
+      DispatchQueue.main.async { [weak self] in self?.frameStep(backwards: backwards) }
+      return
     }
+    sharedPlaybackControlChanged()
+    transport.frameStep(backwards: backwards)
+    runTransport()
   }
 
   /// Takes a screenshot, attempting to augment mpv's `screenshot` command with additional functionality & control, for example
@@ -2180,66 +2219,36 @@ class PlayerCore: NSObject {
     postNotification(.yinaPlaylistChanged)
   }
 
-  /// Play the entry at the given position in the playlist.
-  /// - Important: This method will ensure playback is paused before changing the position in the playlist. If playback is not
-  ///     paused, audio can start playing before video is shown. This is most noticeable with high resolution videos encoded with
-  ///     newer high compression codecs (such as AV1), when running on older Macs that lack support for hardware decoding of the
-  ///     codec used. Playback will be started once the video has been loaded and the size of the video is known (unless the "Pause"
-  ///     setting is enabled under "When media is opened"). Playback is only paused when the user manually changes the position in
-  ///     the playlist in order to not disrupt gapless audio.
-  /// - Important: Although primary responsibility for ensuring the display link is running when playback is in progress belongs to
-  ///     the `pauseChanged` method, this method calls `displayActive` to provide more time for the display link to start up
-  ///     expecting that normally playback will be resumed by `notifyWindowVideoSizeChanged` once the file is loaded. Note
-  ///     that when this method pauses playback `pauseChanged` will call `displayIdle`. That is not a problem as that method
-  ///     does not immediately stop the display link. The link will still be running when `notifyWindowVideoSizeChanged`
-  ///     resumes playback.
-  /// - Important: The mpv
-  ///     [playlist-play-index](https://mpv.io/manual/stable/#command-interface-playlist-play-index)
-  ///     playlist manipulation command is intentionally used instead of setting the mpv
-  ///     [playlist-pos](https://mpv.io/manual/stable/#command-interface-playlist-pos) property so that double
-  ///     clicking in the playlist on the entry that is currently playing reloads that entry.
-  /// - Parameter pos: Position of the entry in the playlist to be played.
   func playFileInPlaylist(_ pos: Int) {
+    stepPlaylist(["playlist-play-index", String(pos)])
+  }
+
+  func navigateInPlaylist(nextMedia: Bool) {
+    guard Thread.isMainThread else {
+      DispatchQueue.main.async { [weak self] in self?.navigateInPlaylist(nextMedia: nextMedia) }
+      return
+    }
+    guard !mainWindow.interactiveMode.isActive else { return }
+    if !nextMedia && info.$playlist.withLock({ $0.first?.isPlaying == true }) {
+      cancelRemotePlaybackRecovery()
+      sharedShowLocalMediaChangeRequested()
+      seek(absoluteSecond: 0)
+    } else {
+      stepPlaylist([nextMedia ? "playlist-next" : "playlist-prev"])
+    }
+  }
+
+  func stepPlaylist(_ arguments: [String]) {
+    guard Thread.isMainThread else {
+      DispatchQueue.main.async { [weak self] in self?.stepPlaylist(arguments) }
+      return
+    }
+    guard info.state.active, !mainWindow.interactiveMode.isActive else { return }
     cancelRemotePlaybackRecovery()
     sharedShowLocalMediaChangeRequested()
     mainWindow.videoView.displayActive()
-    if !mpv.getFlag(MPVOption.PlaybackControl.pause) {
-      log("Pausing playback before playing entry at index \(pos) in the playlist")
-      mpv.setFlag(MPVOption.PlaybackControl.pause, true, level: .verbose)
-    }
-    mpv.command(.playlistPlayIndex, args: [String(pos)], level: .verbose)
-    getPlaylist()
-  }
-
-  /// Play the next or the previous entry in the playlist.
-  /// - Important: This method will ensure playback is paused before changing the position in the playlist. If playback is not
-  ///     paused, audio can start playing before video is shown. This is most noticeable with high resolution videos encoded with
-  ///     newer high compression codecs (such as AV1), when running on older Macs that lack support for hardware decoding of the
-  ///     codec used. Playback will be started once the video has been loaded and the size of the video is known (unless the "Pause"
-  ///     setting is enabled under "When media is opened"). Playback is only paused when the user manually changes the position in
-  ///     the playlist in order to not disrupt gapless audio.
-  /// - Important: Although primary responsibility for ensuring the display link is running when playback is in progress belongs to
-  ///     the `pauseChanged` method, this method calls `displayActive` to provide more time for the display link to start up
-  ///     expecting that normally playback will be resumed by `notifyWindowVideoSizeChanged` once the file is loaded. Note
-  ///     that when this method pauses playback `pauseChanged` will call `displayIdle`. That is not a problem as that method
-  ///     does not immediately stop the display link. The link will still be running when `notifyWindowVideoSizeChanged`
-  ///     resumes playback.
-  /// - Parameter nextMedia: When `true` play the next entry in the playlist; otherwise play the previous entry.
-  func navigateInPlaylist(nextMedia: Bool) {
-    guard !mainWindow.interactiveMode.isActive else { return }
-    cancelRemotePlaybackRecovery()
-    sharedShowLocalMediaChangeRequested()
-
-    if nextMedia == false && (info.playlist.first?.isPlaying) ?? false {
-      seek(absoluteSecond: 0)
-    } else {
-      mainWindow.videoView.displayActive()
-      if !mpv.getFlag(MPVOption.PlaybackControl.pause) {
-        log("Pausing playback before playing \(nextMedia ? "next" : "previous") entry in playlist")
-        mpv.setFlag(MPVOption.PlaybackControl.pause, true, level: .verbose)
-      }
-      mpv.command(nextMedia ? .playlistNext : .playlistPrev, checkError: false)
-    }
+    transport.step(arguments)
+    runTransport()
   }
 
   @discardableResult
@@ -2250,7 +2259,7 @@ class PlayerCore: NSObject {
       return nil
     }
     let chapter = chapters[pos]
-    mpv.command(.seek, args: ["\(chapter.time.second)", "absolute"])
+    submitSeek(["seek", String(chapter.time.second), "absolute"])
     resume()
     // need to update time pos
     syncUITime()
@@ -2645,7 +2654,7 @@ class PlayerCore: NSObject {
   func checkpointPlaybackPosition(force: Bool = false) {
     guard !isWaitingForRemoteMedia, cachedSavePositionOnQuit, info.state.loaded, !info.justStartedFile,
           !info.isSeeking, info.currentURL != nil else { return }
-    if cachedEOF {
+    if transport.eof {
       clearCompletedPlaybackCheckpoint()
       return
     }
@@ -2692,7 +2701,7 @@ class PlayerCore: NSObject {
     guard cachedSavePositionOnQuit else { return }
 
     // The player must be active to be able to save the watch later configuration.
-    if info.state.active && !cachedEOF && !isWaitingForRemoteMedia {
+    if info.state.active && !transport.eof && !isWaitingForRemoteMedia {
       log("Write watch later config")
       mpv.asyncClient.command(["write-watch-later-config"])
     }
@@ -2762,7 +2771,12 @@ class PlayerCore: NSObject {
   /// was received.
   /// - Important: The event may be received after YINA has started to stop and shutdown the core. The event must be ignored if
   ///         the player is no longer active.
-  func fileStarted(path: String) {
+  func fileStarted(path: String, identity: PlaybackTransport.Media) -> Bool {
+    guard transport.fileStarted(identity, pauseWhenOpen: Preference.bool(for: .pauseWhenOpen)) else { return false }
+    publishTransport()
+    mpv.needRecordSeekTime = false
+    mpv.recordedSeekTimeListener = nil
+    ffmpegController.cancelThumbnailGeneration()
     subtitleTimingSession.reset()
     let url = path.contains("://") ?
       URL(string: path.addingPercentEncoding(withAllowedCharacters: .urlAllowed) ?? path) :
@@ -2771,7 +2785,6 @@ class PlayerCore: NSObject {
     let previousURL = info.currentURL
     let wasRemoteFile = info.isRemoteFile
     playbackCheckpoint.reset()
-    cachedEOF = false
     cachedRemaining = nil
     cachedScaledRemaining = nil
     subtitleText = ""
@@ -2780,7 +2793,6 @@ class PlayerCore: NSObject {
     lastPairedAudioID = nil
     explicitlySelectedSubtitleID = nil
     pendingAutomaticSubtitleID = nil
-    guard info.state.active else { return }
     finishSubtitleDissolve()
     log("File started")
 
@@ -2796,7 +2808,7 @@ class PlayerCore: NSObject {
     if let url = info.currentURL {
       info.mpvMd5 = Utility.mpvWatchLaterMd5(url, ignorePathInWatchLaterConfig)
     }
-    info.isNetworkResource = !info.currentURL!.isFileURL
+    info.isNetworkResource = info.currentURL?.isFileURL == false
     if previousURL != info.currentURL {
       info.isRemoteFile = wasRemoteFile && previousURL?.deletingLastPathComponent() == url?.deletingLastPathComponent()
       if !info.isRemoteFile, let url = info.currentURL, url.isFileURL {
@@ -2871,6 +2883,8 @@ class PlayerCore: NSObject {
       }
     }
     events.emit(.fileStarted)
+    runTransport()
+    return true
   }
 
   /// A [MPV_EVENT_FILE_LOADED](https://mpv.io/manual/stable/#command-interface-mpv-event-file-loaded)
@@ -2879,8 +2893,9 @@ class PlayerCore: NSObject {
   /// This function is called right after the file is loaded. Should load all meta info here.
   /// - Important: The event may be received after YINA has started to stop and shutdown the core. The event must be ignored if
   ///         the player is no longer active.
-  func fileLoaded() {
-    guard info.state.active else { return }
+  func fileLoaded(_ identity: PlaybackTransport.Media) {
+    guard transport.fileLoaded(identity) else { return }
+    publishTransport()
     getTrackInfo()
     guard info.audioTracks.isEmpty || info.videoTracks.contains(where: { !$0.isAlbumart }) else {
       stop()
@@ -2894,10 +2909,9 @@ class PlayerCore: NSObject {
            mpv.getString("video-codec") ?? "unavailable",
            mpv.getString("audio-codec-name") ?? "unavailable",
            mpv.getInt(MPVProperty.width), mpv.getInt(MPVProperty.height),
-           mpv.getFlag(MPVOption.PlaybackControl.pause) ? 1 : 0)
+           transport.observedPause == true ? 1 : 0)
     log("File loaded")
 
-    info.state = .loaded
     mpv.restoreGlobalSubtitlePreferences()
 
     // Must force drawing to cover the case where this player was previously used to play a video
@@ -2962,6 +2976,10 @@ class PlayerCore: NSObject {
 
     if info.vid == 0 {
       notifyWindowVideoSizeChanged()
+    } else if mpv.getFlag(MPVProperty.voConfigured) {
+      // Reconfiguration may be queued before FILE_LOADED. Use the output
+      // already configured for this media rather than waiting for a second event.
+      onVideoReconfig(identity)
     }
 
     if self.isInMiniPlayer {
@@ -3016,7 +3034,10 @@ class PlayerCore: NSObject {
   }
 
   func fileEnded(_ dueToStopCommand: Bool, completed: Bool = false,
-                 failed: Bool = false, playlistEntryID: Int64 = 0) {
+                 failed: Bool = false, playlistEntryID: Int64 = 0,
+                 identity: PlaybackTransport.Media? = nil) {
+    if !dueToStopCommand, let identity, transport.media != identity { return }
+    if let media = transport.media, playlistEntryID != 0, media.playlistEntry != playlistEntryID { return }
     if !dueToStopCommand,
        beginRemotePlaybackRecovery(failed: failed, completed: completed, playlistEntryID: playlistEntryID) {
       return
@@ -3024,7 +3045,7 @@ class PlayerCore: NSObject {
     if isWaitingForRemoteMedia { return }
     let replacingMedia = info.state == .loading || info.state == .starting
     if completed && !replacingMedia {
-      cachedEOF = true
+      transport.observeEOF(true)
       clearCompletedPlaybackCheckpoint()
     }
     MainActor.assumeIsolated {
@@ -3127,12 +3148,13 @@ class PlayerCore: NSObject {
     }
   }
 
-  func idleActiveChanged() {
+  func idleActiveChanged(_ identity: PlaybackTransport.Media? = nil) {
     if isWaitingForRemoteMedia {
       receivedEndFileWhileLoading = false
       scheduleRemoteRecoveryRetry()
       return
     }
+    if let identity, info.state.active, transport.media != identity { return }
     if receivedEndFileWhileLoading && info.state == .starting {
       DispatchQueue.main.async { [unowned self] in
         currentController.close()
@@ -3155,7 +3177,8 @@ class PlayerCore: NSObject {
     }
     if info.state != .loading {
       log("Playback has stopped")
-      info.state = .idle
+      guard transport.becameIdle() else { return }
+      publishTransport()
       scheduleIdleRetirement()
       postNotification(.yinaPlayerStopped)
       DispatchQueue.main.async { [weak self] in self?.sharedShow.stop() }
@@ -3182,28 +3205,21 @@ class PlayerCore: NSObject {
     }
   }
 
-  func pauseChanged(_ paused: Bool) {
+  func pauseChanged(_ paused: Bool, identity: PlaybackTransport.Media?) {
     playbackTrace?.record("pause-observer-main", "paused=\(paused) \(playbackTraceState)")
-    if paused && requestedPause != false { cancelPlaybackResumeWait() }
-    if requestedPause == paused { requestedPause = nil }
-    guard mainWindow.loaded, info.state.loaded else { return }
-    if (info.state == .paused) != paused {
-      sendOSD(paused ? .pause : .resume)
-      // The NowPlayingInfoManager is notified when playback is paused or resumed. The video
-      // position must be updated before notifying the manager.
-      measureResumeStage("pauseChanged.syncUITime") { syncUITime() }
-      measureResumeStage("pauseChanged.stateAndTimer") {
-        info.state = paused ? .paused : .playing
-        refreshSyncUITimer()
-      }
-      // Follow energy efficiency best practices and ensure YINA is absolutely idle when the video
-      // is paused to avoid wasting energy with needless processing. If paused shutdown the timer
-      // that synchronizes the UI and the high priority display link thread.
-      if paused {
-        mainWindow.videoView.displayIdle()
-      } else {
-        mainWindow.videoView.displayActive()
-      }
+    transport.observePause(paused, media: identity)
+    if paused && transport.requestedPause != false { cancelPlaybackResumeWait() }
+    runTransport()
+  }
+
+  private func handlePlaybackPauseChange(_ paused: Bool) {
+    guard mainWindow.loaded else { return }
+    sendOSD(paused ? .pause : .resume)
+    refreshSyncUITimer()
+    if paused && !info.isSeeking {
+      mainWindow.videoView.displayIdle()
+    } else {
+      mainWindow.videoView.displayActive()
     }
     if paused { checkpointPlaybackPosition(force: true) }
     if Preference.bool(for: .alwaysFloatOnTop) {
@@ -3220,7 +3236,15 @@ class PlayerCore: NSObject {
     }
   }
 
-  func playbackRestarted() {
+  func playbackSeeking(_ identity: PlaybackTransport.Media?) -> Bool {
+    guard transport.observeSeek(identity) else { return false }
+    publishTransport()
+    return true
+  }
+
+  func playbackRestarted(_ identity: PlaybackTransport.Media?) -> Bool {
+    guard transport.observeRestart(identity) else { return false }
+    publishTransport()
     playbackTrace?.record("playback-restarted", playbackTraceState)
     log("Playback restarted")
 
@@ -3244,7 +3268,12 @@ class PlayerCore: NSObject {
       mainWindow.liveText.requestAnalysis()
     }
 
-    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { self.info.disableOSDForFileLoading = false }
+    let generation = transport.generation
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+      guard let self, self.transport.generation == generation else { return }
+      self.info.disableOSDForFileLoading = false
+    }
+    return true
   }
 
   func refreshEdrMode() {
@@ -3396,17 +3425,17 @@ class PlayerCore: NSObject {
     postNotification(.yinaTracklistChanged)
   }
 
-  func onVideoReconfig() {
-    // If loading file, video reconfig can return 0 width and height
-    guard info.state.loaded else { return }
+  func onVideoReconfig(_ identity: PlaybackTransport.Media?) {
+    // If loading file, video reconfig can return 0 width and height.
+    guard info.state.loaded, let identity, transport.media == identity else { return }
     var dwidth = mpv.getInt(MPVProperty.dwidth)
     var dheight = mpv.getInt(MPVProperty.dheight)
     if info.rotation == 90 || info.rotation == 270 {
       swap(&dwidth, &dheight)
     }
-    if dwidth != info.displayWidth! || dheight != info.displayHeight! {
-      // filter the last video-reconfig event before quit
-      if dwidth == 0 && dheight == 0 && mpv.getFlag(MPVProperty.coreIdle) { return }
+    if dwidth != info.displayWidth || dheight != info.displayHeight {
+      // Empty geometry during loading or teardown cannot release the startup hold.
+      guard dwidth > 0, dheight > 0 else { return }
       // video size changed
       info.displayWidth = dwidth
       info.displayHeight = dheight
@@ -3507,6 +3536,7 @@ class PlayerCore: NSObject {
     remoteRecoveryRetry = nil
     let wasWaiting = isWaitingForRemoteMedia
     remoteRecovery.cancel()
+    if wasWaiting { transport.cancelRemoteMedia() }
     if wasWaiting, mainWindow.loaded { mainWindow.bufferIndicatorView.updateNetworkState() }
   }
 
@@ -3522,13 +3552,10 @@ class PlayerCore: NSObject {
     remoteRecoveryRetry?.cancel()
     remoteRecoveryRetry = nil
     receivedEndFileWhileLoading = false
-    cachedEOF = false
-    requestedPause = true
-    info.isSeeking = false
+    transport.waitForRemoteMedia()
     info.shouldAutoLoadFiles = false
     info.videoPosition = VideoTime(remoteRecovery.target!.position)
-    info.state = .paused
-    mpv.setAsync(MPVOption.PlaybackControl.pause, .flag(true))
+    runTransport()
     finishSubtitleDissolve()
     savePlaybackPosition()
     refreshSyncUITimer()
@@ -3556,16 +3583,36 @@ class PlayerCore: NSObject {
     }))
     mpv.addHook(.onLoad, hook: MPVHookValue(withBlock: { [weak self] next in
       DispatchQueue.main.async {
-        guard let self, self.remoteRecovery.retrying, let target = self.remoteRecovery.target else {
-          next()
+        guard let self, self.info.state.active else { next(); return }
+        let generation = self.transport.generation
+        let pauseThenContinue = { [weak self] in
+          guard let self, self.transport.generation == generation else { next(); return }
+          self.mpv.asyncClient.set(MPVOption.PlaybackControl.pause, .flag(true)) { [weak self] error in
+            if let self, error >= 0, self.transport.generation == generation {
+              self.transport.observePause(true, media: self.transport.media)
+            }
+            next()
+          }
+        }
+        guard self.remoteRecovery.retrying, let target = self.remoteRecovery.target else {
+          // mpv holds the next file here even on a natural, gapless advance.
+          // Await the pause write before opening any media that should start paused.
+          if Preference.bool(for: .pauseWhenOpen) { pauseThenContinue() }
+          else { next() }
           return
         }
-        // File-local start/track options are restored by mpv before the next file.
-        self.mpv.setAsync("file-local-options/start", .string(String(target.position)))
-        for (name, value) in target.tracks {
-          self.mpv.setAsync("file-local-options/\(name)", .string(String(value)))
+        // File-local start/track options must settle before resuming the hook.
+        let recoveryGeneration = self.remoteRecovery.generation
+        let options = target.tracks.mapValues(String.init).merging(["start": String(target.position)]) { _, start in start }
+        let writes = DispatchGroup()
+        for (name, value) in options {
+          writes.enter()
+          self.mpv.asyncClient.set("file-local-options/\(name)", .string(value)) { _ in writes.leave() }
         }
-        self.mpv.asyncClient.set(MPVOption.PlaybackControl.pause, .flag(true)) { _ in next() }
+        writes.notify(queue: .main) { [weak self] in
+          guard let self, self.remoteRecovery.generation == recoveryGeneration else { next(); return }
+          pauseThenContinue()
+        }
       }
     }))
   }
@@ -3608,12 +3655,14 @@ class PlayerCore: NSObject {
         self.idleActiveChanged()
         return
       }
-      self.info.state = .loading
+      self.transport.retryRemoteMedia()
+      self.publishTransport()
       self.mpv.asyncClient.command(["playlist-play-index", String(index)]) { [weak self] error in
         guard let self, error < 0, self.remoteRecovery.generation == generation else { return }
         _ = self.remoteRecovery.begin(url: target.url, remote: true, failed: true,
           completed: false, playlistEntryID: target.playlistEntryID, tracks: target.tracks)
-        self.info.state = .paused
+        self.transport.waitForRemoteMedia()
+        self.runTransport()
         self.scheduleRemoteRecoveryRetry()
       }
     }
@@ -3640,9 +3689,9 @@ class PlayerCore: NSObject {
       self.remoteRecovery.cancel()
       self.remoteRecovery.record(url: target.url, position: position, duration: duration, eof: false)
       self.info.videoPosition = VideoTime(position)
-      self.cachedEOF = false
-      self.requestedPause = true
-      self.info.state = .paused
+      self.transport.observeEOF(false)
+      self.transport.recoveredRemoteMedia()
+      self.runTransport()
       self.mainWindow.bufferIndicatorView.updateNetworkState()
       self.refreshEdrMode()
       self.refreshSyncUITimer()
@@ -3659,7 +3708,7 @@ class PlayerCore: NSObject {
     playbackResumeWait.begin(position: info.videoPosition?.second,
                              now: ProcessInfo.processInfo.systemUptime)
     let indicator = DispatchWorkItem { [weak self] in
-      guard let self, self.transportGeneration == generation, self.playbackResumeWait.pending,
+      guard let self, self.transport.generation == generation, self.playbackResumeWait.pending,
             self.info.state.active, self.mainWindow.loaded else { return }
       self.mainWindow.bufferIndicatorView.updateNetworkState()
     }
@@ -3752,7 +3801,14 @@ class PlayerCore: NSObject {
 
   func notifyWindowVideoSizeChanged() {
     currentController.handleVideoSizeChange()
-    if currentController.pendingShow {
+    let becameReady = transport.outputReady()
+    publishTransport()
+    let pipOwnsPresentation = mainWindow.pipStatus != .notInPIP
+    if becameReady && pipOwnsPresentation {
+      currentController.pendingShow = false
+      mediaOpeningStartedAt = nil
+      AppDelegate.shared.openURLWindow.close()
+    } else if currentController.pendingShow && !pipOwnsPresentation {
       currentController.pendingShow = false
       currentController.showWindow(self)
       recordMediaOpeningStage("window shown")
@@ -3764,19 +3820,16 @@ class PlayerCore: NSObject {
       mediaOpeningStartedAt = nil
       AppDelegate.shared.openURLWindow.close()
     }
-    if info.state == .loaded {
-      // If the media was loaded manually then playback was paused to avoid audio starting to play
-      // before video is ready to be displayed. Now that the video is ready playback can be resumed
-      // unless the YINA "Pause" setting is enabled under "When media is opened".
-      let paused = mpv.getFlag(MPVOption.PlaybackControl.pause)
-      if paused, !Preference.bool(for: .pauseWhenOpen), !isWaitingForRemoteMedia {
-        log("Resuming playback now that file has been loaded")
+    if becameReady {
+      if !transport.effectivePaused {
         mainWindow.videoView.displayActive()
-        mpv.setFlag(MPVOption.PlaybackControl.pause, false, level: .verbose)
+      } else {
+        mainWindow.videoView.displayIdle()
       }
-      info.state = isWaitingForRemoteMedia || Preference.bool(for: .pauseWhenOpen) ? .paused : .playing
-      syncUI(.playButton)
-      applyFullScreenWhenOpenPreference()
+      refreshSyncUITimer()
+      if !pipOwnsPresentation { applyFullScreenWhenOpenPreference() }
+      else { keepCurrentFileWindowed = false }
+      runTransport()
     }
   }
 
@@ -3799,14 +3852,15 @@ class PlayerCore: NSObject {
   ///     milliseconds. Due to this behavior of the `time-pos` property, this method checks to see of the end of the video has been
   ///     reached and if so, sets `videoPosition` to match `videoDuration`.
   /// Engine observations update this cache even when the OSC timer is asleep.
-  func updateObservedPlayback(_ values: [String: Any]) {
+  func updateObservedPlayback(_ values: [String: Any], identity: PlaybackTransport.Media?) {
+    guard transport.media == identity else { return }
     if let save = values[MPVOption.WatchLater.savePositionOnQuit] as? Bool { cachedSavePositionOnQuit = save }
     guard info.state.active, !isWaitingForRemoteMedia else { return }
     if let url = info.currentURL {
       remoteRecovery.record(url: url,
         position: values[MPVProperty.timePos] as? Double ?? info.videoPosition?.second,
         duration: values[MPVProperty.duration] as? Double ?? info.videoDuration?.second,
-        eof: values[MPVProperty.eofReached] as? Bool ?? cachedEOF)
+        eof: values[MPVProperty.eofReached] as? Bool ?? transport.eof)
     }
     if values[MPVProperty.eofReached] as? Bool == true, !info.justStartedFile, !info.isSeeking,
        beginRemotePlaybackRecovery(failed: false, completed: true) {
@@ -3817,7 +3871,7 @@ class PlayerCore: NSObject {
     if let duration = values[MPVProperty.duration] as? Double, duration.isFinite, duration >= 0 {
       info.videoDuration = VideoTime(duration)
     }
-    if let eof = values[MPVProperty.eofReached] as? Bool { cachedEOF = eof }
+    if let eof = values[MPVProperty.eofReached] as? Bool { transport.observeEOF(eof) }
     if let position = values[MPVProperty.timePos] as? Double, position.isFinite {
       info.videoPosition = VideoTime(position)
     }
@@ -3833,7 +3887,7 @@ class PlayerCore: NSObject {
   }
 
   private func syncPosition() {
-    if cachedEOF, let duration = info.videoDuration { info.videoPosition = VideoTime(duration.second) }
+    if transport.eof, let duration = info.videoDuration { info.videoPosition = VideoTime(duration.second) }
     info.constrainVideoPosition()
   }
 
@@ -3951,12 +4005,12 @@ class PlayerCore: NSObject {
     networkCacheRefreshPending = true
     lastNetworkCacheRefresh = now
     let url = info.currentURL
-    let generation = transportGeneration
+    let generation = transport.generation
     mpv.getPropertiesAsync([MPVProperty.pausedForCache, MPVProperty.demuxerCacheState,
                            MPVProperty.demuxerCacheTime, MPVProperty.cacheBufferingState]) { [weak self] values in
       guard let self else { return }
       self.networkCacheRefreshPending = false
-      guard self.info.state.active, self.info.currentURL == url, self.transportGeneration == generation else { return }
+      guard self.info.state.active, self.info.currentURL == url, self.transport.generation == generation else { return }
       self.info.pausedForCache = values[MPVProperty.pausedForCache] as? Bool ?? false
       let cache = values[MPVProperty.demuxerCacheState] as? [String: Any] ?? [:]
       self.info.cacheUsed = Int(cache["fw-bytes"] as? Int64 ?? 0)

@@ -7,7 +7,7 @@ import tempfile
 root = Path(__file__).resolve().parents[2]
 source = (root / "yina/PlayerCore.swift").read_text()
 start = source.index("  private static let resumeTimingLog")
-end = source.index("  /// Resume playback.", start)
+end = source.index("  func resume()", start)
 helper = source[start:end].replace("private func measureResumeStage", "func measureResumeStage")
 program = "import Foundation\nimport os.log\nfinal class LoggingSmoke {\n" + helper + "}\n" + '''
 let logger = LoggingSmoke()

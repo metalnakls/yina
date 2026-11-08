@@ -1,0 +1,145 @@
+// xcrun swiftc -parse-as-library yina/PlayerState.swift yina/PlaybackTransport.swift other/tests/playback-transport-smoke.swift -o /tmp/yina-playback-transport-smoke
+// /tmp/yina-playback-transport-smoke
+import Foundation
+
+@main struct PlaybackTransportSmoke {
+  private static let first = PlaybackTransport.Media(serial: 1, playlistEntry: 11)
+  private static let second = PlaybackTransport.Media(serial: 2, playlistEntry: 12)
+  private static let third = PlaybackTransport.Media(serial: 3, playlistEntry: 12)
+
+  static func main() {
+    var model = PlaybackTransport()
+    model.beginOpen(path: "/first", pauseWhenOpen: false)
+    precondition(model.state == .loading && model.isOpening)
+    precondition(!model.fileStarted(first, pauseWhenOpen: false), "Ignore an earlier start before sending the new load")
+    model.submitOpen()
+    let hold = request(&model, .pause(true))
+    precondition(model.nextRequest() == nil, "Load waits for pause completion")
+    precondition(model.complete(hold, success: true) == .accepted)
+    let load = request(&model, .load("/first"))
+    precondition(model.fileStarted(first, pauseWhenOpen: false))
+    precondition(model.fileLoaded(first))
+    model.observePause(true, media: first)
+    precondition(model.state == .loaded && model.isOpening, "An engine pause must not release readiness")
+    model.setPaused(true)
+    precondition(model.complete(load, success: true) == .accepted)
+    precondition(model.outputReady() && model.state == .paused)
+    precondition(model.nextRequest() == nil, "Explicit pause during load must win")
+
+    model.setPaused(false)
+    let play = request(&model, .pause(false))
+    model.setPaused(true)
+    model.observePause(true, media: first)
+    precondition(model.effectivePaused)
+    precondition(model.complete(play, success: true) == .accepted)
+    let repause = request(&model, .pause(true))
+    precondition(model.complete(repause, success: true) == .accepted)
+    precondition(model.state == .paused && model.nextRequest() == nil)
+
+    model.setPaused(false)
+    accept(&model, .pause(false))
+    model.setHold(.slider, active: true)
+    let sliderHold = request(&model, .pause(true))
+    model.setPaused(true)
+    model.setHold(.slider, active: false)
+    precondition(model.complete(sliderHold, success: true) == .accepted)
+    precondition(model.state == .paused && model.nextRequest() == nil, "Releasing a scrub must not override Pause")
+
+    model.setPaused(false)
+    accept(&model, .pause(false))
+    model.step(["playlist-next"])
+    accept(&model, .pause(true))
+    let rejected = request(&model, .playlist(["playlist-next"]))
+    precondition(model.complete(rejected, success: false) == .playlistFailed)
+    accept(&model, .pause(false))
+    precondition(model.state == .playing, "A rejected step must restore its prior play state")
+
+    model.step(["playlist-next"])
+    accept(&model, .pause(true))
+    let accepted = request(&model, .playlist(["playlist-next"]))
+    model.seek(["seek", "3", "relative"])
+    precondition(model.complete(accepted, success: true) == .accepted)
+    precondition(model.nextRequest() == nil, "Do not send the old entry's seek before the next START_FILE")
+    precondition(model.fileStarted(second, pauseWhenOpen: false))
+    precondition(!model.isSeeking, "Discard queued seeks aimed at the previous entry")
+    precondition(!model.fileLoaded(first) && !model.observeRestart(first))
+    precondition(model.fileLoaded(second) && model.outputReady())
+    accept(&model, .pause(false))
+
+    model.observePause(true, media: second)
+    model.observeEOF(true)
+    model.setPaused(false)
+    let replay = request(&model, .seek(["seek", "0", "absolute+exact"], replay: true))
+    precondition(model.isSeeking && model.nextRequest() == nil)
+    precondition(model.complete(replay, success: true) == .accepted)
+    accept(&model, .pause(false))
+    precondition(model.isSeeking, "A command reply does not finish the engine seek")
+    precondition(model.observeRestart(second) && !model.isSeeking && !model.eof)
+
+    model.seek(["seek", "5", "relative"])
+    let oldSeek = request(&model, .seek(["seek", "5", "relative"], replay: false))
+    model.beginOpen(path: "/third", pauseWhenOpen: true)
+    model.submitOpen()
+    precondition(!model.isSeeking && model.nextRequest() == nil)
+    precondition(model.complete(oldSeek, success: true) == .obsolete)
+    accept(&model, .pause(true))
+    let newLoad = request(&model, .load("/third"))
+    precondition(model.fileStarted(third, pauseWhenOpen: true))
+    precondition(model.fileLoaded(third) && model.outputReady())
+    precondition(model.complete(newLoad, success: true) == .accepted)
+    model.observePause(false, media: second)
+    precondition(model.state == .paused && model.nextRequest() == nil)
+    precondition(!model.observeRestart(second), "Replaying the same playlist entry uses a fresh media identity")
+
+    model.beginStop()
+    model.submitStop()
+    accept(&model, .stop)
+    precondition(!model.fileStarted(second, pauseWhenOpen: false) && model.becameIdle())
+    precondition(model.state == .idle)
+    model.shutDown(complete: true)
+    precondition(!model.becameIdle() && model.nextRequest() == nil)
+
+    var failure = PlaybackTransport()
+    failure.beginOpen(path: "/failed", pauseWhenOpen: false)
+    failure.submitOpen()
+    accept(&failure, .pause(true))
+    let failedLoad = request(&failure, .load("/failed"))
+    precondition(failure.complete(failedLoad, success: false) == .loadFailed)
+    precondition(failure.state == .idle && failure.nextRequest() == nil)
+
+    var automatic = PlaybackTransport()
+    precondition(automatic.fileStarted(first, pauseWhenOpen: false), "An engine-initiated open can start an idle player")
+    precondition(automatic.fileLoaded(first) && automatic.outputReady())
+    precondition(automatic.state == .playing && automatic.nextRequest() == nil)
+    precondition(automatic.fileStarted(second, pauseWhenOpen: false))
+    precondition(!automatic.fileStarted(first, pauseWhenOpen: false))
+    precondition(automatic.fileLoaded(second) && automatic.outputReady())
+    precondition(automatic.state == .playing && automatic.nextRequest() == nil, "Natural gapless EOF must not insert a pause")
+
+    precondition(automatic.fileStarted(third, pauseWhenOpen: true))
+    automatic.observePause(true, media: third)
+    automatic.setPaused(false)
+    precondition(automatic.fileLoaded(third) && automatic.outputReady())
+    accept(&automatic, .pause(false))
+    precondition(automatic.state == .playing, "Explicit Play during an automatic load overrides pause-on-open")
+
+    var failedGate = PlaybackTransport()
+    failedGate.beginOpen(path: "/failed", pauseWhenOpen: false)
+    failedGate.submitOpen()
+    let failedHold = request(&failedGate, .pause(true))
+    precondition(failedGate.complete(failedHold, success: false) == .loadFailed)
+    precondition(failedGate.state == .idle && failedGate.nextRequest() == nil, "Never send load after its hold failed")
+    print("PASS: ordered requests, startup readiness, pause races, seeks, replacement, playlist rejection and shutdown")
+  }
+
+  private static func request(_ model: inout PlaybackTransport, _ command: PlaybackTransport.Command) -> PlaybackTransport.Request {
+    guard let request = model.nextRequest() else { preconditionFailure("Missing command \(command)") }
+    precondition(request.command == command, "Expected \(command), got \(request.command)")
+    return request
+  }
+
+  private static func accept(_ model: inout PlaybackTransport, _ command: PlaybackTransport.Command) {
+    let pending = request(&model, command)
+    precondition(model.complete(pending, success: true) == .accepted)
+  }
+}

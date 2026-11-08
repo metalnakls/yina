@@ -166,7 +166,7 @@ class PlayerWindowController: NSWindowController, NSWindowDelegate {
   /** We need to pause the video when a user starts seeking by scrolling.
    This property records whether the video is paused initially so we can
    recover the status when scrolling finished. */
-  private var wasPlayingBeforeSeeking = false
+  private var isScrollSeeking = false
   
   /** Subclasses should set these value to true if the mouse is in some
    special views (e.g. volume slider, play slider) before calling
@@ -325,6 +325,27 @@ class PlayerWindowController: NSWindowController, NSWindowDelegate {
       if action.count == 3, action[0] == "set", action[1] == MPVOption.Subtitles.subVisibility,
          ["yes", "no"].contains(action[2]) {
         player.toggleSubVisibility(action[2] == "yes")
+        return true
+      }
+      if action == ["cycle", "pause"] {
+        player.togglePause(source: "key-binding")
+        return true
+      }
+      if action.count == 3, action[0] == "set", action[1] == "pause",
+         ["yes", "no"].contains(action[2]) {
+        player.togglePause(action[2] == "yes", source: "key-binding")
+        return true
+      }
+      if action == ["playlist-next"] || action == ["playlist-prev"] {
+        player.stepPlaylist(action)
+        return true
+      }
+      if (2...4).contains(action.count), action[0] == "seek", Double(action[1]) != nil {
+        player.seekFromInput(action)
+        return true
+      }
+      if action == ["frame-step"] || action == ["frame-back-step"] {
+        player.frameStep(backwards: action[0] == "frame-back-step")
         return true
       }
       if SharedPlaybackSync.isTransportCommand(action) {
@@ -511,9 +532,9 @@ class PlayerWindowController: NSWindowController, NSWindowDelegate {
   
   override func scrollWheel(with event: NSEvent) {
     guard event.modifierFlags.contains(.command) else {
-      if wasPlayingBeforeSeeking {
-        player.resume()
-        wasPlayingBeforeSeeking = false
+      if isScrollSeeking {
+        isScrollSeeking = false
+        player.setScrubbing(.scroll, active: false)
       }
       scrollDirection = nil
       return
@@ -547,22 +568,16 @@ class PlayerWindowController: NSWindowController, NSWindowDelegate {
       }
     }
 
-    // pause video when seek begins
-
     if scrollAction == .seek && isTrackpadBegan {
-      // record pause status
-      if player.info.state == .playing {
-        player.pause()
-        wasPlayingBeforeSeeking = true
-      }
+      isScrollSeeking = true
+      player.setScrubbing(.scroll, active: true)
     }
 
-    if isTrackpadEnd && wasPlayingBeforeSeeking {
-      // only resume playback when it was playing before seeking
-      if wasPlayingBeforeSeeking {
-        player.resume()
+    defer {
+      if isTrackpadEnd && isScrollSeeking {
+        isScrollSeeking = false
+        player.setScrubbing(.scroll, active: false)
       }
-      wasPlayingBeforeSeeking = false
     }
 
     // handle the delta value

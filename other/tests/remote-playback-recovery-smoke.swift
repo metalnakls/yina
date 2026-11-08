@@ -1,7 +1,7 @@
 import Cocoa
 
 enum YINAError: Error { case unsupportedMPVNodeFormat(UInt32) }
-enum Logger { enum Level { case verbose } }
+enum Logger { enum Level { case verbose, warning } }
 enum MPVProperty {
   static let playlist = "playlist", timePos = "time-pos", duration = "duration", eofReached = "eof-reached"
   static let timeRemainingFull = "time-remaining/full", playtimeRemainingFull = "playtime-remaining/full"
@@ -10,7 +10,11 @@ enum MPVOption {
   enum PlaybackControl { static let pause = "pause" }
   enum WatchLater { static let savePositionOnQuit = "save-position-on-quit" }
 }
-enum Preference { enum Key { case pauseWhenOpen }; static func bool(for key: Key) -> Bool { false } }
+enum Preference {
+  enum Key { case pauseWhenOpen }
+  static var opensPaused = false
+  static func bool(for key: Key) -> Bool { opensPaused }
+}
 enum Notice { case yinaPlayerStopped }
 struct VideoTime { var second: Double; init(_ s: Double) { second = s } }
 final class Info {
@@ -33,6 +37,7 @@ final class Controller {
   let videoView = VideoView(), bufferIndicatorView = Indicator()
   var loaded = true, pendingShow = false, closed = false
   func close() { closed = true }
+  func cancelPendingPiPEntry() {}
   func showWindow(_ sender: Any?) {}
 }
 final class Shared { func stop() {}; func fileEnded(dueToStopCommand: Bool) {} }
@@ -54,29 +59,45 @@ final class PlayerCore {
   var mpv: Engine!
   var remoteRecovery = RemotePlaybackRecovery(), remoteRecoveryRetry: DispatchWorkItem?
   var playbackResumeWait = PlaybackResumeWait(), playbackResumeIndicator: DispatchWorkItem?
-  var transportGeneration: UInt64 = 0
+  var transport = PlaybackTransport()
+  struct Trace { func record(_ name: String, _ detail: String) {} }
+  var playbackTrace: Trace?
+  var publishedEffectivePause: Bool?
+  var effectivePaused: Bool { transport.effectivePaused }
+  func recordMediaOpeningStage(_ stage: String) {}
+  func invalidateSyncedDisplayPosition() {}
+  func publishTransport() { info.state = transport.state; info.isSeeking = transport.isSeeking }
   var isWaitingForPlayback: Bool { playbackResumeWait.visible(now: ProcessInfo.processInfo.systemUptime) }
   var isWaitingForRemoteMedia: Bool { remoteRecovery.waiting }
-  var receivedEndFileWhileLoading = false, cachedEOF = false, cachedSavePositionOnQuit = true
-  var requestedPause: Bool?, cachedRemaining: Double?, cachedScaledRemaining: Double?
+  var receivedEndFileWhileLoading = false, cachedSavePositionOnQuit = true
+  var cachedRemaining: Double?, cachedScaledRemaining: Double?
   var pendingUrl: URL?, pendingKnownRemoteFile: Bool?, pendingAutoLoad = false
   var retired = false, completedCheckpoints = 0, savedPosition: Double?
   enum Sync { case time, playButton }
   func syncUI(_ s: Sync) {}; func syncUI(_ s: [Sync]) {}
-  func syncPosition() { if cachedEOF { info.videoPosition = info.videoDuration } }
+  func syncPosition() { if transport.eof { info.videoPosition = info.videoDuration } }
   func finishSubtitleDissolve() {}; func refreshSyncUITimer() {}; func refreshEdrMode() {}
   func checkpointPlaybackPosition(force: Bool = false) {}
   func clearCompletedPlaybackCheckpoint() { completedCheckpoints += 1 }
   func savePlaybackPosition() { savedPosition = info.videoPosition?.second }
   func scheduleIdleRetirement() { retired = true }
   func postNotification(_ n: Notice) {}
-  func log(_ s: String) {}
+  func log(_ s: String, level: Logger.Level = .verbose) {}
   func open(_ u: URL, shouldAutoLoad: Bool, knownRemoteFile: Bool?) {}
   func retryNow() { remoteRecoveryRetry?.cancel(); remoteRecoveryRetry = nil; retryRemotePlayback() }
   func installHooks() { addRemotePlaybackRecoveryHooks() }
-  func loaded() { info.state = .loaded; if remoteRecovery.retrying { finishRemotePlaybackRecovery() } }
+  func start(_ path: String) {
+    transport.beginOpen(path: path, pauseWhenOpen: true)
+    transport.submitOpen()
+    runTransport()
+  }
+  func loaded(_ identity: PlaybackTransport.Media) {
+    precondition(transport.fileLoaded(identity) && transport.outputReady())
+    runTransport()
+    if remoteRecovery.retrying { finishRemotePlaybackRecovery() }
+  }
   func cancel() { cancelRemotePlaybackRecovery() }
-  func waitForResume() { startPlaybackResumeWait(generation: transportGeneration) }
+  func waitForResume() { startPlaybackResumeWait(generation: transport.generation) }
 // PRODUCTION_METHODS
 }
 
@@ -123,7 +144,9 @@ final class Engine {
   let asyncClient = MPVAsyncClient()
   unowned let player: PlayerCore
   var hooks: [UInt64: MPVHookValue] = [:]
-  var loads = 0, ends = 0
+  var loads = 0, ends = 0, pausedLoadContinuations = 0
+  private var serial: UInt64 = 0
+  private var engineMedia: PlaybackTransport.Media?
   init(_ player: PlayerCore) {
     self.player = player
     handle = mpv_create()!
@@ -157,11 +180,23 @@ final class Engine {
       switch event.pointee.event_id {
       case MPV_EVENT_HOOK:
         let h = event.pointee.data.load(as: mpv_event_hook.self)
-        hooks[event.pointee.reply_userdata]!.block { mpv_hook_continue(self.handle, h.id) }
+        let hookName = String(cString: h.name)
+        hooks[event.pointee.reply_userdata]!.block {
+          if hookName == "on_load", Preference.opensPaused {
+            precondition(self.flag("pause"), "Natural load continued before the pause write completed")
+            self.pausedLoadContinuations += 1
+          }
+          mpv_hook_continue(self.handle, h.id)
+        }
       case MPV_EVENT_FILE_LOADED:
-        loads += 1; player.loaded()
+        loads += 1; player.loaded(engineMedia!)
       case MPV_EVENT_START_FILE:
-        player.info.state = .starting
+        let start = event.pointee.data.load(as: mpv_event_start_file.self)
+        serial += 1
+        let media = PlaybackTransport.Media(serial: serial, playlistEntry: start.playlist_entry_id)
+        engineMedia = media
+        precondition(player.transport.fileStarted(media, pauseWhenOpen: Preference.opensPaused))
+        player.publishTransport()
       case MPV_EVENT_PLAYBACK_RESTART:
         player.info.justStartedFile = false
       // END_EVENT
@@ -171,7 +206,7 @@ final class Engine {
     }
     if flag("idle-active") { player.idleActiveChanged() }
     if let pos = number("time-pos") {
-      player.updateObservedPlayback(["time-pos": pos, "duration": 30.0, "eof-reached": flag("eof-reached")])
+      player.updateObservedPlayback(["time-pos": pos, "duration": 30.0, "eof-reached": flag("eof-reached")], identity: engineMedia)
     }
     RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.005))
   }
@@ -208,18 +243,18 @@ final class Engine {
     let engine = Engine(player); player.mpv = engine
     player.mainWindow.bufferIndicatorView.player = player
     player.installHooks()
-    engine.asyncClient.command(["loadfile", url.absoluteString])
+    player.start(url.absoluteString)
     wait(engine, { engine.loads == 1 }, "Initial media did not load")
     engine.asyncClient.command(["loadfile", "nas-test://next.wav", "append"])
     engine.asyncClient.command(["seek", "18", "absolute+exact"])
     wait(engine, { abs((engine.number("time-pos") ?? 0) - 18) < 0.1 }, "Initial seek failed")
     player.info.state = .paused
-    player.updateObservedPlayback(["time-pos": 18.0, "duration": 30.0])
+    player.updateObservedPlayback(["time-pos": 18.0, "duration": 30.0], identity: player.transport.media)
     player.waitForResume()
     RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.3))
     precondition(!player.mainWindow.bufferIndicatorView.isHidden, "A stalled Play request needs a spinner")
     player.info.state = .playing
-    player.updateObservedPlayback(["time-pos": 18.1])
+    player.updateObservedPlayback(["time-pos": 18.1], identity: player.transport.media)
     precondition(player.mainWindow.bufferIndicatorView.isHidden, "Playback progress must clear the spinner")
     player.info.state = .paused
     Fault.shared.setOffline(true)
@@ -247,12 +282,28 @@ final class Engine {
     precondition(restoredTimeline.begin(url: url, remote: true, failed: false, completed: true,
       playlistEntryID: 1, tracks: [:]), "Reconnected playback lost its position/duration snapshot")
     let loadsBeforeCancel = engine.loads
-    player.fileEnded(false, failed: true, playlistEntryID: 1)
+    player.fileEnded(false, failed: true, playlistEntryID: player.transport.media!.playlistEntry)
     player.retryNow()
     player.cancel()
     for _ in 0..<20 { engine.pump() }
     precondition(!player.remoteRecovery.waiting && !player.remoteRecovery.retrying)
     precondition(engine.loads == loadsBeforeCancel, "An old retry resurrected canceled media")
     print("PASS: real read failure, failed reconnect, same-window paused resume, exact position and playlist retention")
+
+    let autoPlayer = PlayerCore()
+    let autoEngine = Engine(autoPlayer)
+    autoPlayer.mpv = autoEngine
+    autoPlayer.installHooks()
+    autoPlayer.start(url.absoluteString)
+    wait(autoEngine, { autoEngine.loads == 1 }, "Automatic playlist fixture did not load")
+    autoEngine.asyncClient.command(["loadfile", "nas-test://next.wav", "append"])
+    wait(autoEngine, { autoEngine.number("playlist-count") == 2 }, "Playlist append was not accepted")
+    autoEngine.asyncClient.command(["seek", "29.8", "absolute+exact"])
+    wait(autoEngine, { (autoEngine.number("time-pos") ?? 0) > 29.7 }, "Seek near natural EOF failed")
+    Preference.opensPaused = true
+    autoEngine.setAsync("pause", .flag(false))
+    wait(autoEngine, { autoEngine.loads == 2 }, "Natural EOF did not advance to the next item")
+    precondition(autoEngine.pausedLoadContinuations == 1 && autoEngine.flag("pause"))
+    print("PASS: natural playlist advance honors pause-on-open before releasing the libmpv load hook")
   }
 }

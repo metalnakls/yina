@@ -7,17 +7,17 @@ import Foundation
     let playerCore = try String(contentsOfFile: "yina/PlayerCore.swift", encoding: .utf8)
     let mainWindow = try String(contentsOfFile: "yina/MainWindowController.swift", encoding: .utf8)
 
-    precondition(playerCore.contains("pendingWindowLoadPath = path"))
+    precondition(playerCore.contains("transport.beginOpen(path: path"))
     precondition(playerCore.contains("func startPendingWindowLoad()"))
     precondition(!mainWindow.contains("player.initVideo()\n    player.startPendingWindowLoad()"),
                  "mpv must not start while the player window is still being assembled")
 
     let openStart = playerCore.range(of: "private func openMainWindow")!.lowerBound
     let openBody = playerCore[openStart...]
-    let pending = openBody.range(of: "pendingWindowLoadPath = path")!.lowerBound
+    let pending = openBody.range(of: "transport.beginOpen(path: path")!.lowerBound
     let loadWindow = openBody.range(of: "let _ = mainWindow.window")!.lowerBound
     precondition(pending < loadWindow,
-                 "the pending media path must be available during windowDidLoad")
+                 "the transport must own the pending media during windowDidLoad")
 
     let forceWindow = openBody.range(of: "mpv.setString(MPVOption.Window.forceWindow")!.lowerBound
     precondition(loadWindow < forceWindow,

@@ -34,25 +34,10 @@ class PlaybackInfo {
     player = pc
   }
 
-  /// The state the `PlayerCore` is in.
-  ///
-  /// A computed property is used to prevent inappropriate state changes and perform actions based on the state changing. The
-  /// following rules are enforced on state changes:
-  /// - `loading` is not allowed to change to `idle`
-  /// - `stopping` is only allowed to change to `idle`
-  /// - `shuttingDown` is only allowed to change to `shutDown`
-  /// - `shutDown` is not allowed to change to any other state
-  var state: PlayerState = .idle {
+  /// A projection of the main-thread transport, used by existing UI observers.
+  private(set) var state: PlayerState = .idle {
     didSet {
-      // Nothing to do if the old state matches the state that was just assigned.
       guard state != oldValue else { return }
-      // Block inappropriate state changes.
-      guard oldValue != .loading || state != .idle, oldValue != .stopping || state == .idle,
-            oldValue != .shuttingDown || state == .shutDown, oldValue != .shutDown else {
-        player.log("Blocked attempt to change state from \(oldValue) to \(state)", level: .error)
-        state = oldValue
-        return
-      }
       player.log("State changed from \(oldValue) to \(state)")
       switch state {
       case .idle:
@@ -79,7 +64,12 @@ class PlaybackInfo {
     }
   }
 
-  var isSeeking: Bool = false
+  private(set) var isSeeking = false
+
+  func updateTransportState(_ state: PlayerState, seeking: Bool) {
+    isSeeking = seeking
+    self.state = state
+  }
 
   var currentURL: URL? {
     didSet {

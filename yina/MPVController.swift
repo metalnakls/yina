@@ -1270,6 +1270,8 @@ class MPVController: NSObject {
   /// a thread that then immediately parked again in `mpv_wait_event`. Instead a single block is
   /// started once and loops until the queue drains or the core shuts down.
   private var isReadingEvents = false
+  private var engineMediaSerial: UInt64 = 0
+  private var engineMedia: PlaybackTransport.Media?
 
   private func readEvents() {
     queue.async { [weak self] in
@@ -1341,26 +1343,33 @@ class MPVController: NSObject {
     case MPV_EVENT_AUDIO_RECONFIG: break
 
     case MPV_EVENT_VIDEO_RECONFIG:
-      DispatchQueue.main.async { self.player.onVideoReconfig() }
+      let identity = engineMedia
+      DispatchQueue.main.async { self.player.onVideoReconfig(identity) }
 
     case MPV_EVENT_START_FILE:
       resetPlaybackObservation()
+      guard let data = event.pointee.data else { break }
+      let start = data.load(as: mpv_event_start_file.self)
+      engineMediaSerial &+= 1
+      let identity = PlaybackTransport.Media(serial: engineMediaSerial, playlistEntry: start.playlist_entry_id)
+      engineMedia = identity
       guard let path = getString(MPVProperty.path) else { break }
       DispatchQueue.main.async { [self] in
-        player.info.state = .starting
-        player.fileStarted(path: path)
+        guard player.fileStarted(path: path, identity: identity) else { return }
         let url = player.info.currentURL
         let message = player.info.isNetworkResource ? url?.absoluteString : url?.lastPathComponent
         player.sendOSD(.fileStart(message ?? "-"))
       }
 
     case MPV_EVENT_FILE_LOADED:
-      DispatchQueue.main.async { self.player.fileLoaded() }
+      guard let identity = engineMedia else { break }
+      DispatchQueue.main.async { self.player.fileLoaded(identity) }
 
     case MPV_EVENT_SEEK:
+      let identity = engineMedia
       DispatchQueue.main.async { [self] in
+        guard player.playbackSeeking(identity) else { return }
         player.finishSubtitleDissolve()
-        player.info.isSeeking = true
         // When playback is paused the display link may be shutdown in order to not waste energy.
         // It must be running when seeking to avoid slowdowns caused by mpv waiting for YINA to call
         // mpv_render_report_swap.
@@ -1376,19 +1385,20 @@ class MPVController: NSObject {
       }
 
     case MPV_EVENT_PLAYBACK_RESTART:
+      let identity = engineMedia
       DispatchQueue.main.async { [self] in
-        player.info.isSeeking = false
+        guard player.playbackRestarted(identity) else { return }
         // When playback is paused the display link may be shutdown in order to not waste energy.
         // The display link will be restarted while seeking. If playback is paused shut it down
         // again.
-        if player.info.state == .paused {
+        if player.info.state == .paused && !player.info.isSeeking {
           player.mainWindow.videoView.displayIdle()
         }
         if needRecordSeekTime {
           recordedSeekTimeListener?(CACurrentMediaTime() - recordedSeekStartTime)
           recordedSeekTimeListener = nil
+          needRecordSeekTime = false
         }
-        player.playbackRestarted()
         player.syncUI(.time)
       }
 
@@ -1396,27 +1406,13 @@ class MPVController: NSObject {
       let end = event.pointee.data.load(as: mpv_event_end_file.self)
       let reason = end.reason
       let dueToStopCommand = reason == MPV_END_FILE_REASON_STOP
-      // When the YINA "Pause" setting is enabled under "When media is opened" YINA must tell mpv to
-      // pause playback ASAP. Events are delivered asynchronously. If the YINA
-      // "Play next item automatically" setting is enabled mpv will currently be loading the next
-      // item in the playlist and will immediately start playing it as soon as loading completes.
-      // Thus there is a race condition as to whether YINA can pause playback before mpv starts
-      // playing the media. This is more likely to happen with audio files that can be quickly
-      // loaded. As handling this does not require accessing YINA state not protected by locks and
-      // only available to the main thread along with the requirement to pause playback ASAP we will
-      // not leave this to the PlayerCore function and handle this now before calling fileEnded.
-      if !dueToStopCommand, Preference.bool(for: .pauseWhenOpen) {
-        setAsync(MPVOption.PlaybackControl.pause, .flag(true))
-        // Normally a log message is emitted before calling mpv, but in this case, due to the race
-        // condition, playback must be paused as soon as possible, so logging is done afterward.
-        log("Pausing playback because \"pause when media is opened\" is enabled")
-      }
       let completed = reason == MPV_END_FILE_REASON_EOF
       let failed = reason == MPV_END_FILE_REASON_ERROR &&
         (end.error == MPV_ERROR_LOADING_FAILED.rawValue || end.error == MPV_ERROR_GENERIC.rawValue)
+      let identity = engineMedia
       DispatchQueue.main.async {
         self.player.fileEnded(dueToStopCommand, completed: completed,
-                              failed: failed, playlistEntryID: end.playlist_entry_id)
+                              failed: failed, playlistEntryID: end.playlist_entry_id, identity: identity)
       }
 
     case MPV_EVENT_COMMAND_REPLY:
@@ -1491,6 +1487,7 @@ class MPVController: NSObject {
     pendingPlaybackValues[name] = value
     let schedule = !playbackDeliveryPending
     let generation = playbackDeliveryGeneration
+    let identity = engineMedia
     playbackDeliveryPending = true
     playbackValuesLock.unlock()
     if schedule {
@@ -1505,7 +1502,7 @@ class MPVController: NSObject {
         self.pendingPlaybackValues.removeAll(keepingCapacity: true)
         self.playbackDeliveryPending = false
         self.playbackValuesLock.unlock()
-        self.player.updateObservedPlayback(values)
+        self.player.updateObservedPlayback(values, identity: identity)
       }
     }
     return true
@@ -1558,12 +1555,14 @@ class MPVController: NSObject {
       DispatchQueue.main.async { self.player.secondarySidChanged(selectedID) }
 
     case MPVOption.PlaybackControl.pause:
-      guard let paused = UnsafePointer<Bool>(OpaquePointer(property.data))?.pointee else {
+      guard property.format == MPV_FORMAT_FLAG, let data = property.data else {
         logPropertyValueError(MPVOption.PlaybackControl.pause, property.format)
         break
       }
+      let paused = data.load(as: Int32.self) != 0
+      let identity = engineMedia
       player.playbackTrace?.record("pause-observer-mpv", "paused=\(paused)")
-      DispatchQueue.main.async { self.player.pauseChanged(paused) }
+      DispatchQueue.main.async { self.player.pauseChanged(paused, identity: identity) }
 
     case MPVProperty.chapter:
       DispatchQueue.main.async { self.player.chapterChanged() }
@@ -1809,7 +1808,8 @@ class MPVController: NSObject {
         break
       }
       guard idleActive else { break }
-      DispatchQueue.main.async { self.player.idleActiveChanged() }
+      let identity = engineMedia
+      DispatchQueue.main.async { self.player.idleActiveChanged(identity) }
 
     case MPVProperty.currentAo:
       DispatchQueue.main.async { self.player.currentAoChanged() }

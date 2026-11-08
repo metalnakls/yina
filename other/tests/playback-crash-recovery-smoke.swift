@@ -24,7 +24,11 @@ final class PlayerCore {
   let info = Info()
   let mpv = Engine()
   var cachedSavePositionOnQuit = true
-  var cachedEOF = false
+  var transport: PlaybackTransport = {
+    var model = PlaybackTransport()
+    model.beginOpen(path: "/fixture", pauseWhenOpen: true)
+    return model
+  }()
   var remoteRecovery = RemotePlaybackRecovery()
   var playbackResumeWait = PlaybackResumeWait()
   func cancelPlaybackResumeWait() {}
@@ -73,7 +77,7 @@ final class PlayerCore {
       precondition(mpv_command_string(handle, "write-watch-later-config") >= 0)
       exit(0)
     }
-    player.updateObservedPlayback(["time-pos": position(handle), "duration": 30.0])
+    player.updateObservedPlayback(["time-pos": position(handle), "duration": 30.0], identity: nil)
     print("READY")
     fflush(stdout)
     while true { pump(handle, player) }

@@ -16,7 +16,8 @@ methods = '\n'.join(method(s) for s in [
     'private func cancelRemotePlaybackRecovery(', 'private func beginRemotePlaybackRecovery(',
     'private func addRemotePlaybackRecoveryHooks(', 'private func scheduleRemoteRecoveryRetry(',
     'private func retryRemotePlayback(', 'private func finishRemotePlaybackRecovery(',
-    'private func cancelPlaybackResumeWait(', 'private func startPlaybackResumeWait('])
+    'private func cancelPlaybackResumeWait(', 'private func startPlaybackResumeWait(',
+    'private func runTransport(', 'private func completeTransport('])
 controller = (repo / 'yina/MPVController.swift').read_text()
 a = controller.index('    case MPV_EVENT_END_FILE:')
 end_event = controller[a:controller.index('\n    case MPV_EVENT_COMMAND_REPLY:', a)]
@@ -35,7 +36,7 @@ with tempfile.TemporaryDirectory(prefix='yina-remote-recovery-') as d:
     binary = d / 'recovery'
     subprocess.run(['xcrun', 'swiftc', '-parse-as-library', '-module-cache-path', '/private/tmp/yina-event-module-cache',
         '-I', str(repo / 'deps/include'), '-import-objc-header', str(header),
-        str(repo / 'yina/PlayerState.swift'), str(repo / 'yina/MPVNode.swift'),
+        str(repo / 'yina/PlayerState.swift'), str(repo / 'yina/PlaybackTransport.swift'), str(repo / 'yina/MPVNode.swift'),
         str(repo / 'yina/MPVAsyncClient.swift'), str(repo / 'yina/MPVHook.swift'), str(swift),
         str(repo / 'deps/lib/libmpv.2.dylib'), '-Xlinker', '-rpath', '-Xlinker', str(repo / 'deps/lib'),
         '-o', str(binary)], check=True)

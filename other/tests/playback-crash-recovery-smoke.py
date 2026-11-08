@@ -44,7 +44,7 @@ with tempfile.TemporaryDirectory(prefix="yina-crash-recovery-") as directory:
     binary = root / "worker"
     subprocess.run(["xcrun", "swiftc", "-module-cache-path", "/private/tmp/yina-event-module-cache",
                     "-I", str(repo / "deps/include"), "-import-objc-header", str(header),
-                    str(repo / "yina/PlayerState.swift"), str(repo / "yina/MPVNode.swift"),
+                    str(repo / "yina/PlayerState.swift"), str(repo / "yina/PlaybackTransport.swift"), str(repo / "yina/MPVNode.swift"),
                     str(repo / "yina/MPVAsyncClient.swift"), str(swift),
                     str(repo / "deps/lib/libmpv.2.dylib"), "-Xlinker", "-rpath", "-Xlinker",
                     str(repo / "deps/lib"), "-o", str(binary)], check=True)

@@ -32,7 +32,7 @@ with tempfile.TemporaryDirectory(prefix="yina-checkpoint-policy-") as directory:
     swift.write_text(fixture)
     binary = root / "policy"
     subprocess.run(["xcrun", "swiftc", "-module-cache-path", "/private/tmp/yina-event-module-cache",
-                    str(repo / "yina/PlayerState.swift"), str(swift),
+                    str(repo / "yina/PlayerState.swift"), str(repo / "yina/PlaybackTransport.swift"), str(swift),
                     str(repo / "other/tests/playback-checkpoint-policy-smoke.swift"),
                     "-o", str(binary)], check=True)
     subprocess.run([str(binary)], check=True, timeout=5)

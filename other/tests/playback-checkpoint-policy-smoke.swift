@@ -31,22 +31,22 @@ import Foundation
     let client = player.mpv.asyncClient
     player.info.currentURL = URL(fileURLWithPath: "/generated.wav")
     player.cachedSavePositionOnQuit = false
-    player.updateObservedPlayback(["time-pos": 10.0])
+    player.updateObservedPlayback(["time-pos": 10.0], identity: nil)
     precondition(client.commands.isEmpty, "Disabled resume must not write progress")
     player.cachedSavePositionOnQuit = true
     player.info.isSeeking = true
-    player.updateObservedPlayback(["time-pos": 20.0])
+    player.updateObservedPlayback(["time-pos": 20.0], identity: nil)
     player.info.isSeeking = false
     player.info.justStartedFile = true
-    player.updateObservedPlayback(["time-pos": 20.0])
+    player.updateObservedPlayback(["time-pos": 20.0], identity: nil)
     player.info.justStartedFile = false
     player.info.state = .starting
-    player.updateObservedPlayback(["time-pos": 20.0])
+    player.updateObservedPlayback(["time-pos": 20.0], identity: nil)
     precondition(client.commands.isEmpty, "Loading and in-progress seeks must not overwrite a checkpoint")
     player.info.state = .paused
-    player.updateObservedPlayback(["time-pos": 20.0])
+    player.updateObservedPlayback(["time-pos": 20.0], identity: nil)
     precondition(client.commands == [["write-watch-later-config"]])
-    player.updateObservedPlayback(["time-pos": 21.0])
+    player.updateObservedPlayback(["time-pos": 21.0], identity: nil)
     player.checkpointPlaybackPosition(force: true)
     precondition(client.commands.count == 1)
     client.completions[0](0)
@@ -58,12 +58,12 @@ import Foundation
     }
     precondition(client.commands.count == 3, "A paused player must retry a rejected save without a UI timer")
     client.completions[2](0)
-    player.updateObservedPlayback(["eof-reached": true])
+    player.updateObservedPlayback(["eof-reached": true], identity: nil)
     precondition(client.commands.last == ["delete-watch-later-config", "/generated.wav"])
     let count = client.commands.count
     player.checkpointPlaybackPosition(force: true)
     precondition(client.commands.count == count, "Completed files must be cleared once")
-    player.updateObservedPlayback(["eof-reached": false, "time-pos": 5.0])
+    player.updateObservedPlayback(["eof-reached": false, "time-pos": 5.0], identity: nil)
     precondition(client.commands.last == ["write-watch-later-config"], "Seeking back from EOF must save again")
     print("PASS: checkpoint cadence, idle pause, seek coalescing, failed-save retry, file generations, opt-out and EOF cleanup")
   }
