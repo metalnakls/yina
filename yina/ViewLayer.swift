@@ -155,16 +155,29 @@ class ViewLayer: CAMetalLayer, @unchecked Sendable {
   }
 
   private func enqueueRender(force: Bool, snapshotRequest: SnapshotRequest?) {
+    let entryTrace = pipTrace
+    let enqueued = entryTrace == nil ? 0 : CACurrentMediaTime()
     renderQueue.async { [weak self] in
       guard let self else { return }
       guard snapshotRequest?.isFinished != true else { return }
+      let dequeued = entryTrace == nil ? 0 : CACurrentMediaTime()
+      entryTrace?.record("render-dequeued", "wait=\(dequeued - enqueued) force=\(force)")
       self.videoView.$isUninited.withReadLock { isUninited in
         guard !isUninited, let context = self.videoView.player.mpv.mpvRenderContext else {
           self.failPendingSnapshot()
           return
         }
 
+        let updateBegan = entryTrace == nil ? 0 : CACurrentMediaTime()
         let needsFrame = self.videoView.player.mpv.shouldRenderUpdateFrame()
+        if let entryTrace, entryTrace.isActive {
+          var frame = mpv_render_frame_info()
+          withUnsafeMutablePointer(to: &frame) { pointer in
+            _ = mpv_render_context_get_info(context,
+              mpv_render_param(type: MPV_RENDER_PARAM_NEXT_FRAME_INFO, data: pointer))
+          }
+          entryTrace.record("render-update", "lockWait=\(updateBegan - dequeued) updateTime=\(CACurrentMediaTime() - updateBegan) needsFrame=\(needsFrame) flags=\(frame.flags) targetTime=\(frame.target_time)")
+        }
         guard force || needsFrame else { return }
 
         let canPresent = !self.isHidden && self.bounds.width > 0 && self.bounds.height > 0 && self.videoView.window != nil
@@ -177,6 +190,7 @@ class ViewLayer: CAMetalLayer, @unchecked Sendable {
           ]
           let traces = [self.pipTrace, self.resumeTrace].compactMap { $0 }
           let began = CACurrentMediaTime()
+          entryTrace?.record("render-begin", "present=\(canPresent) force=\(force)")
           let result = mpv_render_context_render(context, &params)
           for trace in traces {
             trace.record("render", "present=\(canPresent) force=\(force) result=\(result) elapsed=\(CACurrentMediaTime() - began)")

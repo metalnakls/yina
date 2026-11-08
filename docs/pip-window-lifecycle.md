@@ -28,3 +28,16 @@ ends the preceding capture before starting another. Normal playback has no trace
 sampling or file writes. `python3 other/tests/pip-trace-smoke.py` verifies automatic
 shutdown, concurrent callbacks, JSON persistence, visibility data, and retention.
 This diagnostic should be removed once the flash is identified and fixed.
+
+The November 8 entry-stutter capture continued rendering with stable HDR state.
+Its backdrop became visible about 16 ms after entry, before the video host changed
+at roughly 137 ms. Full-window backdrop compositing during the handoff is a
+candidate, not a confirmed root cause. The serial render queue is another
+candidate: previous logging measured completed renders, not time waiting in it.
+The expanded trace records enqueue-to-dequeue delay, render lock/update time,
+mpv next-frame flags/target time, render begin/end, and display-link timestamps.
+A single outstanding asynchronous mpv query samples pause/cache/position/drop
+state every quarter-second; it never blocks the UI or accumulates polling work.
+Subtitle-session and Live Text entry boundaries distinguish preparation cost
+from the system presentation call. No transition behavior is changed by this
+instrumentation, and no visual-stutter fix is claimed.

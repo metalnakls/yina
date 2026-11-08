@@ -3358,6 +3358,21 @@ extension MainWindowController: PIPViewControllerDelegate {
     pipTransitionTrace?.finish()
     let trace = PiPTransitionTrace(source: window, video: videoView, overlay: pipOverlayView)
     pipTransitionTrace = trace
+    var stateQueryPending = false
+    trace.onSample = { [weak self, weak trace] in
+      guard let self, let trace, trace.isActive, !stateQueryPending,
+            self.player.info.state.active else { return }
+      stateQueryPending = true
+      trace.record("mpv-query-begin")
+      self.player.mpv.asyncClient.get(["pause", "paused-for-cache", "core-idle",
+        "time-pos", "demuxer-cache-duration", "cache-buffering-state", "avsync",
+        "frame-drop-count", "decoder-frame-drop-count"], strings: true) { values in
+        stateQueryPending = false
+        trace.record("mpv-query-reply", values.keys.sorted().map {
+          "\($0)=\(values[$0]!)"
+        }.joined(separator: " "))
+      }
+    }
 #if IINA_ENABLE_METAL_RENDERER
     videoView.videoLayer.pipTrace = trace
 #endif
@@ -3369,9 +3384,13 @@ extension MainWindowController: PIPViewControllerDelegate {
     }
     shouldRestoreWindowAfterPIP = true
     pipStatus = .inPIP
+    trace.record("subtitle-dissolve-begin")
     player.finishSubtitleDissolve()
+    trace.record("subtitle-session-begin")
     startPiPSubtitleSession()
+    trace.record("live-text-clear-begin")
     liveText.clearAnalysis()
+    trace.record("controls-hide-begin")
     hideMainWindowControlsForPiP()
     pipTransitionTrace?.sample("controls-hidden")
 

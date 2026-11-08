@@ -266,6 +266,7 @@ class VideoView: NSView {
   }
 
   @objc private func displayLinkDidFire(_ displayLink: CADisplayLink) {
+    videoLayer.pipTrace?.record("display-link", "timestamp=\(displayLink.timestamp) target=\(displayLink.targetTimestamp)")
     $isUninited.withReadLock() { isUninited in
       guard !isUninited else { return }
       player.mpv.mpvReportSwap()
