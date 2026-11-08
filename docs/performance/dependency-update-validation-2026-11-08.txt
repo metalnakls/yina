@@ -1,0 +1,54 @@
+mpv 0.42.0 / libplacebo 7.387.0 native Metal update
+
+Source pins and full patches are in other/metal-deps. The custom Vulkan render
+backend/header are removed; both build configurations disable Vulkan. Upstream
+portable declarations and compile-time headers/stubs remain. The packaged
+49-library closure has no Vulkan or MoltenVK runtime dependency.
+
+Full build contract:
+IINA_METAL_BUILD_ROOT=$PWD/build/metal-deps/release-042 other/metal-deps/build.sh
+Completed successfully, including reuse validation for exactly patched sources.
+17/17 libplacebo tests (including Metal GPU tests) and 42/42 mpv tests passed.
+Generated H.264 Metal smoke: direct videotoolbox, 60 rendered frames, screenshot.
+All packaged Mach-O files verified arm64 / macOS 27.0. Exact patches reverse-check
+against the verified source trees. Full log: build/metal-deps/release-042-build.log.
+
+Additional generated-fixture checks:
+- H.264 and 10-bit HEVC select videotoolbox, software MPEG-2 fallback selects no
+  hardware decoder; software and window screenshot paths pass.
+- Actual AVFoundation driver and packaged library pass muted underrun, repeated
+  pause/resume, long pause, paused seek/reset, EOF, reopen and stop checks.
+- Production ViewLayer with the new package passes paused resize, letterboxing,
+  backing-scale change, hidden/covered suppression and continued hidden playback.
+  Real system PiP presents 14 frames in 0.6 seconds despite occlusion=8192. The
+  earlier visibility regression remains covered by a test that fails before its fix.
+
+Small dependency comparisons (isolated renderer, not the full application):
+Generated 4K HEVC10, direct hardware decode, 1280x720 output, same benchmark/options,
+12-second runs with warm-up followed by 30 footprint samples. Alternating order:
+                 Trial 1      Trial 2
+Before           268.8 MiB    251.9 MiB
+After            257.9 MiB    251.2 MiB
+No clear footprint regression; the spread does not justify a general RAM-saving
+claim. Metal allocated-resource counters ranged 602.1–649.6 MiB in both builds;
+these are not physical footprint. Logs/results: build/deps-0.42/comparison.
+
+Static generated bars, window screenshot at 320x180, mean normalized RGB:
+SDR before: 0.372817 0.447083 0.424060
+SDR after:  0.372820 0.447081 0.424060
+PQ before:  0.380939 0.440624 0.427268
+PQ after:   0.380939 0.440624 0.427268
+These limited fixture averages detect gross output changes; they are not pixel
+identity proof or visual validation of display headroom, Dolby Vision, every
+HDR scene, or the intermittent PiP stutter. Native display/SMB long-run behavior
+still needs real use; automatic tracing remains enabled.
+
+The current Homebrew inputs differed from the old lock, so the lock and source
+metadata now record FFmpeg 9.0.2 and the actual supporting-library/tool versions.
+Rust remains pinned to the installed 1.98.1 toolchain. No toolchain was installed,
+no HOME override is used, and the application release version remains 5.1.
+
+YINA's full Nightly build against the final packaged closure succeeded and was
+signed with the configured Apple Development identity, strictly verified and
+installed by other/build_install_nightly.sh. Log:
+/private/tmp/yina-dependency-042-build.log. No running player was closed/restarted.

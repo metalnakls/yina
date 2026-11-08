@@ -3,16 +3,18 @@
   "target": {
     "architecture": "arm64",
     "deploymentTarget": "27.0",
-    "sdk": "27.0"
+    "sdk": "27.0",
+    "rustToolchainVersion": "1.98.1"
   },
   "sources": {
     "mpv": {
-      "url": "https://github.com/lhc70000/mpv.git",
-      "commit": "97179bce7ed980c53647d6344916f632fe689e9e"
+      "url": "https://github.com/mpv-player/mpv.git",
+      "commit": "b0841e8c4d156b8403dc1876c4cbd9011eb583f3",
+      "tag": "v0.42.0"
     },
     "libplacebo": {
-      "url": "https://github.com/lhc70000/libplacebo.git",
-      "commit": "a96296875a067887fc75d7b74a0a4292422c204d",
+      "url": "https://github.com/haasn/libplacebo.git",
+      "commit": "275f7dea27924cdd34ab2e6c20e448b6bc4fab65",
       "submodules": {
         "3rdparty/Vulkan-Headers": "74d8a6cb930c68ef617b202c3ff3c59d919e086b",
         "3rdparty/fast_float": "97b54ca9e75f5303507699d27c6b4f4efe4641a1",
@@ -20,7 +22,8 @@
         "3rdparty/jinja": "15206881c006c79667fe5154fe80c01c65410679",
         "3rdparty/markupsafe": "297fc8e356e6836a62087949245d09a28e9f1b13",
         "demos/3rdparty/nuklear": "242f35efa067a46c595645eeda7b1771ea1f83b1"
-      }
+      },
+      "tag": "v7.387.0"
     },
     "libdovi": {
       "url": "https://github.com/quietvoid/dovi_tool.git",
@@ -29,19 +32,19 @@
       "libraryVersion": "3.3.2"
     },
     "ffmpeg": {
-      "url": "https://ffmpeg.org/releases/ffmpeg-9.0.1.tar.xz",
-      "sha256": "cf38e0e28c7e5605942c4a77755349b0145804a397af37eb1fb4c77cb237f635",
-      "version": "9.0.1"
+      "url": "https://ffmpeg.org/releases/ffmpeg-9.0.2.tar.xz",
+      "sha256": "8c3850283eb25fa026482078a04051e0be17347b09ef81a0849bec15a96e002e",
+      "version": "9.0.2"
     },
     "spirvCross": {
-      "url": "https://github.com/KhronosGroup/SPIRV-Cross/archive/refs/tags/vulkan-sdk-1.4.357.0.tar.gz",
-      "sha256": "97c910326afdd44d794ce8561326fa675fd1958b27142f03295403044d639639",
-      "version": "1.4.357.0"
+      "url": "https://github.com/KhronosGroup/SPIRV-Cross/archive/refs/tags/vulkan-sdk-1.4.363.0.tar.gz",
+      "sha256": "f708982e88b763ef5b0394ed468fc2c3628f68cdab89f2e7a946cd628c04e721",
+      "version": "1.4.363.0"
     },
     "shaderc": {
-      "url": "https://github.com/google/shaderc/archive/refs/tags/v2026.3.tar.gz",
-      "sha256": "ee493ccf1b3038b4ef2fe024664c5eb2dc4bcc1f6b05b33e3909de0e19c81024",
-      "version": "2026.3"
+      "url": "https://github.com/google/shaderc/archive/refs/tags/v2026.4.tar.gz",
+      "sha256": "f06ce5bcca94e5df7f34e115743597d0ad2e13c5fe9213c67dc8c76031241947",
+      "version": "2026.4"
     }
   }
 }

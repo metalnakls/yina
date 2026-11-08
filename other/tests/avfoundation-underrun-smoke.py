@@ -2,8 +2,8 @@
 The real AVFoundation renderer stays muted; storage and yina are never opened.
 """
 from pathlib import Path
-import subprocess, tempfile, sys
-source = Path('build/metal-deps/sources/mpv/audio/out/ao_avfoundation.m').read_text()
+import subprocess, tempfile, sys, os
+source = (Path(os.environ.get('YINA_TEST_MPV_SOURCE', 'build/metal-deps/sources/mpv')) / 'audio/out/ao_avfoundation.m').read_text()
 body = source[source.index('struct priv {'):source.index('static int control(')]
 prelude = r'''
 #import <AVFoundation/AVFoundation.h>

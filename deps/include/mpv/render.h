@@ -49,6 +49,7 @@ extern "C" {
  * Supported backends
  * ------------------
  *
+ * Direct3D 11: via MPV_RENDER_API_TYPE_D3D11, see render_d3d11.h header.
  * OpenGL: via MPV_RENDER_API_TYPE_OPENGL, see render_gl.h header.
  * Software: via MPV_RENDER_API_TYPE_SW, see section "Software renderer"
  *
@@ -213,8 +214,9 @@ typedef enum mpv_render_param_type {
      * Control surface depth. Valid for mpv_render_context_render().
      * Type: int*
      * This implies the depth of the surface passed to the render function in
-     * bits per channel. If omitted or set to 0, the renderer will assume 8.
-     * Typically used to control dithering.
+     * bits per channel. If omitted or set to 0, the renderer will use the
+     * depth of the texture format with the Direct3D 11 backend, and assume 8
+     * otherwise. Typically used to control dithering.
      */
     MPV_RENDER_PARAM_DEPTH = 5,
     /**
@@ -422,23 +424,18 @@ typedef enum mpv_render_param_type {
      * See MPV_RENDER_PARAM_SW_STRIDE for alignment requirements.
      */
     MPV_RENDER_PARAM_SW_POINTER = 20,
-    /*
-     * MPV_RENDER_API_TYPE_VULKAN only: Vulkan device initialization parameters.
-     * Valid for mpv_render_context_create().
-     * Type: mpv_vulkan_init_params* (see render_vk.h)
+    /**
+     * Required parameters for initializing the Direct3D 11 renderer. Valid
+     * for mpv_render_context_create().
+     * Type: mpv_d3d11_init_params*
      */
-    MPV_RENDER_PARAM_VULKAN_INIT_PARAMS = 21,
-    /*
-     * MPV_RENDER_API_TYPE_VULKAN only: VkImage to render into.
-     * Valid for mpv_render_context_render().
-     * Type: mpv_vulkan_fbo* (see render_vk.h)
+    MPV_RENDER_PARAM_D3D11_INIT_PARAMS = 21,
+    /**
+     * Describes a D3D11 render target. Valid for mpv_render_context_render().
+     * Type: mpv_d3d11_fbo*
      */
-    MPV_RENDER_PARAM_VULKAN_FBO = 22,
-    /*
-     * MPV_RENDER_API_TYPE_METAL only: Metal device initialization parameters.
-     * Valid for mpv_render_context_create().
-     * Type: mpv_metal_init_params* (see render_mtl.h)
-     */
+    MPV_RENDER_PARAM_D3D11_FBO = 22,
+    /** Native Metal initialization; type: mpv_metal_init_params* (render_mtl.h). */
     MPV_RENDER_PARAM_METAL_INIT_PARAMS = 23,
 } mpv_render_param_type;
 
@@ -482,15 +479,11 @@ typedef struct mpv_render_param {
 /**
  * Predefined values for MPV_RENDER_PARAM_API_TYPE.
  */
+// See render_d3d11.h
+#define MPV_RENDER_API_TYPE_D3D11 "d3d11"
 // See render_gl.h
 #define MPV_RENDER_API_TYPE_OPENGL "opengl"
-// OpenGL via libplacebo. Requires the same MPV_RENDER_PARAM_OPENGL_INIT_PARAMS
-// and MPV_RENDER_PARAM_OPENGL_FBO parameters as MPV_RENDER_API_TYPE_OPENGL, but
-// uses the libplacebo renderer (vo=gpu-next equivalent) instead of the legacy
-// gl_video renderer (vo=gpu equivalent).
 #define MPV_RENDER_API_TYPE_OPENGL_NEXT "opengl-next"
-// See render_vk.h
-#define MPV_RENDER_API_TYPE_VULKAN "vulkan"
 // See render_mtl.h
 #define MPV_RENDER_API_TYPE_METAL "metal"
 // See section "Software renderer"

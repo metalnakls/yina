@@ -6,12 +6,13 @@ SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 ROOT_DIR=$(cd "$SCRIPT_DIR/../.." && pwd)
 MANIFEST="$SCRIPT_DIR/manifest.json"
 BREW_LOCK="$SCRIPT_DIR/homebrew.lock"
-PATCH_FILE="$SCRIPT_DIR/patches/mpv-metal-macos.patch"
+MPV_PATCH="$SCRIPT_DIR/patches/mpv-metal-macos.patch"
+PL_PATCH="$SCRIPT_DIR/patches/libplacebo-metal.patch"
 BUILD_ROOT=${IINA_METAL_BUILD_ROOT:-"$ROOT_DIR/build/metal-deps"}
 SOURCE_ROOT="$BUILD_ROOT/sources"
 OBJECT_ROOT="$BUILD_ROOT/objects"
 PREFIX="$BUILD_ROOT/prefix"
-BUILD_HOME="$BUILD_ROOT/home"
+CARGO_BUILD_HOME="$BUILD_ROOT/cargo-home"
 MODULE_CACHE="$BUILD_ROOT/module-cache"
 
 json_value() {
@@ -35,7 +36,7 @@ EXPECTED_SDK=$(json_value target.sdk)
 ACTUAL_SDK=$(xcrun --sdk macosx --show-sdk-version)
 [[ "$ACTUAL_SDK" == "$EXPECTED_SDK" ]] || fail "Xcode macOS SDK $EXPECTED_SDK is required (found $ACTUAL_SDK)"
 
-for tool in brew git meson ninja pkgconf cargo cargo-cinstall clang xcrun; do
+for tool in brew git ninja pkgconf cargo-cinstall clang xcrun python3 ffmpeg; do
   command -v "$tool" >/dev/null || fail "missing tool: $tool"
 done
 
@@ -46,21 +47,90 @@ while read -r formula expected_version; do
     fail "$formula must be $expected_version (found ${installed:-not installed})"
 done < "$BREW_LOCK"
 
-mkdir -p "$SOURCE_ROOT" "$OBJECT_ROOT" "$PREFIX" "$BUILD_HOME" "$MODULE_CACHE"
+mkdir -p "$SOURCE_ROOT" "$OBJECT_ROOT" "$PREFIX" "$CARGO_BUILD_HOME" "$MODULE_CACHE"
+
+# Avoid rustup shims attempting to update themselves; never install a toolchain.
+RUST_VERSION=$(json_value target.rustToolchainVersion)
+RUST_BIN="$HOME/.rustup/toolchains/${RUST_VERSION}-aarch64-apple-darwin/bin"
+if [[ -x "$RUST_BIN/rustc" && -x "$RUST_BIN/cargo" ]]; then
+  export PATH="$RUST_BIN:$PATH"
+fi
+command -v rustc >/dev/null || fail "missing Rust $RUST_VERSION compiler"
+command -v cargo >/dev/null || fail "missing Rust $RUST_VERSION cargo"
+RUSTC_PATH=$(command -v rustc)
+RUSTC_REAL=$(/usr/bin/python3 -c 'import os, sys; print(os.path.realpath(sys.argv[1]))' "$RUSTC_PATH")
+[[ ${RUSTC_REAL##*/} != rustup ]] || fail "Rust $RUST_VERSION must be installed; rustup shims are not used"
+[[ $(rustc --version) == "rustc $RUST_VERSION "* ]] ||
+  fail "Rust $RUST_VERSION is required (found $(rustc --version 2>/dev/null || echo unavailable))"
+export CARGO_HOME="$CARGO_BUILD_HOME"
+
+# A broken Homebrew Python shim can prevent Meson and Ninja's Meson helpers
+# from importing mesonbuild. Make both use the same working Python environment.
+if ! command -v meson >/dev/null || ! meson --version >/dev/null 2>&1; then
+  MESON_PREFIX=$(brew --prefix meson)
+  MESON_SITE=""
+  for site in "$MESON_PREFIX"/lib/python*/site-packages; do
+    if [[ -d "$site/mesonbuild" ]]; then
+      MESON_SITE=$site
+      break
+    fi
+  done
+  [[ -n "$MESON_SITE" ]] || fail "cannot find Homebrew Meson Python package"
+  export PYTHONPATH="$MESON_SITE${PYTHONPATH:+:$PYTHONPATH}"
+  python3 -m mesonbuild.mesonmain --version >/dev/null || fail "Meson Python fallback failed"
+  mkdir -p "$BUILD_ROOT/bin"
+  cat > "$BUILD_ROOT/bin/meson" <<'EOF'
+#!/bin/sh
+exec python3 -m mesonbuild.mesonmain "$@"
+EOF
+  chmod +x "$BUILD_ROOT/bin/meson"
+  export PATH="$BUILD_ROOT/bin:$PATH"
+fi
+
+# Compare the complete tracked and untracked worktree to the expected patched
+# tree using temporary indexes; never rewrite or discard local changes.
+check_source_tree() {
+  local destination=$1 patch=${2:-} expected_index actual_index expected actual
+  git -C "$destination" diff --cached --quiet || fail "$destination has staged changes"
+  expected_index=$(mktemp "$BUILD_ROOT/expected-index.XXXXXX")
+  actual_index=$(mktemp "$BUILD_ROOT/actual-index.XXXXXX")
+  rm -f "$expected_index" "$actual_index"
+  GIT_INDEX_FILE="$expected_index" git -C "$destination" read-tree HEAD
+  if [[ -n "$patch" ]]; then
+    GIT_INDEX_FILE="$expected_index" git -C "$destination" apply --cached --unidiff-zero "$patch" ||
+      fail "patch does not apply to $destination"
+  fi
+  expected=$(GIT_INDEX_FILE="$expected_index" git -C "$destination" write-tree)
+  GIT_INDEX_FILE="$actual_index" git -C "$destination" read-tree HEAD
+  GIT_INDEX_FILE="$actual_index" git -C "$destination" add -A
+  actual=$(GIT_INDEX_FILE="$actual_index" git -C "$destination" write-tree)
+  rm -f "$expected_index" "$actual_index"
+  [[ "$actual" == "$expected" ]] || fail "$destination has unexpected local changes"
+  git -C "$destination" submodule foreach --quiet --recursive \
+    'test -z "$(git status --porcelain)"' || fail "$destination has modified submodules"
+}
 
 clone_exact() {
-  local name=$1
-  local url=$2
-  local commit=$3
-  local destination="$SOURCE_ROOT/$name"
-
+  local name=$1 url=$2 commit=$3 patch=${4:-} destination="$SOURCE_ROOT/$1"
   if [[ ! -d "$destination/.git" ]]; then
     git clone --filter=blob:none "$url" "$destination"
   fi
-  [[ -z $(git -C "$destination" status --short) ]] || fail "$destination has local changes"
-  git -C "$destination" fetch --force origin "$commit"
-  git -C "$destination" checkout --detach "$commit"
+  if [[ $(git -C "$destination" rev-parse HEAD) != "$commit" ]]; then
+    check_source_tree "$destination"
+    git -C "$destination" fetch "$url" "$commit"
+    git -C "$destination" checkout --detach "$commit"
+  fi
   [[ $(git -C "$destination" rev-parse HEAD) == "$commit" ]] || fail "$name checkout mismatch"
+  if [[ -n "$patch" ]] && git -C "$destination" apply --reverse --check --unidiff-zero "$patch" >/dev/null 2>&1; then
+    check_source_tree "$destination" "$patch"
+  else
+    check_source_tree "$destination"
+    if [[ -n "$patch" ]]; then
+      git -C "$destination" apply --check --unidiff-zero "$patch" || fail "$name patch does not apply cleanly"
+      git -C "$destination" apply --unidiff-zero "$patch"
+      check_source_tree "$destination" "$patch"
+    fi
+  fi
 }
 
 MPV_COMMIT=$(json_value sources.mpv.commit)
@@ -70,19 +140,12 @@ PL_URL=$(json_value sources.libplacebo.url)
 DOVI_COMMIT=$(json_value sources.libdovi.commit)
 DOVI_URL=$(json_value sources.libdovi.url)
 
-clone_exact mpv "$MPV_URL" "$MPV_COMMIT"
-clone_exact libplacebo "$PL_URL" "$PL_COMMIT"
+clone_exact mpv "$MPV_URL" "$MPV_COMMIT" "$MPV_PATCH"
+clone_exact libplacebo "$PL_URL" "$PL_COMMIT" "$PL_PATCH"
 clone_exact libdovi "$DOVI_URL" "$DOVI_COMMIT"
 git -C "$SOURCE_ROOT/libplacebo" submodule update --init --recursive
 
-if git -C "$SOURCE_ROOT/mpv" apply --check --unidiff-zero "$PATCH_FILE"; then
-  git -C "$SOURCE_ROOT/mpv" apply --unidiff-zero "$PATCH_FILE"
-elif ! git -C "$SOURCE_ROOT/mpv" apply --reverse --check --unidiff-zero "$PATCH_FILE"; then
-  fail "mpv patch does not apply cleanly"
-fi
-
 export MACOSX_DEPLOYMENT_TARGET="$DEPLOYMENT_TARGET"
-export HOME="$BUILD_HOME"
 export CLANG_MODULE_CACHE_PATH="$MODULE_CACHE"
 export CFLAGS="-arch arm64 -mmacosx-version-min=$DEPLOYMENT_TARGET -I$(brew --prefix spirv-cross)/include -I$(brew --prefix dav1d)/include"
 export CXXFLAGS="$CFLAGS"
@@ -147,8 +210,12 @@ clang -fobjc-arc -arch arm64 -mmacosx-version-min="$DEPLOYMENT_TARGET" \
   -framework AppKit -framework Metal -framework QuartzCore \
   "$SCRIPT_DIR/metal-smoke.m" -o "$OBJECT_ROOT/metal-smoke"
 
+# Keep a known fixture available through rendering and screenshot validation.
+ffmpeg -hide_banner -loglevel error -y -f lavfi \
+  -i 'testsrc2=size=640x360:rate=24:duration=10' -c:v libx264 -pix_fmt yuv420p \
+  "$OBJECT_ROOT/metal-smoke.mkv"
 DYLD_LIBRARY_PATH="$PREFIX/lib:$(brew --prefix)/lib:$(brew --prefix shaderc)/lib:$(brew --prefix little-cms2)/lib" \
-  "$OBJECT_ROOT/metal-smoke" "$MPV_BUILD/test/samples/video.mkv"
+  "$OBJECT_ROOT/metal-smoke" "$OBJECT_ROOT/metal-smoke.mkv"
 
 PACKAGE_LIB="$BUILD_ROOT/package/lib"
 ruby "$SCRIPT_DIR/package.rb" "$PACKAGE_LIB" "$PREFIX/lib/libmpv.2.dylib"
