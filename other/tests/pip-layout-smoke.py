@@ -17,10 +17,16 @@ with tempfile.TemporaryDirectory(prefix="yina-pip-layout-") as directory:
     bridge.write_text("#import <Cocoa/Cocoa.h>\n" + header[start:end])
     production = directory / "VideoPIPViewController.swift"
     production.write_text(source)
+    main_source = (repo / "yina/MainWindowController.swift").read_text()
+    factory_start = main_source.index("  private func makePiPController(")
+    factory_end = main_source.index("\n  private func isCurrentPiPController", factory_start)
+    harness = directory / "harness.swift"
+    harness.write_text((repo / "other/tests/pip-layout-smoke.swift").read_text().replace(
+        "  // PRODUCTION_CONTROLLER_FACTORY", main_source[factory_start:factory_end]))
     binary = directory / "pip-layout"
     subprocess.run(["xcrun", "swiftc", "-O", "-module-cache-path", str(directory / "modules"),
                     "-import-objc-header", str(bridge), "-F", "/System/Library/PrivateFrameworks",
                     "-framework", "PIP", str(production),
-                    str(repo / "other/tests/pip-layout-smoke.swift"), "-o", str(binary)],
+                    str(harness), "-o", str(binary)],
                    check=True)
     subprocess.run([str(binary)], check=True, timeout=30)

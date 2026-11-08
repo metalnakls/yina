@@ -77,14 +77,7 @@ extension MainWindowController {
   }
 
   @objc func menuTogglePIP(_ sender: NSMenuItem) {
-    switch pipStatus {
-    case .notInPIP:
-      enterPIP()
-    case .inPIP:
-      exitPIP()
-    default:
-      return
-    }
+    togglePIP()
   }
 
   @objc func menuToggleFullScreen(_ sender: NSMenuItem) {

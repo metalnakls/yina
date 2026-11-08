@@ -3,16 +3,25 @@ import Cocoa
 // Keep app playback out of the test; the controller, AppKit host windows and
 // superclass initializer all come from production or the system framework.
 class PlayerWindowController: NSObject {
-  class Video { func updateDisplayLink() {} }
+  class Video {
+    var bounds = NSRect(x: 0, y: 0, width: 320, height: 180)
+    func updateDisplayLink() {}
+  }
   let videoView = Video()
   func forceDraw(_ reason: String) {}
 }
 
 class MainWindowController: PlayerWindowController, PIPViewControllerDelegate {
+  private var pipController: VideoPIPViewController?
+  var displayedVideoSize: NSSize?
+  // PRODUCTION_CONTROLLER_FACTORY
+  func makeController(session: UInt64) -> VideoPIPViewController { makePiPController(session: session) }
   var geometryChanges = 0
   var host: NSWindow?
-  func pipHostGeometryChanged() { geometryChanges += 1 }
-  func pipHostWindowDidChange(_ window: NSWindow?) { host = window }
+  var redraws = 0
+  func pipRequestRedraw(_ reason: String, from controller: VideoPIPViewController) { redraws += 1 }
+  func pipHostGeometryChanged(from controller: VideoPIPViewController) { geometryChanges += 1 }
+  func pipHostWindowDidChange(_ window: NSWindow?, from controller: VideoPIPViewController) { host = window }
 }
 
 enum Logger {
@@ -27,6 +36,14 @@ extension NSScreen {
 @main struct PiPLayoutSmoke {
   static func main() {
     NSApplication.shared.finishLaunching()
+    let factory = MainWindowController()
+    factory.displayedVideoSize = NSSize(width: 1080, height: 1920)
+    let previous = factory.makeController(session: 1)
+    precondition(previous.aspectRatio == factory.displayedVideoSize!)
+    let replacement = factory.makeController(session: 2)
+    precondition(replacement !== previous && replacement.sessionID == 2)
+    precondition(previous.delegate == nil && replacement.delegate === factory)
+    precondition(replacement.aspectRatio == factory.displayedVideoSize!, "Fresh PiP session must retain portrait aspect ratio")
     // This is the initializer used by MainWindowController._pip. Calling
     // init(nibName:bundle:) here would hide the missing designated-init bridge.
     let controller = VideoPIPViewController()
@@ -39,7 +56,9 @@ extension NSScreen {
     fflush(stdout)
     controller.viewDidLayout()
     precondition(delegate.host === first)
+    let redraws = delegate.redraws
     controller.viewDidLayout()
+    precondition(delegate.redraws == redraws, "Repeated unchanged layout must not request another redraw")
     expectGeometryChange(delegate: delegate, window: first, count: 1)
 
     let second = makeWindow()

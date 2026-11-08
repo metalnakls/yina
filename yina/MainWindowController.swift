@@ -154,7 +154,15 @@ class MainWindowController: PlayerWindowController {
 
   lazy var liveText = LiveTextController(mainWindow: self)
   lazy var interactiveMode = InteractiveModeController(mainWindow: self)
-  var pipStatus = PIPStatus.notInPIP
+  private var pipTransition = PiPTransitionState()
+  var pipStatus: PIPStatus {
+    switch pipTransition.phase {
+    case .windowed, .waitingForVideo: return .notInPIP
+    case .entering, .active: return .inPIP
+    case .exiting: return .intermediate
+    }
+  }
+  var hasPendingPiPEntry: Bool { pipTransition.hasPendingEntry }
   private struct PiPSubtitleSuppression: Equatable {
     var primary = false
     var secondary = false
@@ -174,7 +182,6 @@ class MainWindowController: PlayerWindowController {
   private var pipSubtitleRestoreRetry: DispatchWorkItem?
   private var pipSubtitleRestoreRetryID: UInt64 = 0
   private var pipSubtitleRestoreRetryReady = false
-  private var shouldRestoreWindowAfterPIP = true
   var isVideoLoaded: Bool = false
 
   var shouldApplyInitialWindowSize = true
@@ -517,14 +524,45 @@ class MainWindowController: PlayerWindowController {
 
   var pipTransitionTrace: PiPTransitionTrace?
 
-  lazy var _pip: PIPViewController = {
-    let pip = VideoPIPViewController()
-    pip.delegate = self
-    return pip
-  }()
+  private var pipController: VideoPIPViewController?
 
   var pip: PIPViewController {
-    _pip
+    if let pipController { return pipController }
+    return makePiPController(session: pipTransition.generation)
+  }
+
+  private func makePiPController(session: UInt64) -> VideoPIPViewController {
+    pipController?.delegate = nil
+    let controller = VideoPIPViewController()
+    controller.delegate = self
+    controller.sessionID = session
+    controller.aspectRatio = displayedVideoSize ?? videoView.bounds.size
+    pipController = controller
+    return controller
+  }
+
+  private func isCurrentPiPController(_ controller: PIPViewController) -> Bool {
+    guard controller === pipController,
+          let controller = controller as? VideoPIPViewController else { return false }
+    return pipTransition.accepts(controller.sessionID)
+  }
+
+  func cancelPendingPiPEntry() { pipTransition.cancelPendingEntry() }
+
+  func requestPiPForMediaOpen() {
+    pipTransition.requestEntryForMedia()
+    presentPendingPiPIfReady()
+  }
+
+  /// Called by playback readiness before showing a pending source window.
+  @discardableResult
+  func presentPendingPiPIfReady() -> Bool {
+    if pipTransition.hasPendingEntry {
+      if pipStatus == .inPIP && !player.isPreparingMedia && player.info.state.loaded {
+        pipTransition.cancelPendingEntry() // The existing host already owns this media.
+      } else { enterPIP() }
+    }
+    return pipTransition.ownsPresentation
   }
 
   var pipVideo: NSViewController!
@@ -1665,9 +1703,11 @@ class MainWindowController: PlayerWindowController {
 
   func windowWillClose(_ notification: Notification) {
     shouldApplyInitialWindowSize = true
-    // Close PIP
+    // A source-window close must not reopen that window when native PiP
+    // finishes dismissing, including a close already in progress.
+    if let session = pipTransition.sessionID { pipTransition.preventWindowRestore(session) }
     if pipStatus == .inPIP {
-      exitPIP()
+      exitPIP(restoringWindow: false)
     }
     // stop playing
     player.stop()
@@ -1806,6 +1846,7 @@ class MainWindowController: PlayerWindowController {
     additionalInfoView.update()
     player.events.emit(.windowFullscreenChanged, data: true)
     NotificationCenter.default.post(name: .yinaFullscreenChanged, object: nil, userInfo: ["enable": true])
+    presentPendingPiPIfReady()
   }
 
   /// Called if the window failed to enter full screen mode.
@@ -1845,6 +1886,7 @@ class MainWindowController: PlayerWindowController {
     videoView.needsLayout = true
     videoView.layoutSubtreeIfNeeded()
     forceDraw("failed to enter full screen mode")
+    presentPendingPiPIfReady()
   }
 
   /// The window is about to exit full screen mode.
@@ -1896,6 +1938,9 @@ class MainWindowController: PlayerWindowController {
   /// - Parameter notification: A notification named
   ///     [didExitFullScreenNotification](https://developer.apple.com/documentation/appkit/nswindow/didexitfullscreennotification).
   func windowDidExitFullScreen(_ notification: Notification) {
+    // AppKit may repeat the completed callback. Keep the late callback after
+    // a failed exit (still fullscreen), but do not repeat windowed cleanup.
+    if case .windowed = fsState { return }
     log("Exited full screen mode")
 
     if fsState.isFullscreen {
@@ -1958,6 +2003,7 @@ class MainWindowController: PlayerWindowController {
 
     player.events.emit(.windowFullscreenChanged, data: false)
     NotificationCenter.default.post(name: .yinaFullscreenChanged, object: nil, userInfo: ["enable": false])
+    presentPendingPiPIfReady()
   }
 
   /// Called if the window failed to exit full screen mode.
@@ -1995,6 +2041,7 @@ class MainWindowController: PlayerWindowController {
     videoView.needsLayout = true
     videoView.layoutSubtreeIfNeeded()
     forceDraw("failed to exit full screen mode")
+    presentPendingPiPIfReady()
   }
 
   func toggleWindowFullScreen() {
@@ -3028,11 +3075,7 @@ class MainWindowController: PlayerWindowController {
     case .musicMode:
       player.switchToMiniPlayer()
     case .pip:
-      if pipStatus == .inPIP {
-        exitPIP()
-      } else if pipStatus == .notInPIP {
-        enterPIP()
-      }
+      togglePIP()
     case .playlist:
       sidebars.show(sidebar: .playlist)
     case .settings:
@@ -3224,20 +3267,30 @@ extension MainWindowController: PIPViewControllerDelegate {
   func revealPiPBackdropIfDetached() {
     guard pipStatus == .inPIP, let source = window, let host = videoView.window,
           host !== source, pipOverlayView.isHidden else { return }
+    if let session = pipTransition.sessionID { pipTransition.attached(session) }
     pipTransitionTrace?.sample("before-backdrop-reveal")
     pipOverlayView.isHidden = false
     pipTransitionTrace?.sample("after-backdrop-reveal")
   }
 
-  func pipHostWindowDidChange(_ window: NSWindow?) {
+  func pipHostWindowDidChange(_ window: NSWindow?, from controller: VideoPIPViewController) {
+    guard isCurrentPiPController(controller), pipStatus == .inPIP else { return }
     pipTransitionTrace?.sample("pip-host-change")
-    guard pipStatus == .inPIP else { return }
+    if let window, window !== self.window {
+      pipTransition.attached(controller.sessionID)
+      revealPiPBackdropIfDetached()
+    }
     pipSubtitleHostWindow = window
     refreshPiPSubtitlePanel()
   }
 
-  func pipHostGeometryChanged() {
-    guard pipStatus == .inPIP else { return }
+  func pipRequestRedraw(_ reason: String, from controller: VideoPIPViewController) {
+    guard isCurrentPiPController(controller) else { return }
+    forceDraw(reason)
+  }
+
+  func pipHostGeometryChanged(from controller: VideoPIPViewController) {
+    guard isCurrentPiPController(controller), pipStatus == .inPIP else { return }
     refreshPiPSubtitlePanel()
   }
 
@@ -3351,9 +3404,31 @@ extension MainWindowController: PIPViewControllerDelegate {
     DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
   }
 
+  func togglePIP() {
+    if hasPendingPiPEntry { cancelPendingPiPEntry() }
+    else if pipStatus == .inPIP { exitPIP() }
+    else { enterPIP() }
+  }
+
   func enterPIP() {
+    if pipStatus == .intermediate {
+      pipTransition.waitForVideo()
+      return
+    }
     guard pipStatus == .notInPIP else { return }
-    if case .animating = fsState { return }
+    if case .animating = fsState {
+      pipTransition.waitForVideo()
+      return
+    }
+    guard !player.isPreparingMedia, player.info.state.loaded, window != nil else {
+      pipTransition.waitForVideo()
+      return
+    }
+    guard let session = pipTransition.beginEntry() else { return }
+    // Give each native presentation its own identity. Delayed callbacks from a
+    // prior controller cannot close or reattach the new session's video view.
+    _ = makePiPController(session: session)
+    pendingShow = false
     pipTransitionTrace?.finish()
     let trace = PiPTransitionTrace(source: window, video: videoView, overlay: pipOverlayView)
     pipTransitionTrace = trace
@@ -3381,8 +3456,6 @@ extension MainWindowController: PIPViewControllerDelegate {
       self?.videoView.videoLayer.pipTrace = nil
 #endif
     }
-    shouldRestoreWindowAfterPIP = true
-    pipStatus = .inPIP
     trace.record("subtitle-dissolve-begin")
     player.finishSubtitleDissolve()
     trace.record("subtitle-session-begin")
@@ -3433,10 +3506,9 @@ extension MainWindowController: PIPViewControllerDelegate {
     NotificationCenter.default.post(name: .yinaPIPStatusChanged, object: self, userInfo: ["enable": true])
   }
 
-  func exitPIP() {
+  func exitPIP(restoringWindow: Bool = true) {
     guard pipStatus == .inPIP else { return }
-    shouldRestoreWindowAfterPIP = true
-    prepareForPIPClosure(pip, restoringWindow: true)
+    prepareForPIPClosure(pip, restoringWindow: restoringWindow)
     // Prod Swift to pick the dismiss(_ viewController: NSViewController)
     // overload over dismiss(_ sender: Any?). A change in the way implicitly
     // unwrapped optionals are handled in Swift means that the wrong method
@@ -3444,19 +3516,17 @@ extension MainWindowController: PIPViewControllerDelegate {
     pip.dismiss(pipVideo!)
   }
 
-  func doneExitingPIP() {
+  func doneExitingPIP(_ controller: PIPViewController) {
+    guard isCurrentPiPController(controller),
+          let session = pipTransition.sessionID,
+          let isRestoringWindow = pipTransition.completeExit(session) else { return }
+    controller.delegate = nil
     stopPiPSubtitleSession()
-    let isRestoringWindow = shouldRestoreWindowAfterPIP
-    if isRestoringWindow {
-      if isWindowHidden {
-        window?.makeKeyAndOrderFront(self)
-      }
-      isWindowHidden = false
-    }
-
-    pipStatus = .notInPIP
+    restoreSourceWindowAfterPiP(restoringWindow: isRestoringWindow)
 
     addVideoViewToWindow()
+    pipController = nil
+    pipVideo = nil
     oscFloatingView.updatePosition()
 
     // Similarly, we need to run a redraw here as well. We check to make sure we are paused, because
@@ -3468,17 +3538,31 @@ extension MainWindowController: PIPViewControllerDelegate {
     updateTimer()
 
     isWindowMiniaturizedDueToPip = false
-    shouldRestoreWindowAfterPIP = true
     liveText.requestAnalysis()
     player.events.emit(.pipChanged, data: false)
     NotificationCenter.default.post(name: .yinaPIPStatusChanged, object: self, userInfo: ["enable": false])
+    if pipTransition.hasPendingEntry {
+      DispatchQueue.main.async { [weak self] in self?.presentPendingPiPIfReady() }
+    }
+  }
+
+  /// Final cleanup also runs when AppKit omits will-close. Consume the pending
+  /// source-window show so a later resize cannot reopen a non-restoring close.
+  private func restoreSourceWindowAfterPiP(restoringWindow: Bool) {
+    pipOverlayView.isHidden = true
+    if restoringWindow {
+      if isWindowHidden || window?.isVisible != true || pendingShow {
+        window?.makeKeyAndOrderFront(self)
+      }
+      isWindowHidden = false
+    }
+    pendingShow = false
   }
 
   func prepareForPIPClosure(_ pip: PIPViewController, restoringWindow: Bool) {
+    guard isCurrentPiPController(pip), let session = pipTransition.sessionID,
+          pipTransition.beginExit(session, restoringWindow: restoringWindow) else { return }
     pipTransitionTrace?.sample("prepare-close")
-    guard pipStatus == .inPIP else { return }
-    // This is called right before we're about to close the PIP
-    pipStatus = .intermediate
     stopPiPSubtitleSession()
     guard let window else { return }
 
@@ -3505,28 +3589,32 @@ extension MainWindowController: PIPViewControllerDelegate {
   }
 
   func pipWillClose(_ pip: PIPViewController) {
-    prepareForPIPClosure(pip, restoringWindow: shouldRestoreWindowAfterPIP)
+    prepareForPIPClosure(pip, restoringWindow: pipTransition.restoresWindow)
   }
 
   func pipDidClose(_ pip: PIPViewController) {
-    doneExitingPIP()
+    doneExitingPIP(pip)
   }
 
   func pipActionPlay(_ pip: PIPViewController) {
+    guard isCurrentPiPController(pip) else { return }
     player.resume()
   }
 
   func pipActionPause(_ pip: PIPViewController) {
+    guard isCurrentPiPController(pip) else { return }
     player.pause()
   }
 
   func pipActionStop(_ pip: PIPViewController) {
     // The system close button should dismiss PiP without restoring YINA's window.
-    shouldRestoreWindowAfterPIP = false
+    guard isCurrentPiPController(pip), let session = pipTransition.sessionID else { return }
+    pipTransition.preventWindowRestore(session)
     player.pause()
   }
 
   func pipAction(_ pip: PIPViewController, skipInterval interval: TimeInterval) {
+    guard isCurrentPiPController(pip) else { return }
     player.seek(relativeSecond: interval, option: .relative)
   }
 

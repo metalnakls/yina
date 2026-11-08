@@ -448,7 +448,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
           }
           pc.switchToMiniPlayer()
         } else if commandLineStatus.enterPIP {
-          pc.mainWindow.enterPIP()
+          pc.mainWindow.requestPiPForMediaOpen()
         }
       }
     }
@@ -919,7 +919,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         player.mpv.setFlag(MPVOption.Window.fullscreen, true)
       } else if let pipValue = queryDict["pip"], pipValue == "1" {
         // pip
-        player.mainWindow.enterPIP()
+        player.mainWindow.requestPiPForMediaOpen()
       }
 
       // mpv options

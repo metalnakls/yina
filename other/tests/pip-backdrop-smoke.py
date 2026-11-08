@@ -5,6 +5,8 @@ import subprocess,tempfile
 repo=Path(__file__).resolve().parents[2]
 s=(repo/'yina/MainWindowController.swift').read_text()
 a=s.index('  func revealPiPBackdropIfDetached() {');b=s.index('\n  func pipHostWindowDidChange',a)
+restore_start=s.index('  private func restoreSourceWindowAfterPiP('); restore_end=s.index('\n  func prepareForPIPClosure', restore_start)
+toggle_start=s.index('  func togglePIP()'); toggle_end=s.index('\n  func enterPIP()', toggle_start)
 code='''import Cocoa
 class Trace { func sample(_ text: String) {} }
 class Controller {
@@ -14,7 +16,17 @@ class Controller {
  let videoView = NSView(frame: NSRect(x: 0,y: 0,width: 320,height: 180))
  let pipOverlayView = NSView()
  var pipTransitionTrace: Trace?
-'''+s[a:b]+'''
+ var pipTransition = PiPTransitionState()
+ var pendingShow = false
+ var isWindowHidden = false
+ var entries = 0
+ var exits = 0
+ var hasPendingPiPEntry: Bool { pipTransition.hasPendingEntry }
+ func cancelPendingPiPEntry() { pipTransition.cancelPendingEntry() }
+ func enterPIP() { entries += 1 }
+ func exitPIP() { exits += 1 }
+ func finish(restoring: Bool) { restoreSourceWindowAfterPiP(restoringWindow: restoring) }
+'''+s[a:b]+s[restore_start:restore_end]+s[toggle_start:toggle_end]+'''
 }
 @main struct Test {
  static func main() {
@@ -36,11 +48,25 @@ class Controller {
   source.contentView!.addSubview(c.videoView); c.pipStatus = .inPIP
   c.revealPiPBackdropIfDetached()
   precondition(c.pipOverlayView.isHidden, "Reentry must wait for the new handoff")
+  c.pipTransition.waitForVideo()
+  c.togglePIP()
+  precondition(!c.hasPendingPiPEntry && c.entries == 0 && c.exits == 0, "Second toggle cancels waiting entry")
+  c.pipStatus = .notInPIP
+  c.togglePIP()
+  precondition(c.entries == 1)
+  source.orderOut(nil)
+  c.isWindowHidden = false; c.pendingShow = true; c.pipOverlayView.isHidden = false
+  c.finish(restoring: true)
+  precondition(source.isVisible && !c.pendingShow && c.pipOverlayView.isHidden, "Restore never-shown source and clear backdrop without will-close")
+  source.orderOut(nil)
+  c.pendingShow = true; c.pipOverlayView.isHidden = false
+  c.finish(restoring: false)
+  precondition(!source.isVisible && !c.pendingShow && c.pipOverlayView.isHidden, "Non-restoring close must consume deferred show")
   print("PASS: source host, nil host, PiP attachment, closing callback and reentry")
  }
 }
 '''
 with tempfile.TemporaryDirectory(prefix='yina-backdrop-') as d:
  p=Path(d);(p/'test.swift').write_text(code)
- subprocess.run(['xcrun','swiftc','-parse-as-library','-module-cache-path','/private/tmp/yina-event-module-cache',str(p/'test.swift'),'-o',str(p/'test')],check=True)
+ subprocess.run(['xcrun','swiftc','-parse-as-library','-module-cache-path','/private/tmp/yina-event-module-cache',str(repo/'yina/PiPTransitionState.swift'),str(p/'test.swift'),'-o',str(p/'test')],check=True)
  subprocess.run([str(p/'test')],check=True,timeout=15)

@@ -10,9 +10,13 @@ import Cocoa
 
 class VideoPIPViewController: PIPViewController, NSWindowDelegate {
 
+  var sessionID: UInt64 = 0
+  private var lastLayoutBounds: NSRect?
   private var currentScreen: NSScreen?
   private weak var observedWindow: NSWindow?
   private var windowObservers: [NSObjectProtocol] = []
+
+  deinit { windowObservers.forEach(NotificationCenter.default.removeObserver) }
 
   /// Force a draw, if needed.
   ///
@@ -20,7 +24,7 @@ class VideoPIPViewController: PIPViewController, NSWindowDelegate {
   /// draw of the view.
   private func forceDraw(_ reason: String) {
     guard let controller = delegate as? MainWindowController else { return }
-    controller.forceDraw(reason)
+    controller.pipRequestRedraw(reason, from: self)
   }
 
   /// Force a draw after entering PiP.
@@ -32,17 +36,19 @@ class VideoPIPViewController: PIPViewController, NSWindowDelegate {
   /// asynchronously.
   override func viewDidLayout() {
     super.viewDidLayout()
-    forceDraw("entered PiP")
     guard let window = view.window else {
       // Internal error, should not occur.
       Logger.log("VideoPIPViewController.viewDidLayout window is nil", level: .error)
       return
     }
-    window.backgroundColor = .black
-    window.contentView?.wantsLayer = true
-    window.contentView?.layer?.backgroundColor = NSColor.black.cgColor
-    window.delegate = self
-    if observedWindow !== window {
+    let hostChanged = observedWindow !== window
+    let geometryChanged = hostChanged || lastLayoutBounds != view.bounds
+    lastLayoutBounds = view.bounds
+    if hostChanged {
+      window.backgroundColor = .black
+      window.contentView?.wantsLayer = true
+      window.contentView?.layer?.backgroundColor = NSColor.black.cgColor
+      window.delegate = self
       windowObservers.forEach(NotificationCenter.default.removeObserver)
       windowObservers.removeAll()
       observedWindow = window
@@ -50,15 +56,21 @@ class VideoPIPViewController: PIPViewController, NSWindowDelegate {
                    NSWindow.didChangeScreenNotification, NSWindow.didChangeOcclusionStateNotification] {
         windowObservers.append(NotificationCenter.default.addObserver(forName: name, object: window,
           queue: .main) { [weak self] _ in
-          (self?.delegate as? MainWindowController)?.pipHostGeometryChanged()
+          guard let self else { return }
+          (self.delegate as? MainWindowController)?.pipHostGeometryChanged(from: self)
         })
       }
     }
-    (delegate as? MainWindowController)?.pipHostWindowDidChange(window)
-    if !window.isVisible {
+    if hostChanged {
+      (delegate as? MainWindowController)?.pipHostWindowDidChange(window, from: self)
+    } else if geometryChanged {
+      (delegate as? MainWindowController)?.pipHostGeometryChanged(from: self)
+    }
+    if geometryChanged { forceDraw("PiP host layout changed") }
+    if hostChanged && !window.isVisible {
       DispatchQueue.main.async { [weak self, weak window] in
         guard let self, let window, self.observedWindow === window else { return }
-        (self.delegate as? MainWindowController)?.pipHostGeometryChanged()
+        (self.delegate as? MainWindowController)?.pipHostGeometryChanged(from: self)
       }
     }
   }
@@ -72,7 +84,8 @@ class VideoPIPViewController: PIPViewController, NSWindowDelegate {
     windowObservers.forEach(NotificationCenter.default.removeObserver)
     windowObservers.removeAll()
     observedWindow = nil
-    (delegate as? MainWindowController)?.pipHostWindowDidChange(nil)
+    lastLayoutBounds = nil
+    (delegate as? MainWindowController)?.pipHostWindowDidChange(nil, from: self)
     forceDraw("exited PiP")
   }
 
@@ -91,7 +104,7 @@ class VideoPIPViewController: PIPViewController, NSWindowDelegate {
       return
     }
     controller.videoView.updateDisplayLink()
-    (delegate as? MainWindowController)?.pipHostGeometryChanged()
+    (delegate as? MainWindowController)?.pipHostGeometryChanged(from: self)
   }
 }
 

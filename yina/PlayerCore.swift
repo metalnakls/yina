@@ -709,6 +709,7 @@ class PlayerCore: NSObject {
   @discardableResult
   func openURLs(_ urls: [URL], shouldAutoLoad autoLoad: Bool = true) -> Int? {
     guard !urls.isEmpty else { return 0 }
+    mainWindow.cancelPendingPiPEntry()
     sharedShowLocalMediaChangeRequested()
     invalidateMediaPreparation()
     let urls = Utility.resolveURLs(urls)
@@ -755,6 +756,7 @@ class PlayerCore: NSObject {
   /// A later welcome or direct request invalidates the earlier result.
   func beginMediaPreparation(_ url: URL?) -> UInt64 {
     precondition(Thread.isMainThread)
+    mainWindow.cancelPendingPiPEntry()
     cancelRemotePlaybackRecovery()
     mediaPreparationGeneration &+= 1
     mediaPreparationPending = true
@@ -875,6 +877,7 @@ class PlayerCore: NSObject {
 
   func openPreparedWelcomeMedia(_ media: PreparedWelcomeMedia) {
     precondition(Thread.isMainThread)
+    mainWindow.cancelPendingPiPEntry()
     sharedShowLocalMediaChangeRequested()
     info.shouldAutoLoadFiles = media.autoLoad
     open(media.urls[0], knownRemoteFile: media.isRemoteFile)
@@ -887,6 +890,7 @@ class PlayerCore: NSObject {
 
   func openURLString(_ str: String) {
     if str == "-" {
+      mainWindow.cancelPendingPiPEntry()
       sharedShowLocalMediaChangeRequested()
       invalidateMediaPreparation()
       openMainWindow(path: str, url: URL(string: "stdin")!, isNetwork: false, usesDiskCache: false)
@@ -944,10 +948,11 @@ class PlayerCore: NSObject {
     info.videoPosition = nil
     info.videoTracks = []
     info.videoWidth = nil
-    if isNetwork {
+    if isNetwork, !mainWindow.hasPendingPiPEntry {
       let generation = transport.generation
       Task { @MainActor in
-        guard transport.generation == generation, transport.isOpening else { return }
+        guard transport.generation == generation, transport.isOpening,
+              !mainWindow.hasPendingPiPEntry else { return }
         AppDelegate.shared.openURLWindow.showLoadingScreen(playerCore: self)
       }
     }
@@ -1424,6 +1429,7 @@ class PlayerCore: NSObject {
     switch result {
     case .loadFailed:
       cancelPlaybackResumeWait()
+      mainWindow.cancelPendingPiPEntry()
       currentController.pendingShow = false
       publishTransport()
       if AppDelegate.shared.openURLWindow.window?.isVisible == true {
@@ -1467,6 +1473,7 @@ class PlayerCore: NSObject {
       DispatchQueue.main.async { [weak self] in self?.stop() }
       return
     }
+    if pendingUrl == nil { mainWindow.cancelPendingPiPEntry() }
     cancelRemotePlaybackRecovery()
     sharedShowLocalMediaChangeRequested()
     if Thread.isMainThread {
@@ -3156,6 +3163,7 @@ class PlayerCore: NSObject {
     }
     if let identity, info.state.active, transport.media != identity { return }
     if receivedEndFileWhileLoading && info.state == .starting {
+      mainWindow.cancelPendingPiPEntry()
       DispatchQueue.main.async { [unowned self] in
         currentController.close()
         if AppDelegate.shared.openURLWindow.window?.isVisible == true {
@@ -3803,7 +3811,7 @@ class PlayerCore: NSObject {
     currentController.handleVideoSizeChange()
     let becameReady = transport.outputReady()
     publishTransport()
-    let pipOwnsPresentation = mainWindow.pipStatus != .notInPIP
+    let pipOwnsPresentation = mainWindow.presentPendingPiPIfReady()
     if becameReady && pipOwnsPresentation {
       currentController.pendingShow = false
       mediaOpeningStartedAt = nil
