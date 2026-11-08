@@ -1,0 +1,25 @@
+Hidden rendering comparison, production ViewLayer and real libmpv/Metal
+
+The generated gray-video harness sends 12 forced render updates in each state,
+counts calls to the actual nextDrawable override and pumps AppKit window events.
+
+State                  Before (55673db4)     After
+Hidden view            0                    0
+Ordered-out window     12                   0
+Fully covered window   12                   0
+
+Commands: python3 other/tests/paused-metal-resize-smoke.py [--baseline]
+GPU access required. Uses only separate generated-media test processes.
+
+The after run also verifies initial presentation, paused resize/letterboxing,
+backing-scale change, automatic redraw after showing/uncovering, and reparenting
+to another visible window while the source window is hidden. Explicit snapshots
+bypass suppression and remain bounded; an ordered-out window need not provide a
+presented image, so the test checks acquisition and completion, not hidden pixels.
+After unpausing while hidden, playback advanced 0.708 seconds during a 0.7-second
+sample: mpv update servicing continues despite suppressed presentation.
+
+AppKit state is cached on main. Hide/unhide callbacks defer refresh until the
+backing-layer hidden flag has settled. Window occlusion uses the video's actual
+host so hiding the source does not stop PiP. No whole-app energy percentage or
+rare PiP-stutter resolution is inferred from these focused checks.

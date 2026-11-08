@@ -53,6 +53,13 @@ class ViewLayer: CAMetalLayer, @unchecked Sendable {
   @Atomic var pipTrace: PiPTransitionTrace? = nil
   @Atomic var resumeTrace: PiPTransitionTrace? = nil
 
+  private struct PresentationEligibility {
+    var hasTarget = false
+    var visible = false
+  }
+  @Atomic private var presentationEligibility = PresentationEligibility()
+  private var occlusionObserver: NSObjectProtocol?
+
   private weak var videoView: VideoView!
   private let renderQueue = DispatchQueue(label: "tsmc.yina.mpvmetal", qos: .userInteractive)
   private let snapshotQueue = DispatchQueue(label: "tsmc.yina.mpvmetal.snapshot", qos: .userInitiated)
@@ -87,6 +94,30 @@ class ViewLayer: CAMetalLayer, @unchecked Sendable {
     // Keep the last drawable fitted until mpv presents one at the new size.
     contentsGravity = .resizeAspect
     isOpaque = true
+    occlusionObserver = NotificationCenter.default.addObserver(
+      forName: NSWindow.didChangeOcclusionStateNotification, object: nil, queue: .main
+    ) { [weak self] notification in
+      guard let self, let window = notification.object as? NSWindow,
+            window === self.videoView?.window else { return }
+      self.refreshPresentationEligibility()
+    }
+  }
+
+  deinit {
+    if let occlusionObserver { NotificationCenter.default.removeObserver(occlusionObserver) }
+  }
+
+  /// Cache AppKit state on main using the actual video host, including system PiP.
+  /// The render queue still services mpv updates while presentation is suppressed.
+  func refreshPresentationEligibility() {
+    precondition(Thread.isMainThread)
+    let window = videoView?.window
+    let hasTarget = window != nil && bounds.width > 0 && bounds.height > 0
+    let visible = hasTarget && !isHidden && videoView?.isHiddenOrHasHiddenAncestor == false &&
+      window?.isVisible == true && window?.occlusionState.contains(.visible) == true
+    let wasVisible = presentationEligibility.visible
+    presentationEligibility = PresentationEligibility(hasTarget: hasTarget, visible: visible)
+    if visible && !wasVisible { update(force: true) }
   }
 
   override init(layer: Any) {
@@ -103,6 +134,7 @@ class ViewLayer: CAMetalLayer, @unchecked Sendable {
 
   override func layoutSublayers() {
     super.layoutSublayers()
+    if Thread.isMainThread { refreshPresentationEligibility() }
     let scale = contentsScale
     let size = CGSize(width: max(bounds.width * scale, 1),
                       height: max(bounds.height * scale, 1))
@@ -184,7 +216,8 @@ class ViewLayer: CAMetalLayer, @unchecked Sendable {
         }
         guard force || needsFrame else { return }
 
-        let canPresent = !self.isHidden && self.bounds.width > 0 && self.bounds.height > 0 && self.videoView.window != nil
+        let eligibility = self.presentationEligibility
+        let canPresent = eligibility.visible || (snapshotRequest != nil && eligibility.hasTarget)
         var value: CInt = canPresent ? 0 : 1
         let type = canPresent ? MPV_RENDER_PARAM_FLIP_Y : MPV_RENDER_PARAM_SKIP_RENDERING
         withUnsafeMutablePointer(to: &value) { value in
@@ -203,7 +236,7 @@ class ViewLayer: CAMetalLayer, @unchecked Sendable {
             resume?.record("render", detail)
           }
         }
-        if !canPresent { self.failPendingSnapshot() }
+        if !eligibility.hasTarget { self.failPendingSnapshot() }
       }
     }
   }

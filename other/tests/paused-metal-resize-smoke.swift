@@ -22,15 +22,21 @@ final class TestPlayer { let mpv = TestMPV() }
 final class VideoView: NSView {
   let player = TestPlayer()
   @ReadWriteAtomic var isUninited = false
+  override func viewDidHide() { super.viewDidHide(); DispatchQueue.main.async { [weak self] in (self?.layer as? ViewLayer)?.refreshPresentationEligibility() } }
+  override func viewDidUnhide() { super.viewDidUnhide(); DispatchQueue.main.async { [weak self] in (self?.layer as? ViewLayer)?.refreshPresentationEligibility() } }
+  override func viewDidMoveToWindow() { super.viewDidMoveToWindow(); (layer as? ViewLayer)?.refreshPresentationEligibility() }
 }
 
 final class ResizeProbeLayer: ViewLayer, @unchecked Sendable {
   struct Sample { let size: CGSize; let edge: UInt32; let center: UInt32 }
   private let sampleLock = NSLock()
   private var samples: [Sample] = []
+  private var acquisitions = 0
+  var acquisitionCount: Int { sampleLock.lock(); defer { sampleLock.unlock() }; return acquisitions }
   var latest: Sample? { sampleLock.lock(); defer { sampleLock.unlock() }; return samples.last }
 
   override func nextDrawable() -> CAMetalDrawable? {
+    sampleLock.lock(); acquisitions += 1; sampleLock.unlock()
     guard let drawable = super.nextDrawable() else { return nil }
     drawable.addPresentedHandler { [weak self, texture = drawable.texture] _ in
       guard let self, let queue = device?.makeCommandQueue(),
@@ -58,9 +64,12 @@ final class ResizeProbeLayer: ViewLayer, @unchecked Sendable {
 @main struct PausedMetalResizeSmoke {
   static func main() {
     NSApplication.shared.setActivationPolicy(.prohibited)
+    NSApp.finishLaunching()
     let window = NSWindow(contentRect: NSRect(x: 100, y: 100, width: 800, height: 600),
                           styleMask: [.titled], backing: .buffered, defer: false)
     window.isReleasedWhenClosed = false
+    window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+    window.level = .floating
     let view = VideoView(frame: NSRect(x: 0, y: 0, width: 320, height: 180))
     let layer = ResizeProbeLayer(view)
     layer.contentsScale = 1
@@ -92,7 +101,9 @@ final class ResizeProbeLayer: ViewLayer, @unchecked Sendable {
     let path = CommandLine.arguments[1].replacingOccurrences(of: "\\", with: "\\\\")
       .replacingOccurrences(of: "\"", with: "\\\"")
     precondition(mpv_command_string(mpv, "loadfile \"\(path)\"") >= 0)
-    waitUntil("initial paused frame") { layer.latest?.size == CGSize(width: 320, height: 180) }
+    waitUntil("initial paused frame") {
+      return layer.latest?.size == CGSize(width: 320, height: 180)
+    }
 
     // Model the PiP return race: the window's frame observer requests a draw
     // before Core Animation has laid out the final full-size drawable.
@@ -115,6 +126,77 @@ final class ResizeProbeLayer: ViewLayer, @unchecked Sendable {
     precondition(layer.latest!.edge & 0x00ffffff == 0, "Backing-scale change lost the letterbox")
     var paused: Int32 = 0
     precondition(mpv_get_property(mpv, "pause", MPV_FORMAT_FLAG, &paused) >= 0 && paused == 1)
+    let baseline = CommandLine.arguments.contains("--baseline")
+    func compare(_ label: String) {
+      pump(0.25)
+      let before = layer.acquisitionCount
+      for _ in 0..<12 { layer.update(force: true) }
+      pump(0.5)
+      let acquired = layer.acquisitionCount - before
+      print("COMPARISON: \(label) drawable acquisitions=\(acquired) for 12 forced updates")
+      if !baseline { precondition(acquired == 0, "Hidden video must service updates without acquiring drawables") }
+    }
+    view.isHidden = true
+    compare("hidden view")
+    let afterHidden = layer.acquisitionCount
+    view.isHidden = false
+    if baseline { layer.update(force: true) }
+    waitUntil("visible redraw") { layer.acquisitionCount > afterHidden }
+    window.orderOut(nil)
+    compare("hidden window")
+    let afterWindow = layer.acquisitionCount
+    window.orderFrontRegardless()
+    if baseline { layer.update(force: true) }
+    waitUntil("restored window redraw") { layer.acquisitionCount > afterWindow }
+    let cover = NSWindow(contentRect: window.frame.insetBy(dx: -20, dy: -20),
+                         styleMask: [.borderless], backing: .buffered, defer: false)
+    cover.isReleasedWhenClosed = false
+    cover.isOpaque = true
+    cover.backgroundColor = .black
+    cover.level = NSWindow.Level(rawValue: window.level.rawValue + 1)
+    cover.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+    cover.orderFrontRegardless()
+    waitUntil("fully covered window occlusion") { !window.occlusionState.contains(.visible) }
+    compare("fully covered window")
+    let covered = layer.acquisitionCount
+    cover.orderOut(nil)
+    if baseline { layer.update(force: true) }
+    waitUntil("uncovered redraw") { layer.acquisitionCount > covered }
+    // A PiP-style host change must use the new window, not the hidden source.
+    let host = NSWindow(contentRect: NSRect(x: 50, y: 50, width: 320, height: 180),
+                        styleMask: [.borderless], backing: .buffered, defer: false)
+    host.isReleasedWhenClosed = false
+    host.level = .floating
+    host.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+    host.contentView!.addSubview(view)
+    view.frame = host.contentView!.bounds
+    window.orderOut(nil)
+    host.orderFrontRegardless()
+    layer.layoutSublayers()
+    let beforeHost = layer.acquisitionCount
+    waitUntil("new host redraw while source hidden") { layer.acquisitionCount > beforeHost }
+    host.orderOut(nil)
+    pump(0.2)
+    if !baseline {
+      let beforeSnapshot = layer.acquisitionCount
+      var complete = false
+      Task { @MainActor in
+        _ = await layer.captureSnapshot()
+        complete = true
+      }
+      waitUntil("explicit snapshot while host hidden") { complete }
+      precondition(layer.acquisitionCount > beforeSnapshot, "Explicit snapshots must bypass occlusion suppression")
+    }
+    if !baseline {
+      var beforeTime = 0.0
+      precondition(mpv_get_property(mpv, "time-pos", MPV_FORMAT_DOUBLE, &beforeTime) >= 0)
+      precondition(mpv_set_property_string(mpv, "pause", "no") >= 0)
+      pump(0.7)
+      var afterTime = 0.0
+      precondition(mpv_get_property(mpv, "time-pos", MPV_FORMAT_DOUBLE, &afterTime) >= 0)
+      precondition(afterTime - beforeTime > 0.2, "Hidden playback must keep advancing")
+      print("PASS: hidden playback advanced \(afterTime - beforeTime) seconds while presentation was suppressed")
+    }
     view.$isUninited.withWriteLock { $0 = true }
     layer.uninitRendering()
     mpv_terminate_destroy(mpv)
@@ -122,9 +204,20 @@ final class ResizeProbeLayer: ViewLayer, @unchecked Sendable {
     print("PASS: paused PiP return and backing-scale changes redraw fitted pixels without resuming playback")
   }
 
+  static func pump(_ seconds: Double) {
+    let deadline = Date(timeIntervalSinceNow: seconds)
+    while Date() < deadline {
+      while let event = NSApp.nextEvent(matching: .any, until: Date(), inMode: .default, dequeue: true) { NSApp.sendEvent(event) }
+      RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.005))
+    }
+  }
+
   static func waitUntil(_ description: String, _ condition: () -> Bool) {
     let deadline = Date(timeIntervalSinceNow: 5)
     while !condition() && Date() < deadline {
+      while let event = NSApp.nextEvent(matching: .any, until: Date(), inMode: .default, dequeue: true) {
+        NSApp.sendEvent(event)
+      }
       RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.01))
     }
     if !condition() {

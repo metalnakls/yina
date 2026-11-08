@@ -13,12 +13,28 @@ class VideoView: NSView {
 
   override func viewDidMoveToWindow() {
     super.viewDidMoveToWindow()
+#if IINA_ENABLE_METAL_RENDERER
+    videoLayer.refreshPresentationEligibility()
+#endif
     // Leave the system reparenting call before changing the source-window UI.
     DispatchQueue.main.async { [weak self] in
       guard let self, let player = self.player, player.mainWindow.loaded else { return }
       player.mainWindow.revealPiPBackdropIfDetached()
     }
   }
+
+#if IINA_ENABLE_METAL_RENDERER
+  override func viewDidHide() {
+    super.viewDidHide()
+    DispatchQueue.main.async { [weak self] in self?.videoLayer.refreshPresentationEligibility() }
+  }
+
+  override func viewDidUnhide() {
+    super.viewDidUnhide()
+    // AppKit may still be updating the backing layer's hidden flag in this callback.
+    DispatchQueue.main.async { [weak self] in self?.videoLayer.refreshPresentationEligibility() }
+  }
+#endif
 
 
   weak var player: PlayerCore!

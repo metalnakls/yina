@@ -3,6 +3,7 @@
 import pathlib
 import subprocess
 import tempfile
+import sys
 
 repo = pathlib.Path(__file__).resolve().parents[2]
 with tempfile.TemporaryDirectory(prefix="yina-paused-metal-resize-") as directory:
@@ -16,10 +17,16 @@ with tempfile.TemporaryDirectory(prefix="yina-paused-metal-resize-") as director
     binary = root / "resize"
     sources = [repo / "yina" / name for name in
                ["Lock.swift", "Atomic.swift", "ReadWriteLock.swift", "ReadWriteAtomic.swift", "PiPTransitionTrace.swift", "ViewLayer.swift"]]
+    baseline = "--baseline" in sys.argv
+    if baseline:
+        old = root / "ViewLayer.swift"
+        old.write_text(subprocess.check_output(["git", "show", "55673db4:yina/ViewLayer.swift"], cwd=repo, text=True) +
+                       "\nextension ViewLayer { func refreshPresentationEligibility() {} }\n")
+        sources[-1] = old
     subprocess.run(["xcrun", "swiftc", "-D", "IINA_ENABLE_METAL_RENDERER",
                     "-module-cache-path", "/private/tmp/yina-event-module-cache",
                     "-I", str(repo / "deps/include"), "-import-objc-header", str(header),
                     *map(str, sources), str(repo / "other/tests/paused-metal-resize-smoke.swift"),
                     str(repo / "deps/lib/libmpv.2.dylib"), "-Xlinker", "-rpath", "-Xlinker",
                     str(repo / "deps/lib"), "-o", str(binary)], check=True)
-    subprocess.run([str(binary), str(fixture)], check=True, timeout=30)
+    subprocess.run([str(binary), str(fixture)] + (["--baseline"] if baseline else []), check=True, timeout=45)
