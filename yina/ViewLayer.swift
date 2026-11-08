@@ -115,15 +115,19 @@ class ViewLayer: CAMetalLayer, @unchecked Sendable {
   }
 
   override func nextDrawable() -> CAMetalDrawable? {
-    let traces = [pipTrace, resumeTrace].compactMap { $0 }
-    let began = CACurrentMediaTime()
+    let pip = pipTrace
+    let resume = resumeTrace
+    let began = pip != nil || resume != nil ? CACurrentMediaTime() : 0
     let drawable = super.nextDrawable()
-    for trace in traces where trace.isActive {
+    func recordDrawable(_ trace: PiPTransitionTrace?) {
+      guard let trace, trace.isActive else { return }
       trace.record("drawable-acquired", "wait=\(CACurrentMediaTime() - began) available=\(drawable != nil)")
       drawable?.addPresentedHandler { drawable in
         trace.record("drawable-presented", "id=\(drawable.drawableID) presented=\(drawable.presentedTime)")
       }
     }
+    recordDrawable(pip)
+    recordDrawable(resume)
     let pending = snapshotLock.withLock { () -> SnapshotRequest? in
       guard drawable != nil else { return nil }
       let pending = pendingSnapshot
@@ -188,12 +192,15 @@ class ViewLayer: CAMetalLayer, @unchecked Sendable {
             mpv_render_param(type: type, data: UnsafeMutableRawPointer(value)),
             mpv_render_param()
           ]
-          let traces = [self.pipTrace, self.resumeTrace].compactMap { $0 }
-          let began = CACurrentMediaTime()
+          let pip = self.pipTrace
+          let resume = self.resumeTrace
+          let began = pip != nil || resume != nil ? CACurrentMediaTime() : 0
           entryTrace?.record("render-begin", "present=\(canPresent) force=\(force)")
           let result = mpv_render_context_render(context, &params)
-          for trace in traces {
-            trace.record("render", "present=\(canPresent) force=\(force) result=\(result) elapsed=\(CACurrentMediaTime() - began)")
+          if pip != nil || resume != nil {
+            let detail = "present=\(canPresent) force=\(force) result=\(result) elapsed=\(CACurrentMediaTime() - began)"
+            pip?.record("render", detail)
+            resume?.record("render", detail)
           }
         }
         if !canPresent { self.failPendingSnapshot() }

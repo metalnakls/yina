@@ -1,0 +1,25 @@
+Automatic trace comparison, generated blank-window smoke fixture
+
+Before: 55673db4, with comparison counters added to existing smoke test.
+After: scalar visual-state change detection, full checkpoints every 15 ticks,
+notifications unchanged, inexpensive timing event each tick. Render callbacks
+avoid trace arrays and clock reads when no trace is attached.
+
+                     Before                 After
+PiP (4 seconds)      234 ticks               237 ticks
+Full descriptions    237                     20
+Serialized bytes     317846                  76160
+Resume (12 seconds)  717 ticks               717 ticks
+Full descriptions    720                     52
+Serialized bytes     889103                  144209
+
+Bytes are JSONSerialization of all parsed records, including 500 concurrent
+synthetic render events. Scheduler tick counts vary. After-test also changes
+an overlay at 0.5 seconds without a window notification to verify automatic
+state-change detection. These are diagnostic output/work counts, not measured
+whole-player CPU or GPU savings. Checkpoints retain full ancestor/HDR state;
+frame ticks and scalar opacity/geometry/host changes retain transition evidence.
+
+Validation: other/tests/pip-trace-smoke.py verifies 4/12-second deadlines,
+500 concurrent events, JSONL persistence, retention, finish, sampling callback,
+frame-cadence timing and automatic view-change capture.

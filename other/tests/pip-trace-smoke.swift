@@ -26,6 +26,8 @@ import Cocoa
     }
     overlay.isHidden = true
     trace.sample("hidden-probe")
+    // Change a view without emitting a window notification or calling sample().
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { overlay.isHidden = false }
     let deadline = Date().addingTimeInterval(duration + 4)
     while !finished && Date() < deadline { RunLoop.main.run(until: Date().addingTimeInterval(0.01)) }
     precondition(finished && !trace.isActive, "Trace must stop automatically")
@@ -49,6 +51,14 @@ import Cocoa
     precondition(!rows.contains { $0["event"] as? String == "after-finish-must-not-appear" })
     precondition(rows.contains { $0["event"] as? String == "state-sample-hook" })
     precondition(rows.count <= Int(duration * 1024))
+    let detailed = rows.filter { ($0["detail"] as? String)?.contains("source={") == true }.count
+    let ticks = rows.filter { $0["event"] as? String == "tick" }
+    precondition(ticks.count > Int(duration * 30), "Keep frame-cadence timing evidence")
+    precondition(detailed < ticks.count / 4, "Stable windows must not get full descriptions every tick")
+    precondition(rows.contains { $0["event"] as? String == "visual-state-changed" &&
+      ($0["detail"] as? String)?.contains("overlay={hidden=false") == true }, "Detect view changes without notifications")
+    let bytes = try JSONSerialization.data(withJSONObject: rows).count
+    print("COMPARISON: \(kind) ticks=\(rows.filter { $0["event"] as? String == "tick" }.count) detailed=\(detailed) bytes=\(bytes)")
     print("PASS: automatic \(duration)-second \(kind) capture, concurrent render events, window state, JSONL persistence, retention and shutdown (\(rows.count) events)")
   }
 }

@@ -18,6 +18,29 @@ final class PiPTransitionTrace: @unchecked Sendable {
   private weak var source: NSWindow?
   private weak var video: NSView?
   private weak var overlay: NSView?
+  // Cheap scalar snapshots detect visual changes without formatting ancestor layers
+  // or querying screen HDR capabilities at frame cadence.
+  private struct VisualState: Equatable {
+    let host: Int?
+    let windowFrame: NSRect?
+    let occlusion: UInt?
+    let hidden: Bool?
+    let frame: NSRect?
+    let opacity: Float?
+    let presentedOpacity: Float?
+
+    init(_ view: NSView?) {
+      host = view?.window?.windowNumber
+      windowFrame = view?.window?.frame
+      occlusion = view?.window?.occlusionState.rawValue
+      hidden = view?.isHiddenOrHasHiddenAncestor
+      frame = view?.frame
+      opacity = view?.layer?.opacity
+      presentedOpacity = view?.layer?.presentation()?.opacity
+    }
+  }
+  private var lastVideoState: VisualState?
+  private var lastOverlayState: VisualState?
   private var ticks = 0
   private let duration: TimeInterval
   var onSample: (() -> Void)?
@@ -72,9 +95,20 @@ final class PiPTransitionTrace: @unchecked Sendable {
     flush()
     let timer = Timer(timeInterval: 1.0 / 60, repeats: true) { [weak self] _ in
       guard let self else { return }
-      self.sample("tick")
+      self.record("tick")
       self.ticks += 1
-      if self.ticks % 15 == 0 { self.onSample?(); self.flush() }
+      let videoState = VisualState(self.video)
+      let overlayState = VisualState(self.overlay)
+      if videoState != self.lastVideoState || overlayState != self.lastOverlayState {
+        self.sample("visual-state-changed")
+        self.lastVideoState = videoState
+        self.lastOverlayState = overlayState
+      }
+      if self.ticks % 15 == 0 {
+        self.sample("checkpoint")
+        self.onSample?()
+        self.flush()
+      }
       if CACurrentMediaTime() - self.started >= self.duration { self.finish() }
     }
     self.timer = timer
