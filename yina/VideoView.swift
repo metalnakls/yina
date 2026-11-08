@@ -11,6 +11,13 @@ import Cocoa
 
 class VideoView: NSView {
 
+  /// System PiP mirrors this host through a remote window. Its AppKit occlusion
+  /// flag can stay false even while the picture is visibly playing on screen.
+  var isPresentedInSystemPiP: Bool {
+    guard let player, let host = window else { return false }
+    return player.mainWindow.pipStatus != .notInPIP && host !== player.mainWindow.window
+  }
+
   override func viewDidMoveToWindow() {
     super.viewDidMoveToWindow()
 #if IINA_ENABLE_METAL_RENDERER

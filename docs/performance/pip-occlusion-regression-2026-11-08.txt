@@ -1,0 +1,23 @@
+PiP regression in 62af328e, confirmed from user trace and real system PiP
+
+Trace pip-1794166074216-2E510DAF-7B6A-4DD3-B367-E56AB0C557BD.jsonl shows
+visible=true, hidden=false for the actual PiP host but occlusion=8192 (no visible
+bit). Rendering switches to present=false after attachment. The PiP framework
+uses a remotely presented host, so ordinary NSWindow occlusion is not a reliable
+presentation test for it.
+
+Fix: allow the system PiP host while the PiP session is active and the video view
+is attached outside the source window. Continue to require an attached nonzero
+layer and a view with no hidden ancestor. Ordinary windows retain occlusion
+suppression. The state is evaluated on main before the render queue reads it.
+
+Regression test now uses PIPViewController itself and the production Metal layer
+with generated video. --pip-regression-before fails against 62af328e at
+"Actual system PiP must keep presenting video frames". Fixed code presents
+14 frames in 0.6 seconds with host occlusion=8192. Hidden/covered ordinary windows
+still acquire zero drawables for 12 forced updates, and hidden playback advances.
+The earlier ordinary-window reparenting test did not reproduce the system PiP
+host and was insufficient coverage for that optimization.
+
+The dependency migration remains separate; this hotfix uses the already verified
+installed dependency generation, with no release version bump or player restart.

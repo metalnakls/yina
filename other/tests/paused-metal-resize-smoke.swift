@@ -21,6 +21,7 @@ final class TestMPV {
 final class TestPlayer { let mpv = TestMPV() }
 final class VideoView: NSView {
   let player = TestPlayer()
+  var isPresentedInSystemPiP = false
   @ReadWriteAtomic var isUninited = false
   override func viewDidHide() { super.viewDidHide(); DispatchQueue.main.async { [weak self] in (self?.layer as? ViewLayer)?.refreshPresentationEligibility() } }
   override func viewDidUnhide() { super.viewDidUnhide(); DispatchQueue.main.async { [weak self] in (self?.layer as? ViewLayer)?.refreshPresentationEligibility() } }
@@ -33,6 +34,7 @@ final class ResizeProbeLayer: ViewLayer, @unchecked Sendable {
   private var samples: [Sample] = []
   private var acquisitions = 0
   var acquisitionCount: Int { sampleLock.lock(); defer { sampleLock.unlock() }; return acquisitions }
+  var sampleCount: Int { sampleLock.lock(); defer { sampleLock.unlock() }; return samples.count }
   var latest: Sample? { sampleLock.lock(); defer { sampleLock.unlock() }; return samples.last }
 
   override func nextDrawable() -> CAMetalDrawable? {
@@ -186,6 +188,31 @@ final class ResizeProbeLayer: ViewLayer, @unchecked Sendable {
       }
       waitUntil("explicit snapshot while host hidden") { complete }
       precondition(layer.acquisitionCount > beforeSnapshot, "Explicit snapshots must bypass occlusion suppression")
+    }
+    if !baseline {
+      // Unlike a normal NSWindow, the system's remotely hosted PiP window can
+      // remain occluded according to AppKit while displaying its video onscreen.
+      let pip = PIPViewController()
+      let videoController = NSViewController()
+      view.isPresentedInSystemPiP = true
+      videoController.view = view
+      pip.aspectRatio = CGSize(width: 320, height: 180)
+      pip.presentAsPicture(inPicture: videoController)
+      waitUntil("actual system PiP attachment") { view.window != nil && view.window !== host }
+      pump(0.3)
+      layer.refreshPresentationEligibility()
+      let presented = layer.sampleCount
+      precondition(mpv_set_property_string(mpv, "pause", "no") >= 0)
+      pump(0.6)
+      precondition(layer.sampleCount > presented + 2, "Actual system PiP must keep presenting video frames")
+      print("PASS: actual system PiP presented \(layer.sampleCount - presented) frames; host occlusion=\(view.window!.occlusionState.rawValue)")
+      precondition(mpv_set_property_string(mpv, "pause", "yes") >= 0)
+      pip.dismiss(videoController)
+      pump(0.4)
+      host.contentView!.addSubview(view)
+      view.isPresentedInSystemPiP = false
+      layer.refreshPresentationEligibility()
+      pump(0.2)
     }
     if !baseline {
       var beforeTime = 0.0

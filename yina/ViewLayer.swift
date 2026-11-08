@@ -113,8 +113,9 @@ class ViewLayer: CAMetalLayer, @unchecked Sendable {
     precondition(Thread.isMainThread)
     let window = videoView?.window
     let hasTarget = window != nil && bounds.width > 0 && bounds.height > 0
-    let visible = hasTarget && !isHidden && videoView?.isHiddenOrHasHiddenAncestor == false &&
-      window?.isVisible == true && window?.occlusionState.contains(.visible) == true
+    let hostCanPresent = videoView?.isPresentedInSystemPiP == true ||
+      (window?.isVisible == true && window?.occlusionState.contains(.visible) == true)
+    let visible = hasTarget && !isHidden && videoView?.isHiddenOrHasHiddenAncestor == false && hostCanPresent
     let wasVisible = presentationEligibility.visible
     presentationEligibility = PresentationEligibility(hasTarget: hasTarget, visible: visible)
     if visible && !wasVisible { update(force: true) }
