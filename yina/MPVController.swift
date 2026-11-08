@@ -1819,26 +1819,33 @@ class MPVController: NSObject {
       break
     }
 
-    // This code is running in the tsmc.yina.controller dispatch queue. We must not run
-    // plugins from a task in this queue. Accessing EventController data from a thread in this queue
-    // results in data races that can cause a crash. See issue 3986.
+    // mpv invalidates property.data on the next mpv_wait_event call.
+    let data: Any
+    if let value = property.data, property.format != MPV_FORMAT_NONE {
+      switch property.format {
+      case MPV_FORMAT_FLAG:
+        data = value.load(as: Int32.self) != 0
+      case MPV_FORMAT_INT64:
+        data = value.load(as: Int64.self)
+      case MPV_FORMAT_DOUBLE:
+        data = value.load(as: Double.self)
+      case MPV_FORMAT_STRING:
+        if let string = value.load(as: UnsafePointer<CChar>?.self) {
+          data = String(cString: string)
+        } else {
+          data = NSNull()
+        }
+      default:
+        data = 0
+      }
+    } else {
+      data = NSNull()
+    }
+
+    // Listener lookup and plugin delivery both belong on the main queue. See IINA #3986.
     DispatchQueue.main.async { [self] in
       let eventName = EventController.Name("mpv.\(name).changed")
       if player.events.hasListener(for: eventName) {
-        // FIXME: better convert to JSValue before passing to call()
-        let data: Any
-        switch property.format {
-        case MPV_FORMAT_FLAG:
-          data = property.data.bindMemory(to: Bool.self, capacity: 1).pointee
-        case MPV_FORMAT_INT64:
-          data = property.data.bindMemory(to: Int64.self, capacity: 1).pointee
-        case MPV_FORMAT_DOUBLE:
-          data = property.data.bindMemory(to: Double.self, capacity: 1).pointee
-        case MPV_FORMAT_STRING:
-          data = property.data.bindMemory(to: String.self, capacity: 1).pointee
-        default:
-          data = 0
-        }
         player.events.emit(eventName, data: data)
       }
     }
