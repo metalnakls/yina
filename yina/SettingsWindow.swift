@@ -32,7 +32,7 @@ class SettingsWindow: CommonWindow {
     SettingsPageAdvanced(),
     SettingsPagePlugin(),
     SettingsPageUtilities(),
-  ])
+  ].filter { IINA_ENABLE_PLUGIN_SYSTEM || !($0 is SettingsPagePlugin) })
   static let keyBindings = SettingsWindow([SettingsPageKeyBindings()])
   static let plugins = SettingsWindow([SettingsPagePlugin()])
 
@@ -680,6 +680,7 @@ extension SettingsWindow {
   }
 
   func installPlugin(localPackageURL url: URL) {
+    guard IINA_ENABLE_PLUGIN_SYSTEM else { JavascriptPlugin.showDisabledMessage(); return }
     show()
     navigateTo(page: "plugin")
     if let pluginPage = pages.first(where: { $0.identifier == "plugin" }) as? SettingsPagePlugin {

@@ -149,7 +149,7 @@ class SidebarLayoutPane: SidebarScrollView {
       ("gearshape.fill", "sidebar.settings", Preference.Key.sidebarSettingsDisplayAtLeading),
       ("list.bullet.rectangle.fill", "sidebar.playlist_and_chapters", Preference.Key.sidebarPlaylistDisplayAtLeading),
       ("puzzlepiece.extension.fill", "sidebar.plugins", Preference.Key.sidebarPluginsDisplayAtLeading),
-    ]
+    ].filter { IINA_ENABLE_PLUGIN_SYSTEM || $0.2 != Preference.Key.sidebarPluginsDisplayAtLeading }
     let stack = Container(ui.vStack(
       spacing: .sidebarSettingsSpacing,
       config.map { img, text, key in

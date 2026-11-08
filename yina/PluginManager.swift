@@ -46,6 +46,7 @@ class PluginManager {
 
   @MainActor
   func update(_ plugin: JavascriptPlugin) async -> (Result, JavascriptPlugin?) {
+    guard IINA_ENABLE_PLUGIN_SYSTEM else { return (.cancelled, nil) }
     do {
       // check if new update exists
       guard let version = try await plugin.checkNewVersion() else {
@@ -91,6 +92,9 @@ class PluginManager {
     let message: String
     if let pluginError = error as? JavascriptPlugin.PluginError {
       switch pluginError {
+      case .disabled:
+        JavascriptPlugin.showDisabledMessage()
+        return
       case .fileNotFound(let url):
         Logger.log("Plugin install error: file not found: \"\(url)\"", level: .error)
         message = NSLocalizedString("plugin.install_error.file_not_found", comment: "")
@@ -152,6 +156,11 @@ class PluginManager {
 
   @MainActor
   func install(gitHubString string: String? = nil, localPackageURL url: URL? = nil, handler: ((Result) -> Void)? = nil) async {
+    guard IINA_ENABLE_PLUGIN_SYSTEM else {
+      JavascriptPlugin.showDisabledMessage()
+      handler?(.cancelled)
+      return
+    }
     do {
       let plugin = if let string {
         try JavascriptPlugin.create(fromGitURL: string)

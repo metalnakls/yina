@@ -763,6 +763,7 @@ class MenuController: NSObject, NSMenuDelegate {
   }
 
   func updatePluginMenu() {
+    guard IINA_ENABLE_PLUGIN_SYSTEM else { return }
     let isDisplayingPluginsPanel = PlayerCore.active.mainWindow.sidebars.isShowing(.plugins)
     let managePluginsItem = NSMenuItem(
       title: Constants.String.managePlugins,

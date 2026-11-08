@@ -6,6 +6,7 @@
 //  Copyright © 2018 lhc. All rights reserved.
 //
 
+import AppKit
 import Foundation
 import JavaScriptCore
 import Just
@@ -37,6 +38,15 @@ class JavascriptPlugin: NSObject {
     case invalidURL(String)
     case cannotDownload(String, String)
     case cannotLoadPlugin
+    case disabled
+  }
+
+  static func showDisabledMessage() {
+    let alert = NSAlert()
+    alert.messageText = NSLocalizedString("Plugins are disabled", comment: "Plugin system disabled title")
+    alert.informativeText = NSLocalizedString("Plugins are currently disabled in YINA. Existing plugins and their preferences are preserved.", comment: "Plugin system disabled explanation")
+    alert.alertStyle = .informational
+    alert.runModal()
   }
 
   static var hasYTDL: Bool {
@@ -107,6 +117,7 @@ class JavascriptPlugin: NSObject {
   let defaultPreferences: [String: Any]
 
   static func recreateAllPlugins() {
+    guard IINA_ENABLE_PLUGIN_SYSTEM else { return }
     plugins = loadPlugins()
   }
 
@@ -152,6 +163,7 @@ class JavascriptPlugin: NSObject {
   }
 
   static func loadGlobalInstances() {
+    guard IINA_ENABLE_PLUGIN_SYSTEM else { return }
     plugins.forEach { plugin in
       guard plugin.enabled else { return }
       if plugin.globalEntryPath != nil {
@@ -161,6 +173,7 @@ class JavascriptPlugin: NSObject {
   }
 
   func reloadGlobalInstance(forced: Bool = false) {
+    guard IINA_ENABLE_PLUGIN_SYSTEM else { return }
     guard globalEntryPath != nil else { return }
 
     if globalInstance == nil {
@@ -183,6 +196,7 @@ class JavascriptPlugin: NSObject {
 
   @discardableResult
   static func create(fromPackageURL url: URL) throws -> JavascriptPlugin {
+    guard IINA_ENABLE_PLUGIN_SYSTEM else { throw PluginError.disabled }
     guard FileManager.default.fileExists(atPath: url.path) else {
       throw PluginError.fileNotFound(url.path)
     }
@@ -246,6 +260,7 @@ class JavascriptPlugin: NSObject {
 
   @discardableResult
   static func create(fromGitURL urlString: String) throws -> JavascriptPlugin {
+    guard IINA_ENABLE_PLUGIN_SYSTEM else { throw PluginError.disabled }
     let url = try standardizeGithubURL(urlString)
 
     Logger.log("Installing plugin from GitHub URL: \(url)", level: .debug)
@@ -318,6 +333,7 @@ class JavascriptPlugin: NSObject {
   }
 
   init?(filename: String, externalURL: URL? = nil) {
+    guard IINA_ENABLE_PLUGIN_SYSTEM else { return nil }
     // find package
     let url = externalURL ?? Utility.pluginsURL.appendingPathComponent(filename)
     Logger.log("Loading JS plugin from \(url.path)")
@@ -459,6 +475,7 @@ class JavascriptPlugin: NSObject {
   }
 
   func registerSubProviders() {
+    guard IINA_ENABLE_PLUGIN_SYSTEM else { return }
     guard let subProviders else { return }
     for provider in subProviders {
       guard let spID = provider["id"], let spName = provider["name"] else {

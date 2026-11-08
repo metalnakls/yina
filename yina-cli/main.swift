@@ -35,6 +35,11 @@ var keepRunning = false
 
 var userArgs = Array(processInfo.arguments.dropFirst())
 
+if userArgs.contains(where: { !$0.hasPrefix("-") && (URL(string: $0)?.pathExtension.lowercased() == "iinaplgz" || URL(fileURLWithPath: $0).pathExtension.lowercased() == "iinaplgz") }) {
+  fputs("Plugins are currently disabled in YINA; plugin packages cannot be installed.\n", stderr)
+  exit(1)
+}
+
 if userArgs.contains(where: { $0 == "--help" || $0 == "-h" }) {
   print(
     """

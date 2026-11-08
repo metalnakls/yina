@@ -15,6 +15,12 @@ callback = source[start:end]
 harness = r'''
 import Cocoa
 
+let IINA_ENABLE_PLUGIN_SYSTEM = false
+enum JavascriptPlugin {
+  static var disabledMessages = 0
+  static func showDisabledMessage() { disabledMessages += 1 }
+}
+
 final class RecordingApplication: NSApplication {
   var replies: [NSApplication.DelegateReply] = []
   override func reply(toOpenOrPrint reply: NSApplication.DelegateReply) {
@@ -83,8 +89,8 @@ PlayerCore.finish()
 
 let beforePlugin = PlayerCore.batches.count
 delegate.application(app, openFiles: ["/tmp/example.iinaplgz"])
-precondition(SettingsWindow.plugins.packages.count == 1)
-precondition(PlayerCore.batches.count == beforePlugin && app.replies.last == .success)
+precondition(SettingsWindow.plugins.packages.isEmpty && JavascriptPlugin.disabledMessages == 1)
+precondition(PlayerCore.batches.count == beforePlugin && app.replies.last == .failure)
 
 PlayerCore.result = 0
 delegate.application(app, openFiles: ["/tmp/unsupported.exe"])
@@ -96,7 +102,7 @@ PlayerCore.finish()
 precondition(app.replies.last == .success)
 delegate.application(app, openFiles: [])
 precondition(app.replies.count == 8 && app.replies.last == .success)
-print("PASS: immediate single/batch routing, deferred validation replies, CLI suppression and plugin routing")
+print("PASS: immediate single/batch routing, deferred validation replies, CLI suppression and disabled plugin routing")
 '''
 
 with tempfile.TemporaryDirectory(prefix="yina-finder-open-") as temp:

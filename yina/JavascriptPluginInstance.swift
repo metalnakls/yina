@@ -85,15 +85,13 @@ class JavascriptPluginInstance {
   init(player: PlayerCore?, plugin: JavascriptPlugin) {
     self.plugin = plugin
 
-    if let player {
-      // normal plugin instance
-      self.player = player
-      isGlobal = false
+    self.player = player
+    isGlobal = player == nil
+    guard IINA_ENABLE_PLUGIN_SYSTEM else { return }
+    if player != nil {
       evaluateFile(plugin.entryURL)
-    } else {
-      // if player is nil, the plugin instance is a global controller
-      isGlobal = true
-      evaluateFile(plugin.globalEntryURL!)
+    } else if let entryURL = plugin.globalEntryURL {
+      evaluateFile(entryURL)
     }
   }
 
@@ -109,8 +107,8 @@ class JavascriptPluginInstance {
     if let plugin = self.plugin {
       Logger.log("Unload \(plugin.name)", level: .debug, subsystem: subsystem)
     }
-    polyfill.removeAllTimers()
-    apis.values.forEach { $0.cleanUp(self) }
+    polyfill?.removeAllTimers()
+    apis?.values.forEach { $0.cleanUp(self) }
   }
 
   func canAccess(url: URL) -> Bool {
@@ -147,6 +145,7 @@ class JavascriptPluginInstance {
 
   @discardableResult
   func evaluateFile(_ url: URL, asModule: Bool = false) -> JSValue! {
+    guard IINA_ENABLE_PLUGIN_SYSTEM else { return nil }
     currentFileStack.append(url)
     guard let content = try? String(contentsOf: url) else {
       Logger.log("Cannot read script \(url.path)", level: .error, subsystem: subsystem)

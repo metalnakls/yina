@@ -10,7 +10,7 @@ import Cocoa
 import MediaPlayer
 import Sparkle
 
-let IINA_ENABLE_PLUGIN_SYSTEM = true
+let IINA_ENABLE_PLUGIN_SYSTEM = false
 
 /** Tags for "Open File/URL" menu item when "Always open file in new windows" is off. Vice versa. */
 fileprivate let NormalMenuItemTag = 0
@@ -285,7 +285,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     AppEnvironment.defaults.set(false, forKey: "NSFullScreenMenuItemEverywhere")
 
     // Install plugins
-    if !AppEnvironment.isCleanStart, FirstRunManager.isFirstRun(for: .init("installedDefaultPlugins")) {
+    if IINA_ENABLE_PLUGIN_SYSTEM, !AppEnvironment.isCleanStart, FirstRunManager.isFirstRun(for: .init("installedDefaultPlugins")) {
       var hasError = false
       Logger.log("Installing default plugins")
       if let pluginPath = Bundle.main.resourcePath?.appending("/plugins"),
@@ -349,6 +349,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         // assume args starting with nothing is a filename
         yinaArgFilenames.append(arg)
       }
+    }
+
+    if !IINA_ENABLE_PLUGIN_SYSTEM,
+       yinaArgFilenames.contains(where: { URL(fileURLWithPath: $0).pathExtension.lowercased() == "iinaplgz" }) {
+      yinaArgFilenames.removeAll { URL(fileURLWithPath: $0).pathExtension.lowercased() == "iinaplgz" }
+      print("Plugins are currently disabled in YINA; plugin packages cannot be installed.")
+      shouldIgnoreOpenFile = true
+      DispatchQueue.main.async { JavascriptPlugin.showDisabledMessage() }
     }
 
     commandLineStatus.parseArguments(yinaArgs)
@@ -792,7 +800,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     let urls = filenames.map { URL(fileURLWithPath: $0) }
 
     // if installing a plugin package
-    if let pluginPackageURL = urls.first(where: { $0.pathExtension == "iinaplgz" }) {
+    if let pluginPackageURL = urls.first(where: { $0.pathExtension.lowercased() == "iinaplgz" }) {
+      guard IINA_ENABLE_PLUGIN_SYSTEM else {
+        deferredReply = true
+        sender.reply(toOpenOrPrint: .failure)
+        JavascriptPlugin.showDisabledMessage()
+        return
+      }
       SettingsWindow.plugins.installPlugin(localPackageURL: pluginPackageURL)
       return
     }
@@ -882,6 +896,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
       return
     }
     
+    if !IINA_ENABLE_PLUGIN_SYSTEM,
+       (parsed.host == "install-plugin" || URL(string: url)?.pathExtension.lowercased() == "iinaplgz") {
+      JavascriptPlugin.showDisabledMessage()
+      return
+    }
+
     if parsed.scheme != "yina" {
       // try to open the URL directly
       PlayerCore.activeOrNewForMenuAction(isAlternative: false).openURLString(url)
@@ -899,6 +919,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
       // url
       guard let urlValue = queryDict["url"], !urlValue.isEmpty else {
         Logger.log("Cannot find parameter \"url\", stopped")
+        return
+      }
+
+      if !IINA_ENABLE_PLUGIN_SYSTEM,
+         URL(string: urlValue)?.pathExtension.lowercased() == "iinaplgz" {
+        JavascriptPlugin.showDisabledMessage()
         return
       }
 
@@ -993,6 +1019,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
   }
 
   @objc func showPluginPreferences(_ sender: NSMenuItem) {
+    guard IINA_ENABLE_PLUGIN_SYSTEM else { JavascriptPlugin.showDisabledMessage(); return }
     SettingsWindow.plugins.show()
     SettingsWindow.plugins.navigateTo(page: "plugin")
   }
@@ -1034,6 +1061,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
   }
 
   @objc func reloadAllPlugins(_ sender: NSMenuItem) {
+    guard IINA_ENABLE_PLUGIN_SYSTEM else { return }
     // Remove the developer tool menu item that retains the plugin instance
     AppDelegate.shared.menuController.pluginMenu.items
       .compactMap { $0.submenu }.flatMap { $0.items }
