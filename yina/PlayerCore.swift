@@ -381,6 +381,7 @@ class PlayerCore: NSObject {
   lazy var info: PlaybackInfo = PlaybackInfo(self)
 
   var syncUITimer: Timer?
+  private var networkBufferTimer: Timer?
   @MainActor lazy var sharedShow = SharedShowSession(player: self)
 
   func sharedPlaybackControlChanged() {
@@ -3683,7 +3684,8 @@ class PlayerCore: NSObject {
   /// - Important: Make sure that any state variables (e.g., `info.isPaused`, `isInMiniPlayer`,  etc.) are set *before*
   ///     calling this method, not after, so that it makes the correct decisions.
   func refreshSyncUITimer() {
-    // Check if timer should start/restart
+    // Buffer monitoring is independent of OSC visibility and label precision.
+    refreshNetworkBufferTimer()
 
     let useTimer: Bool
     if !info.state.active {
@@ -3693,9 +3695,6 @@ class PlayerCore: NSObject {
       useTimer = false
     } else if isInMiniPlayer {
       // The timer can't be stopped if the mini player is being used as it always displays the OSC
-      useTimer = true
-    } else if info.isRemotePlayback {
-      // May need to show, hide, or update buffering indicator at any time.
       useTimer = true
     } else {
       // Need if fadeable views or OSD are visible.
@@ -3887,32 +3886,23 @@ class PlayerCore: NSObject {
       let isNetworkStream = info.isRemotePlayback
       syncPosition()
 
-      // Skip the label/formatting pass when nothing the user can see has changed. Buffer and cache
-      // state can still move while paused, so those are refreshed independently below.
+      // Skip the label/formatting pass when nothing the user can see has changed.
+      // Remote buffer statistics have their own timer, independent of these labels.
       guard let position = info.videoPosition else { return }
       let displayPrecision = DurationDisplayTextField.precision
       let bucket = (position.second * pow(10, Double(displayPrecision))).rounded(.down)
       let positionChanged = bucket != lastSyncedDisplayPosition
       lastSyncedDisplayPosition = bucket
 
-      guard positionChanged else {
-        if isNetworkStream { updateNetworkStreamCacheState() }
-        return
-      }
+      guard positionChanged else { return }
 
       if let remaining = Preference.bool(for: .scaleRemainingTime) ? cachedScaledRemaining : cachedRemaining {
         info.videoRemaining = VideoTime(remaining)
-      }
-      if isNetworkStream {
-        updateNetworkStreamCacheState()
       }
       DispatchQueue.main.async { [self] in
         currentController.updatePlayTime(withDuration: isNetworkStream, andProgressBar: true)
         if !self.isInMiniPlayer && mainWindow.fsState.isFullscreen && mainWindow.displayTimeAndBatteryInFullScreen && !mainWindow.additionalInfoView.isHidden {
           self.mainWindow.additionalInfoView.update()
-        }
-        if isNetworkStream {
-          self.mainWindow.bufferIndicatorView.updateNetworkState()
         }
       }
 
@@ -3937,6 +3927,20 @@ class PlayerCore: NSObject {
   /// suppress the update and the labels would keep showing the pre-seek time.
   private func invalidateSyncedDisplayPosition() {
     lastSyncedDisplayPosition = nil
+  }
+
+  private func refreshNetworkBufferTimer() {
+    guard info.state.active, info.state != .paused, info.isRemotePlayback else {
+      networkBufferTimer?.invalidate()
+      networkBufferTimer = nil
+      return
+    }
+    guard networkBufferTimer?.isValid != true else { return }
+    updateNetworkStreamCacheState()
+    networkBufferTimer = Timer.scheduledTimerInCommonMode(withTimeInterval: 0.5) { [weak self] _ in
+      self?.updateNetworkStreamCacheState()
+    }
+    networkBufferTimer?.tolerance = 0.05
   }
 
   private var networkCacheRefreshPending = false

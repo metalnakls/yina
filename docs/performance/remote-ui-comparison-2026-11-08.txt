@@ -1,0 +1,15 @@
+Remote UI timer comparison (production lifecycle methods, counted consumers)
+
+other/tests/remote-ui-timer-smoke.py compiles refreshSyncUITimer from 55673db4
+and the working tree against the same Foundation run loop and stubbed consumers.
+The cache consumer uses the production 0.5-second throttle. Each hidden-controls
+sample lasts 1.22 seconds, excluding the initial immediate UI refresh.
+
+Precision             Before UI ticks   After UI ticks   Cache checks before/after
+Whole seconds         12                0                3 / 3
+Hundredths            30                0                3 / 3
+
+Also verified showing controls restarts updates, pause stops both timers,
+resume restarts buffer monitoring, changing to local playback stops monitoring,
+and stopping playback invalidates timers. This is a timer-work comparison,
+not a live SMB throughput or whole-app CPU benchmark.
