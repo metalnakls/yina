@@ -1,0 +1,25 @@
+Direct VideoToolbox cache comparison, Apple M1 Pro
+
+Both runs use the same generated 640x360 24fps fixtures and Metal smoke renderer,
+which renders 60 frames, verifies selected hardware decoder, takes a screenshot
+and destroys the renderer. The HEVC test uses the window screenshot path.
+
+Test-only dyld interposition counts actual CVMetalTextureCacheCreate and
+CVMetalTextureCacheFlush calls (other/tests/vt-cache-counter.m), not source estimates.
+
+                   Before creates/flushes     After creates/flushes
+H.264              64 / 128                   1 / 0
+HEVC 10-bit        63 / 126                   1 / 0
+MPEG-2 software     0 / 0                     0 / 0
+
+Both hardware runs selected videotoolbox (not videotoolbox-copy); MPEG-2 selected
+no hardware decoder as expected. Queued frames retain independent mapper textures
+and CVPixelBuffers. Only the device cache is shared, retained by each mapper and
+released by the hardware owner at teardown. CoreVideo performs normal unused-entry
+reclamation; unmapping one frame no longer flushes the shared cache.
+
+Reproduce: compile vt-cache-counter.m as a dylib with CoreVideo/Metal frameworks;
+set YINA_TEST_CACHE_COUNTER to it and YINA_TEST_MPV_LIBRARY to the target library,
+then run bash other/tests/metal-videotoolbox-smoke.sh with GPU access.
+Raw logs: build/metal-deps/cache-comparison/{before,after}.log (local ignored build artifacts).
+This measures eliminated setup work, not a whole-player CPU/RAM percentage.

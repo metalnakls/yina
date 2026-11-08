@@ -13,6 +13,10 @@ ffmpeg -hide_banner -loglevel error -f lavfi -i 'testsrc2=size=640x360:rate=24:d
   -vf format=yuv420p10le -c:v libx265 -preset ultrafast -x265-params log-level=error -y "$TEST_DIR/hevc10.mkv"
 ffmpeg -hide_banner -loglevel error -f lavfi -i 'testsrc2=size=640x360:rate=24:duration=5' \
   -c:v mpeg2video -y "$TEST_DIR/software.mkv"
-"$TEST_DIR/probe" "$TEST_DIR/h264.mkv" videotoolbox
-YINA_TEST_WINDOW_SCREENSHOT=1 "$TEST_DIR/probe" "$TEST_DIR/hevc10.mkv" videotoolbox
-"$TEST_DIR/probe" "$TEST_DIR/software.mkv" no
+probe=("$TEST_DIR/probe")
+if [[ -n "${YINA_TEST_CACHE_COUNTER:-}" ]]; then
+  probe=(env "DYLD_INSERT_LIBRARIES=$YINA_TEST_CACHE_COUNTER" "${probe[@]}")
+fi
+"${probe[@]}" "$TEST_DIR/h264.mkv" videotoolbox
+YINA_TEST_WINDOW_SCREENSHOT=1 "${probe[@]}" "$TEST_DIR/hevc10.mkv" videotoolbox
+"${probe[@]}" "$TEST_DIR/software.mkv" no

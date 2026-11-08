@@ -225,8 +225,40 @@ index 81d36b957..9730e3172 100644
 +    ctx->hwdec_devs = NULL;
 +    if (p->ra_ctx.ra)
 +        ra_free(&p->ra_ctx.ra);
+diff --git a/video/out/hwdec/hwdec_vt.c b/video/out/hwdec/hwdec_vt.c
+index aa995eacb..3847a8ee7 100644
+--- a/video/out/hwdec/hwdec_vt.c
++++ b/video/out/hwdec/hwdec_vt.c
+@@ -34,0 +35,6 @@ static void uninit(struct ra_hwdec *hw)
++#if HAVE_VIDEOTOOLBOX_PL
++    if (p->mtl_texture_cache) {
++        CFRelease(p->mtl_texture_cache);
++        p->mtl_texture_cache = NULL;
++    }
++#endif
+diff --git a/video/out/hwdec/hwdec_vt.h b/video/out/hwdec/hwdec_vt.h
+index b79c64198..06ad4fac6 100644
+--- a/video/out/hwdec/hwdec_vt.h
++++ b/video/out/hwdec/hwdec_vt.h
+@@ -24,0 +25,5 @@
++#ifndef __OBJC__
++typedef struct __CVMetalTextureCache *CVMetalTextureCacheRef;
++typedef CVImageBufferRef CVMetalTextureRef;
++#endif
++
+@@ -25,0 +31,4 @@ struct priv_owner {
++#if HAVE_VIDEOTOOLBOX_PL
++    // One import cache per renderer/device; queued frames still own their textures.
++    CVMetalTextureCacheRef mtl_texture_cache;
++#endif
+@@ -35,5 +43,0 @@ struct priv_owner {
+-#ifndef __OBJC__
+-typedef struct __CVMetalTextureCache *CVMetalTextureCacheRef;
+-typedef CVImageBufferRef CVMetalTextureRef;
+-#endif
+-
 diff --git a/video/out/hwdec/hwdec_vt_pl.m b/video/out/hwdec/hwdec_vt_pl.m
-index 82df4e94a..75b7b9269 100644
+index 82df4e94a..8444e4c77 100644
 --- a/video/out/hwdec/hwdec_vt_pl.m
 +++ b/video/out/hwdec/hwdec_vt_pl.m
 @@ -29,0 +30,4 @@
@@ -239,7 +271,14 @@ index 82df4e94a..75b7b9269 100644
 +    if (pl_metal_get(gpu))
 +        return true;
 +#endif
-@@ -85,0 +94,7 @@ static int mapper_init(struct ra_hwdec_mapper *mapper)
+@@ -84,0 +93,6 @@ static int mapper_init(struct ra_hwdec_mapper *mapper)
++    struct priv_owner *owner = mapper->owner->priv;
++    if (owner->mtl_texture_cache) {
++        p->mtl_texture_cache = (CVMetalTextureCacheRef)CFRetain(owner->mtl_texture_cache);
++        return 0;
++    }
++
+@@ -85,0 +100,7 @@ static int mapper_init(struct ra_hwdec_mapper *mapper)
 +#ifdef PL_HAVE_METAL
 +    pl_metal metal = pl_metal_get(ra_pl_get(mapper->ra));
 +    if (metal) {
@@ -247,7 +286,17 @@ index 82df4e94a..75b7b9269 100644
 +        [mtl_device retain];
 +    }
 +#endif
-@@ -271 +286,11 @@ static int mapper_map(struct ra_hwdec_mapper *mapper)
+@@ -128 +149 @@ static int mapper_init(struct ra_hwdec_mapper *mapper)
+-        MP_ERR(mapper, "Failure in CVOpenGLESTextureCacheCreate: %d\n", err);
++        MP_ERR(mapper, "Failure in CVMetalTextureCacheCreate: %d\n", err);
+@@ -131,0 +153,2 @@ static int mapper_init(struct ra_hwdec_mapper *mapper)
++    owner->mtl_texture_cache = (CVMetalTextureCacheRef)CFRetain(p->mtl_texture_cache);
++    MP_VERBOSE(mapper, "Created shared VideoToolbox Metal texture cache.\n");
+@@ -147 +170,2 @@ static void mapper_unmap(struct ra_hwdec_mapper *mapper)
+-    CVMetalTextureCacheFlush(p->mtl_texture_cache, 0);
++    // CoreVideo reclaims unused cache entries automatically. Flushing on every
++    // frame defeats reuse and affects other frames sharing this device cache.
+@@ -271 +295,11 @@ static int mapper_map(struct ra_hwdec_mapper *mapper)
 -        pl_tex pltex = pl_tex_create(gpu, &tex_params);
 +        pl_tex pltex;
 +#ifdef PL_HAVE_METAL
