@@ -1085,7 +1085,7 @@ class MainWindowController: PlayerWindowController {
     sidebars.sideBars.forEach {
       $0.view.setContentExtendedDynamicRange(enabled, headroom: headroom)
     }
-    let primaryColor: NSColor? = enabled ? OSCExtendedDynamicRange.color(.labelColor, headroom: headroom) : nil
+    let primaryColor = OSCExtendedDynamicRange.color(.white, headroom: headroom)
     let secondaryColor = OSCExtendedDynamicRange.color(.secondaryLabelColor, headroom: headroom)
     [playButton, leftArrowButton, rightArrowButton].forEach {
       $0?.contentTintColor = primaryColor
@@ -1108,7 +1108,8 @@ class MainWindowController: PlayerWindowController {
     }
     playSlider.extendedDynamicRangeHeadroom = enabled ? headroom : 1
     if oscPosition == .floating {
-      playSlider.trackFillColor = OSCExtendedDynamicRange.color(.white, headroom: headroom)
+      // Match the docked played track: retain HDR, below the foreground icons.
+      playSlider.trackFillColor = .hdrWhite(intensity: 0.45, headroom: headroom)
     }
     (volumeSlider as? VolumeSlider)?.extendedDynamicRangeHeadroom = enabled ? headroom : 1
   }

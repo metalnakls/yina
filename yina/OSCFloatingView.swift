@@ -39,11 +39,11 @@ class OSCButton: NSButton {
     didSet {
       if usesNativeBezel {
         contentTintColor = extendedDynamicRangeHeadroom > 1
-          ? OSCExtendedDynamicRange.color(.labelColor, headroom: extendedDynamicRangeHeadroom) : nil
+          ? OSCExtendedDynamicRange.color(.white, headroom: extendedDynamicRangeHeadroom) : .white
       } else if usesQuickTimeStyle {
         contentTintColor = extendedDynamicRangeHeadroom > 1
-          ? OSCExtendedDynamicRange.color(.labelColor, headroom: extendedDynamicRangeHeadroom)
-          : .white.withAlphaComponent(0.84)
+          ? OSCExtendedDynamicRange.color(.white, headroom: extendedDynamicRangeHeadroom)
+          : .white
       }
       needsDisplay = true
     }
@@ -86,11 +86,11 @@ class OSCButton: NSButton {
       }
       if usesNativeBezel {
         contentTintColor = extendedDynamicRangeHeadroom > 1
-          ? OSCExtendedDynamicRange.color(.labelColor, headroom: extendedDynamicRangeHeadroom) : nil
+          ? OSCExtendedDynamicRange.color(.white, headroom: extendedDynamicRangeHeadroom) : .white
       } else {
         contentTintColor = extendedDynamicRangeHeadroom > 1
-          ? OSCExtendedDynamicRange.color(.labelColor, headroom: extendedDynamicRangeHeadroom)
-          : .white.withAlphaComponent(0.84)
+          ? OSCExtendedDynamicRange.color(.white, headroom: extendedDynamicRangeHeadroom)
+          : .white
       }
     } else {
       imagePosition = originalImagePosition!
@@ -162,7 +162,7 @@ class OSCButton: NSButton {
                            width: drawSize.width, height: drawSize.height)
     image.draw(in: imageRect, from: .zero, operation: .sourceOver, fraction: 1,
                respectFlipped: true, hints: [.interpolation: NSImageInterpolation.high])
-    OSCExtendedDynamicRange.color(.labelColor, headroom: extendedDynamicRangeHeadroom).setFill()
+    OSCExtendedDynamicRange.color(.white, headroom: extendedDynamicRangeHeadroom).setFill()
     imageRect.fill(using: .sourceAtop)
   }
 

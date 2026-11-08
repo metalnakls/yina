@@ -76,7 +76,9 @@ Use these steps for AppKit and SwiftUI interface changes.
   in both system themes. Other semantic colors keep their light/dark appearance,
   hue and alpha when given HDR exposure; the
   floating controls no longer opt out of that exposure. Native slider-thumb
-  geometry stays intact. Watched progress remains white by user preference.
+  geometry stays intact. OSC icons use explicit opaque white rather than the
+  translucent semantic label tint. Watched progress remains white, with the
+  floating and docked played tracks using 45% of the available HDR lift.
   Material rebuilds retain the current content dynamic range. System menus
   and standalone Settings keep their native appearance.
 
