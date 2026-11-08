@@ -1,0 +1,103 @@
+Unnecessary-work audit — 2026-11-08
+Baseline: 8243fba4; YINA 5.1 source plus the local PiP backdrop fix.
+
+Scope and limitations
+The owned-source inventory contains 247 code files / 75,870 lines across yina,
+OpenInYINA, yina-cli, yina-plugin and browser-extension where present. Inventory
+is not a claim of line-by-line review. Searches covered timers, dispatch work,
+synchronous mpv getters, filesystem reads, visual-effect surfaces and rendering.
+Targeted call-path review covered playback/UI synchronization, Metal presentation,
+VideoToolbox mapping, PiP, subtitles, Live Text, previews, history, Now Playing,
+Inspector, translucent containers, shared sessions and the legacy mini player.
+The previous October audit was checked against current owning code rather than
+carried forward as current fact. This is a source audit, not a whole-app runtime
+profile. No production behavior was changed and no speedup is claimed.
+
+Priority 1 — Measure hidden-window GPU work
+Source: yina/ViewLayer.swift, enqueueRender(), canPresent (around line 183).
+The presentation guard checks layer hidden state, bounds and existence of a
+window, but not ancestor visibility or window occlusion. A fully covered or
+hidden host can therefore continue requesting drawables and rendering frames.
+This is a confirmed missing eligibility check, not a measured power estimate.
+Measure visible, covered, hidden and PiP cases with generated video. Cache
+visibility on the main thread, use the video view's actual host, and keep servicing
+mpv updates and explicit snapshots. Do not blindly stop the rendering queue or
+swap reports: the render API and PiP/screenshot lifecycle still need progress.
+
+Priority 2 — Reuse direct VideoToolbox import setup
+Source: pinned mpv video/out/gpu_next/libmpv_gpu_next.c map_frame()/unmap_frame();
+video/out/hwdec/hwdec_vt_pl.m mapper_init(). Reproducible source lives in
+other/metal-deps/patches/mpv-metal-macos.patch.
+Each mapped hardware frame creates a mapper; mapper initialization creates a
+CVMetalTextureCache, and unmapping frees the mapper. Thus cache creation/teardown
+is repeated at frame cadence. Direct decoding remains beneficial (already
+measured); this is avoidable setup within that new path, not a reason to revert
+to copy-back. Benchmark cache creation and mapping separately. Prefer a per-device
+cache or bounded mapper pool, keeping every queued frame's textures and decoder
+surface alive until libplacebo releases them. Sharing one mutable mapper across
+queued frames would introduce lifetime bugs.
+
+Priority 3 — Remove synchronous subtitle-animation setup from UI events
+Source: yina/SubtitleDissolve.swift animate(to:) lines 79–120;
+yina/PlayerCore.swift setSubVisibility path around line 2009.
+Starting a dissolve synchronously queries visibility, three colors and blur,
+then synchronously sets subtitle visibility. These calls enter libmpv from the
+main thread. The actual animation writes are already asynchronous and coalesced;
+the remaining exposure is setup. Cache observed state or fetch one asynchronous
+snapshot with a generation check. Validate rapid toggle/seek/track-change and a
+blocked mpv core. This is a blocking-risk finding, not proof of a current hang.
+
+Priority 4 — Reduce diagnostic observer overhead
+Source: yina/PiPTransitionTrace.swift timer/sample/viewState; PlayerCore's
+tracePlaybackControl; ViewLayer's trace arrays and timestamps.
+While active, diagnostics format full window state, EDR values, and up to six
+layer descriptions for both video and overlay at 60 Hz. Pause/resume traces last
+12 seconds; PiP traces last four. They are bounded, not permanent 60 Hz work,
+but they run exactly during interactions being diagnosed. Disk writes are
+already batched off-main. Prefer cheap timing records each tick and detailed
+state only on changes/notifications. Retire resume tracing after real-use
+confirmation and PiP tracing after the entry fix is established. Keep evidence
+collection until then; silently disabling it would lose the rare failure.
+The normal render path also builds optional trace arrays and reads clocks when
+no capture is active; a fast inactive path is a smaller cleanup opportunity.
+
+Priority 5 — Separate remote buffering monitoring from visible UI updates
+Source: yina/PlayerCore.swift refreshSyncUITimer(), syncUI(.time),
+updateNetworkStreamCacheState(); PlaybackInfo.isRemotePlayback.
+Remote files/streams keep the UI timer active even with the controls hidden.
+Cache refresh is already asynchronous, single-flight and capped at 0.5 seconds,
+and labels already skip unchanged display buckets. The remaining opportunity is
+to use a low-frequency buffering monitor without running the whole UI-time path
+at the configured label precision. Measure this with hidden OSC, ordinary time
+precision and fractional-second precision. Preserve recovery and buffer alerts.
+
+Low priority — Legacy marquee timers
+Source: ScrollingTextField.scroll()/startScrolling()/moveText(); callers in
+MiniPlayerWindowController. The timer does not check visibility and a fixed
+252-point width determines overflow. It stops at the end of a scroll cycle, so
+this is not evidence of an indefinite idle loop. Verify that the retired mini
+player can still be reached before spending implementation effort here.
+
+Already guarded — Do not redo these blindly
+- HistoryController coalesces save requests, snapshots entries under its lock,
+  then encodes/writes off the main thread outside the history lock.
+- LiveTextSupport debounces brief pauses by 150 ms, cancels old analysis, and
+  checks cancellation/state before applying results.
+- ThumbnailPeekView keeps the latest request and uses generation cancellation;
+  its renderer is released after a short idle interval.
+- Inspector removes its timer/listeners on close and guards asynchronous replies.
+- TranslucentView.setStyle skips rebuilding an unchanged material unless forced.
+- Local playback's UI timer stops when unnecessary; time-label formatting is
+  skipped when its display bucket is unchanged.
+- Now Playing artwork has background work, an in-flight guard, tickets and
+  pending-request coordination; no repeated full artwork decode was established.
+- SharedShowSession varies polling intervals with hosting/following state and
+  stops its timer in the ordinary stop path; its polling has functional purpose.
+- The opaque-covered PiP blur was removed in 8243fba4. Remaining blur surfaces
+  have visible material roles; this scan did not establish another identical case.
+
+Recommended order
+Measure hidden rendering and per-frame VideoToolbox setup first; fix subtitle
+setup blocking next. Reduce diagnostic cost without losing the active PiP
+investigation, then separate remote buffer monitoring from UI refreshes.
+Keep each implementation and its meaningful verification in its own commit.
