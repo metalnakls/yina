@@ -11,6 +11,16 @@ import Cocoa
 
 class VideoView: NSView {
 
+  override func viewDidMoveToWindow() {
+    super.viewDidMoveToWindow()
+    // Leave the system reparenting call before changing the source-window UI.
+    DispatchQueue.main.async { [weak self] in
+      guard let self, let player = self.player, player.mainWindow.loaded else { return }
+      player.mainWindow.revealPiPBackdropIfDetached()
+    }
+  }
+
+
   weak var player: PlayerCore!
 #if IINA_ENABLE_METAL_RENDERER
   var link: CADisplayLink?

@@ -41,3 +41,20 @@ state every quarter-second; it never blocks the UI or accumulates polling work.
 Subtitle-session and Live Text entry boundaries distinguish preparation cost
 from the system presentation call. No transition behavior is changed by this
 instrumentation, and no visual-stutter fix is claimed.
+
+## Backdrop handoff change
+
+The source-window PiP placeholder now uses a plain black layer. It previously
+used a behind-window visual-effect view covered by an opaque black child, so its
+blur was invisible but still participated in the window's composition. Entry no
+longer reveals that placeholder on the next main-loop turn. A video-view window
+move schedules a guarded reveal only once the video has a nonnil host distinct
+from the source window. Closing/returning and rapid reentry callbacks recheck the
+current PiP state and host before acting. The native PiP animation is retained.
+
+`python3 other/tests/pip-backdrop-smoke.py` exercises the production reveal guard
+with real AppKit reparenting, including a nil intermediate host, closing and
+reentry. Existing PiP layout/presentation and entry-policy checks also pass.
+This removes a plausible compositor pressure point identified in the traces;
+the infrequent user-visible stutter has not been independently reproduced, so
+normal-use confirmation is still needed. The expanded trace remains enabled.

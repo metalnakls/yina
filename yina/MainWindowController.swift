@@ -452,16 +452,15 @@ class MainWindowController: PlayerWindowController {
 
   /// Overlay shown while the video is playing in picture-in-picture.
   ///
-  /// Built in code rather than loaded from a nib. It is a blur-filled backdrop carrying the PiP
+  /// Built in code rather than loaded from a nib. It is an opaque black backdrop carrying the PiP
   /// symbol and a short explanatory label, pinned to the content view.
   let pipOverlayView = MainWindowController.makePipOverlayView()
 
-  private static func makePipOverlayView() -> NSVisualEffectView {
-    let overlay = NSVisualEffectView()
+  private static func makePipOverlayView() -> NSView {
+    let overlay = NSView()
     overlay.translatesAutoresizingMaskIntoConstraints = false
-    overlay.blendingMode = .behindWindow
-    overlay.material = .underWindowBackground
-    overlay.state = .followsWindowActiveState
+    overlay.wantsLayer = true
+    overlay.layer?.backgroundColor = NSColor.black.cgColor
     overlay.isHidden = true
 
     let imageView = NSImageView()
@@ -829,14 +828,6 @@ class MainWindowController: PlayerWindowController {
       cv.addSubview(pipOverlayView, positioned: .below, relativeTo: videoView)
       pipOverlayView.padding(.all)
     }
-    pipOverlayView.state = .followsWindowActiveState
-
-    let pipBackgroundView = NSView()
-    pipBackgroundView.translatesAutoresizingMaskIntoConstraints = false
-    pipBackgroundView.wantsLayer = true
-    pipBackgroundView.layer?.backgroundColor = NSColor.black.cgColor
-    pipOverlayView.addSubview(pipBackgroundView, positioned: .below, relativeTo: nil)
-    pipBackgroundView.padding(.all)
     pipOverlayView.appearance = NSAppearance(named: .darkAqua)
     // hide other views
     osdView.isHidden = true
@@ -3230,6 +3221,14 @@ extension MainWindowController: PIPViewControllerDelegate {
 
   /// Called when the system PiP controller obtains or releases its actual
   /// host window. PiP can present asynchronously on some macOS versions.
+  func revealPiPBackdropIfDetached() {
+    guard pipStatus == .inPIP, let source = window, let host = videoView.window,
+          host !== source, pipOverlayView.isHidden else { return }
+    pipTransitionTrace?.sample("before-backdrop-reveal")
+    pipOverlayView.isHidden = false
+    pipTransitionTrace?.sample("after-backdrop-reveal")
+  }
+
   func pipHostWindowDidChange(_ window: NSWindow?) {
     pipTransitionTrace?.sample("pip-host-change")
     guard pipStatus == .inPIP else { return }
@@ -3402,15 +3401,9 @@ extension MainWindowController: PIPViewControllerDelegate {
     pipTransitionTrace?.sample("before-system-present")
     pip.presentAsPicture(inPicture: pipVideo)
     pipTransitionTrace?.sample("after-system-present")
-    // Unhiding the overlay samples and blurs the window backdrop, which is a full-window
-    // operation. Doing it on the next main loop turn keeps that cost out of the first frame of
-    // the PiP presentation animation.
-    DispatchQueue.main.async { [weak self] in
-      guard let self, self.pipStatus == .inPIP else { return }
-      self.pipTransitionTrace?.sample("before-backdrop-reveal")
-      self.pipOverlayView.isHidden = false
-      self.pipTransitionTrace?.sample("after-backdrop-reveal")
-    }
+    // Presentation can return before AppKit reparents the video. The window
+    // move callback reveals the inexpensive placeholder only after detachment.
+    revealPiPBackdropIfDetached()
     syncPIPPlaybackState()
 
     if let window = self.window {
