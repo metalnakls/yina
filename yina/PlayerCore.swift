@@ -1999,15 +1999,14 @@ class PlayerCore: NSObject {
 
     let codec = info.currentTrack(.sub)?.codec ?? ""
     let plainText = ["subrip", "srt", "text", "webvtt", "mov_text"].contains(codec)
-    let styledText = ["ass", "ssa"].contains(codec) &&
-      ["force", "strip"].contains(mpv.getString(MPVOption.Subtitles.subAssOverride) ?? "")
+    let styledText = ["ass", "ssa"].contains(codec)
     let hasVisibleSecondary = (info.secondSid ?? 0) > 0 && info.isSecondSubVisible
     let canAnimate = info.state.loaded && (plainText || styledText) && !hasVisibleSecondary &&
       !Preference.bool(for: .disableAnimations) && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion &&
       !subtitleText.isEmpty
 
     subVisibilityChanged(visible)
-    if canAnimate, subtitleDissolve.animate(to: visible) { return }
+    if canAnimate, subtitleDissolve.animate(to: visible, requiresStyleOverride: styledText) { return }
     finishSubtitleDissolve()
     mpv.setAsync(MPVOption.Subtitles.subVisibility, .flag(visible))
   }

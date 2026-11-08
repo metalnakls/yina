@@ -1,0 +1,17 @@
+Subtitle setup comparison
+
+Production SubtitleDissolve.swift compiled against the same counted, in-memory
+engine transport in other/tests/subtitle-dissolve-smoke.swift:
+  55673db4: 6 synchronous calls for first dissolve (5 reads, 1 write)
+  Changed: 0 synchronous calls, one asynchronous batch of property requests
+
+The ASS override eligibility query in PlayerCore is also now included in the
+asynchronous setup snapshot when applicable. It no longer reads synchronously
+from the key/menu event. Unsupported ASS styles fall back to visibility only.
+
+Tests cover duration/overshoot, reversal, exact style restoration, zero duration,
+and delayed replies: setup returns under 50 ms with replies held indefinitely,
+newest toggle wins, finish applies the requested visibility without starting a
+late animation, and shutdown drops replies without writes. This proves the
+transport boundary and state machine; it is not a measurement of real-world
+engine stalls or user-perceived latency.

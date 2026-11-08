@@ -20,16 +20,31 @@ enum MPVAsyncClient {
   enum Value { case flag(Bool), double(Double), string(String) }
 }
 final class AnimationTransport {
+  weak var owner: MPVController?
+  var delayed = false
+  var replies: [() -> Void] = []
+  func get(_ names: [String], strings: Bool, completion: @escaping ([String: Any]) -> Void) {
+    let owner = owner!
+    var values: [String: Any] = owner.colors
+    values[MPVOption.Subtitles.subBlur] = String(owner.blur)
+    values[MPVOption.Subtitles.subVisibility] = owner.visible ? "yes" : "no"
+    let reply = { completion(values) }
+    if delayed { replies.append(reply) } else { reply() }
+  }
+  func deliver() { let pending = replies; replies = []; pending.forEach { $0() } }
   func discardLatest(_ names: [String]) {}
 }
 enum MPVOption {
   enum Subtitles {
     static let subBlur = "sub-blur", subColor = "sub-color", subOutlineColor = "sub-outline-color"
-    static let subBackColor = "sub-back-color", subVisibility = "sub-visibility"
+    static let subBackColor = "sub-back-color", subVisibility = "sub-visibility", subAssOverride = "sub-ass-override"
   }
 }
 final class MPVController {
-  let asyncClient = AnimationTransport()
+  lazy var asyncClient: AnimationTransport = {
+    let client = AnimationTransport(); client.owner = self; return client
+  }()
+  var synchronousCalls = 0
   var visible = true
   var blur = 0.42
   var colors = ["sub-color": "1/0.9/0.8/0.9", "sub-outline-color": "0/0/0/0.8", "sub-back-color": "0/0/0/0"]
@@ -42,10 +57,10 @@ final class MPVController {
     }
     writes += 1
   }
-  func getFlag(_ name: String) -> Bool { visible }
-  func getDouble(_ name: String) -> Double { blur }
-  func getString(_ name: String) -> String? { colors[name] }
-  func setFlag(_ name: String, _ flag: Bool, level: Logger.Level) { visible = flag; writes += 1 }
+  func getFlag(_ name: String) -> Bool { synchronousCalls += 1; return visible }
+  func getDouble(_ name: String) -> Double { synchronousCalls += 1; return blur }
+  func getString(_ name: String) -> String? { synchronousCalls += 1; return colors[name] }
+  func setFlag(_ name: String, _ flag: Bool, level: Logger.Level) { synchronousCalls += 1; visible = flag; writes += 1 }
   func setDouble(_ name: String, _ value: Double, level: Logger.Level) { blur = value; writes += 1 }
   func setString(_ name: String, _ value: String, level: Logger.Level) { colors[name] = value; writes += 1 }
 }
@@ -69,6 +84,7 @@ extension NSColor {
     let original = mpv.colors
     let dissolve = SubtitleDissolve(mpv: mpv)
     precondition(dissolve.animate(to: false))
+    print("COMPARISON: synchronous engine calls for first dissolve = \(mpv.synchronousCalls)")
     precondition(mpv.visible)
     run(0.06)
     precondition(mpv.blur > 0.42 && mpv.visible)
@@ -119,6 +135,35 @@ extension NSColor {
         precondition(curve.value(at: 1, overshoot: amount) == 1)
         if amount > 0 { precondition(abs(curve.value(at: 0.72, overshoot: amount) - (1 + amount)) < 0.00001) }
       }
+    }
+    if CommandLine.arguments.contains("--async-setup") {
+      precondition(mpv.synchronousCalls == 0 && customMPV.synchronousCalls == 0)
+      let delayedMPV = MPVController()
+      delayedMPV.asyncClient.delayed = true
+      let delayed = SubtitleDissolve(mpv: delayedMPV)
+      let began = CACurrentMediaTime()
+      delayed.animate(to: false)
+      precondition(CACurrentMediaTime() - began < 0.05 && delayedMPV.writes == 0)
+      delayed.animate(to: true)
+      delayedMPV.asyncClient.deliver()
+      precondition(delayed.targetVisibility == true, "Older hide reply must not replace the latest show")
+      delayed.finish()
+      precondition(delayedMPV.visible)
+      delayed.animate(to: false)
+      delayed.finish() // Seek/track change while setup is still pending.
+      let finishedWrites = delayedMPV.writes
+      delayedMPV.asyncClient.deliver()
+      precondition(!delayedMPV.visible && delayedMPV.writes == finishedWrites && delayed.targetVisibility == nil)
+      delayed.animate(to: true)
+      delayed.abandon() // Shutdown must neither write nor restart from a late reply.
+      let abandoned = delayedMPV.writes
+      delayedMPV.asyncClient.deliver()
+      precondition(delayedMPV.writes == abandoned && delayed.targetVisibility == nil)
+      let styled = SubtitleDissolve(mpv: delayedMPV)
+      styled.animate(to: true, requiresStyleOverride: true)
+      delayedMPV.asyncClient.deliver()
+      precondition(styled.targetVisibility == nil && delayedMPV.visible, "ASS without force/strip must skip styling")
+      print("PASS: delayed engine returns immediately; newest toggle wins; finish/abandon reject stale replies")
     }
     print("PASS: custom 1200ms duration, overshoot below baseline, curve endpoints, zero duration, reversal, exact restoration, cancellation.")
   }

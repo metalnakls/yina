@@ -49,6 +49,7 @@ final class SubtitleDissolve: NSObject {
 
   private unowned let mpv: MPVController
   private var style: Style?
+  private var setupGeneration: UInt64 = 0
   private var timer: Timer?
   private var startTime: CFTimeInterval = 0
   private var duration: TimeInterval = 0
@@ -76,25 +77,53 @@ final class SubtitleDissolve: NSObject {
   }
 
   @discardableResult
-  func animate(to visible: Bool) -> Bool {
+  func animate(to visible: Bool, requiresStyleOverride: Bool = false) -> Bool {
     assert(Thread.isMainThread)
     if targetVisibility == visible { return true }
-    let now = CACurrentMediaTime()
-    let interruptedBlur = style == nil ? nil : blur(at: now)
-    let from = style == nil ? (mpv.getFlag(MPVOption.Subtitles.subVisibility) ? 1.0 : 0.0)
-                            : opacity(at: now)
     if style == nil {
-      var colors: [(String, String, NSColor)] = []
-      for name in Self.styleOptions.dropFirst() {
-        guard let original = mpv.getString(name), let color = NSColor(mpvColorString: original) else {
-          return false
+      setupGeneration &+= 1
+      let generation = setupGeneration
+      targetVisibility = visible
+      // The engine may be busy with a seek or network I/O. Never wait for it
+      // from a key/menu event on the main thread.
+      let options = Self.styleOptions + [MPVOption.Subtitles.subVisibility] +
+        (requiresStyleOverride ? [MPVOption.Subtitles.subAssOverride] : [])
+      mpv.asyncClient.get(options, strings: true) { [weak self] values in
+        guard let self, self.setupGeneration == generation, self.targetVisibility == visible else { return }
+        if requiresStyleOverride,
+           !["force", "strip"].contains(values[MPVOption.Subtitles.subAssOverride] as? String ?? "") {
+          self.finish()
+          return
         }
-        colors.append((name, original, color))
+        var colors: [(String, String, NSColor)] = []
+        for name in Self.styleOptions.dropFirst() {
+          guard let original = values[name] as? String,
+                let color = NSColor(mpvColorString: original) else {
+            self.finish()
+            return
+          }
+          colors.append((name, original, color))
+        }
+        guard let blurString = values[MPVOption.Subtitles.subBlur] as? String,
+              let baseline = Double(blurString), baseline.isFinite,
+              let visibility = values[MPVOption.Subtitles.subVisibility] as? String,
+              visibility == "yes" || visibility == "no" else {
+          self.finish()
+          return
+        }
+        self.style = Style(blur: baseline, colors: colors)
+        self.resolvedSRGBComponents = []
+        self.start(to: visible, from: visibility == "yes" ? 1 : 0, interruptedBlur: nil)
       }
-      style = Style(blur: mpv.getDouble(MPVOption.Subtitles.subBlur), colors: colors)
-      // Force the cached sRGB components to be rebuilt for the newly captured style.
-      resolvedSRGBComponents = []
+      return true
     }
+    let now = CACurrentMediaTime()
+    start(to: visible, from: opacity(at: now), interruptedBlur: blur(at: now))
+    return true
+  }
+
+  private func start(to visible: Bool, from: Double, interruptedBlur: Double?) {
+    let now = CACurrentMediaTime()
     timer?.invalidate()
     startTime = now
     startOpacity = from
@@ -111,17 +140,16 @@ final class SubtitleDissolve: NSObject {
     targetVisibility = visible
     if duration == 0 {
       finish()
-      return true
+      return
     }
 
     // Prepare the invisible style before revealing; keep mpv visible until fade-out completes.
     apply(opacity: from, blur: startBlur)
-    mpv.setFlag(MPVOption.Subtitles.subVisibility, true, level: .verbose)
+    mpv.setAsync(MPVOption.Subtitles.subVisibility, .flag(true))
     let timer = Timer(timeInterval: 1.0 / 60, target: self, selector: #selector(tick),
                       userInfo: nil, repeats: true)
     self.timer = timer
     RunLoop.main.add(timer, forMode: .common)
-    return true
   }
 
   @objc private func tick() {
@@ -163,15 +191,19 @@ final class SubtitleDissolve: NSObject {
   /// Complete before saving state, changing tracks/styles, seeking, or shutting down mpv.
   func finish() {
     assert(Thread.isMainThread)
+    setupGeneration &+= 1
     timer?.invalidate()
     timer = nil
-    guard let style, let visible = targetVisibility else { return }
+    guard let visible = targetVisibility else { return }
     mpv.asyncClient.discardLatest(Self.styleOptions)
+    // Finish pending setup too: later replies must never restart the animation.
     // Final writes follow every submitted frame, before later save/stop commands.
     mpv.setAsync(MPVOption.Subtitles.subVisibility, .flag(visible))
-    mpv.setAsync(MPVOption.Subtitles.subBlur, .double(style.blur))
-    for (name, original, _) in style.colors {
-      mpv.setAsync(name, .string(original))
+    if let style {
+      mpv.setAsync(MPVOption.Subtitles.subBlur, .double(style.blur))
+      for (name, original, _) in style.colors {
+        mpv.setAsync(name, .string(original))
+      }
     }
     self.style = nil
     targetVisibility = nil
@@ -179,6 +211,7 @@ final class SubtitleDissolve: NSObject {
 
   /// mpv-initiated shutdown: cancel without touching an already terminated core.
   func abandon() {
+    setupGeneration &+= 1
     mpv.asyncClient.discardLatest(Self.styleOptions)
     timer?.invalidate()
     timer = nil
