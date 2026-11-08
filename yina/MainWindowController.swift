@@ -586,6 +586,13 @@ class MainWindowController: PlayerWindowController {
     cv.addSubview(bufferIndicatorView)
     titleBarView = Titlebar(mainWindow: self)
     cv.addSubview(titleBarView)
+    // Video does not change with the system theme. Keep semantic OSC colors
+    // light, including native glass controls and HDR-promoted labels/icons.
+    // Scope the override to the OSC; native titlebar chrome follows the theme.
+    let oscHosts: [NSView?] = [oscFloatingView, oscBottomView, titleBarView.oscView]
+    oscHosts.forEach {
+      $0?.appearance = NSAppearance(named: .darkAqua)
+    }
     sidebars.installSubviews(in: cv)
 
     // thumbnail peek view

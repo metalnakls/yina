@@ -71,8 +71,10 @@ Use these steps for AppKit and SwiftUI interface changes.
   Verify native blur and actual portrait playback together.
 
 - Playback controls, pause/seek OSD, time preview, buffering and information
-  overlays share the playback display's HDR headroom. Semantic colors keep
-  their light/dark appearance, hue and alpha when given HDR exposure; the
+  overlays share the playback display's HDR headroom. The floating and docked
+  OSC hosts explicitly use dark Aqua so their foreground stays white over video
+  in both system themes. Other semantic colors keep their light/dark appearance,
+  hue and alpha when given HDR exposure; the
   floating controls no longer opt out of that exposure. Native slider-thumb
   geometry stays intact. Watched progress remains white by user preference.
   Material rebuilds retain the current content dynamic range. System menus
