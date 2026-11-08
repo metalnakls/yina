@@ -132,8 +132,18 @@ class OSCButton: NSButton {
   }
 
   override func draw(_ dirtyRect: NSRect) {
-    guard usesQuickTimeStyle && !usesNativeBezel else {
+    guard usesQuickTimeStyle else {
       super.draw(dirtyRect)
+      return
+    }
+    if usesNativeBezel {
+      super.draw(dirtyRect)
+      // Give the glass button glyph the same explicit white foreground pass
+      // as transport icons, using AppKit's image rect and retaining the native
+      // bezel, tracking, hover and focus handling.
+      if isEnabled, let image, let cell = cell as? NSButtonCell {
+        drawExtendedDynamicRangeImage(image, in: cell.imageRect(forBounds: bounds))
+      }
       return
     }
     NSGraphicsContext.saveGraphicsState()
@@ -152,18 +162,24 @@ class OSCButton: NSButton {
     NSGraphicsContext.restoreGraphicsState()
   }
 
-  private func drawExtendedDynamicRangeImage(_ image: NSImage) {
+  private func drawExtendedDynamicRangeImage(_ image: NSImage, in nativeRect: NSRect? = nil) {
     let imageSize = image.size
     guard imageSize.width > 0, imageSize.height > 0 else { return }
     let scale = min(1, bounds.width / imageSize.width, bounds.height / imageSize.height)
     let drawSize = NSSize(width: imageSize.width * scale, height: imageSize.height * scale)
-    let imageRect = NSRect(x: bounds.midX - drawSize.width / 2,
+    let imageRect = nativeRect ?? NSRect(x: bounds.midX - drawSize.width / 2,
                            y: bounds.midY - drawSize.height / 2,
                            width: drawSize.width, height: drawSize.height)
+    guard !imageRect.isEmpty, let context = NSGraphicsContext.current?.cgContext else { return }
+    NSGraphicsContext.saveGraphicsState()
+    // Isolate the symbol alpha so sourceAtop never paints the glass background.
+    context.beginTransparencyLayer(auxiliaryInfo: nil)
     image.draw(in: imageRect, from: .zero, operation: .sourceOver, fraction: 1,
                respectFlipped: true, hints: [.interpolation: NSImageInterpolation.high])
     OSCExtendedDynamicRange.color(.white, headroom: extendedDynamicRangeHeadroom).setFill()
     imageRect.fill(using: .sourceAtop)
+    context.endTransparencyLayer()
+    NSGraphicsContext.restoreGraphicsState()
   }
 
   private func setPressed(_ pressed: Bool) {
