@@ -9,6 +9,7 @@ struct PiPTransitionState {
   private(set) var generation: UInt64 = 0
   private(set) var restoresWindow = true
   private var pendingEntry = false
+  private(set) var pendingExit: Bool?
 
   var hasPendingEntry: Bool { pendingEntry }
   var hasSession: Bool { phase == .entering || phase == .active || phase == .exiting }
@@ -38,6 +39,7 @@ struct PiPTransitionState {
     generation &+= 1
     pendingEntry = false
     phase = .entering
+    pendingExit = nil
     restoresWindow = true
     return generation
   }
@@ -51,9 +53,24 @@ struct PiPTransitionState {
     return true
   }
 
+  /// AppKit may still be moving the view when the user asks to return.
+  /// Dismissing before attachment can be ignored by the native controller.
+  mutating func deferExitUntilAttached(restoringWindow: Bool) -> Bool {
+    guard phase == .entering else { return false }
+    pendingExit = restoringWindow
+    return true
+  }
+
+  mutating func takePendingExit(_ session: UInt64) -> Bool? {
+    guard accepts(session), phase == .active else { return nil }
+    defer { pendingExit = nil }
+    return pendingExit
+  }
+
   @discardableResult
   mutating func beginExit(_ session: UInt64, restoringWindow: Bool) -> Bool {
     guard accepts(session), phase == .entering || phase == .active else { return false }
+    pendingExit = nil
     restoresWindow = restoringWindow
     phase = .exiting
     return true
@@ -68,7 +85,8 @@ struct PiPTransitionState {
   /// once, and reject duplicate or previous-session callbacks before UI work.
   mutating func completeExit(_ session: UInt64) -> Bool? {
     guard accepts(session) else { return nil }
-    let restore = restoresWindow && !pendingEntry
+    let restore = (pendingExit ?? restoresWindow) && !pendingEntry
+    pendingExit = nil
     phase = pendingEntry ? .waitingForVideo : .windowed
     restoresWindow = true
     return restore

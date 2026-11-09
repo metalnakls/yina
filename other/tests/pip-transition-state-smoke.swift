@@ -46,6 +46,20 @@ import Foundation
     precondition(state.completeExit(sixth) == false && state.hasPendingEntry)
     state.cancelPendingEntry() // Replacement is canceled or fails.
     precondition(state.phase == .windowed)
+    let earlyClose = state.beginEntry()!
+    precondition(state.deferExitUntilAttached(restoringWindow: true))
+    precondition(state.phase == .entering && state.pendingExit == true)
+    precondition(state.takePendingExit(earlyClose) == nil)
+    precondition(state.attached(earlyClose))
+    precondition(state.takePendingExit(earlyClose + 1) == nil)
+    precondition(state.takePendingExit(earlyClose) == true)
+    precondition(state.takePendingExit(earlyClose) == nil)
+    precondition(state.beginExit(earlyClose, restoringWindow: true))
+    precondition(state.completeExit(earlyClose) == true)
+    let nonRestoring = state.beginEntry()!
+    precondition(state.deferExitUntilAttached(restoringWindow: false))
+    precondition(state.completeExit(nonRestoring) == false)
+    precondition(state.pendingExit == nil)
     print("PASS: deferred entry, cancellation, session identity, attachment, close during entry, duplicate callbacks, reentry and restoration policy")
   }
 }

@@ -24,7 +24,7 @@ class Controller {
  var hasPendingPiPEntry: Bool { pipTransition.hasPendingEntry }
  func cancelPendingPiPEntry() { pipTransition.cancelPendingEntry() }
  func enterPIP() { entries += 1 }
- func exitPIP() { exits += 1 }
+ func exitPIP(restoringWindow: Bool = true) { exits += 1 }
  func finish(restoring: Bool) { restoreSourceWindowAfterPiP(restoringWindow: restoring) }
 '''+s[a:b]+s[restore_start:restore_end]+s[toggle_start:toggle_end]+'''
 }
@@ -40,7 +40,17 @@ class Controller {
   precondition(c.pipOverlayView.isHidden, "Must not reveal over source video")
   c.videoView.removeFromSuperview(); c.revealPiPBackdropIfDetached()
   precondition(c.pipOverlayView.isHidden, "Intermediate nil host is not a completed handoff")
+  let session = c.pipTransition.beginEntry()!
+  precondition(c.pipTransition.deferExitUntilAttached(restoringWindow: true))
   pip.contentView!.addSubview(c.videoView); c.revealPiPBackdropIfDetached()
+  precondition(c.exits == 0, "Do not dismiss inside AppKit attachment callback")
+  RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+  precondition(c.exits == 1, "Deferred return must be delivered after attachment")
+  c.revealPiPBackdropIfDetached()
+  RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+  precondition(c.exits == 1, "Repeated layouts must not repeat dismissal")
+  _ = c.pipTransition.completeExit(session)
+  c.exits = 0
   precondition(!c.pipOverlayView.isHidden, "Reveal after video attaches to PiP")
   c.pipStatus = .intermediate; c.pipOverlayView.isHidden = true
   c.revealPiPBackdropIfDetached()

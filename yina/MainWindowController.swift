@@ -3267,17 +3267,26 @@ extension MainWindowController: PIPViewControllerDelegate {
   func revealPiPBackdropIfDetached() {
     guard pipStatus == .inPIP, let source = window, let host = videoView.window,
           host !== source, pipOverlayView.isHidden else { return }
-    if let session = pipTransition.sessionID { pipTransition.attached(session) }
+    if let session = pipTransition.sessionID { didAttachPiP(session) }
     pipTransitionTrace?.sample("before-backdrop-reveal")
     pipOverlayView.isHidden = false
     pipTransitionTrace?.sample("after-backdrop-reveal")
+  }
+
+  private func didAttachPiP(_ session: UInt64) {
+    guard pipTransition.attached(session) else { return }
+    // Let AppKit finish its attachment callback before asking it to dismiss.
+    DispatchQueue.main.async { [weak self] in
+      guard let self, let restore = self.pipTransition.takePendingExit(session) else { return }
+      self.exitPIP(restoringWindow: restore)
+    }
   }
 
   func pipHostWindowDidChange(_ window: NSWindow?, from controller: VideoPIPViewController) {
     guard isCurrentPiPController(controller), pipStatus == .inPIP else { return }
     pipTransitionTrace?.sample("pip-host-change")
     if let window, window !== self.window {
-      pipTransition.attached(controller.sessionID)
+      didAttachPiP(controller.sessionID)
       revealPiPBackdropIfDetached()
     }
     pipSubtitleHostWindow = window
@@ -3508,6 +3517,10 @@ extension MainWindowController: PIPViewControllerDelegate {
 
   func exitPIP(restoringWindow: Bool = true) {
     guard pipStatus == .inPIP else { return }
+    if pipTransition.deferExitUntilAttached(restoringWindow: restoringWindow) {
+      pipTransitionTrace?.record("exit-deferred-until-attachment")
+      return
+    }
     prepareForPIPClosure(pip, restoringWindow: restoringWindow)
     // Prod Swift to pick the dismiss(_ viewController: NSViewController)
     // overload over dismiss(_ sender: Any?). A change in the way implicitly
