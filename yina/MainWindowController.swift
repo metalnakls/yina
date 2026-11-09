@@ -3274,7 +3274,9 @@ extension MainWindowController: PIPViewControllerDelegate {
   }
 
   private func didAttachPiP(_ session: UInt64) {
-    guard pipTransition.attached(session) else { return }
+    // The controller can obtain its host before AppKit moves the video view.
+    guard let source = window, let host = videoView.window, host !== source,
+          pipTransition.attached(session) else { return }
     // Let AppKit finish its attachment callback before asking it to dismiss.
     DispatchQueue.main.async { [weak self] in
       guard let self, let restore = self.pipTransition.takePendingExit(session) else { return }

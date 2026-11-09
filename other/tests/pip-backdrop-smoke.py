@@ -25,6 +25,7 @@ class Controller {
  func cancelPendingPiPEntry() { pipTransition.cancelPendingEntry() }
  func enterPIP() { entries += 1 }
  func exitPIP(restoringWindow: Bool = true) { exits += 1 }
+ func notifyAttachment(_ session: UInt64) { didAttachPiP(session) }
  func finish(restoring: Bool) { restoreSourceWindowAfterPiP(restoringWindow: restoring) }
 '''+s[a:b]+s[restore_start:restore_end]+s[toggle_start:toggle_end]+'''
 }
@@ -36,11 +37,13 @@ class Controller {
   source.isReleasedWhenClosed = false; pip.isReleasedWhenClosed = false
   let c = Controller(); c.window = source; c.pipOverlayView.isHidden = true
   source.contentView!.addSubview(c.videoView)
+  let session = c.pipTransition.beginEntry()!
+  c.notifyAttachment(session)
+  precondition(c.pipTransition.phase == .entering, "Controller host alone is not video attachment")
   c.revealPiPBackdropIfDetached()
   precondition(c.pipOverlayView.isHidden, "Must not reveal over source video")
   c.videoView.removeFromSuperview(); c.revealPiPBackdropIfDetached()
   precondition(c.pipOverlayView.isHidden, "Intermediate nil host is not a completed handoff")
-  let session = c.pipTransition.beginEntry()!
   precondition(c.pipTransition.deferExitUntilAttached(restoringWindow: true))
   pip.contentView!.addSubview(c.videoView); c.revealPiPBackdropIfDetached()
   precondition(c.exits == 0, "Do not dismiss inside AppKit attachment callback")
