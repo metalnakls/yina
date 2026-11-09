@@ -35,7 +35,6 @@ private enum AboutLocalizedString {
 
 private struct AboutBuildInfo {
   let version: String
-  let mpvVersion: String
   let ffmpegVersion: String
   let branch: String?
   let date: String?
@@ -44,7 +43,6 @@ private struct AboutBuildInfo {
   init() {
     let (version, build) = InfoDictionary.shared.version
     self.version = "\(version) Build \(build)"
-    mpvVersion = MPVOptionDefaults.shared.mpvVersion
     ffmpegVersion = "FFmpeg \(String(cString: av_version_info()))"
 
     let formatter = DateFormatter()
@@ -153,6 +151,7 @@ private struct AboutWindowView: View {
 
   @StateObject private var contributors = ContributorsModel()
   @State private var section: Section = .license
+  @State private var mpvVersion = MPVOptionDefaults.shared.mpvVersion
 
   var body: some View {
     HStack(spacing: 0) {
@@ -166,6 +165,11 @@ private struct AboutWindowView: View {
     }
     .frame(minWidth: 640, minHeight: 400)
     .background(Color(nsColor: .windowBackgroundColor))
+    .onAppear {
+      MPVOptionDefaults.shared.getVersions { mpvVersion, _ in
+        self.mpvVersion = mpvVersion ?? "Unable to obtain mpv version number"
+      }
+    }
   }
 
   private var sidebar: some View {
@@ -186,7 +190,7 @@ private struct AboutWindowView: View {
         .padding(.top, 8)
 
       HStack(spacing: 6) {
-        Text(buildInfo.mpvVersion)
+        Text(mpvVersion)
           .multilineTextAlignment(.trailing)
         Text(buildInfo.ffmpegVersion)
           .multilineTextAlignment(.leading)

@@ -8,132 +8,161 @@
 
 import Foundation
 
-/// Default values for mpv options.
-///
-/// The default value for a mpv option can be obtained using the mpv property 
-/// [option-info/\<name>/default-value](https://mpv.io/manual/stable/#command-interface-option-info/%3Cname%3E/default-value).
-/// _Unfortunately_, this property is not available until a mpv instance has been initialized. YINA uses the default values when setting
-/// options in order to reduce the number of log messages emitted by only logging options that are not being set to the default value.
-/// The options are set in `MVPController.mpvInit`  before the mpv instance is initialized and the property containing the option
-/// defaults is available. To work around this mpv restriction this class uses its own mpv instance dedicated to providing the defaults.
-///
-/// A similar issue exists for the mpv properties that provide the mpv and libass version numbers, which YINA would like log near the
-/// start of the log file. So this class also provides the version numbers.
-class MPVOptionDefaults {
-  /// The `MPVDefaults` singleton object.
+/// A separate mpv core supplies option defaults and library versions. Its
+/// entire lifetime and all libmpv calls belong to the private utility queue.
+/// Synchronous getters only consult the cache; a miss schedules a query and
+/// returns nil, which affects optional startup logging but not option values.
+final class MPVOptionDefaults {
   static let shared = MPVOptionDefaults()
 
-  /// Version number of the libass library.
-  ///
-  /// The mpv libass version property returns an integer encoded as a hex binary-coded decimal.
-  var libassVersion: String {
-    guard mpv != nil, let version = getPropertyAsInt(MPVProperty.libassVersion) else {
-      return "Unable to obtain libass version number"
-    }
-    let major = String(version >> 28 & 0xF, radix: 16)
-    let minor = String(version >> 20 & 0xFF, radix: 16)
-    let patch = String(version >> 12 & 0xFF, radix: 16)
-    return "\(major).\(minor).\(patch)"
+  private enum Kind: Hashable { case double, flag, integer, string, mpvVersion, libassVersion }
+  private struct Key: Hashable { let name: String; let kind: Kind }
+  private enum Value {
+    case double(Double), flag(Bool), integer(Int), string(String)
   }
 
-  /// Version number of the mpv library.
+  private let queue = DispatchQueue(label: "tsmc.yina.mpv-defaults", qos: .utility)
+  private let lock = NSLock()
+  private var cache: [Key: Value] = [:]
+  private var resolved = Set<Key>()
+  private var scheduled = Set<Key>()
+  // Queue-confined. The singleton retains this core for process lifetime.
+  private var core: OpaquePointer?
+  private var initializationAttempted = false
+
+  private init() {}
+
   var mpvVersion: String {
-    guard mpv != nil, let version = getPropertyAsString(MPVProperty.mpvVersion) else {
-      return "Unable to obtain mpv version number"
-    }
-    return version
+    stringValue(cached(Key(name: MPVProperty.mpvVersion, kind: .mpvVersion))) ?? "Loading mpv version…"
   }
 
-  private let mpv: OpaquePointer?
-
-  private init() {
-    mpv = mpv_create()
-    guard mpv != nil else {
-      MPVOptionDefaults.log("Failed to create a mpv instance", level: .error)
-      return
-    }
-    logError(mpv_set_option_string(mpv, MPVOption.ProgramBehavior.loadAutoProfiles, "no"))
-    logError(mpv_set_option_string(mpv, MPVOption.ProgramBehavior.loadCommands, "no"))
-    logError(mpv_set_option_string(mpv, MPVOption.ProgramBehavior.loadConsole, "no"))
-    logError(mpv_set_option_string(mpv, MPVOption.ProgramBehavior.loadContextMenu, "no"))
-    logError(mpv_set_option_string(mpv, MPVOption.ProgramBehavior.loadPositioning, "no"))
-    logError(mpv_set_option_string(mpv, MPVOption.ProgramBehavior.loadScripts, "no"))
-    logError(mpv_set_option_string(mpv, MPVOption.ProgramBehavior.loadSelect, "no"))
-    logError(mpv_set_option_string(mpv, MPVOption.ProgramBehavior.loadStatsOverlay, "no"))
-    logError(mpv_initialize(mpv))
+  var libassVersion: String {
+    stringValue(cached(Key(name: MPVProperty.libassVersion, kind: .libassVersion))) ?? "Loading libass version…"
   }
-
-  // MARK: - Default Value Getters
 
   func getDouble(_ name: String) -> Double? {
-    var data = Double()
-    let errorCode = getDefaultValue(name, MPV_FORMAT_DOUBLE, &data)
-    guard errorCode >= 0 else { return nil }
-    return data
+    guard case .double(let value) = cached(Key(name: name, kind: .double)) else { return nil }
+    return value
   }
 
   func getFlag(_ name: String) -> Bool? {
-    var data = Int64()
-    let errorCode = getDefaultValue(name, MPV_FORMAT_FLAG, &data)
-    guard errorCode >= 0 else { return nil }
-    return data > 0
+    guard case .flag(let value) = cached(Key(name: name, kind: .flag)) else { return nil }
+    return value
   }
 
   func getInt(_ name: String) -> Int? {
-    var data = Int64()
-    let errorCode = getDefaultValue(name, MPV_FORMAT_INT64, &data)
-    guard errorCode >= 0 else { return nil }
-    return Int(data)
+    guard case .integer(let value) = cached(Key(name: name, kind: .integer)) else { return nil }
+    return value
   }
 
   func getString(_ name: String) -> String? {
-    guard mpv != nil else { return nil }
-    let cstr = mpv_get_property_string(mpv, formPropertyName(name))
-    let str: String? = cstr == nil ? nil : String(cString: cstr!)
-    mpv_free(cstr)
-    return str
+    stringValue(cached(Key(name: name, kind: .string)))
   }
 
-  // MARK: - Supporting Methods
-  
-  /// Forms the name of the mpv property containing the default value for the given mpv option.
-  /// - Parameter name: Name of the mpv option.
-  /// - Returns: Name of property to get the value of.
-  private func formPropertyName(_ name: String) -> String { "option-info/\(name)/default-value" }
-  
-  /// Get the default value for the given option.
-  /// - Note: If a mpv instance could not be created when this class was initialized then this method will return `Int32.min` as an
-  ///         error code. That number was chosen to make it clear this it is not a mpv error code.
-  /// - Parameters:
-  ///   - name: Name of the mpv option.
-  ///   - format: Format of the given option.
-  ///   - data: Pointer to the variable that will holdErr the option value.
-  /// - Returns: Error code, 0 and positive values mean success, negative values are always errors.
-  private func getDefaultValue(_ name: String, _ format: mpv_format, _ data: UnsafeMutableRawPointer) -> Int32 {
-    guard mpv != nil else { return Int32.min }
-    return logError(mpv_get_property(mpv, formPropertyName(name), format, data))
+  /// Completes on the main queue with the actual default, or nil on failure.
+  func getDefaultString(_ name: String, completion: @escaping (String?) -> Void) {
+    request(Key(name: name, kind: .string)) { completion(self.stringValue($0)) }
   }
 
-  private func getPropertyAsInt(_ name: String) -> Int? {
-    guard mpv != nil else { return nil }
-    var data = Int64()
-    let errorCode = logError(mpv_get_property(mpv, name, MPV_FORMAT_INT64, &data))
-    guard errorCode >= 0 else { return nil }
-    return Int(data)
+  /// Completes on the main queue after both library versions have been read.
+  func getVersions(completion: @escaping (String?, String?) -> Void) {
+    request(Key(name: MPVProperty.mpvVersion, kind: .mpvVersion)) { [self] mpvValue in
+      request(Key(name: MPVProperty.libassVersion, kind: .libassVersion)) { libassValue in
+        completion(self.stringValue(mpvValue), self.stringValue(libassValue))
+      }
+    }
   }
 
-  private func getPropertyAsString(_ name: String) -> String? {
-    guard mpv != nil else { return nil }
-    let cstr = mpv_get_property_string(mpv, name)
-    let str: String? = cstr == nil ? nil : String(cString: cstr!)
-    mpv_free(cstr)
-    return str
+  private func stringValue(_ value: Value?) -> String? {
+    guard case .string(let result) = value else { return nil }
+    return result
+  }
+
+  private func cached(_ key: Key) -> Value? {
+    lock.lock()
+    let value = cache[key]
+    let shouldSchedule = !resolved.contains(key) && scheduled.insert(key).inserted
+    lock.unlock()
+    if shouldSchedule { request(key) { _ in } }
+    return value
+  }
+
+  private func request(_ key: Key, completion: @escaping (Value?) -> Void) {
+    queue.async { [self] in
+      lock.lock()
+      let wasResolved = resolved.contains(key)
+      var value = cache[key]
+      lock.unlock()
+      if !wasResolved {
+        value = read(key)
+        lock.lock()
+        cache[key] = value
+        resolved.insert(key)
+        scheduled.remove(key)
+        lock.unlock()
+      }
+      let result = value
+      DispatchQueue.main.async { completion(result) }
+    }
+  }
+
+  /// Only called on `queue`.
+  private func ensureCore() -> OpaquePointer? {
+    if initializationAttempted { return core }
+    initializationAttempted = true
+    guard let handle = mpv_create() else {
+      Self.log("Failed to create a mpv instance", level: .error)
+      return nil
+    }
+    for name in [MPVOption.ProgramBehavior.loadAutoProfiles, MPVOption.ProgramBehavior.loadCommands,
+                 MPVOption.ProgramBehavior.loadConsole, MPVOption.ProgramBehavior.loadContextMenu,
+                 MPVOption.ProgramBehavior.loadPositioning, MPVOption.ProgramBehavior.loadScripts,
+                 MPVOption.ProgramBehavior.loadSelect, MPVOption.ProgramBehavior.loadStatsOverlay] {
+      logError(mpv_set_option_string(handle, name, "no"))
+    }
+    guard logError(mpv_initialize(handle)) >= 0 else {
+      mpv_terminate_destroy(handle)
+      return nil
+    }
+    core = handle
+    return handle
+  }
+
+  /// Only called on `queue`; values are copied before leaving libmpv.
+  private func read(_ key: Key) -> Value? {
+    guard let handle = ensureCore() else { return nil }
+    let name: String
+    switch key.kind {
+    case .mpvVersion, .libassVersion: name = key.name
+    default: name = "option-info/\(key.name)/default-value"
+    }
+    switch key.kind {
+    case .double:
+      var value = Double()
+      guard logError(mpv_get_property(handle, name, MPV_FORMAT_DOUBLE, &value)) >= 0 else { return nil }
+      return .double(value)
+    case .flag:
+      var value: Int32 = 0 // MPV_FORMAT_FLAG writes an int, not int64_t.
+      guard logError(mpv_get_property(handle, name, MPV_FORMAT_FLAG, &value)) >= 0 else { return nil }
+      return .flag(value != 0)
+    case .integer, .libassVersion:
+      var value: Int64 = 0
+      guard logError(mpv_get_property(handle, name, MPV_FORMAT_INT64, &value)) >= 0 else { return nil }
+      if key.kind == .libassVersion {
+        return .string("\(String(value >> 28 & 0xF, radix: 16)).\(String(value >> 20 & 0xFF, radix: 16)).\(String(value >> 12 & 0xFF, radix: 16))")
+      }
+      return .integer(Int(value))
+    case .string, .mpvVersion:
+      guard let value = mpv_get_property_string(handle, name) else { return nil }
+      defer { mpv_free(value) }
+      return .string(String(cString: value))
+    }
   }
 
   @discardableResult
   private func logError(_ errorCode: Int32) -> Int32 {
     guard errorCode < 0 else { return errorCode }
-    MPVOptionDefaults.log("mpv API error: \"\(String(cString: mpv_error_string(errorCode)))\", Return value: \(errorCode)", level: .error)
+    Self.log("mpv API error: \"\(String(cString: mpv_error_string(errorCode)))\", Return value: \(errorCode)", level: .error)
     return errorCode
   }
 

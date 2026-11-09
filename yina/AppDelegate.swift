@@ -238,7 +238,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
 
     // Useful to know the versions of significant dependencies that are being used so log that
     // information as well when it can be obtained.
-    Logger.log(MPVOptionDefaults.shared.mpvVersion)
+    MPVOptionDefaults.shared.getVersions { mpvVersion, libassVersion in
+      Logger.log(mpvVersion ?? "Unable to obtain mpv version number")
+      Logger.log("libass \(libassVersion ?? "Unable to obtain libass version number")")
+    }
     Logger.log("FFmpeg \(String(cString: av_version_info()))")
     // FFmpeg libraries and their versions in alphabetical order.
     let libraries: [(name: String, version: UInt32)] = [("libavcodec", avcodec_version()), ("libavformat", avformat_version()), ("libavutil", avutil_version()), ("libswscale", swscale_version())]
@@ -247,7 +250,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
       // format which needs to be decoded into a string for display.
       Logger.log("  \(library.name) \(AppDelegate.versionAsString(library.version))")
     }
-    Logger.log("libass \(MPVOptionDefaults.shared.libassVersion)")
 
     logBuildDetails()
     logPlatformDetails()
