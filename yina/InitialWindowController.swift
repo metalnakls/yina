@@ -105,6 +105,11 @@ class InitialWindowController: NSWindowController {
   }
 
   private var recentDocuments: [RecentDocument] = []
+  private var watchingRooms: [SharedShowLAN.Room] = []
+
+  private static func watchingIdentity(_ room: SharedShowLAN.Room) -> String {
+    "shared-room:\(room.id.uuidString)"
+  }
 
   init(playerCore: PlayerCore) {
     self.player = playerCore
@@ -231,6 +236,8 @@ class InitialWindowController: NSWindowController {
                                                       name: NSWorkspace.didMountNotification, object: nil)
     NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(availabilityDidChange),
                                                       name: NSWorkspace.didUnmountNotification, object: nil)
+    NotificationCenter.default.addObserver(self, selector: #selector(sharedRoomsDidChange),
+                                           name: .yinaSharedRoomsChanged, object: nil)
     reloadData()
   }
 
@@ -271,7 +278,13 @@ class InitialWindowController: NSWindowController {
     mainView.addSubview(visualEffectView)
 
     recentListModel.open = { [weak self] identity in
-      guard let self, let row = self.recentDocuments.firstIndex(where: { self.documentIdentity($0.url) == identity }) else { return }
+      guard let self else { return }
+      if let room = self.watchingRooms.first(where: { Self.watchingIdentity($0) == identity }),
+         let player = self.player {
+        SharedShowLAN.shared.join(room, player: player)
+        return
+      }
+      guard let row = self.recentDocuments.firstIndex(where: { self.documentIdentity($0.url) == identity }) else { return }
       self.openRecentItemFromTable(row)
     }
     recentListModel.selectionChanged = { [weak self] selection in
@@ -358,15 +371,17 @@ class InitialWindowController: NSWindowController {
   }
 
   private func updateEmptyState() {
-    let isEmpty = showFolders.isEmpty && recentDocuments.isEmpty
+    let isEmpty = showFolders.isEmpty && recentDocuments.isEmpty && watchingRooms.isEmpty
     emptyStateView.isHidden = !isEmpty
-    recentListHost?.isHidden = recentDocuments.isEmpty
+    recentListHost?.isHidden = recentDocuments.isEmpty && watchingRooms.isEmpty
     showFolderShelf.isHidden = showFolders.isEmpty
     updateShelfWindowVisibility()
   }
 
   override func showWindow(_ sender: Any?) {
     isShowingWelcome = true
+    SharedShowLAN.shared.startDiscovery()
+    publishWatchingRooms()
     updateRecentLayout(resetScrollPosition: true, preserveTop: false)
     centerWelcomeComposition()
     super.showWindow(sender)
@@ -379,6 +394,11 @@ class InitialWindowController: NSWindowController {
   @objc private func historyDidUpdate() {
     guard window?.isVisible == true else { return }
     reloadData()
+  }
+
+  @objc private func sharedRoomsDidChange() {
+    guard isShowingWelcome, window?.isVisible == true else { return }
+    publishWatchingRooms()
   }
 
   @objc private func showExtensionsDidChange() {
@@ -918,7 +938,8 @@ class InitialWindowController: NSWindowController {
 
   private var recentStartingHeight: CGFloat {
     min(Self.maximumRecentWindowHeight,
-        max(recentMinimumHeight, recentTopInset + CGFloat((32 + 2) * recentDocuments.count) + Self.recentListBottomInset))
+        max(recentMinimumHeight, recentTopInset + CGFloat((32 + 2) * recentDocuments.count) +
+            CGFloat(56 * watchingRooms.count + (watchingRooms.isEmpty ? 0 : 28)) + Self.recentListBottomInset))
   }
 
   private func updateRecentLayout(resetScrollPosition: Bool = false, preserveTop: Bool = true) {
@@ -999,9 +1020,22 @@ extension InitialWindowController {
                         icon: documentIcon(for: document), available: document.isAvailable)
     }
     if let id = recentListModel.selection,
+       !watchingRooms.contains(where: { Self.watchingIdentity($0) == id }),
        !recentListModel.items.contains(where: { $0.id == id && $0.available }) {
       recentListModel.selection = nil
     }
+  }
+
+  private func publishWatchingRooms() {
+    // The LAN browser expires rooms; the welcome surface never persists presence.
+    watchingRooms = SharedShowLAN.shared.rooms
+    recentListModel.watchingRooms = watchingRooms
+    if let selection = recentListModel.selection, selection.hasPrefix("shared-room:"),
+       !watchingRooms.contains(where: { Self.watchingIdentity($0) == selection }) {
+      recentListModel.selection = nil
+    }
+    updateRecentLayout()
+    updateEmptyState()
   }
 
   private func documentIcon(for document: RecentDocument) -> NSImage {
@@ -1034,22 +1068,39 @@ extension InitialWindowController {
     switch keyChar {
       case "ENTER", "KP_ENTER":  // RETURN or (keypad ENTER)
         if isRecentListKeyboardActive {
-          if recentDocuments.indices.contains(selectedRecentRow) {
+          if let selection = recentListModel.selection, selection.hasPrefix("shared-room:") {
+            recentListModel.open?(selection)
+          } else if recentDocuments.indices.contains(selectedRecentRow) {
             openRecentItemFromTable(selectedRecentRow)
           }
         } else if let show = showFolders.first {
           openMedia(show.resumeURL)
+        } else if let room = watchingRooms.first {
+          recentListModel.open?(Self.watchingIdentity(room))
         } else if let firstAvailable = recentDocuments.firstIndex(where: \.isAvailable) {
           openMedia(recentDocuments[firstAvailable].url)
         }
       case "DOWN":  // DOWN arrow
         if !isRecentListKeyboardActive {
+          if let room = watchingRooms.first {
+            recentListModel.selection = Self.watchingIdentity(room)
+            return
+          }
           guard let firstAvailable = recentDocuments.firstIndex(where: \.isAvailable) else {
             super.keyDown(with: event)
             return
           }
           selectRecentDocument(at: firstAvailable)
         } else {
+          if let selection = recentListModel.selection, selection.hasPrefix("shared-room:") {
+            if let index = watchingRooms.firstIndex(where: { Self.watchingIdentity($0) == selection }),
+               watchingRooms.indices.contains(index + 1) {
+              recentListModel.selection = Self.watchingIdentity(watchingRooms[index + 1])
+            } else if let firstAvailable = recentDocuments.firstIndex(where: \.isAvailable) {
+              selectRecentDocument(at: firstAvailable)
+            }
+            return
+          }
           let selectedRow = selectedRecentRow
           let nextAvailable = recentDocuments.indices.first { index in
             index > selectedRow && recentDocuments[index].isAvailable
@@ -1060,12 +1111,22 @@ extension InitialWindowController {
         }
       case "UP":  // UP arrow
         if isRecentListKeyboardActive {
+          if let selection = recentListModel.selection, selection.hasPrefix("shared-room:") {
+            if let index = watchingRooms.firstIndex(where: { Self.watchingIdentity($0) == selection }), index > 0 {
+              recentListModel.selection = Self.watchingIdentity(watchingRooms[index - 1])
+            } else {
+              recentListModel.selection = nil
+            }
+            return
+          }
           let selectedRow = selectedRecentRow
           let previousAvailable = recentDocuments.indices.reversed().first { index in
             index < selectedRow && recentDocuments[index].isAvailable
           }
           if let previousAvailable {
             selectRecentDocument(at: previousAvailable)
+          } else if let room = watchingRooms.last {
+            recentListModel.selection = Self.watchingIdentity(room)
           } else {
             recentListModel.selection = nil
             isRecentListKeyboardActive = false
@@ -1143,6 +1204,7 @@ private struct WelcomeRecentItem: Identifiable {
 @MainActor
 private final class WelcomeRecentsModel: ObservableObject {
   @Published var items: [WelcomeRecentItem] = []
+  @Published var watchingRooms: [SharedShowLAN.Room] = []
   @Published var selection: String? { didSet { selectionChanged?(selection) } }
   @Published var revealID: String?
   @Published var topInset: CGFloat = 32
@@ -1159,6 +1221,46 @@ private struct WelcomeRecentsView: View {
   var body: some View {
     ScrollViewReader { scroll in
       List(selection: $model.selection) {
+        if !model.watchingRooms.isEmpty {
+          Section {
+            ForEach(model.watchingRooms, id: \.id) { room in
+              Button {
+                let id = "shared-room:\(room.id.uuidString)"
+                model.selection = id
+                model.open?(id)
+              } label: {
+                HStack(spacing: 10) {
+                  Image(systemName: "play.rectangle.on.rectangle")
+                    .font(.system(size: 19))
+                    .frame(width: 24)
+                    .accessibilityHidden(true)
+                  VStack(alignment: .leading, spacing: 2) {
+                    Text(room.title).font(.system(size: NSFont.systemFontSize, weight: .medium)).lineLimit(1)
+                    Text("\(room.paused ? "Paused" : "Playing") on \(room.hostName)")
+                      .font(.system(size: NSFont.smallSystemFontSize))
+                      .foregroundStyle(.secondary)
+                      .lineLimit(1)
+                  }
+                  Spacer(minLength: 0)
+                  Image(systemName: "arrow.up.right").font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
+                }
+                .frame(height: 52)
+                .contentShape(Rectangle())
+              }
+              .buttonStyle(.plain)
+              .tag("shared-room:\(room.id.uuidString)")
+              .id("shared-room:\(room.id.uuidString)")
+              .listRowInsets(EdgeInsets(top: 1, leading: 0, bottom: 1, trailing: 0))
+              .listRowBackground(Color.clear)
+              .listRowSeparator(.hidden)
+              .accessibilityLabel("Join \(room.title), \(room.paused ? "paused" : "playing") on \(room.hostName)")
+            }
+          } header: {
+            Text("Already watching")
+          }
+        }
         ForEach(model.items) { item in
           Button {
             guard item.available else { return }
@@ -1205,7 +1307,8 @@ private struct WelcomeRecentsView: View {
       }
       .onKeyPress(.return) {
         guard let id = model.selection,
-              model.items.contains(where: { $0.id == id && $0.available }) else { return .ignored }
+              model.items.contains(where: { $0.id == id && $0.available }) ||
+                model.watchingRooms.contains(where: { "shared-room:\($0.id.uuidString)" == id }) else { return .ignored }
         model.open?(id)
         return .handled
       }
