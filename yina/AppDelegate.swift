@@ -210,7 +210,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
   @objc dynamic private(set) var updaterController: SPUStandardUpdaterController!
 
   func feedURLString(for updater: SPUUpdater) -> String? {
-    return Preference.bool(for: .receiveBetaUpdate) ? AppData.appcastBetaLink : AppData.appcastLink
+    return AppData.appcastLink
   }
 
   // MARK: - App Delegate

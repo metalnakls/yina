@@ -117,10 +117,6 @@ class SettingsPageGeneral: SettingsPage {
           .bindPopupToCustom(type: Preference.SparkleInterval.self) {
             $0.bind(.selectedTag, to: NSApplication.shared, withKeyPath: "delegate.updaterController.updater.updateCheckInterval")
           }
-          .withDetailView {
-            SettingsItem.Switch()
-              .bindTo(.receiveBetaUpdate)
-          }
       }
     }
   }

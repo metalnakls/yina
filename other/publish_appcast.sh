@@ -28,10 +28,11 @@ trap cleanup EXIT
 git worktree add --detach "$PAGES_DIR" "$REMOTE/gh-pages"
 cp "$REPO_DIR/site/"* "$PAGES_DIR/"
 cp "$APPCAST" "$PAGES_DIR/appcast.xml"
+cp "$APPCAST" "$PAGES_DIR/appcast-beta.xml"
 mkdir -p "$PAGES_DIR/.github/workflows"
 cp "$REPO_DIR/.github/workflows/pages.yml" "$PAGES_DIR/.github/workflows/pages.yml"
 touch "$PAGES_DIR/.nojekyll"
-git -C "$PAGES_DIR" add index.html favicon.png appcast.xml .nojekyll .github/workflows/pages.yml
+git -C "$PAGES_DIR" add index.html favicon.png appcast.xml appcast-beta.xml .nojekyll .github/workflows/pages.yml
 if ! git -C "$PAGES_DIR" diff --cached --quiet; then
   wait_for_even_git_minute
   GIT_COMMIT_DATE="$(nearest_even_git_timestamp)"

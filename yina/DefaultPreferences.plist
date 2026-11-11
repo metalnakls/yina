@@ -84,8 +84,6 @@
 	<true/>
 	<key>quitWhenNoOpenedWindow</key>
 	<true/>
-	<key>receiveBetaUpdate</key>
-	<true/>
 	<key>rightClickAction</key>
 	<integer>4</integer>
 	<key>screenShotFormat</key>

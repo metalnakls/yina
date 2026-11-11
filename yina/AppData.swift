@@ -59,7 +59,6 @@ struct AppData {
   static let websiteLink = "https://iina.io"
   static let ytdlHelpLink = "https://github.com/rg3/youtube-dl/blob/master/README.md#readme"
   static let appcastLink = "https://metalnakls.github.io/yina/appcast.xml"
-  static let appcastBetaLink = "https://metalnakls.github.io/yina/appcast-beta.xml"
   static let assrtRegisterLink = "https://secure.assrt.net/user/register.xml?redir=http%3A%2F%2Fassrt.net%2Fusercp.php"
   static let chromeExtensionLink = "https://chrome.google.com/webstore/detail/open-in-iina/pdnojahnhpgmdhjdhgphgdcecehkbhfo"
   static let firefoxExtensionLink = "https://addons.mozilla.org/addon/open-in-iina-x"
