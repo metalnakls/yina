@@ -760,6 +760,35 @@ final class SharedShowStore {
 
   /// Publish a descriptor or migration snapshot without replacing anything at
   /// the destination, including a file created concurrently by another writer.
+  private func publishWithDirectoryLock(_ data: Data, at path: String, limit: Int,
+                                        directory: Int32, name: String, temporary: String) throws {
+    // smbfs can reject both RENAME_EXCL and hard links. A directory creation is
+    // exclusive on the server and serializes publishers using this fallback.
+    // Never steal an abandoned lock: its owner may simply be on a slow mount.
+    let lock = ".\(name).publish-lock"
+    let deadline = ProcessInfo.processInfo.systemUptime + 2
+    while mkdirat(directory, lock, 0o700) != 0 {
+      let code = errno
+      guard code == EEXIST else { throw Failure.io(code) }
+      // An owner can finish publication before it removes the lock. The
+      // atomic rename makes the completed file safe to inspect immediately.
+      if try fileExists(path) {
+        guard try read(path, limit: limit) == data else { throw Failure.invalidRecord }
+        return
+      }
+      guard ProcessInfo.processInfo.systemUptime < deadline else { throw Failure.io(EBUSY) }
+      usleep(20_000)
+    }
+    defer { _ = unlinkat(directory, lock, AT_REMOVEDIR) }
+
+    if try fileExists(path) {
+      guard try read(path, limit: limit) == data else { throw Failure.invalidRecord }
+      return
+    }
+    guard renameat(directory, temporary, directory, name) == 0 else { throw Failure.io(errno) }
+    try Self.syncDirectory(directory)
+  }
+
   private func publishImmutable(_ data: Data, at path: String, limit: Int) throws {
     guard data.count <= limit else { throw Failure.tooLarge }
     if try fileExists(path) {
@@ -783,6 +812,11 @@ final class SharedShowStore {
           return
         }
         code = errno
+        if Self.isUnsupportedAtomicRename(code) {
+          try publishWithDirectoryLock(data, at: path, limit: limit,
+                                       directory: directory, name: name, temporary: temporary)
+          return
+        }
       }
       if code == EEXIST {
         guard try read(path, limit: limit) == data else { throw Failure.invalidRecord }

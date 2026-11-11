@@ -956,7 +956,7 @@ final class SharedShowSession {
 
   /// An explicit enable action uses the nearest existing show identity, or the
   /// open file's containing folder for a new show. All share I/O stays off UI.
-  func enableSharing() {
+  func enableSharing(completion: @escaping @MainActor (String?) -> Void = { _ in }) {
     guard let media = player?.info.currentURL, media.isFileURL else { return }
     let generation = self.generation
     enableToken &+= 1
@@ -967,15 +967,15 @@ final class SharedShowSession {
     let (lane, laneKey) = sharingWorkScheduler.reserve(media.deletingLastPathComponent())
     let releaseLane = sharingWorkScheduler.release
     lane.addOperation { [weak self] in
-      let result: String
+      let failure: String?
       do {
         let store = try SharedShowStore.discover(for: media)
           ?? SharedShowStore(root: media.deletingLastPathComponent())
         guard store.relativePath(for: media) != nil else { throw SharedShowStore.Failure.unsafePath }
         _ = try store.enable()
-        result = "Shared progress enabled"
+        failure = nil
       } catch {
-        result = "Couldn’t enable sharing: \(Self.enableFailureDescription(error))"
+        failure = Self.enableFailureDescription(error)
       }
       DispatchQueue.main.async { [weak self] in
         releaseLane(laneKey)
@@ -983,10 +983,11 @@ final class SharedShowSession {
         guard self.generation == generation, self.enableToken == token,
               self.player?.info.currentURL == media else { return }
         self.membershipEpoch &+= 1
-        self.status = result
-        if result == "Shared progress enabled" { self.membership = nil }
+        self.status = failure.map { "Couldn’t enable sharing: \($0)" } ?? "Shared progress enabled"
+        if failure == nil { self.membership = nil }
         self.changed()
-        if result == "Shared progress enabled" { self.checkpoint() }
+        completion(failure)
+        if failure == nil { self.checkpoint() }
       }
     }
   }

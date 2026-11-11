@@ -3,6 +3,23 @@ import Cocoa
 /// Builds the same commands for the menu bar and the playlist sidebar from cached session state.
 @MainActor
 enum SharedShowMenuContent {
+  static func enableSharing(for player: PlayerCore, in window: NSWindow?) {
+    player.sharedShow.enableSharing { [weak window] failure in
+      guard let failure else { return }
+      // The menu action has returned by the time the background enable finishes.
+      // Present the error without blocking the main actor or hiding it in a menu.
+      let alert = NSAlert()
+      alert.messageText = NSLocalizedString("Couldn’t Enable Sharing", comment: "Shared Show enable failure title")
+      alert.informativeText = failure
+      alert.alertStyle = .critical
+      alert.addButton(withTitle: NSLocalizedString("general.ok", comment: "OK"))
+      Task { @MainActor in
+        guard let window = window ?? NSApp.keyWindow ?? NSApp.mainWindow else { return }
+        await DialogAlert(alert).show(in: window)
+      }
+    }
+  }
+
   static func populate(_ menu: NSMenu, session: SharedShowSession, target: AnyObject, canEnable: Bool) {
     menu.autoenablesItems = false
     if let watchStatus = session.watchStatus {
@@ -122,7 +139,8 @@ final class SharedShowMenuController: NSObject, NSMenuDelegate {
   }
 
   @objc private func enableSharedShow(_ sender: NSMenuItem) {
-    player?.sharedShow.enableSharing()
+    guard let player else { return }
+    SharedShowMenuContent.enableSharing(for: player, in: player.currentWindow)
   }
   @objc private func hostWatchTogether(_ sender: NSMenuItem) { player?.sharedShow.hostWatchTogether() }
   @objc private func leaveWatchTogether(_ sender: NSMenuItem) { player?.sharedShow.leaveWatchTogether() }

@@ -20,6 +20,12 @@ progress or queue.
 ## Migration and discovery
 
 Discovery recognizes both `.yina/show.json` and the old root `.yina.json`.
+On SMB volumes that reject both no-replace rename and hard links, YINA uses an
+exclusive `.yina/.show.json.publish-lock` directory to serialize descriptor
+creation, then atomically renames a synced temporary file into place. A lock
+left by a crashed publisher is never taken over automatically: enabling reports
+the busy share after a short wait rather than risking a conflicting identity.
+The same rule applies to a legacy index publication lock.
 The old root file must be a strictly recognized schema 1 inventory or schema 2
 descriptor, with no unknown fields. A schema 1 inventory derives its show ID
 from the existing `glass-yina-show-v2:<normalized hash>` SHA-256 rule. Its
@@ -85,6 +91,9 @@ accepted.
 
 The filesystem fixtures use temporary local folders and cover fresh creation,
 v1/v2 migration, interrupted publication, conflicts, independent writers,
-queue revisions, malformed records, symlinks, and partial or stale media. Real
-SMB latency, disconnected mounts, and simultaneous YINA/Glass use remain
+queue revisions, malformed records, symlinks, and partial or stale media.
+`shared-show-smb-publish-smoke.swift` accepts a writable parent directory and
+touches only a disposable child. On an SMB mount, run it with
+`--stress-fallback` to check 12 concurrent creators, one identity, and stale
+lock handling. Disconnected mounts and simultaneous YINA/Glass use remain
 runtime checks.

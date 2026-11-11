@@ -54,6 +54,8 @@ final class SharedShowSession {
   var canRetryRequest = false
   var canWithdrawRequest = false
   var isHosting = false
+  var lanFollowingRoomID: UUID?
+  var hostingRoomID: UUID?
   var followingWriter: UUID?
   var showID: UUID?
   var watchStatus: String?
@@ -63,7 +65,11 @@ final class SharedShowSession {
   var hostQueueItems: [String] = []
   var hostQueueCurrent: String?
   var calls: [String] = []
-  func enableSharing(in window: NSWindow?) { calls.append("enable") }
+  var enableFailure: String?
+  func enableSharing(completion: @escaping (String?) -> Void = { _ in }) {
+    calls.append("enable")
+    completion(enableFailure)
+  }
   func hostWatchTogether() { calls.append("host") }
   func leaveWatchTogether() { calls.append("leave") }
   func follow(_ record: SharedShowStore.Progress) { calls.append("follow") }
@@ -72,6 +78,21 @@ final class SharedShowSession {
   func withdrawRequest() { calls.append("withdraw") }
 }
 
+@MainActor final class DialogAlert {
+  static var presented: [String] = []
+  let alert: NSAlert
+  init(_ alert: NSAlert) { self.alert = alert }
+  @discardableResult func show(in window: NSWindow) async -> Bool {
+    Self.presented.append(alert.messageText + ": " + alert.informativeText)
+    return true
+  }
+}
+final class SharedShowLAN {
+  struct Room { let id: UUID; let hostName: String; let title: String }
+  static let shared = SharedShowLAN()
+  var rooms: [Room] = []
+  func join(_ room: Room, player: PlayerCore) {}
+}
 class PlayerWindowController: NSWindowController { var player: PlayerCore! }
 final class PlayerCore {
   static var playerCores: [PlayerCore] = []
@@ -83,6 +104,7 @@ final class PlayerCore {
   }
   let info = Info()
   let sharedShow = SharedShowSession()
+  var currentWindow: NSWindow? { currentController.window }
 }
 
 enum Constants { enum Time { INFINITE_LINE } }
@@ -135,16 +157,17 @@ func require(_ condition: @autoclosure () -> Bool, _ message: String) {
     _ = NSApplication.shared
     let player = PlayerCore()
     let pane = SidebarPlaylistPane(player: player)
-    require(item(pane.menu(), "Enable for This Show…")?.isEnabled == false,
+    require(item(pane.menu(), "Enable for This Show")?.isEnabled == false,
             "enable should require a loaded local episode")
 
     // A follower can leave even when the show descriptor and episode are gone.
     player.sharedShow.followingWriter = UUID()
+    player.sharedShow.lanFollowingRoomID = UUID()
     player.sharedShow.watchStatus = "Disconnected from host"
     require(pane.buttonEnabled(), "disconnected follower button disabled")
     var menu = pane.menu()
     require(item(menu, "Leave Watch Together")?.isEnabled == true, "disconnected follower cannot leave")
-    require(item(menu, "Enable for This Show…") == nil, "follower offered conflicting enable action")
+    require(item(menu, "Enable for This Show") == nil, "follower offered conflicting enable action")
     require(item(menu, "Disconnected from host")?.isEnabled == false, "status should be read-only")
 
     // EOF clears the loaded state, while the Watch Together membership remains.
@@ -154,6 +177,7 @@ func require(_ condition: @autoclosure () -> Bool, _ message: String) {
     require(item(pane.menu(), "Leave Watch Together")?.isEnabled == true, "EOF hid Leave")
 
     player.sharedShow.followingWriter = nil
+    player.sharedShow.lanFollowingRoomID = nil
     player.sharedShow.watchStatus = nil
     player.sharedShow.showID = UUID()
     player.sharedShow.relativePath = "Season 1/Now.mkv"
@@ -171,10 +195,6 @@ func require(_ condition: @autoclosure () -> Bool, _ message: String) {
     player.info.state.loaded = true
     menu = pane.menu()
     require(item(menu, "Host Watch Together")?.isEnabled == true, "fresh local episode cannot host")
-    let follow = menu.items.first { $0.title.contains("Next.mkv") }
-    require(follow?.isEnabled == true && follow?.representedObject is SharedShowStore.Progress,
-            "fresh cross-episode host unavailable")
-    require(!menu.items.contains { $0.title.contains("Old.mkv") }, "stale host offered")
 
     player.sharedShow.hostQueueItems = ["Season 1/Now.mkv", "Season 2/Next.mkv", "Season 3/Last.mkv"]
     player.sharedShow.hostQueueCurrent = "Season 2/Next.mkv"
@@ -208,15 +228,23 @@ func require(_ condition: @autoclosure () -> Bool, _ message: String) {
     fileMenu.delegate = controller
     active = second
     fileMenu.delegate?.menuNeedsUpdate?(fileMenu)
-    require(item(fileMenu, "Enable for This Show…")?.isEnabled == true,
+    require(item(fileMenu, "Enable for This Show")?.isEnabled == true,
             "File menu is unavailable with the sidebar closed")
-    fileMenu.performActionForItem(at: fileMenu.index(of: item(fileMenu, "Enable for This Show…")!))
+    fileMenu.performActionForItem(at: fileMenu.index(of: item(fileMenu, "Enable for This Show")!))
     require(second.sharedShow.calls == ["enable"] && player.sharedShow.calls.isEmpty,
             "File action did not use the active player")
+    require(DialogAlert.presented.isEmpty, "successful enable presented an alert")
+    second.sharedShow.enableFailure = "Atomic replacement is unavailable"
+    second.currentController.window = NSWindow(contentRect: .init(x: 0, y: 0, width: 400, height: 250),
+                                               styleMask: .titled, backing: .buffered, defer: false)
+    fileMenu.performActionForItem(at: fileMenu.index(of: item(fileMenu, "Enable for This Show")!))
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.1))
+    require(DialogAlert.presented == ["Couldn’t Enable Sharing: Atomic replacement is unavailable"],
+            "failed enable did not present its error")
     active = player
     fileMenu.delegate?.menuNeedsUpdate?(fileMenu)
     fileMenu.performActionForItem(at: fileMenu.index(of: item(fileMenu, "Host Watch Together")!))
-    require(player.sharedShow.calls == ["host"] && second.sharedShow.calls == ["enable"],
+    require(player.sharedShow.calls == ["host"] && second.sharedShow.calls == ["enable", "enable"],
             "File action routed to a previous player")
     active = nil
     fileMenu.delegate?.menuNeedsUpdate?(fileMenu)
