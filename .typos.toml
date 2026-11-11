@@ -42,6 +42,8 @@ extend-ignore-re = [
 "writeable" = "writeable"
 
 [default.extend-identifiers]
+# Compiled shader byte count in the bundled libplacebo patch.
+"clen" = "clen"
 "caf" = "caf"
 # Xcode uses this property in XIBs.
 "customObjectInstantitationMethod" = "customObjectInstantitationMethod"
