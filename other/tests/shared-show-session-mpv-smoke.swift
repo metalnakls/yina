@@ -180,11 +180,18 @@ enum Utility {
       player.openURLsAsync([b])
       try wait("host advanced episode") { player.info.currentURL == b && session.relativePath == "B.mkv" }
       try wait("client advanced episode") { FileManager.default.fileExists(atPath: flag("client-saw-b").path) }
+      try wait("client switched host episode") {
+        player.info.currentURL?.lastPathComponent == "A.mkv" && session.relativePath == "A.mkv"
+      }
+      signal("host-saw-client-switch")
+      try wait("guest stayed joined after switch") {
+        FileManager.default.fileExists(atPath: flag("client-checked-switch").path)
+      }
       session.localStopRequested()
       precondition(mpv_command_string(player.handle, "stop") >= 0)
       try wait("client disconnected") { FileManager.default.fileExists(atPath: flag("client-disconnected").path) }
       precondition(!session.isHosting, "Stopped host still advertises")
-      session.saveFinal(media: b, position: player.info.videoPosition?.second ?? 0,
+      session.saveFinal(media: player.info.currentURL, position: player.info.videoPosition?.second ?? 0,
                         duration: player.info.videoDuration?.second ?? 30)
       try wait("host final archive") {
         try store.progress(showID: descriptor.showID).first { $0.writerID == session.writerID }?.activity == .stopped
@@ -210,6 +217,12 @@ enum Utility {
         player.info.currentURL?.lastPathComponent == "B.mkv" && player.info.state.loaded
       }
       signal("client-saw-b")
+      player.openURLsAsync([a])
+      try wait("guest initiated episode switch") {
+        FileManager.default.fileExists(atPath: flag("host-saw-client-switch").path)
+      }
+      precondition(session.lanFollowingRoomID == roomID, "Guest episode switch detached room")
+      signal("client-checked-switch")
       try wait("host gone") { session.lanFollowingRoomID == nil }
       let finalPosition = player.info.videoPosition?.second ?? 0
       session.saveFinal(media: player.info.currentURL, position: finalPosition,

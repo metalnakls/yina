@@ -63,6 +63,7 @@ final class SharedShowLAN {
     let roomID: UUID
     var state: State? = nil
     var commandID: UUID? = nil
+    var expectedPath: String? = nil
   }
 
   // NW callbacks hop to MainActor before touching this mutable connection state.
@@ -248,7 +249,8 @@ final class SharedShowLAN {
             command.revision <= current.revision,
             current.revision - command.revision <= 4,
             (packet.kind == .command && command.relativePath == current.relativePath ||
-             packet.kind == .switchEpisode && command.revision == current.revision) else { return }
+             packet.kind == .switchEpisode && packet.expectedPath == current.relativePath &&
+               command.relativePath != current.relativePath) else { return }
       seenCommands.append(id)
       if seenCommands.count > 256 { seenCommands.removeFirst(seenCommands.count - 256) }
       hostSession?.applyLANCommand(command) { [weak self] applied in
@@ -309,7 +311,8 @@ final class SharedShowLAN {
     clientSession?.applyLANState(state)
   }
 
-  func sendClientControl(_ state: State, switchEpisode: Bool = false) {
+  func sendClientControl(_ state: State, switchEpisode: Bool = false,
+                         expectedPath: String? = nil) {
     guard let client, let roomID = clientRoomID, roomID == state.roomID,
           acceptedRevision > 0 else { return }
     var command = state
@@ -319,7 +322,7 @@ final class SharedShowLAN {
                     duration: state.duration, paused: state.paused, rate: state.rate,
                     revision: acceptedRevision, emittedAt: Date(), awaitingNextEpisode: false)
     send(Packet(version: 1, kind: switchEpisode ? .switchEpisode : .command, roomID: roomID,
-                state: command, commandID: UUID()), to: client)
+                state: command, commandID: UUID(), expectedPath: switchEpisode ? expectedPath : nil), to: client)
   }
 
   func leave() {

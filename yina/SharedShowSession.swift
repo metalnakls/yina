@@ -95,6 +95,7 @@ final class SharedShowSession {
   private var lanResolveToken: UInt64 = 0
   private var pendingLANPath: String?
   private var wantsLANEpisodeSwitch = false
+  private var lanSwitchSent = false
   private var lanFolderPromptShown = false
   private var lanRootHint = ""
   private var lanCommandOverride: SharedShowLAN.State?
@@ -447,7 +448,10 @@ final class SharedShowSession {
           if self.isHosting && (self.lanState == nil || self.lanState?.relativePath != self.relativePath) {
             self.publishLANState()
           }
-          if self.lanFollowingRoomID != nil && self.wantsLANEpisodeSwitch { self.sendLANControl() }
+          if self.lanFollowingRoomID != nil && self.wantsLANEpisodeSwitch {
+            if self.showID == self.lanState?.showID { self.sendLANControl() }
+            else { self.leaveWatchTogether() }
+          }
           if self.remoteOpenGeneration == watchIntent {
             self.synchronize(host: result.8, queue: result.9, playableTarget: result.10)
           }
@@ -543,7 +547,11 @@ final class SharedShowSession {
   /// this through PlayerCore while applyingRemote is true.
   func localMediaChangeRequested() {
     guard !applyingRemote else { return }
-    if lanFollowingRoomID != nil { wantsLANEpisodeSwitch = true; return }
+    if lanFollowingRoomID != nil {
+      wantsLANEpisodeSwitch = true
+      lanSwitchSent = false
+      return
+    }
     if followingWriter != nil { leaveWatchTogether() }
     else if isHosting { checkpoint() }
   }
@@ -616,6 +624,7 @@ final class SharedShowSession {
     lanResolveToken &+= 1
     pendingLANPath = nil
     wantsLANEpisodeSwitch = false
+    lanSwitchSent = false
     lanFolderPromptShown = false
     watchStatus = "Connecting to \(room.hostName)"
     scheduleTimer()
@@ -631,6 +640,7 @@ final class SharedShowSession {
     lanResolveToken &+= 1
     pendingLANPath = nil
     wantsLANEpisodeSwitch = false
+    lanSwitchSent = false
     if let pendingRemoteTarget { player?.cancelSharedShowMediaPreparation(for: pendingRemoteTarget) }
     pendingRemoteTarget = nil
     watchStatus = message
@@ -654,13 +664,32 @@ final class SharedShowSession {
       paused: player.info.state == .paused, rate: player.info.playSpeed,
       revision: state.revision, emittedAt: Date(), awaitingNextEpisode: false)
     guard relativePath == state.relativePath || wantsLANEpisodeSwitch else { return }
-    SharedShowLAN.shared.sendClientControl(command, switchEpisode: relativePath != state.relativePath)
-    wantsLANEpisodeSwitch = false
+    if wantsLANEpisodeSwitch && lanSwitchSent { return }
+    SharedShowLAN.shared.sendClientControl(command, switchEpisode: relativePath != state.relativePath,
+                                           expectedPath: state.relativePath)
+    if wantsLANEpisodeSwitch {
+      lanSwitchSent = true
+      let roomID = state.roomID
+      DispatchQueue.main.asyncAfter(deadline: .now() + 8) { [weak self] in
+        guard let self, self.lanFollowingRoomID == roomID, self.wantsLANEpisodeSwitch,
+              self.lanSwitchSent else { return }
+        self.wantsLANEpisodeSwitch = false
+        self.lanSwitchSent = false
+        if let latest = self.lanState { self.applyLANState(latest) }
+      }
+    }
   }
 
   func applyLANState(_ state: SharedShowLAN.State) {
     guard lanFollowingRoomID == state.roomID, state.isValid else { return }
     lanState = state
+    if wantsLANEpisodeSwitch {
+      if relativePath == state.relativePath,
+         player?.info.currentURL == contextMedia, player?.info.state.loaded == true {
+        wantsLANEpisodeSwitch = false
+        lanSwitchSent = false
+      } else { return }
+    }
     guard !state.awaitingNextEpisode else {
       watchStatus = "Waiting for the host's next episode"
       changed()
@@ -745,7 +774,8 @@ final class SharedShowSession {
       }
     }
     if !state.paused && player.info.state == .paused { player.resume() }
-    watchStatus = "Watching with \(state.hostName)"
+    watchStatus = isHosting ? "Hosting Watch Together · \(writerID.uuidString.prefix(6))" :
+      "Watching with \(state.hostName)"
     changed()
   }
 
