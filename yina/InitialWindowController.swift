@@ -106,6 +106,8 @@ class InitialWindowController: NSWindowController {
 
   private var recentDocuments: [RecentDocument] = []
   private var watchingRooms: [SharedShowLAN.Room] = []
+  private var joiningRoomID: UUID?
+  private var joinStatus: String?
 
   private static func watchingIdentity(_ room: SharedShowLAN.Room) -> String {
     "shared-room:\(room.id.uuidString)"
@@ -238,6 +240,8 @@ class InitialWindowController: NSWindowController {
                                                       name: NSWorkspace.didUnmountNotification, object: nil)
     NotificationCenter.default.addObserver(self, selector: #selector(sharedRoomsDidChange),
                                            name: .yinaSharedRoomsChanged, object: nil)
+    NotificationCenter.default.addObserver(self, selector: #selector(sharedShowDidChange),
+                                           name: .yinaSharedShowChanged, object: player)
     reloadData()
   }
 
@@ -281,7 +285,15 @@ class InitialWindowController: NSWindowController {
       guard let self else { return }
       if let room = self.watchingRooms.first(where: { Self.watchingIdentity($0) == identity }),
          let player = self.player {
-        SharedShowLAN.shared.join(room, player: player)
+        guard SharedShowLAN.shared.join(room, player: player) else {
+          self.joiningRoomID = nil
+          self.joinStatus = "Room no longer available"
+          self.publishWatchingRooms()
+          return
+        }
+        self.joiningRoomID = room.id
+        self.joinStatus = player.sharedShow.watchStatus ?? "Connecting to \(room.hostName)"
+        self.publishJoinStatus()
         return
       }
       guard let row = self.recentDocuments.firstIndex(where: { self.documentIdentity($0.url) == identity }) else { return }
@@ -371,15 +383,18 @@ class InitialWindowController: NSWindowController {
   }
 
   private func updateEmptyState() {
-    let isEmpty = showFolders.isEmpty && recentDocuments.isEmpty && watchingRooms.isEmpty
+    let isEmpty = showFolders.isEmpty && recentDocuments.isEmpty && watchingRooms.isEmpty && joinStatus == nil
     emptyStateView.isHidden = !isEmpty
-    recentListHost?.isHidden = recentDocuments.isEmpty && watchingRooms.isEmpty
+    recentListHost?.isHidden = recentDocuments.isEmpty && watchingRooms.isEmpty && joinStatus == nil
     showFolderShelf.isHidden = showFolders.isEmpty
     updateShelfWindowVisibility()
   }
 
   override func showWindow(_ sender: Any?) {
     isShowingWelcome = true
+    joiningRoomID = nil
+    joinStatus = nil
+    publishJoinStatus()
     SharedShowLAN.shared.startDiscovery()
     publishWatchingRooms()
     updateRecentLayout(resetScrollPosition: true, preserveTop: false)
@@ -399,6 +414,12 @@ class InitialWindowController: NSWindowController {
   @objc private func sharedRoomsDidChange() {
     guard isShowingWelcome, window?.isVisible == true else { return }
     publishWatchingRooms()
+  }
+
+  @objc private func sharedShowDidChange(_ notification: Notification) {
+    guard isShowingWelcome, window?.isVisible == true, joiningRoomID != nil else { return }
+    joinStatus = player?.sharedShow.watchStatus ?? "Watch Together ended"
+    publishJoinStatus()
   }
 
   @objc private func showExtensionsDidChange() {
@@ -939,7 +960,8 @@ class InitialWindowController: NSWindowController {
   private var recentStartingHeight: CGFloat {
     min(Self.maximumRecentWindowHeight,
         max(recentMinimumHeight, recentTopInset + CGFloat((32 + 2) * recentDocuments.count) +
-            CGFloat(56 * watchingRooms.count + (watchingRooms.isEmpty ? 0 : 28)) + Self.recentListBottomInset))
+            CGFloat(56 * watchingRooms.count + (watchingRooms.isEmpty && joinStatus == nil ? 0 : 28) +
+                    (joinStatus == nil ? 0 : 52)) + Self.recentListBottomInset))
   }
 
   private func updateRecentLayout(resetScrollPosition: Bool = false, preserveTop: Bool = true) {
@@ -1034,6 +1056,12 @@ extension InitialWindowController {
        !watchingRooms.contains(where: { Self.watchingIdentity($0) == selection }) {
       recentListModel.selection = nil
     }
+    updateRecentLayout()
+    updateEmptyState()
+  }
+
+  private func publishJoinStatus() {
+    recentListModel.joinStatus = joinStatus
     updateRecentLayout()
     updateEmptyState()
   }
@@ -1205,6 +1233,7 @@ private struct WelcomeRecentItem: Identifiable {
 private final class WelcomeRecentsModel: ObservableObject {
   @Published var items: [WelcomeRecentItem] = []
   @Published var watchingRooms: [SharedShowLAN.Room] = []
+  @Published var joinStatus: String?
   @Published var selection: String? { didSet { selectionChanged?(selection) } }
   @Published var revealID: String?
   @Published var topInset: CGFloat = 32
@@ -1221,7 +1250,7 @@ private struct WelcomeRecentsView: View {
   var body: some View {
     ScrollViewReader { scroll in
       List(selection: $model.selection) {
-        if !model.watchingRooms.isEmpty {
+        if !model.watchingRooms.isEmpty || model.joinStatus != nil {
           Section {
             ForEach(model.watchingRooms, id: \.id) { room in
               Button {
@@ -1256,6 +1285,12 @@ private struct WelcomeRecentsView: View {
               .listRowBackground(Color.clear)
               .listRowSeparator(.hidden)
               .accessibilityLabel("Join \(room.title), \(room.paused ? "paused" : "playing") on \(room.hostName)")
+            }
+            if let status = model.joinStatus {
+              Label(status, systemImage: "info.circle")
+                .font(.system(size: NSFont.smallSystemFontSize))
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
             }
           } header: {
             Text("Already watching")
