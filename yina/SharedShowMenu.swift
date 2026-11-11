@@ -15,7 +15,7 @@ enum SharedShowMenuContent {
       item.isEnabled = false
       menu.addItem(item)
     }
-    let watchingTogether = session.isHosting || session.followingWriter != nil
+    let watchingTogether = session.isHosting || session.lanFollowingRoomID != nil
     // Leave remains available while the share or current episode is unavailable.
     if watchingTogether {
       let leave = NSMenuItem(title: "Leave Watch Together", action: NSSelectorFromString("leaveWatchTogether:"), keyEquivalent: "")
@@ -36,15 +36,14 @@ enum SharedShowMenuContent {
         host.isEnabled = canEnable
         menu.addItem(host)
       }
-      for record in session.positions.filter({
-        SharedPlaybackSync.target(for: $0) != nil
-      }).prefix(12) {
-        let follow = NSMenuItem(title: "Follow \(record.writerID.uuidString.prefix(6)) · \(URL(fileURLWithPath: record.relativePath).lastPathComponent)", action: NSSelectorFromString("followSharedViewer:"), keyEquivalent: "")
-        follow.target = target
-        follow.representedObject = record
-        follow.state = session.followingWriter == record.writerID ? .on : .off
-        menu.addItem(follow)
-      }
+    }
+    for room in SharedShowLAN.shared.rooms.prefix(12) where room.id != session.hostingRoomID {
+      let follow = NSMenuItem(title: "Watch with \(room.hostName) · \(room.title)",
+                              action: NSSelectorFromString("joinSharedRoom:"), keyEquivalent: "")
+      follow.target = target
+      follow.representedObject = room
+      follow.state = session.lanFollowingRoomID == room.id ? .on : .off
+      menu.addItem(follow)
     }
     if !session.hostQueueItems.isEmpty {
       let queueItem = NSMenuItem(title: "Shared Queue · \(session.hostQueueItems.count) episodes", action: nil, keyEquivalent: "")
@@ -127,9 +126,10 @@ final class SharedShowMenuController: NSObject, NSMenuDelegate {
   }
   @objc private func hostWatchTogether(_ sender: NSMenuItem) { player?.sharedShow.hostWatchTogether() }
   @objc private func leaveWatchTogether(_ sender: NSMenuItem) { player?.sharedShow.leaveWatchTogether() }
-  @objc private func followSharedViewer(_ sender: NSMenuItem) {
-    guard let record = sender.representedObject as? SharedShowStore.Progress else { return }
-    player?.sharedShow.follow(record)
+  @objc private func joinSharedRoom(_ sender: NSMenuItem) {
+    guard let room = sender.representedObject as? SharedShowLAN.Room,
+          let player else { return }
+    SharedShowLAN.shared.join(room, player: player)
   }
   @objc private func resumeSharedPosition(_ sender: NSMenuItem) {
     guard let record = sender.representedObject as? SharedShowStore.Progress else { return }

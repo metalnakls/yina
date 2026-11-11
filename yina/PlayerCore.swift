@@ -1176,7 +1176,7 @@ class PlayerCore: NSObject {
     }
     uninitVideo()
     postNotification(.yinaPlayerShutdown)
-    if isRetiring { MainActor.assumeIsolated { sharedShow.stop() } }
+    if isRetiring { MainActor.assumeIsolated { sharedShow.shutdown() } }
     else { DispatchQueue.main.async { [weak self] in self?.sharedShow.stop() } }
     if isRetiring {
       idleRetirement?.cancel()

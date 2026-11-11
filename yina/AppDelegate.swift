@@ -389,6 +389,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
   func applicationDidFinishLaunching(_ aNotification: Notification) {
     Logger.log("App launched")
 
+    MainActor.assumeIsolated { SharedShowLAN.shared.startDiscovery() }
+
 
     if !isReady {
       getReady()
@@ -542,6 +544,24 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     // Disable all remote media commands. This also removes YINA from the Now Playing widget.
     RemoteCommandController.shared.disable()
 
+    // Queue the latest shared position before windows unload their media. A
+    // bounded drain below gives a healthy share time to persist it; a stalled
+    // SMB mount never holds application termination indefinitely.
+    var pendingSharedFinal = 0
+    var sharedFinalTimedOut = false
+    var finishShared: (() -> Void)?
+    MainActor.assumeIsolated {
+      let sessions = PlayerCore.playerCores.map(\.sharedShow)
+      pendingSharedFinal = sessions.count
+      for session in sessions {
+        session.shutdown()
+        session.requestFinalCheckpoint {
+          pendingSharedFinal -= 1
+          if pendingSharedFinal == 0 { finishShared?() }
+        }
+      }
+    }
+
     // The first priority was to shutdown any new input from the user. The second priority is to
     // send a logout request if logged into an online subtitles provider as that needs time to
     // complete.
@@ -582,7 +602,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
 
     // Usually will have to wait for logout request to complete if logged into an online subtitle
     // provider.
-    var canTerminateNow = allPlayersHaveShutdown
+    var canTerminateNow = allPlayersHaveShutdown && pendingSharedFinal == 0
     if OnlineSubtitle.loggedIn {
       canTerminateNow = false
       Logger.log("Waiting for log out of online subtitles provider to complete")
@@ -639,6 +659,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
 
     RunLoop.main.add(timer, forMode: .common)
 
+    let sharedFinalTimer = Timer(timeInterval: 2, repeats: false) { _ in
+      sharedFinalTimedOut = true
+      finishShared?()
+    }
+    RunLoop.main.add(sharedFinalTimer, forMode: .common)
+
     // Establish an observer for a player core stopping.
     let center = NotificationCenter.default
     var observers: [NSObjectProtocol] = []
@@ -686,11 +712,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
       guard !OnlineSubtitle.loggedIn else { return }
       // If still still saving playback history then continue waiting.
       guard HistoryController.shared.tasksOutstanding == 0 else { return }
+      guard pendingSharedFinal == 0 || sharedFinalTimedOut else { return }
       // All players have shutdown. No longer logged into an online subtitles provider and saving of
       // playback history has finished.
       Logger.log("Proceeding with application termination")
       // No longer need the timer that forces termination to proceed.
       timer.invalidate()
+      sharedFinalTimer.invalidate()
       // No longer need the observers for players stopping and shutting down, along with the
       // observer for logout requests completing and saving of playback history finishing.
       ObjcUtils.silenced {
@@ -700,6 +728,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
       }
       // Tell AppKit to proceed with termination.
       NSApp.reply(toApplicationShouldTerminate: true)
+    }
+    finishShared = { [weak self] in
+      guard self?.timedOut == false else { return }
+      proceedWithTermination()
     }
 
     // Establish an observer for a player core shutting down.
@@ -779,6 +811,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
   }
 
   func applicationWillTerminate(_ notification: Notification) {
+    MainActor.assumeIsolated {
+      for player in PlayerCore.playerCores { player.sharedShow.shutdown() }
+    }
     Logger.log("App will terminate")
     Logger.closeLogFile()
     AppEnvironment.finishCleanStart()

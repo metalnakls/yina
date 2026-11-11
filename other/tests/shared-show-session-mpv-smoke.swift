@@ -8,6 +8,11 @@ enum AppEnvironment {
   }
   static let defaults = MemoryDefaults()
 }
+struct ShowFolder { let folderURL: URL }
+enum ShowFolderSnapshotStore {
+  static var root: URL = URL(fileURLWithPath: "/tmp")
+  static func loadCards() -> [ShowFolder] { [ShowFolder(folderURL: root)] }
+}
 enum Utility {
   static func quickOpenPanel(title: String, chooseDir: Bool, dir: URL? = nil,
                             sheetWindow: NSWindow? = nil, callback: @escaping (URL) -> Void) {
@@ -29,9 +34,11 @@ enum Utility {
   let info = Info()
   let handle: OpaquePointer
   var session: SharedShowSession?
+  var sharedShow: SharedShowSession { session! }
   private var pendingURL: URL?
   private var timer: Timer?
   private var canceledURL: URL?
+  private var replacementInFlight = false
 
   init() {
     handle = mpv_create()!
@@ -67,7 +74,8 @@ enum Utility {
         session?.start()
       case MPV_EVENT_END_FILE:
         let reason = event.pointee.data.load(as: mpv_end_file_reason.self)
-        let replacing = info.state == .loading || info.state == .starting
+        let replacing = replacementInFlight || info.state == .loading || info.state == .starting
+        replacementInFlight = false
         session?.fileEnded(dueToStopCommand: reason == MPV_END_FILE_REASON_STOP && !replacing)
         if !replacing {
           info.state = .idle
@@ -96,6 +104,7 @@ enum Utility {
   func openURLsAsync(_ urls: [URL], shouldAutoLoad: Bool = true, completion: ((Int?) -> Void)? = nil) {
     guard let url = urls.first, canceledURL != url else { completion?(0); return }
     session?.localMediaChangeRequested()
+    replacementInFlight = info.currentURL != nil
     pendingURL = url
     info.state = .loading
     let command = "loadfile \"\(url.path)\" replace"
@@ -127,66 +136,90 @@ enum Utility {
 @main struct SharedShowMPVSmoke {
   @MainActor static func main() throws {
     let root = URL(fileURLWithPath: CommandLine.arguments[1])
+    ShowFolderSnapshotStore.root = root
+    let role = CommandLine.arguments[2]
     let a = root.appendingPathComponent("A.mkv")
     let b = root.appendingPathComponent("B.mkv")
     let store = try SharedShowStore(root: root)
     let descriptor = try store.enable()
-    let host = PlayerCore(), follower = PlayerCore()
-    defer { host.close(); follower.close() }
-    let hosting = SharedShowSession(player: host)
-    let following = SharedShowSession(player: follower)
-    host.session = hosting; follower.session = following
-    host.info.playlist = [.init(a.path), .init(b.path)]
-    host.openURLsAsync([a]); follower.openURLsAsync([a])
-    func wait(_ note: String, _ condition: () throws -> Bool) throws {
-      let deadline = Date(timeIntervalSinceNow: 12)
+    let player = PlayerCore()
+    defer { player.session?.shutdown(); player.close() }
+    let session = SharedShowSession(player: player)
+    player.session = session
+    SharedShowLAN.shared.startDiscovery()
+    func flag(_ name: String) -> URL { root.appendingPathComponent("test-" + name) }
+    func signal(_ name: String) { FileManager.default.createFile(atPath: flag(name).path, contents: Data()) }
+    func wait(_ note: String, timeout: TimeInterval = 20, _ condition: () throws -> Bool) throws {
+      let deadline = Date(timeIntervalSinceNow: timeout)
       while try !condition() && Date() < deadline {
         RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.02))
       }
       let settled = try condition()
       if !settled {
-        print("boundary timeout:", note, "host", host.info.currentURL?.lastPathComponent ?? "nil",
-              hosting.watchStatus ?? "nil", "follower", follower.info.currentURL?.lastPathComponent ?? "nil",
-              following.watchStatus ?? "nil", "path", following.relativePath ?? "nil",
-              "queue", following.hostQueueCurrent ?? "nil", "writer", following.followingWriter?.uuidString ?? "nil")
+        print("boundary timeout:", role, note, "media", player.info.currentURL?.lastPathComponent ?? "nil",
+              "state", player.info.state, "path", session.relativePath ?? "nil",
+              "watch", session.watchStatus ?? "nil", "rooms", SharedShowLAN.shared.rooms.count)
         fflush(stdout)
       }
       precondition(settled, note)
     }
-    try wait("Both generated files did not load") { host.info.state.loaded && follower.info.state.loaded }
-    try wait("Shared show not discovered") { hosting.showID == descriptor.showID && following.showID == descriptor.showID }
-    hosting.hostWatchTogether()
-    try wait("Host queue did not publish") {
-      try store.queue(showID: descriptor.showID, participantID: SharedShowSession.participantID,
-                      writerID: hosting.writerID)?.current == "A.mkv"
+    player.openURLsAsync([a])
+    try wait("initial media") { player.info.state.loaded && session.showID == descriptor.showID }
+    if role == "host" {
+      try wait("automatic LAN host") { session.isHosting && session.hostingRoomID != nil }
+      try session.hostingRoomID!.uuidString.write(to: flag("room-id"), atomically: true, encoding: .utf8)
+      signal("host-ready")
+      try wait("client joined") { FileManager.default.fileExists(atPath: flag("client-joined").path) }
+      player.pause(); player.seek(absoluteSecond: 4); player.setSpeed(1.5)
+      try wait("client received host transport") { FileManager.default.fileExists(atPath: flag("client-saw-host").path) }
+      try wait("client command reached host") {
+        player.info.state == .playing && player.info.playSpeed > 1.24 && player.info.playSpeed < 1.26 &&
+          (player.info.videoPosition?.second ?? 0) > 7.5
+      }
+      signal("host-saw-client")
+      player.openURLsAsync([b])
+      try wait("host advanced episode") { player.info.currentURL == b && session.relativePath == "B.mkv" }
+      try wait("client advanced episode") { FileManager.default.fileExists(atPath: flag("client-saw-b").path) }
+      session.localStopRequested()
+      precondition(mpv_command_string(player.handle, "stop") >= 0)
+      try wait("client disconnected") { FileManager.default.fileExists(atPath: flag("client-disconnected").path) }
+      precondition(!session.isHosting, "Stopped host still advertises")
+      session.saveFinal(media: b, position: player.info.videoPosition?.second ?? 0,
+                        duration: player.info.videoDuration?.second ?? 30)
+      try wait("host final archive") {
+        try store.progress(showID: descriptor.showID).first { $0.writerID == session.writerID }?.activity == .stopped
+      }
+      print("PASS host: automatic room, client play/seek/rate, episode, clean disconnect")
+    } else {
+      let id = try String(contentsOf: flag("room-id"), encoding: .utf8)
+      let roomID = UUID(uuidString: id)!
+      try wait("Bonjour discovery") { SharedShowLAN.shared.rooms.contains { $0.id == roomID } }
+      let room = SharedShowLAN.shared.rooms.first { $0.id == roomID }!
+      precondition(SharedShowLAN.shared.join(room, player: player))
+      try wait("joined") { session.lanFollowingRoomID == roomID }
+      signal("client-joined")
+      try wait("host pause/seek/rate") {
+        player.info.state == .paused && player.info.playSpeed > 1.49 &&
+          (player.info.videoPosition?.second ?? 0) > 3.5
+      }
+      signal("client-saw-host")
+      player.resume(); player.seek(absoluteSecond: 8); player.setSpeed(1.25)
+      try wait("host accepted client command") { FileManager.default.fileExists(atPath: flag("host-saw-client").path) }
+      precondition(session.lanFollowingRoomID == roomID, "Client detached after local transport")
+      try wait("host episode switch") {
+        player.info.currentURL?.lastPathComponent == "B.mkv" && player.info.state.loaded
+      }
+      signal("client-saw-b")
+      try wait("host gone") { session.lanFollowingRoomID == nil }
+      let finalPosition = player.info.videoPosition?.second ?? 0
+      session.saveFinal(media: player.info.currentURL, position: finalPosition,
+                        duration: player.info.videoDuration?.second)
+      try wait("client final archive") {
+        guard let progress = try store.progress(showID: descriptor.showID).first(where: { $0.writerID == session.writerID }) else { return false }
+        return progress.activity == .stopped && abs(progress.position - finalPosition) < 0.5
+      }
+      signal("client-disconnected")
+      print("PASS client: direct Bonjour room, host transport, local control stays joined, episode, host gone")
     }
-    let record = try store.progress(showID: descriptor.showID).first { $0.writerID == hosting.writerID }!
-    following.follow(record)
-    host.pause(); host.seek(absoluteSecond: 4); host.setSpeed(1.5); hosting.checkpoint()
-    try wait("Pause/seek/rate did not reach real follower mpv") {
-      following.checkpoint()
-      return follower.info.state == .paused && follower.info.playSpeed > 1.49 &&
-        (follower.info.videoPosition?.second ?? 0) > 3.5
-    }
-    host.openURLsAsync([b]); hosting.checkpoint()
-    try wait("Host did not switch to next real file") { host.info.currentURL == b && hosting.relativePath == "B.mkv" }
-    try wait("Follower did not load host's next real file") {
-      following.checkpoint()
-      return follower.info.currentURL?.lastPathComponent == "B.mkv" && follower.info.state.loaded
-    }
-    follower.pause()
-    precondition(following.followingWriter == nil, "Local real mpv control did not take over")
-    try wait("Host did not publish next episode before rejoin") {
-      try store.progress(showID: descriptor.showID).first { $0.writerID == hosting.writerID }?.relativePath == "B.mkv"
-    }
-    let nextRecord = try store.progress(showID: descriptor.showID).first { $0.writerID == hosting.writerID }!
-    following.follow(nextRecord)
-    try wait("Could not rejoin host on the next episode") { following.followingWriter == hosting.writerID }
-    precondition(mpv_command_string(host.handle, "stop") >= 0)
-    try wait("Explicit host stop did not end real follower session") {
-      following.checkpoint()
-      return following.followingWriter == nil
-    }
-    print("PASS: two real libmpv cores follow generated pause/seek/rate and next episode; local takeover and host stop")
   }
 }

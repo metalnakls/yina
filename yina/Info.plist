@@ -392,6 +392,12 @@
 	</array>
 	<key>LSMinimumSystemVersion</key>
 	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Find nearby YINA Watch Together rooms and synchronize playback with people you choose.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_yina-watch._tcp</string>
+	</array>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoadsInWebContent</key>

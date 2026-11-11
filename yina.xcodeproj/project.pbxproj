@@ -385,6 +385,7 @@
 		EC2026102900000000000003 /* PlaybackSettingsWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC2026102900000000000004 /* PlaybackSettingsWindowController.swift */; };
 		EC2026102900000000000005 /* SharedShowStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC2026102900000000000006 /* SharedShowStore.swift */; };
 		EC2026102900000000000007 /* SharedShowSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC2026102900000000000008 /* SharedShowSession.swift */; };
+		EC2026111100000000000001 /* SharedShowLAN.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC2026111100000000000002 /* SharedShowLAN.swift */; };
 		EC2026102900000000000010 /* SharedShowDownloadRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC2026102900000000000011 /* SharedShowDownloadRequest.swift */; };
 /* End PBXBuildFile section */
 
@@ -927,6 +928,7 @@
 		EC2026102900000000000004 /* PlaybackSettingsWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackSettingsWindowController.swift; sourceTree = "<group>"; };
 		EC2026102900000000000006 /* SharedShowStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedShowStore.swift; sourceTree = "<group>"; };
 		EC2026102900000000000008 /* SharedShowSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedShowSession.swift; sourceTree = "<group>"; };
+		EC2026111100000000000002 /* SharedShowLAN.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedShowLAN.swift; sourceTree = "<group>"; };
 		EC2026102900000000000011 /* SharedShowDownloadRequest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedShowDownloadRequest.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -1590,6 +1592,7 @@
 				EC2026102900000000000004 /* PlaybackSettingsWindowController.swift */,
 				EC2026102900000000000006 /* SharedShowStore.swift */,
 				EC2026102900000000000008 /* SharedShowSession.swift */,
+				EC2026111100000000000002 /* SharedShowLAN.swift */,
 				EC2026102900000000000011 /* SharedShowDownloadRequest.swift */,
 				E360A5CC2C23C1BC006EA412 /* SettingsWindow.swift */,
 				E34BC28C2C27733200A94680 /* SettingsPage.swift */,
@@ -2019,6 +2022,7 @@
 				EC2026102900000000000003 /* PlaybackSettingsWindowController.swift in Sources */,
 				EC2026102900000000000005 /* SharedShowStore.swift in Sources */,
 				EC2026102900000000000007 /* SharedShowSession.swift in Sources */,
+				EC2026111100000000000001 /* SharedShowLAN.swift in Sources */,
 				EC2026102900000000000010 /* SharedShowDownloadRequest.swift in Sources */,
 				E360A5CD2C23C1BC006EA412 /* SettingsWindow.swift in Sources */,
 				8461C5301D462488006E91FF /* VideoTime.swift in Sources */,

@@ -15,7 +15,7 @@ with tempfile.TemporaryDirectory(prefix="yina-shared-mpv-") as directory:
     header = root / "mpv.h"
     header.write_text("#include <mpv/client.h>\n")
     sources = []
-    names = ["SharedShowSession.swift", "SharedShowStore.swift",
+    names = ["SharedShowSession.swift", "SharedShowLAN.swift", "SharedShowStore.swift",
              "ShowEpisodeIndexReader.swift", "PlayerState.swift"]
     if (repo / "yina/SharedShowDownloadRequest.swift").exists():
         names.append("SharedShowDownloadRequest.swift")
@@ -30,4 +30,24 @@ with tempfile.TemporaryDirectory(prefix="yina-shared-mpv-") as directory:
                     *map(str, [*sources, repo / "other/tests/shared-show-session-mpv-smoke.swift"]),
                     str(repo / "deps/lib/libmpv.2.dylib"), "-Xlinker", "-rpath", "-Xlinker",
                     str(repo / "deps/lib"), "-o", str(binary)], check=True)
-    subprocess.run([str(binary), str(root)], check=True, timeout=90)
+    host = subprocess.Popen([str(binary), str(root), "host"], stdout=subprocess.PIPE,
+                            stderr=subprocess.STDOUT, text=True)
+    try:
+        ready = root / "test-host-ready"
+        import time
+        deadline = time.monotonic() + 30
+        while not ready.exists() and host.poll() is None and time.monotonic() < deadline:
+            time.sleep(0.05)
+        if not ready.exists():
+            raise RuntimeError("Host did not advertise: " + (host.communicate(timeout=5)[0] or ""))
+        client = subprocess.run([str(binary), str(root), "client"], capture_output=True,
+                                text=True, timeout=90)
+        host_output = host.communicate(timeout=30)[0]
+        print(host_output)
+        print(client.stdout)
+        if host.returncode or client.returncode:
+            raise RuntimeError(f"Host exit {host.returncode}; client exit {client.returncode}: {client.stderr}")
+    finally:
+        if host.poll() is None:
+            host.terminate()
+            host.wait(timeout=5)

@@ -63,6 +63,8 @@ final class SharedShowSession {
   private var revision: UInt64 = 0
   private var busy = false
   private var pendingFinal: Sample?
+  private var finalCallbacks: [() -> Void] = []
+  private var finalizingGeneration: Int?
   private var pendingCurrent: Sample?
   private var lastSample: Sample?
   private var lastPublished: Sample?
@@ -85,6 +87,20 @@ final class SharedShowSession {
   private var remoteMediaIntents: Set<URL> = []
   private var endedByStopCommand = false
   private var lastControlCheckpoint: TimeInterval = 0
+  private(set) var lanFollowingRoomID: UUID?
+  private var lanRoomID: UUID?
+  var hostingRoomID: UUID? { isHosting ? lanRoomID : nil }
+  private var lanRevision: UInt64 = 0
+  private var lanState: SharedShowLAN.State?
+  private var lanResolveToken: UInt64 = 0
+  private var pendingLANPath: String?
+  private var wantsLANEpisodeSwitch = false
+  private var lanFolderPromptShown = false
+  private var lanRootHint = ""
+  private var lanCommandOverride: SharedShowLAN.State?
+  private var hostingSuppressed = false
+  private var pendingAutoHost = false
+  private static let localHostName = String(ProcessInfo.processInfo.hostName.prefix(60))
   private(set) var isHosting = false
   private(set) var followingWriter: UUID?
   private var followingParticipant: UUID?
@@ -140,7 +156,8 @@ final class SharedShowSession {
   func start() {
     timer?.invalidate()
     let media = player?.info.currentURL
-    let remoteChange = followingWriter != nil && media.map { remoteMediaIntents.contains($0) } == true
+    let remoteChange = lanFollowingRoomID != nil ||
+      (followingWriter != nil && media.map { remoteMediaIntents.contains($0) } == true)
     if let media, remoteChange {
       if media == pendingRemoteTarget {
         // The latest requested episode has loaded. Older in-flight targets
@@ -153,6 +170,11 @@ final class SharedShowSession {
       } else { remoteMediaIntents.remove(media) }
     }
     generation += 1
+    finalizingGeneration = nil
+    if !remoteChange {
+      pendingAutoHost = true
+      hostingSuppressed = false
+    }
     root = nil
     showID = nil
     relativePath = nil
@@ -174,6 +196,7 @@ final class SharedShowSession {
     }
     endedByStopCommand = false
     watchStatus = isHosting ? "Hosting Watch Together · \(writerID.uuidString.prefix(6))" :
+      lanFollowingRoomID != nil ? "Watching with host" :
       followingWriter.map { "Following host \($0.uuidString.prefix(6))" }
     checkpoint()
     scheduleTimer()
@@ -190,7 +213,7 @@ final class SharedShowSession {
   }
 
   func stop() {
-    if !endedByStopCommand && (isHosting || followingWriter != nil) {
+    if !endedByStopCommand && (isHosting || followingWriter != nil || lanFollowingRoomID != nil) {
       watchStatus = isHosting ? "Hosting Watch Together · waiting for next episode" :
         "Waiting for host's next episode"
       checkpoint(refreshPeers: false)
@@ -199,6 +222,8 @@ final class SharedShowSession {
       return
     }
     timer?.invalidate(); timer = nil
+    if isHosting { SharedShowLAN.shared.stopHosting() }
+    if lanFollowingRoomID != nil { SharedShowLAN.shared.leave(); lanFollowingRoomID = nil }
     isHosting = false
     checkpoint(stopped: true)
   }
@@ -207,26 +232,46 @@ final class SharedShowSession {
 
   func localStopRequested() { endedByStopCommand = true }
 
-  func saveFinal(media: URL?, position: Double?, duration: Double?, sourceGeneration: Int? = nil) {
+  /// Player retirement and application quit are distinct from natural EOF.
+  func shutdown() {
+    timer?.invalidate(); timer = nil
+    if isHosting { SharedShowLAN.shared.stopHosting() }
+    if lanFollowingRoomID != nil { SharedShowLAN.shared.leave(); lanFollowingRoomID = nil }
+    isHosting = false
+    pendingAutoHost = false
+    checkpoint(stopped: true)
+  }
+
+  func saveFinal(media: URL?, position: Double?, duration: Double?, sourceGeneration: Int? = nil,
+                 completion: (() -> Void)? = nil) {
     let sampleGeneration = sourceGeneration ??
       (player?.info.currentURL == media ? generation : generation - 1)
     // A final callback can arrive after a new file has started. Publishing it
     // then would replace the newer episode's single writer record on disk.
-    guard sampleGeneration == generation else { return }
+    guard sampleGeneration == generation else { completion?(); return }
     timer?.invalidate()
     timer = nil
     guard let media, media.isFileURL, let position, let duration,
           position.isFinite, duration.isFinite, duration > 0 else {
       stop()
+      completion?()
       return
     }
+    if let completion { finalCallbacks.append(completion) }
+    finalizingGeneration = sampleGeneration
     let sample = Sample(generation: sampleGeneration, media: media, position: min(duration, max(0, position)),
                         duration: duration, activity: .stopped, date: Date())
     lastSample = sample
     enqueue(sample)
   }
 
+  func requestFinalCheckpoint(completion: @escaping () -> Void) {
+    saveFinal(media: player?.info.currentURL, position: player?.info.videoPosition?.second,
+              duration: player?.info.videoDuration?.second, completion: completion)
+  }
+
   func checkpoint(stopped: Bool = false, refreshPeers: Bool = true) {
+    if !stopped && finalizingGeneration == generation { return }
     guard let player else { return }
     let sample: Sample
     if player.info.state.loaded, let media = player.info.currentURL, media.isFileURL {
@@ -257,6 +302,7 @@ final class SharedShowSession {
     if !sample.shouldWrite && !sample.refreshPeers && followingWriter == nil && sample.date.timeIntervalSince(lastBroadRefresh) < 30 { return }
     if let membership, membership.root == nil, sample.date < membership.expiresAt,
        !isHosting && followingWriter == nil { return }
+    if isHosting && !stopped { publishLANState() }
     enqueue(sample)
   }
 
@@ -282,7 +328,7 @@ final class SharedShowSession {
     let membershipEpoch = self.membershipEpoch
     let previousPositions = positions
     let previousBroadRefresh = lastBroadRefresh
-    let following = followingWriter
+    let following = lanFollowingRoomID == nil ? followingWriter : nil
     let hostParticipant = followingParticipant
     let followingShow = followingShowID
     let watchIntent = remoteOpenGeneration
@@ -298,7 +344,6 @@ final class SharedShowSession {
       var published = false
       var hostRecord: SharedShowStore.Progress?
       var hostQueue: SharedShowStore.QueueRecord?
-      var publishedQueue: SharedShowStore.QueueRecord?
       var playableTarget: URL?
       do {
         let store: SharedShowStore?
@@ -350,32 +395,9 @@ final class SharedShowSession {
             }
           }
           if sample.shouldWrite {
-            if sample.hosting {
-              var queueItems: [String] = []
-              var seen: [String: Int] = [:]
-              var queueBytes = 0
-              for filename in sample.playlistPaths where filename.hasPrefix("/") && queueItems.count < 1_023 {
-                guard let relative = store.relativePath(for: URL(fileURLWithPath: filename)),
-                      relative != ".yina.json", relative.split(separator: "/").first != ".yina" else { continue }
-                let key = relative.precomposedStringWithCanonicalMapping.lowercased()
-                guard seen[key] == nil,
-                      queueBytes + relative.utf8.count <= 256 * 1024 - path.utf8.count else { continue }
-                seen[key] = queueItems.count
-                queueItems.append(relative)
-                queueBytes += relative.utf8.count
-              }
-              let currentKey = path.precomposedStringWithCanonicalMapping.lowercased()
-              if let index = seen[currentKey] { queueItems[index] = path }
-              else { queueItems.append(path) }
-              let queue = SharedShowStore.QueueRecord(showID: showID, participantID: participant,
-                writerID: writer, revision: revision, updatedAt: sample.date,
-                items: queueItems, current: sample.awaitingNextEpisode ? nil : path)
-              try store.publishQueue(queue)
-              publishedQueue = queue
-            }
             try store.publish(.init(showID: showID, participantID: participant, writerID: writer,
               revision: revision, updatedAt: sample.date, relativePath: path, position: sample.position,
-              duration: sample.duration, activity: sample.activity, playbackRate: sample.rate, watchTogether: sample.hosting))
+              duration: sample.duration, activity: sample.activity, playbackRate: sample.rate, watchTogether: false))
             published = true
           }
           status = "Progress saved to show folder"
@@ -384,8 +406,15 @@ final class SharedShowSession {
         nextMembership = Membership(root: nil, showID: nil, path: nil, expiresAt: sample.date.addingTimeInterval(10))
         status = "Shared progress unavailable; playback continues locally"
       }
+      let rootHint: String
+      if let resolvedRoot,
+         let volume = try? resolvedRoot.resourceValues(forKeys: [.volumeURLKey]).volume,
+         volume.path.hasPrefix("/Volumes/"),
+         resolvedRoot.path.hasPrefix(volume.path) {
+        rootHint = String(resolvedRoot.path.dropFirst(volume.path.count)).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+      } else { rootHint = "" }
       let result = (resolvedRoot, resolvedID, positions, status, resolvedPath, nextMembership,
-                    broadRefresh, published, hostRecord, hostQueue, playableTarget, publishedQueue)
+                    broadRefresh, published, hostRecord, hostQueue, playableTarget, rootHint)
       DispatchQueue.main.async { [weak self] in
         Self.releaseLane(laneKey)
         guard let self else { return }
@@ -400,16 +429,32 @@ final class SharedShowSession {
           self.lastBroadRefresh = result.6
           if result.7 { self.lastPublished = sample }
           self.contextMedia = sample.media
-          if self.isHosting, let queue = result.11 {
-            self.hostQueueItems = queue.items
-            self.hostQueueCurrent = queue.current
+          self.lanRootHint = result.11
+          if self.isHosting, let command = self.lanCommandOverride,
+             self.relativePath == command.relativePath {
+            self.applyLANTransport(command)
           }
+          if self.lanFollowingRoomID != nil,
+             self.relativePath == self.lanState?.relativePath {
+            self.pendingLANPath = nil
+            if let lanState = self.lanState { self.applyLANState(lanState) }
+          }
+          if !self.isHosting && self.lanFollowingRoomID == nil && self.pendingAutoHost && !self.hostingSuppressed,
+             self.showID != nil, self.player?.info.state.loaded == true {
+            self.pendingAutoHost = false
+            self.hostWatchTogether()
+          }
+          if self.isHosting && (self.lanState == nil || self.lanState?.relativePath != self.relativePath) {
+            self.publishLANState()
+          }
+          if self.lanFollowingRoomID != nil && self.wantsLANEpisodeSwitch { self.sendLANControl() }
           if self.remoteOpenGeneration == watchIntent {
             self.synchronize(host: result.8, queue: result.9, playableTarget: result.10)
           }
           self.changed()
           if self.timer != nil { self.scheduleTimer() }
         }
+        let hasNextFinal = self.pendingFinal != nil
         if let final = self.pendingFinal {
           self.pendingFinal = nil
           self.submit(final)
@@ -417,14 +462,25 @@ final class SharedShowSession {
           self.pendingCurrent = nil
           self.submit(current)
         }
+        if sample.activity == .stopped && !hasNextFinal {
+          let callbacks = self.finalCallbacks
+          self.finalCallbacks.removeAll()
+          callbacks.forEach { $0() }
+        }
       }
     }
   }
 
   func hostWatchTogether() {
     guard showID != nil else { return }
+    SharedShowLAN.shared.leave()
+    lanFollowingRoomID = nil
     clearFollowing()
     isHosting = true
+    pendingAutoHost = false
+    hostingSuppressed = false
+    lanRoomID = UUID()
+    lanRevision = 0
     watchStatus = "Hosting Watch Together · \(writerID.uuidString.prefix(6))"
     scheduleTimer()
     checkpoint()
@@ -456,7 +512,11 @@ final class SharedShowSession {
   }
 
   func leaveWatchTogether() {
+    if isHosting { SharedShowLAN.shared.stopHosting() }
+    if lanFollowingRoomID != nil { SharedShowLAN.shared.leave(); lanFollowingRoomID = nil }
     isHosting = false
+    hostingSuppressed = true
+    pendingAutoHost = false
     clearFollowing()
     watchStatus = nil
     scheduleTimer()
@@ -468,6 +528,10 @@ final class SharedShowSession {
   /// the same PlayerCore API under the applyingRemote guard, preventing loops.
   func localControlChanged() {
     guard !applyingRemote else { return }
+    if lanFollowingRoomID != nil {
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in self?.sendLANControl() }
+      return
+    }
     if followingWriter != nil { leaveWatchTogether() }
     if isHosting, ProcessInfo.processInfo.systemUptime - lastControlCheckpoint >= 1 {
       lastControlCheckpoint = ProcessInfo.processInfo.systemUptime
@@ -479,8 +543,231 @@ final class SharedShowSession {
   /// this through PlayerCore while applyingRemote is true.
   func localMediaChangeRequested() {
     guard !applyingRemote else { return }
+    if lanFollowingRoomID != nil { wantsLANEpisodeSwitch = true; return }
     if followingWriter != nil { leaveWatchTogether() }
     else if isHosting { checkpoint() }
+  }
+
+  private func publishLANState() {
+    guard isHosting, let roomID = lanRoomID, let showID, let relativePath,
+          let player, player.info.currentURL == contextMedia,
+          let position = player.info.videoPosition?.second,
+          let duration = player.info.videoDuration?.second,
+          position.isFinite, duration.isFinite, duration > 0 else { return }
+    if let prior = lanState, prior.showID != showID {
+      SharedShowLAN.shared.stopHosting()
+      lanRoomID = UUID()
+      lanRevision = 0
+      lanState = nil
+      lanCommandOverride = nil
+      publishLANState()
+      return
+    }
+    if let override = lanCommandOverride, override.relativePath != relativePath,
+       Date().timeIntervalSince(override.emittedAt) < 20 { return }
+    let overriding: SharedShowLAN.State?
+    if let command = lanCommandOverride,
+       Date().timeIntervalSince(command.emittedAt) < 5,
+       (abs(position - command.position) > SharedPlaybackSync.seekTolerance ||
+        (player.info.state == .paused) != command.paused ||
+        abs(player.info.playSpeed - command.rate) > 0.001) {
+      overriding = command
+    } else {
+      lanCommandOverride = nil
+      overriding = nil
+    }
+    lanRevision &+= 1
+    let state = SharedShowLAN.State(roomID: roomID, showID: showID,
+      hostName: Self.localHostName,
+      title: String((player.info.currentURL?.deletingPathExtension().lastPathComponent ?? "Movie").prefix(120)),
+      rootHint: lanRootHint,
+      relativePath: relativePath,
+      position: overriding?.position ?? min(duration, max(0, position)), duration: duration,
+      paused: overriding?.paused ?? (player.info.state != .playing),
+      rate: overriding?.rate ?? player.info.playSpeed,
+      revision: lanRevision, emittedAt: Date(), awaitingNextEpisode: !player.info.state.loaded)
+    lanState = state
+    SharedShowLAN.shared.host(session: self, state: state)
+  }
+
+  func acceptLANCommand(_ command: SharedShowLAN.State, revision: UInt64) {
+    lanRevision = max(lanRevision, revision)
+    lanCommandOverride = command
+  }
+
+  func yieldLANHosting() {
+    isHosting = false
+    hostingSuppressed = true
+    lanRoomID = nil
+    lanState = nil
+    watchStatus = nil
+    scheduleTimer()
+    changed()
+  }
+
+  func beginLANFollow(_ room: SharedShowLAN.Room) {
+    if isHosting { SharedShowLAN.shared.stopHosting() }
+    isHosting = false
+    hostingSuppressed = true
+    pendingAutoHost = false
+    clearFollowing()
+    lanFollowingRoomID = room.id
+    lanState = nil
+    lanResolveToken &+= 1
+    pendingLANPath = nil
+    wantsLANEpisodeSwitch = false
+    lanFolderPromptShown = false
+    watchStatus = "Connecting to \(room.hostName)"
+    scheduleTimer()
+    changed()
+  }
+
+  func endLANFollow(_ message: String) {
+    guard lanFollowingRoomID != nil else { return }
+    lanFollowingRoomID = nil
+    hostingSuppressed = true
+    pendingAutoHost = false
+    lanState = nil
+    lanResolveToken &+= 1
+    pendingLANPath = nil
+    wantsLANEpisodeSwitch = false
+    if let pendingRemoteTarget { player?.cancelSharedShowMediaPreparation(for: pendingRemoteTarget) }
+    pendingRemoteTarget = nil
+    watchStatus = message
+    scheduleTimer()
+    changed()
+  }
+
+  private func sendLANControl() {
+    guard let state = lanState, lanFollowingRoomID == state.roomID,
+          let player, player.info.state.loaded,
+          let media = player.info.currentURL, media == contextMedia,
+          let showID, showID == state.showID,
+          let relativePath,
+          let position = player.info.videoPosition?.second,
+          let duration = player.info.videoDuration?.second,
+          position.isFinite, duration.isFinite, duration > 0 else { return }
+    let command = SharedShowLAN.State(roomID: state.roomID, showID: showID,
+      hostName: state.hostName, title: String(media.deletingPathExtension().lastPathComponent.prefix(120)),
+      rootHint: state.rootHint,
+      relativePath: relativePath, position: min(duration, max(0, position)), duration: duration,
+      paused: player.info.state == .paused, rate: player.info.playSpeed,
+      revision: state.revision, emittedAt: Date(), awaitingNextEpisode: false)
+    guard relativePath == state.relativePath || wantsLANEpisodeSwitch else { return }
+    SharedShowLAN.shared.sendClientControl(command, switchEpisode: relativePath != state.relativePath)
+    wantsLANEpisodeSwitch = false
+  }
+
+  func applyLANState(_ state: SharedShowLAN.State) {
+    guard lanFollowingRoomID == state.roomID, state.isValid else { return }
+    lanState = state
+    guard !state.awaitingNextEpisode else {
+      watchStatus = "Waiting for the host's next episode"
+      changed()
+      return
+    }
+    guard let player else { return }
+    if showID == state.showID && relativePath == state.relativePath &&
+       player.info.state.loaded && player.info.currentURL == contextMedia {
+      applyLANTransport(state)
+      return
+    }
+    // One pending lookup per target. A newer episode invalidates its completion.
+    if pendingLANPath == state.relativePath { return }
+    if let pendingRemoteTarget { player.cancelSharedShowMediaPreparation(for: pendingRemoteTarget) }
+    pendingRemoteTarget = nil
+    pendingLANPath = state.relativePath
+    lanResolveToken &+= 1
+    let token = lanResolveToken
+    watchStatus = "Finding \(state.title) on this Mac"
+    changed()
+    SharedShowLAN.shared.resolve(state, preferredRoot: root) { [weak self] url in
+      guard let self, self.lanFollowingRoomID == state.roomID,
+            self.lanResolveToken == token else { return }
+      guard let url else {
+        self.pendingLANPath = nil
+        self.watchStatus = "Mount the shared show to watch \(state.title)"
+        self.changed()
+        if !self.lanFolderPromptShown && NSApp.isRunning {
+          self.lanFolderPromptShown = true
+          let panel = NSOpenPanel()
+          panel.message = "Choose the mounted shared show folder"
+          panel.canChooseDirectories = true
+          panel.canChooseFiles = false
+          panel.allowsMultipleSelection = false
+          panel.begin { [weak self] response in
+            guard let self, self.lanFollowingRoomID == state.roomID,
+                  response == .OK, let selected = panel.url else { return }
+            self.root = selected
+            self.applyLANState(state)
+          }
+        }
+        return
+      }
+      self.pendingRemoteTarget = url
+      self.watchStatus = "Opening \(state.title)"
+      self.changed()
+      self.applyingRemote = true
+      player.openURLsAsync([url], shouldAutoLoad: false) { [weak self] count in
+        guard let self, self.lanFollowingRoomID == state.roomID,
+              self.lanResolveToken == token else { return }
+        if count != 1 {
+          self.pendingRemoteTarget = nil
+          self.pendingLANPath = nil
+          self.watchStatus = "Could not open \(state.title)"
+          self.changed()
+        }
+      }
+      self.applyingRemote = false
+      DispatchQueue.main.asyncAfter(deadline: .now() + 20) { [weak self] in
+        guard let self, self.lanFollowingRoomID == state.roomID,
+              self.lanResolveToken == token, self.pendingLANPath == state.relativePath else { return }
+        self.player?.cancelSharedShowMediaPreparation(for: url)
+        self.pendingRemoteTarget = nil
+        self.pendingLANPath = nil
+        self.watchStatus = "Waiting for \(state.title)"
+        self.changed()
+      }
+    }
+  }
+
+  private func applyLANTransport(_ state: SharedShowLAN.State) {
+    guard let player, let duration = player.info.videoDuration?.second else { return }
+    applyingRemote = true
+    defer { applyingRemote = false }
+    if state.paused && player.info.state != .paused { player.pause() }
+    if abs(player.info.playSpeed - state.rate) > 0.001 { player.setSpeed(state.rate) }
+    if let position = player.info.videoPosition?.second {
+      let expected = state.paused ? state.position : state.position + min(2, Date().timeIntervalSince(state.emittedAt)) * state.rate
+      let destination = min(max(0, duration - 0.5), max(0, expected))
+      if abs(position - destination) > SharedPlaybackSync.seekTolerance {
+        player.seek(absoluteSecond: destination)
+      }
+    }
+    if !state.paused && player.info.state == .paused { player.resume() }
+    watchStatus = "Watching with \(state.hostName)"
+    changed()
+  }
+
+  func applyLANCommand(_ state: SharedShowLAN.State, completion: @escaping (Bool) -> Void) {
+    guard isHosting, lanRoomID == state.roomID, state.showID == showID,
+          state.isValid, let player else { completion(false); return }
+    if relativePath == state.relativePath && player.info.state.loaded {
+      applyLANTransport(state)
+      completion(true)
+      return
+    }
+    lanResolveToken &+= 1
+    let token = lanResolveToken
+    let generation = self.generation
+    SharedShowLAN.shared.resolve(state, preferredRoot: root) { [weak self] url in
+      guard let self, self.isHosting, self.lanRoomID == state.roomID,
+            self.lanResolveToken == token, self.generation == generation,
+            let url else { completion(false); return }
+      self.applyingRemote = true
+      player.openURLsAsync([url], shouldAutoLoad: false) { count in completion(count == 1) }
+      self.applyingRemote = false
+    }
   }
 
   func playlistChanged() {
@@ -507,6 +794,7 @@ final class SharedShowSession {
 
   private func synchronize(host record: SharedShowStore.Progress?, queue: SharedShowStore.QueueRecord?,
                            playableTarget: URL?) {
+    guard lanFollowingRoomID == nil else { return }
     guard let followingWriter, let followingParticipant, let followingShowID,
           let player else { return }
     guard showID == followingShowID else {
