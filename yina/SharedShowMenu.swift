@@ -24,7 +24,7 @@ enum SharedShowMenuContent {
     }
     if session.showID == nil {
       if !watchingTogether {
-        let enable = NSMenuItem(title: "Enable for This Show…", action: NSSelectorFromString("enableSharedShow:"), keyEquivalent: "")
+        let enable = NSMenuItem(title: "Enable for This Show", action: NSSelectorFromString("enableSharedShow:"), keyEquivalent: "")
         enable.target = target
         enable.isEnabled = canEnable
         menu.addItem(enable)
@@ -123,7 +123,7 @@ final class SharedShowMenuController: NSObject, NSMenuDelegate {
   }
 
   @objc private func enableSharedShow(_ sender: NSMenuItem) {
-    player?.sharedShow.enableSharing(in: player?.currentController.window)
+    player?.sharedShow.enableSharing()
   }
   @objc private func hostWatchTogether(_ sender: NSMenuItem) { player?.sharedShow.hostWatchTogether() }
   @objc private func leaveWatchTogether(_ sender: NSMenuItem) { player?.sharedShow.leaveWatchTogether() }

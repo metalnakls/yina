@@ -535,7 +535,7 @@ extension SidebarPlaylistPane: NSMenuDelegate, NSMenuItemValidation {
     player.sharedShow.request(episode, snapshot: snapshot)
   }
 
-  @objc private func enableSharedShow(_ sender: NSMenuItem) { player.sharedShow.enableSharing(in: window) }
+  @objc private func enableSharedShow(_ sender: NSMenuItem) { player.sharedShow.enableSharing() }
 
   @objc private func hostWatchTogether(_ sender: NSMenuItem) { player.sharedShow.hostWatchTogether() }
   @objc private func leaveWatchTogether(_ sender: NSMenuItem) { player.sharedShow.leaveWatchTogether() }

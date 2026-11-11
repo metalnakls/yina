@@ -80,6 +80,85 @@ enum Utility {
         RunLoop.main.run(until: Date().addingTimeInterval(0.01))
       }
     }
+    // Enabling from a file never presents a folder picker. An existing
+    // ancestor identity wins over the file's immediate containing folder.
+    let nested = root.appendingPathComponent("Season 1", isDirectory: true)
+    try fm.createDirectory(at: nested, withIntermediateDirectories: true)
+    let nestedMedia = nested.appendingPathComponent("Episode.mkv")
+    try Data([1]).write(to: nestedMedia)
+    let nestedPlayer = PlayerCore()
+    nestedPlayer.info.currentURL = nestedMedia
+    let nestedSession = SharedShowSession(player: nestedPlayer)
+    nestedSession.enableSharing()
+    try wait { nestedSession.showID == descriptor.showID }
+    precondition(nestedSession.root == store.root &&
+                 !fm.fileExists(atPath: nested.appendingPathComponent(".yina/show.json").path),
+                 "Enable did not reuse the existing ancestor show")
+
+    let freshFolder = root.appendingPathComponent("Unshared", isDirectory: true)
+    try fm.createDirectory(at: freshFolder, withIntermediateDirectories: true)
+    let freshMedia = freshFolder.appendingPathComponent("New.mkv")
+    try Data([1]).write(to: freshMedia)
+    let freshPlayer = PlayerCore()
+    freshPlayer.info.currentURL = freshMedia
+    let freshSession = SharedShowSession(player: freshPlayer)
+    freshSession.enableSharing()
+    try wait { freshSession.showID != nil }
+    precondition(freshSession.root == store.root && freshSession.showID == descriptor.showID,
+                 "Existing ancestor should be preferred even for a new subfolder")
+
+    let isolated = fm.temporaryDirectory.appendingPathComponent("yina-new-share-\(UUID())", isDirectory: true)
+    try fm.createDirectory(at: isolated, withIntermediateDirectories: true)
+    defer { try? fm.removeItem(at: isolated) }
+    let isolatedMedia = isolated.appendingPathComponent("Movie.mkv")
+    try Data([1]).write(to: isolatedMedia)
+    let isolatedPlayer = PlayerCore()
+    isolatedPlayer.info.currentURL = isolatedMedia
+    let isolatedSession = SharedShowSession(player: isolatedPlayer)
+    isolatedSession.enableSharing()
+    try wait { isolatedSession.showID != nil }
+    let canonicalIsolatedRoot = try SharedShowStore(root: isolated).root
+    precondition(isolatedSession.root == canonicalIsolatedRoot &&
+                 fm.fileExists(atPath: isolated.appendingPathComponent(".yina/show.json").path),
+                 "A new show must use the open file's parent")
+
+    let malformed = fm.temporaryDirectory.appendingPathComponent("yina-bad-share-\(UUID())", isDirectory: true)
+    try fm.createDirectory(at: malformed.appendingPathComponent(".yina"), withIntermediateDirectories: true)
+    defer { try? fm.removeItem(at: malformed) }
+    let badMetadata = malformed.appendingPathComponent(".yina/show.json")
+    let originalBadMetadata = Data("{broken".utf8)
+    try originalBadMetadata.write(to: badMetadata)
+    let badMedia = malformed.appendingPathComponent("Episode.mkv")
+    try Data([1]).write(to: badMedia)
+    let badPlayer = PlayerCore()
+    badPlayer.info.currentURL = badMedia
+    let badSession = SharedShowSession(player: badPlayer)
+    badSession.enableSharing()
+    try wait { badSession.status?.contains("existing show metadata is invalid") == true }
+    let remainingBadMetadata = try Data(contentsOf: badMetadata)
+    precondition(remainingBadMetadata == originalBadMetadata,
+                 "Malformed nearer metadata was overwritten")
+
+    let enableQueue = OperationQueue()
+    enableQueue.isSuspended = true
+    var staleReleases = 0
+    let staleScheduler = SharedShowSession.RequestWorkScheduler(reserve: { _ in
+      (enableQueue, "test-enable-lane")
+    }, release: { _ in staleReleases += 1 })
+    let stalePlayer = PlayerCore()
+    stalePlayer.info.currentURL = a
+    let staleSession = SharedShowSession(player: stalePlayer, sharingWorkScheduler: staleScheduler)
+    staleSession.start()
+    staleSession.enableSharing()
+    stalePlayer.info.currentURL = b
+    staleSession.start()
+    stalePlayer.info.currentURL = a
+    staleSession.start()
+    enableQueue.isSuspended = false
+    try wait { staleReleases == 1 }
+    // The queued A result predates two file changes, even though A is current again.
+    precondition(staleSession.status != "Shared progress enabled",
+                 "A stale enable completion updated the new playback generation")
     session.start()
     try wait { session.showID == descriptor.showID }
     var changes = 0

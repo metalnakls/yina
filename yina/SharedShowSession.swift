@@ -22,6 +22,7 @@ final class SharedShowSession {
   private static var laneByRoot: [String: (index: Int, count: Int)] = [:]
   private static var laneLoads = [0, 0, 0, 0]
   private let requestWorkScheduler: RequestWorkScheduler
+  private let sharingWorkScheduler: RequestWorkScheduler
   private static func reserveLane(for url: URL) -> (OperationQueue, String) {
     // A root with work in flight retains its serial lane. A new root chooses
     // the least occupied lane, so one stalled root leaves other lanes usable.
@@ -56,6 +57,8 @@ final class SharedShowSession {
   private weak var player: PlayerCore?
   private var timer: Timer?
   private var generation = 0
+  private var enableToken: UInt64 = 0
+  private var membershipEpoch: UInt64 = 0
   var generationToken: Int { generation }
   private var revision: UInt64 = 0
   private var busy = false
@@ -120,9 +123,12 @@ final class SharedShowSession {
     var awaitingNextEpisode = false
   }
 
-  init(player: PlayerCore, requestWorkScheduler: RequestWorkScheduler? = nil) {
+  init(player: PlayerCore, requestWorkScheduler: RequestWorkScheduler? = nil,
+       sharingWorkScheduler: RequestWorkScheduler? = nil) {
     self.player = player
     self.requestWorkScheduler = requestWorkScheduler ?? .init(reserve: Self.reserveLane,
+                                                               release: Self.releaseLane)
+    self.sharingWorkScheduler = sharingWorkScheduler ?? .init(reserve: Self.reserveLane,
                                                                release: Self.releaseLane)
   }
 
@@ -273,6 +279,7 @@ final class SharedShowSession {
     let writer = writerID
     let participant = Self.participantID
     let cachedMembership = membership
+    let membershipEpoch = self.membershipEpoch
     let previousPositions = positions
     let previousBroadRefresh = lastBroadRefresh
     let following = followingWriter
@@ -383,7 +390,7 @@ final class SharedShowSession {
         Self.releaseLane(laneKey)
         guard let self else { return }
         self.busy = false
-        if self.generation == generation {
+        if self.generation == generation && self.membershipEpoch == membershipEpoch {
           self.root = result.0
           self.showID = result.1
           self.positions = result.2
@@ -629,33 +636,51 @@ final class SharedShowSession {
     applyingRemote = false
   }
 
-  /// Root selection is explicit. Opening a normal media file never creates a
-  /// descriptor in a guessed season/library folder.
-  func enableSharing(in window: NSWindow?) {
+  /// An explicit enable action uses the nearest existing show identity, or the
+  /// open file's containing folder for a new show. All share I/O stays off UI.
+  func enableSharing() {
     guard let media = player?.info.currentURL, media.isFileURL else { return }
-    Utility.quickOpenPanel(title: "Choose the Show Folder", chooseDir: true,
-                          dir: media.deletingLastPathComponent(), sheetWindow: window) { [weak self] root in
-      guard let self else { return }
-      self.status = "Enabling shared progress…"
-      self.changed()
-      let (lane, laneKey) = Self.reserveLane(for: root)
-      lane.addOperation { [weak self] in
-        let result: String
-        do {
-          let store = try SharedShowStore(root: root.resolvingSymlinksInPath())
-          guard store.relativePath(for: media) != nil else { throw SharedShowStore.Failure.unsafePath }
-          _ = try store.enable()
-          result = "Shared progress enabled"
-        } catch { result = "Couldn’t enable sharing in this folder" }
-        DispatchQueue.main.async { [weak self] in
-          Self.releaseLane(laneKey)
-          guard let self, self.player?.info.currentURL == media else { return }
-          self.status = result
-          self.membership = nil
-          self.changed()
-          self.checkpoint()
-        }
+    let generation = self.generation
+    enableToken &+= 1
+    membershipEpoch &+= 1
+    let token = enableToken
+    status = "Enabling shared progress…"
+    changed()
+    let (lane, laneKey) = sharingWorkScheduler.reserve(media.deletingLastPathComponent())
+    let releaseLane = sharingWorkScheduler.release
+    lane.addOperation { [weak self] in
+      let result: String
+      do {
+        let store = try SharedShowStore.discover(for: media)
+          ?? SharedShowStore(root: media.deletingLastPathComponent())
+        guard store.relativePath(for: media) != nil else { throw SharedShowStore.Failure.unsafePath }
+        _ = try store.enable()
+        result = "Shared progress enabled"
+      } catch {
+        result = "Couldn’t enable sharing: \(Self.enableFailureDescription(error))"
       }
+      DispatchQueue.main.async { [weak self] in
+        releaseLane(laneKey)
+        guard let self else { return }
+        guard self.generation == generation, self.enableToken == token,
+              self.player?.info.currentURL == media else { return }
+        self.membershipEpoch &+= 1
+        self.status = result
+        if result == "Shared progress enabled" { self.membership = nil }
+        self.changed()
+        if result == "Shared progress enabled" { self.checkpoint() }
+      }
+    }
+  }
+
+  private nonisolated static func enableFailureDescription(_ error: Error) -> String {
+    switch error {
+    case SharedShowStore.Failure.unsafePath: return "the open file is no longer accessible"
+    case SharedShowStore.Failure.invalidRecord: return "the existing show metadata is invalid"
+    case SharedShowStore.Failure.identityChanged: return "the existing show identity changed"
+    case SharedShowStore.Failure.tooLarge: return "the existing show metadata is too large"
+    case SharedShowStore.Failure.io(let code): return String(cString: strerror(code))
+    default: return error.localizedDescription
     }
   }
 
