@@ -29,6 +29,8 @@ enum Utility {
     var videoPosition: Time?
     var videoDuration: Time?
     var playSpeed = 1.0
+    var pausedForCache = false
+    var isSeeking = false
     var playlist: [PlaylistItem] = []
   }
   let info = Info()
@@ -39,6 +41,8 @@ enum Utility {
   private var timer: Timer?
   private var canceledURL: URL?
   private var replacementInFlight = false
+  var forcedCachePaused = false
+  private(set) var seekEvents = 0
 
   init() {
     handle = mpv_create()!
@@ -62,6 +66,13 @@ enum Utility {
   private func pump() {
     while let event = mpv_wait_event(handle, 0), event.pointee.event_id != MPV_EVENT_NONE {
       switch event.pointee.event_id {
+      case MPV_EVENT_SEEK:
+        seekEvents += 1
+        info.isSeeking = true
+        session?.playbackSeekingObserved()
+      case MPV_EVENT_PLAYBACK_RESTART:
+        info.isSeeking = false
+        session?.playbackRestartObserved()
       case MPV_EVENT_FILE_LOADED:
         info.currentURL = pendingURL
         pendingURL = nil
@@ -97,8 +108,17 @@ enum Utility {
     if mpv_get_property(handle, "speed", MPV_FORMAT_DOUBLE, &speed) >= 0 { info.playSpeed = speed }
     var paused: Int32 = 0
     if mpv_get_property(handle, "pause", MPV_FORMAT_FLAG, &paused) >= 0 {
+      let previous = info.state
       info.state = paused != 0 ? .paused : .playing
+      if previous != info.state { session?.playbackPauseObserved(paused != 0) }
     }
+    var cachePaused: Int32 = 0
+    if mpv_get_property(handle, "paused-for-cache", MPV_FORMAT_FLAG, &cachePaused) >= 0 {
+      info.pausedForCache = cachePaused != 0 || forcedCachePaused
+    }
+    session?.playbackObservation(position: info.videoPosition?.second,
+      observedAt: ProcessInfo.processInfo.systemUptime,
+      cachePaused: info.pausedForCache, seeking: info.isSeeking)
   }
 
   func openURLsAsync(_ urls: [URL], shouldAutoLoad: Bool = true, completion: ((Int?) -> Void)? = nil) {
@@ -114,21 +134,42 @@ enum Utility {
   func cancelSharedShowMediaPreparation(for expectedURL: URL) {
     if pendingURL == expectedURL { canceledURL = expectedURL }
   }
+  func cancelSharedShowCommandOpen(for expectedURL: URL) {
+    if pendingURL == expectedURL || info.currentURL == expectedURL {
+      _ = mpv_command_string(handle, "stop")
+    }
+  }
   func syncPositionIfNeeded() {}
+  func refreshSharedShowReadiness(generation: UInt64) {
+    var position = 0.0
+    var cachePaused: Int32 = 0
+    var paused: Int32 = 0
+    let hasPosition = mpv_get_property(handle, "time-pos", MPV_FORMAT_DOUBLE, &position) >= 0
+    let hasCache = mpv_get_property(handle, "paused-for-cache", MPV_FORMAT_FLAG, &cachePaused) >= 0
+    let hasPause = mpv_get_property(handle, "pause", MPV_FORMAT_FLAG, &paused) >= 0
+    session?.playbackObservation(position: hasPosition ? position : nil,
+      observedAt: ProcessInfo.processInfo.systemUptime,
+      cachePaused: !hasCache || cachePaused != 0 || forcedCachePaused, seeking: info.isSeeking,
+      barrierGeneration: generation, enginePaused: hasPause ? paused != 0 : nil)
+  }
   func seek(absoluteSecond: Double) {
-    session?.localControlChanged()
+    session?.localControlChanged(.seek(absoluteSecond))
     _ = mpv_command_string(handle, "seek \(absoluteSecond) absolute exact")
   }
   func pause() {
-    session?.localControlChanged()
+    session?.localControlChanged(.pause(true))
     _ = mpv_set_property_string(handle, "pause", "yes")
   }
   func resume() {
-    session?.localControlChanged()
+    session?.localControlChanged(.pause(false))
+    if session?.shouldDeferLocalResume == true { return }
     _ = mpv_set_property_string(handle, "pause", "no")
   }
   func setSpeed(_ value: Double) {
-    session?.localControlChanged()
+    session?.localControlChanged(.rate(value))
+    _ = mpv_set_property_string(handle, "speed", "\(value)")
+  }
+  func setSharedShowCorrectionRate(_ value: Double) {
     _ = mpv_set_property_string(handle, "speed", "\(value)")
   }
 }
@@ -158,7 +199,8 @@ enum Utility {
       if !settled {
         print("boundary timeout:", role, note, "media", player.info.currentURL?.lastPathComponent ?? "nil",
               "state", player.info.state, "path", session.relativePath ?? "nil",
-              "watch", session.watchStatus ?? "nil", "rooms", SharedShowLAN.shared.rooms.count)
+              "watch", session.watchStatus ?? "nil", "rooms", SharedShowLAN.shared.rooms.count,
+              "readiness", session.lanReadinessDiagnostic)
         fflush(stdout)
       }
       precondition(settled, note)
@@ -170,6 +212,24 @@ enum Utility {
       try session.hostingRoomID!.uuidString.write(to: flag("room-id"), atomically: true, encoding: .utf8)
       signal("host-ready")
       try wait("client joined") { FileManager.default.fileExists(atPath: flag("client-joined").path) }
+      try wait("client playing before buffer") {
+        FileManager.default.fileExists(atPath: flag("client-ready-for-buffer").path) &&
+          session.lanReadyForSharedPlayback
+      }
+      signal("host-armed-for-buffer")
+      let seeksBeforeBuffer = player.seekEvents
+      try wait("host held for guest buffer") { player.info.state == .paused }
+      signal("host-held-for-buffer")
+      player.pause()
+      signal("host-user-paused")
+      try wait("guest buffer cleared") { FileManager.default.fileExists(atPath: flag("client-buffer-cleared").path) }
+      RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.7))
+      precondition(player.info.state == .paused, "User pause was overwritten by buffer recovery")
+      player.resume()
+      try wait("host scheduled restart") { player.info.state == .playing }
+      signal("host-resumed-after-buffer")
+      try wait("guest scheduled restart") { FileManager.default.fileExists(atPath: flag("client-resumed-after-buffer").path) }
+      precondition(player.seekEvents == seeksBeforeBuffer, "Buffer recovery issued a corrective seek")
       player.pause(); player.seek(absoluteSecond: 4); player.setSpeed(1.5)
       try wait("client received host transport") { FileManager.default.fileExists(atPath: flag("client-saw-host").path) }
       try wait("client command reached host") {
@@ -196,7 +256,7 @@ enum Utility {
       try wait("host final archive") {
         try store.progress(showID: descriptor.showID).first { $0.writerID == session.writerID }?.activity == .stopped
       }
-      print("PASS host: automatic room, client play/seek/rate, episode, clean disconnect")
+      print("PASS host: cache-stall hold, user pause, scheduled resume, no corrective seek, commands, episode, disconnect")
     } else {
       let id = try String(contentsOf: flag("room-id"), encoding: .utf8)
       let roomID = UUID(uuidString: id)!
@@ -205,6 +265,31 @@ enum Utility {
       precondition(SharedShowLAN.shared.join(room, player: player))
       try wait("joined") { session.lanFollowingRoomID == roomID }
       signal("client-joined")
+      RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.6))
+      try wait("guest playing before buffer") {
+        session.lanReadyForSharedPlayback
+      }
+      let seeksBeforeBuffer = player.seekEvents
+      signal("client-ready-for-buffer")
+      try wait("host armed for buffer") { FileManager.default.fileExists(atPath: flag("host-armed-for-buffer").path) }
+      player.forcedCachePaused = true
+      session.playbackObservation(position: player.info.videoPosition?.second,
+        observedAt: ProcessInfo.processInfo.systemUptime,
+        cachePaused: true, seeking: player.info.isSeeking)
+      try wait("host paused for guest buffer") { FileManager.default.fileExists(atPath: flag("host-held-for-buffer").path) }
+      precondition(player.info.state == .paused, "Guest continued through simulated buffer")
+      try wait("host user pause") { FileManager.default.fileExists(atPath: flag("host-user-paused").path) }
+      player.forcedCachePaused = false
+      session.playbackObservation(position: player.info.videoPosition?.second,
+        observedAt: ProcessInfo.processInfo.systemUptime,
+        cachePaused: false, seeking: player.info.isSeeking)
+      signal("client-buffer-cleared")
+      RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.7))
+      precondition(player.info.state == .paused, "Guest auto-resumed over host user pause")
+      try wait("host resumed after buffer") { FileManager.default.fileExists(atPath: flag("host-resumed-after-buffer").path) }
+      try wait("guest resumed with host") { player.info.state == .playing }
+      signal("client-resumed-after-buffer")
+      precondition(player.seekEvents == seeksBeforeBuffer, "Guest buffer recovery issued corrective seek")
       try wait("host pause/seek/rate") {
         player.info.state == .paused && player.info.playSpeed > 1.49 &&
           (player.info.videoPosition?.second ?? 0) > 3.5
@@ -232,7 +317,7 @@ enum Utility {
         return progress.activity == .stopped && abs(progress.position - finalPosition) < 0.5
       }
       signal("client-disconnected")
-      print("PASS client: direct Bonjour room, host transport, local control stays joined, episode, host gone")
+      print("PASS client: simulated cache stall, shared pause/resume, no corrective seek, commands, episode, host gone")
     }
   }
 }

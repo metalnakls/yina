@@ -62,6 +62,11 @@ enum SharedShowMenuContent {
       follow.state = session.lanFollowingRoomID == room.id ? .on : .off
       menu.addItem(follow)
     }
+    if SharedShowLAN.shared.incompatibleHostCount > 0 {
+      let item = NSMenuItem(title: "Nearby host needs YINA 6", action: nil, keyEquivalent: "")
+      item.isEnabled = false
+      menu.addItem(item)
+    }
     if !session.hostQueueItems.isEmpty {
       let queueItem = NSMenuItem(title: "Shared Queue · \(session.hostQueueItems.count) episodes", action: nil, keyEquivalent: "")
       let queue = NSMenu()

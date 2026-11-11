@@ -384,11 +384,11 @@ class PlayerCore: NSObject {
   private var networkBufferTimer: Timer?
   @MainActor lazy var sharedShow = SharedShowSession(player: self)
 
-  func sharedPlaybackControlChanged() {
+  func sharedPlaybackControlChanged(_ intent: SharedShowSession.ControlIntent = .other) {
     if Thread.isMainThread {
-      MainActor.assumeIsolated { sharedShow.localControlChanged() }
+      MainActor.assumeIsolated { sharedShow.localControlChanged(intent) }
     } else {
-      DispatchQueue.main.async { [weak self] in self?.sharedShow.localControlChanged() }
+      DispatchQueue.main.async { [weak self] in self?.sharedShow.localControlChanged(intent) }
     }
   }
 
@@ -397,6 +397,22 @@ class PlayerCore: NSObject {
       MainActor.assumeIsolated { sharedShow.localMediaChangeRequested() }
     } else {
       DispatchQueue.main.async { [weak self] in self?.sharedShow.localMediaChangeRequested() }
+    }
+  }
+
+  func refreshSharedShowReadiness(generation: UInt64) {
+    guard info.state.active else { return }
+    let identity = transport.media
+    mpv.getPropertiesAsync([MPVProperty.timePos, MPVProperty.pausedForCache,
+                            MPVOption.PlaybackControl.pause]) { [weak self] values in
+      guard let self, self.transport.media == identity else { return }
+      MainActor.assumeIsolated {
+        self.sharedShow.playbackObservation(position: values[MPVProperty.timePos] as? Double,
+          observedAt: ProcessInfo.processInfo.systemUptime,
+          cachePaused: values[MPVProperty.pausedForCache] as? Bool ?? true,
+          seeking: self.info.isSeeking, barrierGeneration: generation,
+          enginePaused: values[MPVOption.PlaybackControl.pause] as? Bool)
+      }
     }
   }
 
@@ -796,6 +812,14 @@ class PlayerCore: NSObject {
     precondition(Thread.isMainThread)
     guard mediaPreparationPending, preparingURL == expectedURL else { return }
     invalidateMediaPreparation()
+  }
+
+  func cancelSharedShowCommandOpen(for expectedURL: URL) {
+    precondition(Thread.isMainThread)
+    guard info.currentURL == expectedURL, transport.isOpening else { return }
+    transport.beginStop()
+    publishTransport()
+    runTransport()
   }
 
   static func openURLsAsync(_ urls: [URL], completion: ((Int?) -> Void)? = nil) {
@@ -1329,7 +1353,7 @@ class PlayerCore: NSObject {
     tracePlaybackControl("pause-called")
     cancelPlaybackResumeWait()
     guard info.state.active, !isWaitingForRemoteMedia else { return }
-    sharedPlaybackControlChanged()
+    sharedPlaybackControlChanged(.pause(true))
     transport.setPaused(true)
     runTransport()
   }
@@ -1370,7 +1394,8 @@ class PlayerCore: NSObject {
       retryRemotePlayback()
       return
     }
-    sharedPlaybackControlChanged()
+    sharedPlaybackControlChanged(.pause(false))
+    if MainActor.assumeIsolated({ sharedShow.shouldDeferLocalResume }) { return }
     transport.setPaused(false)
     startPlaybackResumeWait(generation: transport.generation)
     measureResumeStage("displayActive") { mainWindow.videoView.displayActive() }
@@ -1523,7 +1548,6 @@ class PlayerCore: NSObject {
       DispatchQueue.main.async { [weak self] in self?.seek(percent: percent, forceExact: forceExact) }
       return
     }
-    sharedPlaybackControlChanged()
     var percent = percent
     // mpv will play next file automatically when seek to EOF.
     // We clamp to a Range to ensure that we don't try to seek to 100%.
@@ -1531,8 +1555,12 @@ class PlayerCore: NSObject {
     if let duration = info.videoDuration?.second,
       duration > 0 {
       percent = percent.clamped(to: 0..<100)
+      sharedPlaybackControlChanged(.seek(duration * percent / 100))
+    } else {
+      sharedPlaybackControlChanged()
     }
-    let useExact = forceExact ? true : Preference.bool(for: .useExactSeek)
+    let useExact = forceExact || MainActor.assumeIsolated { sharedShow.requiresExactSharedShowSeek } ||
+      Preference.bool(for: .useExactSeek)
     let seekMode = useExact ? "absolute-percent+exact" : "absolute-percent"
     submitSeek(["seek", String(percent), seekMode])
   }
@@ -1542,7 +1570,13 @@ class PlayerCore: NSObject {
       DispatchQueue.main.async { [weak self] in self?.seek(relativeSecond: relativeSecond, option: option) }
       return
     }
-    sharedPlaybackControlChanged()
+    if let position = info.videoPosition?.second {
+      sharedPlaybackControlChanged(.seek(position + relativeSecond))
+    } else { sharedPlaybackControlChanged() }
+    if MainActor.assumeIsolated({ sharedShow.requiresExactSharedShowSeek }) {
+      submitSeek(["seek", String(relativeSecond), "relative+exact"])
+      return
+    }
     switch option {
 
     case .relative:
@@ -1576,8 +1610,22 @@ class PlayerCore: NSObject {
       DispatchQueue.main.async { [weak self] in self?.seekFromInput(arguments) }
       return
     }
-    sharedPlaybackControlChanged()
-    submitSeek(arguments)
+    if arguments.count >= 3, arguments[0] == "seek", let value = Double(arguments[1]) {
+      if arguments[2].hasPrefix("absolute-percent"), let duration = info.videoDuration?.second {
+        sharedPlaybackControlChanged(.seek(duration * value / 100))
+      } else if arguments[2].hasPrefix("absolute") {
+        sharedPlaybackControlChanged(.seek(value))
+      } else if arguments[2].hasPrefix("relative"), let position = info.videoPosition?.second {
+        sharedPlaybackControlChanged(.seek(position + value))
+      } else { sharedPlaybackControlChanged() }
+    } else { sharedPlaybackControlChanged() }
+    if arguments.count >= 3, arguments[0] == "seek",
+       MainActor.assumeIsolated({ sharedShow.requiresExactSharedShowSeek }),
+       !arguments[2].contains("exact") {
+      var exactArguments = arguments
+      exactArguments[2] += "+exact"
+      submitSeek(exactArguments)
+    } else { submitSeek(arguments) }
   }
 
   private func submitSeek(_ arguments: [String]) {
@@ -1891,9 +1939,17 @@ class PlayerCore: NSObject {
   }
 
   func setSpeed(_ speed: Double) {
-    sharedPlaybackControlChanged()
     let speed = max(AppData.mpvMinPlaybackSpeed, speed)
+    sharedShowCorrectionRate = nil
+    sharedPlaybackControlChanged(.rate(speed))
     mpv.setAsync(MPVOption.PlaybackControl.speed, .double(speed), coalescing: true)
+  }
+
+  private var sharedShowCorrectionRate: Double?
+
+  func setSharedShowCorrectionRate(_ rate: Double) {
+    sharedShowCorrectionRate = rate
+    mpv.setAsync(MPVOption.PlaybackControl.speed, .double(rate), coalescing: true)
   }
 
   func setVideoAspect(_ aspect: String) {
@@ -3216,6 +3272,7 @@ class PlayerCore: NSObject {
   func pauseChanged(_ paused: Bool, identity: PlaybackTransport.Media?) {
     playbackTrace?.record("pause-observer-main", "paused=\(paused) \(playbackTraceState)")
     transport.observePause(paused, media: identity)
+    MainActor.assumeIsolated { sharedShow.playbackPauseObserved(paused) }
     if paused && transport.requestedPause != false { cancelPlaybackResumeWait() }
     runTransport()
   }
@@ -3247,12 +3304,14 @@ class PlayerCore: NSObject {
   func playbackSeeking(_ identity: PlaybackTransport.Media?) -> Bool {
     guard transport.observeSeek(identity) else { return false }
     publishTransport()
+    MainActor.assumeIsolated { sharedShow.playbackSeekingObserved() }
     return true
   }
 
   func playbackRestarted(_ identity: PlaybackTransport.Media?) -> Bool {
     guard transport.observeRestart(identity) else { return false }
     publishTransport()
+    MainActor.assumeIsolated { sharedShow.playbackRestartObserved() }
     playbackTrace?.record("playback-restarted", playbackTraceState)
     log("Playback restarted")
 
@@ -3373,6 +3432,7 @@ class PlayerCore: NSObject {
   func speedChanged(_ speed: Double) {
     guard info.state.active else { return }
     info.playSpeed = speed
+    if let correction = sharedShowCorrectionRate, abs(speed - correction) < 0.0005 { return }
     sendOSD(.speed(speed))
     mainWindow.updateSpeedLabel(speed: speed)
     postNotification(.yinaSpeedChanged)
@@ -3882,6 +3942,15 @@ class PlayerCore: NSObject {
     if let eof = values[MPVProperty.eofReached] as? Bool { transport.observeEOF(eof) }
     if let position = values[MPVProperty.timePos] as? Double, position.isFinite {
       info.videoPosition = VideoTime(position)
+    }
+    if let cachePaused = values[MPVProperty.pausedForCache] as? Bool {
+      info.pausedForCache = cachePaused
+    }
+    MainActor.assumeIsolated {
+      sharedShow.playbackObservation(position: values[MPVProperty.timePos] as? Double,
+                                     observedAt: values["shared-show-observed-at"] as? Double,
+                                     cachePaused: info.pausedForCache,
+                                     seeking: info.isSeeking)
     }
     if playbackResumeWait.observe(position: values[MPVProperty.timePos] as? Double,
                                   playing: info.state == .playing) {

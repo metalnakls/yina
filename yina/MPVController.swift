@@ -157,6 +157,7 @@ class MPVController: NSObject {
     "sub-text": MPV_FORMAT_STRING,
     "secondary-sub-text": MPV_FORMAT_STRING,
     MPVProperty.timePos: MPV_FORMAT_DOUBLE,
+    MPVProperty.pausedForCache: MPV_FORMAT_FLAG,
     MPVProperty.duration: MPV_FORMAT_DOUBLE,
     MPVProperty.eofReached: MPV_FORMAT_FLAG,
     MPVOption.WatchLater.savePositionOnQuit: MPV_FORMAT_FLAG,
@@ -1475,7 +1476,7 @@ class MPVController: NSObject {
   }
 
   private func receivePlaybackValue(_ name: String, _ property: mpv_event_property) -> Bool {
-    let names = [MPVProperty.timePos, MPVProperty.duration, MPVProperty.eofReached, MPVOption.WatchLater.savePositionOnQuit,
+    let names = [MPVProperty.timePos, MPVProperty.pausedForCache, MPVProperty.duration, MPVProperty.eofReached, MPVOption.WatchLater.savePositionOnQuit,
                  MPVProperty.timeRemainingFull, MPVProperty.playtimeRemainingFull]
     guard names.contains(name) else { return false }
     guard let data = property.data else { return true }
@@ -1485,6 +1486,7 @@ class MPVController: NSObject {
     else { return true }
     playbackValuesLock.lock()
     pendingPlaybackValues[name] = value
+    if name == MPVProperty.timePos { pendingPlaybackValues["shared-show-observed-at"] = ProcessInfo.processInfo.systemUptime }
     let schedule = !playbackDeliveryPending
     let generation = playbackDeliveryGeneration
     let identity = engineMedia

@@ -15,7 +15,7 @@ with tempfile.TemporaryDirectory(prefix="yina-shared-mpv-") as directory:
     header = root / "mpv.h"
     header.write_text("#include <mpv/client.h>\n")
     sources = []
-    names = ["SharedShowSession.swift", "SharedShowLAN.swift", "SharedShowStore.swift",
+    names = ["SharedShowSession.swift", "SharedShowLAN.swift", "SharedShowClock.swift", "SharedShowStore.swift",
              "ShowEpisodeIndexReader.swift", "PlayerState.swift"]
     if (repo / "yina/SharedShowDownloadRequest.swift").exists():
         names.append("SharedShowDownloadRequest.swift")

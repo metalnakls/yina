@@ -8,6 +8,12 @@ extension Notification.Name {
 /// blocking every other session while each session retains its write order.
 @MainActor
 final class SharedShowSession {
+  enum ControlIntent {
+    case pause(Bool)
+    case seek(Double)
+    case rate(Double)
+    case other
+  }
   struct RequestWorkScheduler {
     let reserve: (URL) -> (OperationQueue, String)
     let release: (String) -> Void
@@ -56,6 +62,7 @@ final class SharedShowSession {
   let writerID = UUID()
   private weak var player: PlayerCore?
   private var timer: Timer?
+  private var lanLiveTimer: Timer?
   private var generation = 0
   private var enableToken: UInt64 = 0
   private var membershipEpoch: UInt64 = 0
@@ -87,6 +94,44 @@ final class SharedShowSession {
   private var remoteMediaIntents: Set<URL> = []
   private var endedByStopCommand = false
   private var lastControlCheckpoint: TimeInterval = 0
+  private var lanUserPaused = false
+  private var lanBarrierGeneration: UInt64 = 0
+  private var lanSeekGeneration: UInt64 = 0
+  private var lanWaitingForReady = false
+  private var lanPlayAtHostTime: Double?
+  private var lanLocalReady = false
+  private var lanPeerReady: [UUID: Bool] = [:]
+  private var lanRestartPending = false
+  private var lanLastAppliedSeekGeneration: UInt64?
+  private var lanLastAppliedPath: String?
+  private var lanScheduledResume: DispatchWorkItem?
+  private var lanBaseRate = 1.0
+  private var lanAppliedBaseRate: Double?
+  private var lanLastTrimTime: Double = 0
+  private var lanObservedPosition: Double?
+  private var lanObservedAt: Double?
+  private var lanExpectedSeekPosition: Double?
+  private var lanSeekRequestedAt = 0.0
+  private var lanFilteredPhaseError: Double?
+  private var lanObservedPaused = false
+  private var lanRequiresObservedPause = false
+  private var lanFreshReadinessGeneration: UInt64?
+  private var lanNeedsCalibratedJoinSeek = false
+  private var lanPendingLocalPause: Bool?
+  private var lanPendingLocalSeekGeneration: UInt64?
+  var lanReadinessDiagnostic: String {
+    "barrier=\(lanBarrierGeneration) waiting=\(lanWaitingForReady) local=\(lanLocalReady) " +
+    "peers=\(lanPeerReady) restart=\(lanRestartPending) target=\(String(describing: lanExpectedSeekPosition)) " +
+    "paused=\(lanObservedPaused) fresh=\(String(describing: lanFreshReadinessGeneration)) " +
+    "cache=\(player?.info.pausedForCache ?? false) seeking=\(player?.info.isSeeking ?? false) " +
+    "clock=\(SharedShowLAN.shared.clockCalibrated)"
+  }
+  var lanReadyForSharedPlayback: Bool {
+    !lanWaitingForReady && lanLocalReady && player?.info.state == .playing &&
+      (isHosting || (lanFollowingRoomID != nil && SharedShowLAN.shared.clockCalibrated))
+  }
+  private var lanCommandRestore: (userPaused: Bool, baseRate: Double, seekGeneration: UInt64)?
+  private var lanCommandTarget: URL?
   private(set) var lanFollowingRoomID: UUID?
   private var lanRoomID: UUID?
   var hostingRoomID: UUID? { isHosting ? lanRoomID : nil }
@@ -151,12 +196,20 @@ final class SharedShowSession {
 
   deinit {
     timer?.invalidate()
+    lanLiveTimer?.invalidate()
     requestPollTimer?.invalidate()
   }
 
   func start() {
     timer?.invalidate()
     let media = player?.info.currentURL
+    if isHosting && (lanWaitingForReady || lanUserPaused), let player, player.info.state.active {
+      applyingRemote = true; player.pause(); applyingRemote = false
+    }
+    if media == lanCommandTarget {
+      lanCommandTarget = nil
+      lanCommandRestore = nil
+    }
     let remoteChange = lanFollowingRoomID != nil ||
       (followingWriter != nil && media.map { remoteMediaIntents.contains($0) } == true)
     if let media, remoteChange {
@@ -205,12 +258,22 @@ final class SharedShowSession {
 
   private func scheduleTimer() {
     timer?.invalidate()
-    let interval: TimeInterval = isHosting ? 2 : followingWriter != nil ?
+    let interval: TimeInterval = isHosting ? 10 : followingWriter != nil ?
       (unavailableAttempts >= 3 ? 10 : 2) : membership?.root == nil && membership != nil ? 30 : 10
     timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
       MainActor.assumeIsolated { self?.checkpoint(refreshPeers: false) }
     }
     timer?.tolerance = interval / 10
+  }
+
+  private func scheduleLANLiveTimer() {
+    lanLiveTimer?.invalidate()
+    guard isHosting else { lanLiveTimer = nil; return }
+    // Keep the transport heartbeat off the archive/write queue.
+    lanLiveTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
+      MainActor.assumeIsolated { self?.publishLANState() }
+    }
+    lanLiveTimer?.tolerance = 0.02
   }
 
   func stop() {
@@ -226,6 +289,7 @@ final class SharedShowSession {
     if isHosting { SharedShowLAN.shared.stopHosting() }
     if lanFollowingRoomID != nil { SharedShowLAN.shared.leave(); lanFollowingRoomID = nil }
     isHosting = false
+    scheduleLANLiveTimer()
     checkpoint(stopped: true)
   }
 
@@ -236,6 +300,7 @@ final class SharedShowSession {
   /// Player retirement and application quit are distinct from natural EOF.
   func shutdown() {
     timer?.invalidate(); timer = nil
+    lanLiveTimer?.invalidate(); lanLiveTimer = nil
     if isHosting { SharedShowLAN.shared.stopHosting() }
     if lanFollowingRoomID != nil { SharedShowLAN.shared.leave(); lanFollowingRoomID = nil }
     isHosting = false
@@ -485,8 +550,18 @@ final class SharedShowSession {
     hostingSuppressed = false
     lanRoomID = UUID()
     lanRevision = 0
+    lanUserPaused = player?.info.state != .playing
+    lanBaseRate = player?.info.playSpeed ?? 1
+    lanAppliedBaseRate = lanBaseRate
+    lanLocalReady = false
+    lanPeerReady.removeAll()
+    lanBarrierGeneration = 0
+    lanSeekGeneration = 0
+    lanLastAppliedPath = relativePath
+    lanLastAppliedSeekGeneration = 0
     watchStatus = "Hosting Watch Together · \(writerID.uuidString.prefix(6))"
     scheduleTimer()
+    scheduleLANLiveTimer()
     checkpoint()
     changed()
   }
@@ -516,9 +591,12 @@ final class SharedShowSession {
   }
 
   func leaveWatchTogether() {
+    lanScheduledResume?.cancel(); lanScheduledResume = nil
+    restoreLANBaseRate()
     if isHosting { SharedShowLAN.shared.stopHosting() }
     if lanFollowingRoomID != nil { SharedShowLAN.shared.leave(); lanFollowingRoomID = nil }
     isHosting = false
+    scheduleLANLiveTimer()
     hostingSuppressed = true
     pendingAutoHost = false
     clearFollowing()
@@ -530,14 +608,205 @@ final class SharedShowSession {
 
   /// A local transport action takes control back. Remote actions call through
   /// the same PlayerCore API under the applyingRemote guard, preventing loops.
-  func localControlChanged() {
-    guard !applyingRemote else { return }
-    if lanFollowingRoomID != nil {
-      DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in self?.sendLANControl() }
+  var shouldDeferLocalResume: Bool { (isHosting || lanFollowingRoomID != nil) && lanWaitingForReady }
+  var requiresExactSharedShowSeek: Bool { isHosting || lanFollowingRoomID != nil }
+
+  private func beginLANBarrier() {
+    lanBarrierGeneration &+= 1
+    lanWaitingForReady = true
+    lanPlayAtHostTime = nil
+    lanLocalReady = false
+    lanRequiresObservedPause = true
+    lanFreshReadinessGeneration = nil
+    lanScheduledResume?.cancel(); lanScheduledResume = nil
+    if isHosting { lanPeerReady = lanPeerReady.mapValues { _ in false } }
+    if let player, player.info.state == .playing {
+      applyingRemote = true
+      player.pause()
+      applyingRemote = false
+    }
+    player?.refreshSharedShowReadiness(generation: lanBarrierGeneration)
+  }
+
+  func playbackSeekingObserved() {
+    guard isHosting || lanFollowingRoomID != nil else { return }
+    lanRestartPending = true
+    playbackObservation(position: nil, observedAt: nil, cachePaused: player?.info.pausedForCache ?? false, seeking: true)
+  }
+
+  func playbackRestartObserved() {
+    guard isHosting || lanFollowingRoomID != nil else { return }
+    lanRestartPending = false
+    playbackObservation(position: nil, observedAt: nil, cachePaused: player?.info.pausedForCache ?? false, seeking: false)
+  }
+
+  func playbackPauseObserved(_ paused: Bool) {
+    guard isHosting || lanFollowingRoomID != nil else { return }
+    lanObservedPaused = paused
+    playbackObservation(position: nil, observedAt: nil,
+      cachePaused: player?.info.pausedForCache ?? false,
+      seeking: player?.info.isSeeking ?? true)
+  }
+
+  func playbackObservation(position: Double?, observedAt: Double?, cachePaused: Bool,
+                           seeking: Bool, barrierGeneration: UInt64? = nil,
+                           enginePaused: Bool? = nil) {
+    guard isHosting || lanFollowingRoomID != nil else { return }
+    if let barrierGeneration, barrierGeneration != lanBarrierGeneration { return }
+    if let barrierGeneration { lanFreshReadinessGeneration = barrierGeneration }
+    if let enginePaused { lanObservedPaused = enginePaused }
+    if let position, position.isFinite, let observedAt {
+      lanObservedPosition = position
+      lanObservedAt = observedAt
+    }
+    let reachedSeek = lanExpectedSeekPosition.map { target in
+      guard let position, let observedAt else { return false }
+      return observedAt >= lanSeekRequestedAt && abs(position - target) < 0.15
+    } ?? true
+    if reachedSeek { lanExpectedSeekPosition = nil }
+    let ready = player?.info.state.loaded == true && !cachePaused && !seeking &&
+      !lanRestartPending && reachedSeek && (!lanRequiresObservedPause ||
+        (lanObservedPaused && lanFreshReadinessGeneration == lanBarrierGeneration))
+    guard ready != lanLocalReady else {
+      if ready && lanFollowingRoomID != nil { correctLANRate() }
       return
     }
-    if followingWriter != nil { leaveWatchTogether() }
-    if isHosting, ProcessInfo.processInfo.systemUptime - lastControlCheckpoint >= 1 {
+    lanLocalReady = ready
+    if isHosting {
+      if !ready && !lanUserPaused && !lanWaitingForReady { beginLANBarrier(); publishLANState() }
+      else { completeLANBarrierIfReady() }
+    } else if lanFollowingRoomID != nil {
+      SharedShowLAN.shared.reportLocalReadiness(ready: ready, generation: lanBarrierGeneration)
+      if !ready, let player, player.info.state == .playing {
+        applyingRemote = true; player.pause(); applyingRemote = false
+      }
+    }
+  }
+
+  func lanPeerReadinessChanged(ready: Bool, generation: UInt64, peerID: UUID) {
+    guard isHosting, generation == lanBarrierGeneration else { return }
+    lanPeerReady[peerID] = ready
+    if !ready && !lanUserPaused && !lanWaitingForReady { beginLANBarrier(); publishLANState() }
+    else { completeLANBarrierIfReady() }
+  }
+
+  func lanPeerDisconnected(peerID: UUID) {
+    lanPeerReady.removeValue(forKey: peerID)
+    completeLANBarrierIfReady()
+  }
+
+  func lanClockInvalidated() {
+    guard lanFollowingRoomID != nil else { return }
+    lanLocalReady = false
+    lanWaitingForReady = true
+    lanScheduledResume?.cancel(); lanScheduledResume = nil
+    if let player, player.info.state == .playing {
+      applyingRemote = true; player.pause(); applyingRemote = false
+    }
+    SharedShowLAN.shared.reportLocalReadiness(ready: false, generation: lanBarrierGeneration)
+  }
+
+  func lanClockCalibrated() {
+    guard lanFollowingRoomID != nil, let state = lanState else { return }
+    lanLocalReady = false
+    lanWaitingForReady = state.waitingForReady
+    lanRequiresObservedPause = true
+    lanFreshReadinessGeneration = nil
+    SharedShowLAN.shared.reportLocalReadiness(ready: false, generation: lanBarrierGeneration)
+    if let player, player.info.state == .playing {
+      applyingRemote = true; player.pause(); applyingRemote = false
+    }
+    if lanNeedsCalibratedJoinSeek, player?.info.state.loaded == true {
+      lanNeedsCalibratedJoinSeek = false
+      applyLANTransport(state, explicitCommand: true)
+    }
+    player?.refreshSharedShowReadiness(generation: lanBarrierGeneration)
+  }
+
+  func lanHostWoke() {
+    guard isHosting else { return }
+    beginLANBarrier()
+    publishLANState()
+  }
+
+  func cancelLANCommand(stopSubmittedOpen: Bool = false) {
+    guard isHosting, let restore = lanCommandRestore else { return }
+    lanResolveToken &+= 1
+    if let target = lanCommandTarget {
+      player?.cancelSharedShowMediaPreparation(for: target)
+      if stopSubmittedOpen { player?.cancelSharedShowCommandOpen(for: target) }
+    }
+    lanCommandTarget = nil
+    lanCommandRestore = nil
+    lanUserPaused = restore.userPaused
+    lanBaseRate = restore.baseRate
+    lanSeekGeneration = restore.seekGeneration
+    lanExpectedSeekPosition = nil
+    lanRestartPending = false
+    beginLANBarrier()
+    publishLANState()
+  }
+
+  private func completeLANBarrierIfReady() {
+    guard isHosting, lanWaitingForReady, lanLocalReady, lanPeerReady.values.allSatisfy({ $0 }),
+          !lanUserPaused else { return }
+    lanWaitingForReady = false
+    lanPlayAtHostTime = ProcessInfo.processInfo.systemUptime + 0.5
+    publishLANState()
+    scheduleLANResume(generation: lanBarrierGeneration, hostTime: lanPlayAtHostTime!)
+  }
+
+  private func scheduleLANResume(generation: UInt64, hostTime: Double) {
+    lanScheduledResume?.cancel()
+    let localDeadline = hostTime - ((SharedShowLAN.shared.estimatedHostTime() ?? ProcessInfo.processInfo.systemUptime) - ProcessInfo.processInfo.systemUptime)
+    let item = DispatchWorkItem { [weak self] in
+      guard let self, self.lanBarrierGeneration == generation, !self.lanUserPaused,
+            !self.lanWaitingForReady, self.lanLocalReady, let player = self.player else { return }
+      self.lanRequiresObservedPause = false
+      self.applyingRemote = true
+      player.resume()
+      self.applyingRemote = false
+      self.lanScheduledResume = nil
+    }
+    lanScheduledResume = item
+    DispatchQueue.main.asyncAfter(deadline: .now() + max(0, localDeadline - ProcessInfo.processInfo.systemUptime), execute: item)
+  }
+
+  private func restoreLANBaseRate() {
+    guard let player else { return }
+    applyingRemote = true; player.setSpeed(lanBaseRate); applyingRemote = false
+  }
+
+  func localControlChanged(_ intent: ControlIntent = .other) {
+    guard !applyingRemote else { return }
+    guard isHosting || lanFollowingRoomID != nil else {
+      if followingWriter != nil { leaveWatchTogether() }
+      return
+    }
+    switch intent {
+    case .pause(let paused):
+      lanUserPaused = paused
+      if lanFollowingRoomID != nil { lanPendingLocalPause = paused }
+      if paused { lanScheduledResume?.cancel(); lanScheduledResume = nil; lanPlayAtHostTime = nil }
+      else if isHosting || lanFollowingRoomID != nil { beginLANBarrier() }
+    case .seek(let target):
+      lanSeekGeneration &+= 1
+      if lanFollowingRoomID != nil { lanPendingLocalSeekGeneration = lanSeekGeneration }
+      lanRestartPending = true
+      lanExpectedSeekPosition = target
+      lanSeekRequestedAt = ProcessInfo.processInfo.systemUptime
+      beginLANBarrier()
+    case .rate(let rate): lanBaseRate = rate
+    case .other: break
+    }
+    if lanFollowingRoomID != nil {
+      sendLANControl(intent: intent)
+      return
+    }
+    if isHosting {
+      publishLANState(intent: intent)
+      // Archive progress separately from live transport, with a bounded write rate.
+      guard ProcessInfo.processInfo.systemUptime - lastControlCheckpoint >= 1 else { return }
       lastControlCheckpoint = ProcessInfo.processInfo.systemUptime
       DispatchQueue.main.async { [weak self] in self?.checkpoint() }
     }
@@ -553,10 +822,14 @@ final class SharedShowSession {
       return
     }
     if followingWriter != nil { leaveWatchTogether() }
-    else if isHosting { checkpoint() }
+    else if isHosting {
+      beginLANBarrier()
+      publishLANState()
+      checkpoint()
+    }
   }
 
-  private func publishLANState() {
+  private func publishLANState(intent: ControlIntent? = nil) {
     guard isHosting, let roomID = lanRoomID, let showID, let relativePath,
           let player, player.info.currentURL == contextMedia,
           let position = player.info.videoPosition?.second,
@@ -573,27 +846,32 @@ final class SharedShowSession {
     }
     if let override = lanCommandOverride, override.relativePath != relativePath,
        Date().timeIntervalSince(override.emittedAt) < 20 { return }
-    let overriding: SharedShowLAN.State?
-    if let command = lanCommandOverride,
-       Date().timeIntervalSince(command.emittedAt) < 5,
-       (abs(position - command.position) > SharedPlaybackSync.seekTolerance ||
-        (player.info.state == .paused) != command.paused ||
-        abs(player.info.playSpeed - command.rate) > 0.001) {
-      overriding = command
-    } else {
-      lanCommandOverride = nil
-      overriding = nil
+    let sampleTime = ProcessInfo.processInfo.systemUptime
+    let projected = lanObservedPosition.flatMap { observed -> Double? in
+      guard let observedAt = lanObservedAt, sampleTime - observedAt < 0.5,
+            sampleTime >= observedAt else { return nil }
+      let scheduled = lanPlayAtHostTime.map { sampleTime < $0 } ?? false
+      return observed + (lanUserPaused || lanWaitingForReady || scheduled ? 0 : sampleTime - observedAt) * lanBaseRate
     }
+    var advertisedPosition = lanExpectedSeekPosition ?? min(duration, max(0, projected ?? position))
+    if case .seek(let target) = intent { advertisedPosition = min(duration, max(0, target)) }
+    let advertisedRate: Double
+    if case .rate(let requested) = intent { advertisedRate = requested }
+    else { advertisedRate = lanBaseRate }
     lanRevision &+= 1
     let state = SharedShowLAN.State(roomID: roomID, showID: showID,
       hostName: Self.localHostName,
       title: String((player.info.currentURL?.deletingPathExtension().lastPathComponent ?? "Movie").prefix(120)),
       rootHint: lanRootHint,
       relativePath: relativePath,
-      position: overriding?.position ?? min(duration, max(0, position)), duration: duration,
-      paused: overriding?.paused ?? (player.info.state != .playing),
-      rate: overriding?.rate ?? player.info.playSpeed,
-      revision: lanRevision, emittedAt: Date(), awaitingNextEpisode: !player.info.state.loaded)
+      position: advertisedPosition, duration: duration,
+      paused: lanUserPaused || lanWaitingForReady,
+      rate: advertisedRate,
+      revision: lanRevision, emittedAt: Date(), awaitingNextEpisode: !player.info.state.loaded,
+      epoch: roomID, hostTime: sampleTime,
+      playAtHostTime: lanPlayAtHostTime, barrierGeneration: lanBarrierGeneration,
+      seekGeneration: lanSeekGeneration, waitingForReady: lanWaitingForReady,
+      userPaused: lanUserPaused)
     lanState = state
     SharedShowLAN.shared.host(session: self, state: state)
   }
@@ -601,10 +879,32 @@ final class SharedShowSession {
   func acceptLANCommand(_ command: SharedShowLAN.State, revision: UInt64) {
     lanRevision = max(lanRevision, revision)
     lanCommandOverride = command
+    lanUserPaused = command.userPaused
+    lanSeekGeneration = command.seekGeneration
+    lanBarrierGeneration = command.barrierGeneration
+    lanWaitingForReady = command.waitingForReady
+    lanPlayAtHostTime = command.playAtHostTime
+  }
+
+  func canonicalLANCommand(_ command: SharedShowLAN.State, revision: UInt64) -> SharedShowLAN.State {
+    let current = lanState
+    let duration = player?.info.videoDuration?.second ?? command.duration
+    let position = command.seekGeneration != (current?.seekGeneration ?? 0) ? command.position :
+      (lanObservedPosition ?? player?.info.videoPosition?.second ?? command.position)
+    return SharedShowLAN.State(roomID: command.roomID, showID: command.showID,
+      hostName: Self.localHostName, title: command.title, rootHint: lanRootHint,
+      relativePath: command.relativePath, position: min(duration, max(0, position)),
+      duration: duration, paused: lanUserPaused || lanWaitingForReady,
+      rate: lanBaseRate, revision: revision, emittedAt: Date(),
+      awaitingNextEpisode: false, epoch: command.roomID,
+      hostTime: ProcessInfo.processInfo.systemUptime, playAtHostTime: lanPlayAtHostTime,
+      barrierGeneration: lanBarrierGeneration, seekGeneration: lanSeekGeneration,
+      waitingForReady: lanWaitingForReady, userPaused: lanUserPaused)
   }
 
   func yieldLANHosting() {
     isHosting = false
+    scheduleLANLiveTimer()
     hostingSuppressed = true
     lanRoomID = nil
     lanState = nil
@@ -614,18 +914,35 @@ final class SharedShowSession {
   }
 
   func beginLANFollow(_ room: SharedShowLAN.Room) {
+    lanScheduledResume?.cancel(); lanScheduledResume = nil
     if isHosting { SharedShowLAN.shared.stopHosting() }
     isHosting = false
+    scheduleLANLiveTimer()
     hostingSuppressed = true
     pendingAutoHost = false
     clearFollowing()
     lanFollowingRoomID = room.id
     lanState = nil
+    lanLastAppliedPath = nil
+    lanLastAppliedSeekGeneration = nil
+    lanNeedsCalibratedJoinSeek = false
+    lanLocalReady = false
+    lanWaitingForReady = true
+    lanRequiresObservedPause = true
+    lanFreshReadinessGeneration = nil
+    lanUserPaused = room.paused
+    lanBaseRate = room.rate
+    lanAppliedBaseRate = nil
+    lanPendingLocalPause = nil
+    lanPendingLocalSeekGeneration = nil
     lanResolveToken &+= 1
     pendingLANPath = nil
     wantsLANEpisodeSwitch = false
     lanSwitchSent = false
     lanFolderPromptShown = false
+    if let player, player.info.state == .playing {
+      applyingRemote = true; player.pause(); applyingRemote = false
+    }
     watchStatus = "Connecting to \(room.hostName)"
     scheduleTimer()
     changed()
@@ -633,7 +950,15 @@ final class SharedShowSession {
 
   func endLANFollow(_ message: String) {
     guard lanFollowingRoomID != nil else { return }
+    if let player, player.info.state == .playing {
+      applyingRemote = true; player.pause(); applyingRemote = false
+    }
     lanFollowingRoomID = nil
+    lanScheduledResume?.cancel(); lanScheduledResume = nil
+    restoreLANBaseRate()
+    lanAppliedBaseRate = nil
+    lanPendingLocalPause = nil
+    lanPendingLocalSeekGeneration = nil
     hostingSuppressed = true
     pendingAutoHost = false
     lanState = nil
@@ -648,21 +973,31 @@ final class SharedShowSession {
     changed()
   }
 
-  private func sendLANControl() {
+  private func sendLANControl(intent: ControlIntent = .other) {
     guard let state = lanState, lanFollowingRoomID == state.roomID,
           let player, player.info.state.loaded,
-          let media = player.info.currentURL, media == contextMedia,
+          let media = player.info.currentURL,
+          media == contextMedia || media == pendingRemoteTarget,
           let showID, showID == state.showID,
           let relativePath,
           let position = player.info.videoPosition?.second,
           let duration = player.info.videoDuration?.second,
           position.isFinite, duration.isFinite, duration > 0 else { return }
+    let target: Double
+    if case .seek(let requested) = intent { target = requested }
+    else { target = position }
+    let rate: Double
+    if case .rate(let requested) = intent { rate = requested }
+    else { rate = lanBaseRate }
     let command = SharedShowLAN.State(roomID: state.roomID, showID: showID,
       hostName: state.hostName, title: String(media.deletingPathExtension().lastPathComponent.prefix(120)),
       rootHint: state.rootHint,
-      relativePath: relativePath, position: min(duration, max(0, position)), duration: duration,
-      paused: player.info.state == .paused, rate: player.info.playSpeed,
-      revision: state.revision, emittedAt: Date(), awaitingNextEpisode: false)
+      relativePath: relativePath, position: min(duration, max(0, target)), duration: duration,
+      paused: lanUserPaused || lanWaitingForReady, rate: rate,
+      revision: state.revision, emittedAt: Date(), awaitingNextEpisode: false,
+      epoch: state.epoch, hostTime: state.hostTime, playAtHostTime: nil,
+      barrierGeneration: lanBarrierGeneration, seekGeneration: lanSeekGeneration,
+      waitingForReady: lanWaitingForReady, userPaused: lanUserPaused)
     guard relativePath == state.relativePath || wantsLANEpisodeSwitch else { return }
     if wantsLANEpisodeSwitch && lanSwitchSent { return }
     SharedShowLAN.shared.sendClientControl(command, switchEpisode: relativePath != state.relativePath,
@@ -682,7 +1017,29 @@ final class SharedShowSession {
 
   func applyLANState(_ state: SharedShowLAN.State) {
     guard lanFollowingRoomID == state.roomID, state.isValid else { return }
+    if let pending = lanPendingLocalSeekGeneration {
+      guard state.seekGeneration >= pending else { return }
+      lanPendingLocalSeekGeneration = nil
+    }
     lanState = state
+    lanSeekGeneration = state.seekGeneration
+    let newBarrier = state.barrierGeneration != lanBarrierGeneration
+    if newBarrier {
+      lanBarrierGeneration = state.barrierGeneration
+      lanLocalReady = false
+      lanRequiresObservedPause = true
+      lanFreshReadinessGeneration = nil
+      lanScheduledResume?.cancel(); lanScheduledResume = nil
+      player?.refreshSharedShowReadiness(generation: lanBarrierGeneration)
+    }
+    lanWaitingForReady = state.waitingForReady || !SharedShowLAN.shared.clockCalibrated
+    lanPlayAtHostTime = state.playAtHostTime
+    if lanPendingLocalPause == state.userPaused { lanPendingLocalPause = nil }
+    lanUserPaused = lanPendingLocalPause ?? state.userPaused
+    lanBaseRate = state.rate
+    if !lanWaitingForReady && !lanLocalReady {
+      player?.refreshSharedShowReadiness(generation: lanBarrierGeneration)
+    }
     if wantsLANEpisodeSwitch {
       if relativePath == state.relativePath,
          player?.info.currentURL == contextMedia, player?.info.state.loaded == true {
@@ -697,7 +1054,8 @@ final class SharedShowSession {
     }
     guard let player else { return }
     if showID == state.showID && relativePath == state.relativePath &&
-       player.info.state.loaded && player.info.currentURL == contextMedia {
+       player.info.state.loaded &&
+       (player.info.currentURL == contextMedia || player.info.currentURL == pendingRemoteTarget) {
       applyLANTransport(state)
       return
     }
@@ -760,42 +1118,132 @@ final class SharedShowSession {
     }
   }
 
-  private func applyLANTransport(_ state: SharedShowLAN.State) {
+  private func applyLANTransport(_ state: SharedShowLAN.State, explicitCommand: Bool = false) {
     guard let player, let duration = player.info.videoDuration?.second else { return }
     applyingRemote = true
     defer { applyingRemote = false }
-    if state.paused && player.info.state != .paused { player.pause() }
-    if abs(player.info.playSpeed - state.rate) > 0.001 { player.setSpeed(state.rate) }
-    if let position = player.info.videoPosition?.second {
-      let expected = state.paused ? state.position : state.position + min(2, Date().timeIntervalSince(state.emittedAt)) * state.rate
+    let effectiveUserPaused = lanFollowingRoomID != nil ? lanUserPaused : state.userPaused
+    let hostNow = SharedShowLAN.shared.estimatedHostTime() ?? state.hostTime
+    let futureStart = state.playAtHostTime.map { $0 > hostNow } ?? false
+    if lanFollowingRoomID != nil, let playAt = state.playAtHostTime,
+       hostNow - playAt > 0.02, player.info.state == .paused,
+       !effectiveUserPaused {
+      lanLocalReady = false
+      lanWaitingForReady = true
+      SharedShowLAN.shared.reportLocalReadiness(ready: false, generation: state.barrierGeneration)
+      return
+    }
+    if (state.paused || lanWaitingForReady || futureStart || effectiveUserPaused) &&
+        player.info.state != .paused { player.pause() }
+    let needsExactSeek = explicitCommand || (lanFollowingRoomID != nil &&
+      (lanLastAppliedPath != state.relativePath ||
+       lanLastAppliedSeekGeneration != state.seekGeneration))
+    if needsExactSeek {
+      if lanFollowingRoomID != nil && !SharedShowLAN.shared.clockCalibrated {
+        lanNeedsCalibratedJoinSeek = true
+      }
+      lanLastAppliedPath = state.relativePath
+      lanLastAppliedSeekGeneration = state.seekGeneration
+      lanRestartPending = true
+      lanLocalReady = false
+      let expected = SharedShowTimeline.projectedPosition(state, atHostTime: hostNow)
       let destination = min(max(0, duration - 0.5), max(0, expected))
-      if abs(position - destination) > SharedPlaybackSync.seekTolerance {
-        player.seek(absoluteSecond: destination)
+      lanExpectedSeekPosition = destination
+      lanSeekRequestedAt = ProcessInfo.processInfo.systemUptime
+      player.seek(absoluteSecond: destination)
+      if lanFollowingRoomID != nil {
+        SharedShowLAN.shared.reportLocalReadiness(ready: false, generation: state.barrierGeneration)
       }
     }
-    if !state.paused && player.info.state == .paused { player.resume() }
+    if lanAppliedBaseRate == nil || abs((lanAppliedBaseRate ?? 0) - state.rate) > 0.001 {
+      lanAppliedBaseRate = state.rate
+      player.setSpeed(state.rate)
+    }
+    if lanWaitingForReady || effectiveUserPaused { return }
+    if let playAt = state.playAtHostTime, futureStart, player.info.state == .paused {
+      scheduleLANResume(generation: state.barrierGeneration, hostTime: playAt)
+    } else if player.info.state == .paused && lanLocalReady {
+      player.resume()
+    }
     watchStatus = isHosting ? "Hosting Watch Together · \(writerID.uuidString.prefix(6))" :
       "Watching with \(state.hostName)"
     changed()
   }
 
+  private func correctLANRate() {
+    guard lanFollowingRoomID != nil, !lanWaitingForReady, !lanUserPaused,
+          let state = lanState, let player, let observed = lanObservedPosition,
+          let observedAt = lanObservedAt else { return }
+    let now = ProcessInfo.processInfo.systemUptime
+    guard now - lanLastTrimTime >= 0.2 else { return }
+    guard now >= observedAt, now - observedAt < 0.4 else { return }
+    lanLastTrimTime = now
+    let hostNow = SharedShowLAN.shared.estimatedHostTime(at: now) ?? state.hostTime
+    let expected = SharedShowTimeline.projectedPosition(state, atHostTime: hostNow)
+    let actual = observed + (now - observedAt) * player.info.playSpeed
+    let phase = expected - actual
+    lanFilteredPhaseError = lanFilteredPhaseError.map { 0.8 * $0 + 0.2 * phase } ?? phase
+    let rate = SharedShowTimeline.trimmedRate(baseRate: lanBaseRate,
+                                              expectedPosition: actual + (lanFilteredPhaseError ?? 0),
+                                              actualPosition: actual)
+    if abs(player.info.playSpeed - rate) > 0.001 {
+      player.setSharedShowCorrectionRate(rate)
+    }
+  }
+
   func applyLANCommand(_ state: SharedShowLAN.State, completion: @escaping (Bool) -> Void) {
     guard isHosting, lanRoomID == state.roomID, state.showID == showID,
           state.isValid, let player else { completion(false); return }
+    func applyIntent() -> Bool {
+      let seekChanged = state.seekGeneration != lanSeekGeneration
+      let startingPlayback = lanUserPaused && !state.userPaused
+      lanUserPaused = state.userPaused
+      lanBaseRate = state.rate
+      if seekChanged {
+        lanRestartPending = true
+        lanExpectedSeekPosition = state.position
+        lanSeekRequestedAt = ProcessInfo.processInfo.systemUptime
+      }
+      if seekChanged || startingPlayback { beginLANBarrier() }
+      if seekChanged { lanSeekGeneration = state.seekGeneration }
+      if state.userPaused {
+        lanScheduledResume?.cancel(); lanScheduledResume = nil
+        lanPlayAtHostTime = nil
+      }
+      return seekChanged
+    }
     if relativePath == state.relativePath && player.info.state.loaded {
-      applyLANTransport(state)
+      let seekChanged = applyIntent()
+      applyLANTransport(state, explicitCommand: seekChanged)
       completion(true)
       return
     }
+    lanCommandRestore = (lanUserPaused, lanBaseRate, lanSeekGeneration)
+    lanCommandTarget = nil
+    _ = applyIntent()
+    if !lanWaitingForReady { beginLANBarrier() }
+    publishLANState()
     lanResolveToken &+= 1
     let token = lanResolveToken
     let generation = self.generation
     SharedShowLAN.shared.resolve(state, preferredRoot: root) { [weak self] url in
       guard let self, self.isHosting, self.lanRoomID == state.roomID,
-            self.lanResolveToken == token, self.generation == generation,
-            let url else { completion(false); return }
+            self.lanResolveToken == token, self.generation == generation else {
+        completion(false); return
+      }
+      guard let url else {
+        self.cancelLANCommand()
+        completion(false)
+        return
+      }
+      self.lanCommandTarget = url
       self.applyingRemote = true
-      player.openURLsAsync([url], shouldAutoLoad: false) { count in completion(count == 1) }
+      player.openURLsAsync([url], shouldAutoLoad: false) { [weak self] count in
+        guard let self, self.lanResolveToken == token else { completion(false); return }
+        if count != 1 { self.cancelLANCommand() }
+        else { player.pause() }
+        completion(count == 1)
+      }
       self.applyingRemote = false
     }
   }

@@ -20,6 +20,7 @@ with tempfile.TemporaryDirectory(prefix="yina-shared-lan-") as directory:
         "xcrun", "swiftc", "-parse-as-library", "-swift-version", "5",
         "-module-cache-path", str(root / "modules"),
         str(repo / "other/tests/shared-show-lan-smoke.swift"),
+        str(repo / "yina/SharedShowClock.swift"),
         str(lan_source),
         "-o", str(binary),
     ], check=True)

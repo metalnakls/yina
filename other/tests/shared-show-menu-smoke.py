@@ -91,6 +91,7 @@ final class SharedShowLAN {
   struct Room { let id: UUID; let hostName: String; let title: String }
   static let shared = SharedShowLAN()
   var rooms: [Room] = []
+  var incompatibleHostCount = 0
   func join(_ room: Room, player: PlayerCore) {}
 }
 class PlayerWindowController: NSWindowController { var player: PlayerCore! }
@@ -246,6 +247,11 @@ func require(_ condition: @autoclosure () -> Bool, _ message: String) {
     fileMenu.performActionForItem(at: fileMenu.index(of: item(fileMenu, "Host Watch Together")!))
     require(player.sharedShow.calls == ["host"] && second.sharedShow.calls == ["enable", "enable"],
             "File action routed to a previous player")
+    SharedShowLAN.shared.incompatibleHostCount = 1
+    fileMenu.delegate?.menuNeedsUpdate?(fileMenu)
+    require(item(fileMenu, "Nearby host needs YINA 6")?.isEnabled == false,
+            "incompatible nearby host was hidden")
+    SharedShowLAN.shared.incompatibleHostCount = 0
     active = nil
     fileMenu.delegate?.menuNeedsUpdate?(fileMenu)
     require(item(fileMenu, "Open a local episode to share")?.isEnabled == false,
